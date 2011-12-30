@@ -14,21 +14,42 @@
 
 //MyServerConfig//
 
-const int DEFAULT_LOG_FILE_NUMBER = 3;
-const int DEFAULT_LOG_FILE_SIZE_IN_MB = 20;
+const int DEFAULT_MAX_CLIENTS = 10000;
 const bool DEFAULT_USE_MEM_POOL = true;
 const bool DEFAULT_RUN_AS_DEMON = false;
+
+const int DEFAULT_LOG_FILE_NUMBER = 3;
+const int DEFAULT_LOG_FILE_SIZE_IN_MB = 20;
 const bool DEFAULT_LOG_DEBUG_ENABLED = true;
 const bool DEFAULT_LOG_TO_STDERR = true;
+const int DEFAULT_MODULE_HEART_BEAT_PORT = 2222;
+
+const ACE_TCHAR * CONFIG_Section_Name = ACE_TEXT("global");
+
+const ACE_TCHAR * CONFIG_Use_Mem_Pool = ACE_TEXT("use_mem_pool");
+const ACE_TCHAR * CONFIG_Run_As_Demon = ACE_TEXT("run_as_demon");
+const ACE_TCHAR * CONFIG_Max_Clients = ACE_TEXT("max_clients");
+
+const ACE_TCHAR * CONFIG_Log_Debug_Enabled = ACE_TEXT("log.debug_enabled");
+const ACE_TCHAR * CONFIG_Log_To_Stderr = ACE_TEXT("log.to_stderr");
+const ACE_TCHAR * CONFIG_Log_File_Number = ACE_TEXT("log.file_number");
+const ACE_TCHAR * CONFIG_Log_File_Size = ACE_TEXT("log.file_size");
+
+const ACE_TCHAR * CONFIG_Heart_Beat_Port = ACE_TEXT("module.heart_beat.port");
+
 
 MyServerConfig::MyServerConfig()
 {
   use_mem_pool = DEFAULT_USE_MEM_POOL;
   run_as_demon = DEFAULT_RUN_AS_DEMON;
+  max_clients = DEFAULT_MAX_CLIENTS;
+
   log_debug_enabled = DEFAULT_LOG_DEBUG_ENABLED;
   log_file_number = DEFAULT_LOG_FILE_NUMBER;
   log_file_size_in_MB = DEFAULT_LOG_FILE_SIZE_IN_MB;
   log_to_stderr = DEFAULT_LOG_TO_STDERR;
+
+  module_heart_beat_port = DEFAULT_MODULE_HEART_BEAT_PORT;
 }
 
 void MyServerConfig::init_path()
@@ -69,14 +90,90 @@ bool MyServerConfig::loadConfig()
 {
   init_path();
 
+  ACE_Configuration_Heap cfgHeap;
+  if (cfgHeap.open () == -1)
+  {
+    MY_ERROR("config.open()\n");
+    return false;
+  }
+
+  ACE_Registry_ImpExp config_importer(cfgHeap);
+  if (config_importer.import_config (config_file_name.c_str()) == -1)
+  {
+    MY_ERROR("import_config() failed on %s\n", config_file_name.c_str());
+    return false;
+  }
+
+  ACE_Configuration_Section_Key section;
+  if (cfgHeap.open_section (cfgHeap.root_section (), CONFIG_Section_Name,
+                           0, section) == -1)
+  {
+    MY_ERROR("config.open_section failed, section = %s\n", CONFIG_Section_Name);
+    return false;
+  }
+
+  u_int ival;
+  if (cfgHeap.get_integer_value (section,  CONFIG_Use_Mem_Pool, ival) == 0)
+    use_mem_pool = (ival != 0);
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_Run_As_Demon, ival) == 0)
+    run_as_demon = (ival != 0);
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_Max_Clients, ival) == 0)
+  {
+    if (ival > 0 && ival <= 100000) //the upper limit of 100000 is more than enough?
+      max_clients = ival;
+  }
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_Log_File_Number, ival) == 0)
+  {
+    if (ival > 0 && ival <= 1000)
+      log_file_number = ival;
+  }
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_Log_File_Size, ival) == 0)
+  {
+    if (ival > 0 && ival <= 10000)
+      log_file_size_in_MB = ival;
+  }
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_Log_Debug_Enabled, ival) == 0)
+  {
+    log_debug_enabled = (ival != 0);
+  }
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_Log_To_Stderr, ival) == 0)
+  {
+    log_to_stderr = (ival != 0);
+  }
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_Log_To_Stderr, ival) == 0)
+  {
+    if (ival == 0 || ival >= 65535)
+    {
+      MY_ERROR(ACE_TEXT("Invalid heart beat tcp port number: %d!\n"), ival);
+      return false;
+    }
+    module_heart_beat_port = ival;
+  }
+
   return true;
 }
 
 void MyServerConfig::dump_config_info()
 {
-  MY_INFO(ACE_TEXT ("this is info\n"));
+  MY_INFO(ACE_TEXT ("Loaded configuration:\n"));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Use_Mem_Pool, use_mem_pool));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Run_As_Demon, run_as_demon));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Max_Clients, max_clients));
 
-  ACE_DEBUG ((LM_INFO, ACE_TEXT ("(%D %P|%t %N.%l)\n")));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Log_File_Number, log_file_number));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Log_File_Size, log_file_size_in_MB));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Log_Debug_Enabled, log_debug_enabled));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Log_To_Stderr, log_to_stderr));
+
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Heart_Beat_Port, module_heart_beat_port));
+
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tstatus_file = %s\n"), status_file_name.c_str()));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tlog_file = %s\n"), log_file_name.c_str()));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tconfig_file = %s\n"), config_file_name.c_str()));
@@ -123,7 +220,11 @@ bool MyServerApp::isRunning() const
 
 void MyServerApp::app_init()
 {
-  MyServerAppX::instance()->m_config.loadConfig();
+  if (!MyServerAppX::instance()->m_config.loadConfig())
+  {
+    MY_ERROR(ACE_TEXT("error loading config file, quitting\n"));
+    exit(5);
+  }
   if (MyServerAppX::instance()->m_config.run_as_demon)
     MyServerApp::app_demonize();
 //  MyServerAppX::instance()->m_config.dump_config_info();
@@ -160,7 +261,7 @@ void MyServerApp::app_demonize()
 void MyServerApp::init_log()
 {
   const char * cmd = "dynamic Logger Service_Object *ACE:_make_ACE_Logging_Strategy()"
-   "\"-o -s %s -N %d -m %d000 -i 1 -f STDERR|OSTREAM \""; //-p INFO -f STDERR|OSTREAM
+   "\"-o -s %s -N %d -m %d000 -i 1 -f STDERR|OSTREAM \"";
 
   int m = strlen(cmd) + m_config.log_file_name.length() + 100;
   char * buff = new char[m];

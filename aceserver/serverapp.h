@@ -10,6 +10,7 @@
 
 #include <ace/Singleton.h>
 #include <string>
+#include <ace/Configuration_Import_Export.h>
 
 class MyHeartBeatModule;
 
@@ -20,12 +21,17 @@ public:
   bool loadConfig();
   void dump_config_info();
 
+  int  max_clients;
+  bool use_mem_pool;
+  bool run_as_demon;
+
   int  log_file_number;
   int  log_file_size_in_MB;
-  bool use_mem_pool;
   bool log_debug_enabled;
-  bool run_as_demon;
   bool log_to_stderr;
+
+  int module_heart_beat_port;
+
   std::string exe_path;
   std::string status_file_name;
   std::string log_file_name;
