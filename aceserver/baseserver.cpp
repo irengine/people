@@ -351,7 +351,7 @@ bool MyBaseModule::isRunning() const
 
 bool MyBaseModule::isRunning_app() const
 {
-  return (m_running && MyServerAppX::instance()->isRunning());
+  return (m_running && MyServerAppX::instance()->running());
 }
 
 MyBaseDispatcher * MyBaseModule::dispatcher() const

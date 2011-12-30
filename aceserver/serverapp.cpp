@@ -23,10 +23,12 @@ const int DEFAULT_LOG_FILE_SIZE_IN_MB = 20;
 const bool DEFAULT_LOG_DEBUG_ENABLED = true;
 const bool DEFAULT_LOG_TO_STDERR = true;
 const int DEFAULT_MODULE_HEART_BEAT_PORT = 2222;
+const int DEFAULT_MEM_POOL_DUMP_INTERVAL = 30;
 
 const ACE_TCHAR * CONFIG_Section_Name = ACE_TEXT("global");
 
 const ACE_TCHAR * CONFIG_Use_Mem_Pool = ACE_TEXT("use_mem_pool");
+const ACE_TCHAR * CONFIG_Mem_Pool_Dump_Interval = ACE_TEXT("mem_pool_dump_interval");
 const ACE_TCHAR * CONFIG_Run_As_Demon = ACE_TEXT("run_as_demon");
 const ACE_TCHAR * CONFIG_Max_Clients = ACE_TEXT("max_clients");
 
@@ -43,6 +45,7 @@ MyServerConfig::MyServerConfig()
   use_mem_pool = DEFAULT_USE_MEM_POOL;
   run_as_demon = DEFAULT_RUN_AS_DEMON;
   max_clients = DEFAULT_MAX_CLIENTS;
+  mem_pool_dump_interval = DEFAULT_MEM_POOL_DUMP_INTERVAL;
 
   log_debug_enabled = DEFAULT_LOG_DEBUG_ENABLED;
   log_file_number = DEFAULT_LOG_FILE_NUMBER;
@@ -138,14 +141,13 @@ bool MyServerConfig::loadConfig()
   }
 
   if (cfgHeap.get_integer_value (section,  CONFIG_Log_Debug_Enabled, ival) == 0)
-  {
     log_debug_enabled = (ival != 0);
-  }
 
   if (cfgHeap.get_integer_value (section,  CONFIG_Log_To_Stderr, ival) == 0)
-  {
     log_to_stderr = (ival != 0);
-  }
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_Mem_Pool_Dump_Interval, ival) == 0)
+    mem_pool_dump_interval = ival;
 
   if (cfgHeap.get_integer_value (section,  CONFIG_Log_To_Stderr, ival) == 0)
   {
@@ -163,9 +165,10 @@ bool MyServerConfig::loadConfig()
 void MyServerConfig::dump_config_info()
 {
   MY_INFO(ACE_TEXT ("Loaded configuration:\n"));
-  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Use_Mem_Pool, use_mem_pool));
-  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Run_As_Demon, run_as_demon));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Max_Clients, max_clients));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Run_As_Demon, run_as_demon));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Use_Mem_Pool, use_mem_pool));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Mem_Pool_Dump_Interval, mem_pool_dump_interval));
 
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Log_File_Number, log_file_number));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Log_File_Size, log_file_size_in_MB));
@@ -182,17 +185,50 @@ void MyServerConfig::dump_config_info()
 }
 
 
+//MySigHandler//
+
+MySigHandler::MySigHandler(MyServerApp * app)
+{
+  m_app = app;
+}
+
+int MySigHandler::handle_signal (int signum, siginfo_t*, ucontext_t*)
+{
+  m_app->on_sig_event(signum);
+  return 0;
+};
+
+
+//MyStatusFileChecker//
+
+MyStatusFileChecker::MyStatusFileChecker(MyServerApp * app)
+{
+  m_app = app;
+}
+
+int MyStatusFileChecker::handle_timeout(const ACE_Time_Value &, const void *)
+{
+  struct stat st;
+  if (::stat(m_app->server_config().status_file_name.c_str(), &st) == -1 && errno == ENOENT)
+    m_app->on_status_file_missing();
+  return 0;
+}
+
+
 //MyServerApp//
 
-MyServerApp::MyServerApp()
+MyServerApp::MyServerApp(): m_sig_handler(this)
 {
-  m_isRunning = false;
+  m_is_running = false;
   //moved the initializations of modules to the static app_init() func
   //Just can NOT do it in constructor simply because the singleton pattern
   //will make recursively calls to our constructor by the module constructor's ref
   //to MyServerApp's singleton.
   //This is Ugly, but works right now
   m_heart_beat_module = NULL;
+  m_sighup = false;
+  m_sigterm = false;
+  m_status_file_ok = true;;
 }
 
 void MyServerApp::do_constructor()
@@ -200,22 +236,29 @@ void MyServerApp::do_constructor()
   init_log();
   m_config.dump_config_info();
   m_heart_beat_module = new MyHeartBeatModule();
+
+  m_ace_sig_handler.register_handler(SIGHUP, &m_sig_handler);
+  m_ace_sig_handler.register_handler(SIGTERM, &m_sig_handler);
+
 }
 
 MyServerApp::~MyServerApp()
 {
+  m_ace_sig_handler.remove_handler(SIGHUP);
+  m_ace_sig_handler.remove_handler(SIGTERM);
+
   stop();
   delete m_heart_beat_module;
 }
 
-const MyServerConfig & MyServerApp::ServerConfig() const
+const MyServerConfig & MyServerApp::server_config() const
 {
   return m_config;
 }
 
-bool MyServerApp::isRunning() const
+bool MyServerApp::running() const
 {
-  return m_isRunning;
+  return m_is_running;
 }
 
 void MyServerApp::app_init()
@@ -227,13 +270,13 @@ void MyServerApp::app_init()
   }
   if (MyServerAppX::instance()->m_config.run_as_demon)
     MyServerApp::app_demonize();
-//  MyServerAppX::instance()->m_config.dump_config_info();
-  MyHeartBeatHandler::init_mem_pool(1000);
+  MyHeartBeatHandler::init_mem_pool(MyServerAppX::instance()->m_config.max_clients);
   MyServerAppX::instance()->do_constructor();
 }
 
 void MyServerApp::app_fini()
 {
+  MyServerApp::dump_memory_pool_info();
   MyServerAppX::close();  //this comes before the releasing of memory pool
   MyHeartBeatHandler::fini_mem_pool();
 }
@@ -266,10 +309,10 @@ void MyServerApp::init_log()
   int m = strlen(cmd) + m_config.log_file_name.length() + 100;
   char * buff = new char[m];
   std::snprintf(buff, m, cmd, m_config.log_file_name.c_str(), m_config.log_file_number, m_config.log_file_size_in_MB);
-//  std::printf("log_config=%s\n", buff);
   if (ACE_Service_Config::process_directive (buff) == -1)
   {
-    MY_ERROR("init_log.config_log failed\n");
+    std::printf("ACE_Service_Config::process_directive failed, args = %s\n", buff);
+    exit(6);
   }
   delete []buff;
   u_long log_mask = LM_INFO | LM_WARNING | LM_ERROR;
@@ -292,9 +335,9 @@ void MyServerApp::dump_memory_pool_info()
   {
     MyHeartBeatHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse);
     nInUse = nAlloc - nFree;
-    ACE_DEBUG ((LM_DEBUG,
-               ACE_TEXT ("(%P|%t) memory info dump, inUse = %d, alloc = %d, free = %d, maxInUse = %d\n"),
-               nInUse, nAlloc, nFree, nMaxUse));
+
+    MY_INFO (ACE_TEXT ("(%P|%t) memory info dump, inUse = %d, alloc = %d, free = %d, maxInUse = %d\n"),
+             nInUse, nAlloc, nFree, nMaxUse);
   }
 }
 
@@ -305,16 +348,69 @@ MyHeartBeatModule * MyServerApp::heart_beat_module() const
 
 void MyServerApp::start()
 {
-  if (m_isRunning)
+  if (m_is_running)
     return;
-  m_isRunning = true;
+  m_is_running = true;
   m_heart_beat_module->start();
+
+  do_event_loop();
 }
 
 void MyServerApp::stop()
 {
-  if (!m_isRunning)
+  if (!m_is_running)
     return;
-  m_isRunning = false;
+  m_is_running = false;
   m_heart_beat_module->stop();
+}
+
+void MyServerApp::on_sig_event(int signum)
+{
+  switch (signum)
+  {
+  case SIGTERM:
+    m_sigterm = true;
+    break;
+  case SIGHUP:
+    m_sighup = true;
+    break;
+  }
+  MY_DEBUG("signal caught %d\n", signum);
+}
+
+void MyServerApp::do_event_loop()
+{
+
+  while(true)
+  {
+    ACE_Time_Value timeout(2);
+    ACE_Reactor::instance()->run_reactor_event_loop(timeout);
+    if (m_sigterm)
+    {
+      MY_INFO("singal sigterm caught, quitting...\n");
+      return;
+    }
+    if (m_sighup && !do_sighup())
+    {
+      MY_INFO("singal sigterm caught, quitting...\n");
+      return;
+    }
+    if (!m_status_file_ok)
+    {
+      MY_INFO("status file missing, quitting...\n");
+      return;
+    }
+  }
+}
+
+bool MyServerApp::do_sighup()
+{
+
+  m_sighup = false;
+  return true;
+}
+
+void MyServerApp::on_status_file_missing()
+{
+  m_status_file_ok = false;
 }

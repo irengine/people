@@ -86,7 +86,7 @@ private:
     static void* operator new(size_t _size, std::new_handler p = 0) \
     { \
       ACE_UNUSED_ARG(p); \
-      if (_size != sizeof(Cls) || !MyServerAppX::instance()->ServerConfig().use_mem_pool) \
+      if (_size != sizeof(Cls) || !MyServerAppX::instance()->server_config().use_mem_pool) \
         return ::operator new(_size); \
       void* _ptr = m_mem_pool->malloc(); \
       if (_ptr) \
@@ -100,10 +100,9 @@ private:
     } \
     static void operator delete(void* _ptr) \
     { \
-      ACE_DEBUG ((LM_DEBUG, ACE_TEXT ("(%P|%t) calling operator delete(), ptr = %d\n"), long(_ptr))); \
       if (_ptr != NULL) \
       { \
-        if (!MyServerAppX::instance()->ServerConfig().use_mem_pool) \
+        if (!MyServerAppX::instance()->server_config().use_mem_pool) \
         { \
           ::operator delete(_ptr); \
           return; \
@@ -113,7 +112,7 @@ private:
     } \
     static void init_mem_pool(int pool_size) \
     { \
-      if (MyServerAppX::instance()->ServerConfig().use_mem_pool) \
+      if (MyServerAppX::instance()->server_config().use_mem_pool) \
         m_mem_pool = new Mem_Pool(pool_size); \
     } \
     static void fini_mem_pool() \
@@ -137,7 +136,7 @@ private:
     static void* operator new(size_t _size, std::new_handler p = 0) throw() \
     { \
       ACE_UNUSED_ARG(p); \
-      if (_size != sizeof(Cls)) \
+      if (_size != sizeof(Cls) || !MyServerAppX::instance()->server_config().use_mem_pool) \
         return ::operator new(_size); \
       return m_mem_pool->malloc(); \
     } \
@@ -145,7 +144,7 @@ private:
     { \
       if (_ptr != NULL) \
       { \
-        if (unlikely(size != sizeof(Cls))) \
+        if (!MyServerAppX::instance()->server_config().use_mem_pool) \
         { \
           ::operator delete(_ptr); \
           return; \
@@ -155,12 +154,16 @@ private:
     } \
     static void init_mem_pool(int pool_size) \
     { \
-      m_mem_pool = new Mem_Pool(pool_size); \
+      if (MyServerAppX::instance()->server_config().use_mem_pool) \
+        m_mem_pool = new Mem_Pool(pool_size); \
     } \
     static void fini_mem_pool() \
     { \
-      delete m_mem_pool; \
-      m_mem_pool = NULL; \
+      if (m_mem_pool) \
+      { \
+        delete m_mem_pool; \
+        m_mem_pool = NULL; \
+      } \
     } \
   private: \
     static Mem_Pool * m_mem_pool

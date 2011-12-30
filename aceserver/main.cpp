@@ -30,7 +30,7 @@ int main(int argc, const char * argv[])
   {
     ACE_OS::sleep(2);
     ACE_DEBUG ((LM_DEBUG,
-               ACE_TEXT ("(%P|%t) MyHeartBeatModule->isRunning() = %d\n"), MyServerAppX::instance()->isRunning()));
+               ACE_TEXT ("(%P|%t) MyHeartBeatModule->isRunning() = %d\n"), MyServerAppX::instance()->running()));
 
   }
   MyServerApp::dump_memory_pool_info();
@@ -45,14 +45,15 @@ int main(int argc, const char * argv[])
   ACE_DEBUG ((LM_DEBUG,
              ACE_TEXT ("(%P|%t) deleting module ...\n")));
 #else
+/*
   int i = 0;
   while (++i <= 30)
   {
     ACE_Time_Value timeout(2);
     ACE_Reactor::instance()->handle_events (&timeout);
   }
+*/
 #endif
-  MyServerApp::dump_memory_pool_info();
   MyServerApp::app_fini();
   return 0;
 }

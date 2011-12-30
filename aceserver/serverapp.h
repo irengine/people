@@ -13,6 +13,7 @@
 #include <ace/Configuration_Import_Export.h>
 
 class MyHeartBeatModule;
+class MyServerApp;
 
 class MyServerConfig
 {
@@ -24,6 +25,7 @@ public:
   int  max_clients;
   bool use_mem_pool;
   bool run_as_demon;
+  int  mem_pool_dump_interval;
 
   int  log_file_number;
   int  log_file_size_in_MB;
@@ -42,14 +44,34 @@ private:
 };
 
 
+class MySigHandler: public ACE_Event_Handler
+{
+public:
+  MySigHandler(MyServerApp * app);
+  virtual int handle_signal (int signum,
+                             siginfo_t * = 0,
+                             ucontext_t * = 0);
+private:
+  MyServerApp * m_app;
+};
+
+class MyStatusFileChecker: public ACE_Event_Handler
+{
+public:
+  MyStatusFileChecker(MyServerApp * app);
+  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
+
+private:
+  MyServerApp * m_app;
+};
 
 class MyServerApp
 {
 public:
   MyServerApp();
   ~MyServerApp();
-  const MyServerConfig & ServerConfig() const;
-  bool isRunning() const;
+  const MyServerConfig & server_config() const;
+  bool running() const;
 
   static void app_init();
   static void app_fini();
@@ -62,11 +84,25 @@ public:
   static void dump_memory_pool_info();
   MyHeartBeatModule * heart_beat_module() const;
 
+protected:
+  friend class MySigHandler;
+  friend class MyStatusFileChecker;
+
+  void on_sig_event(int signum);
+  void do_event_loop();
+  bool do_sighup();
+  void on_status_file_missing();
+
 private:
   void do_constructor();
   MyServerConfig m_config;
   MyHeartBeatModule * m_heart_beat_module;
-  bool m_isRunning;
+  MySigHandler m_sig_handler;
+  ACE_Sig_Handler m_ace_sig_handler;
+  bool m_is_running;
+  bool m_sighup;
+  bool m_sigterm;
+  bool m_status_file_ok;
 };
 
 typedef ACE_Unmanaged_Singleton<MyServerApp, ACE_Null_Mutex> MyServerAppX;

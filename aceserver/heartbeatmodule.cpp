@@ -76,7 +76,7 @@ MyBaseAcceptor * MyHeartBeatDispatcher::makeAcceptor()
 MyHeartBeatModule::MyHeartBeatModule()
 {
   m_service = new MyHeartBeatService(this, 1);
-  m_dispatcher = new MyHeartBeatDispatcher(this, 2222);
+  m_dispatcher = new MyHeartBeatDispatcher(this, MyServerAppX::instance()->server_config().module_heart_beat_port);
 }
 
 MyHeartBeatModule::~MyHeartBeatModule()
