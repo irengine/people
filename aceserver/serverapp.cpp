@@ -17,6 +17,7 @@
 const int DEFAULT_MAX_CLIENTS = 10000;
 const bool DEFAULT_USE_MEM_POOL = true;
 const bool DEFAULT_RUN_AS_DEMON = false;
+const int  DEFAULT_STATUS_FILE_CHECK_INTERVAL = 3;
 
 const int DEFAULT_LOG_FILE_NUMBER = 3;
 const int DEFAULT_LOG_FILE_SIZE_IN_MB = 20;
@@ -31,6 +32,7 @@ const ACE_TCHAR * CONFIG_Use_Mem_Pool = ACE_TEXT("use_mem_pool");
 const ACE_TCHAR * CONFIG_Mem_Pool_Dump_Interval = ACE_TEXT("mem_pool_dump_interval");
 const ACE_TCHAR * CONFIG_Run_As_Demon = ACE_TEXT("run_as_demon");
 const ACE_TCHAR * CONFIG_Max_Clients = ACE_TEXT("max_clients");
+const ACE_TCHAR * CONFIG_Status_File_Check_Interval = ACE_TEXT("status_file_check_interval");
 
 const ACE_TCHAR * CONFIG_Log_Debug_Enabled = ACE_TEXT("log.debug_enabled");
 const ACE_TCHAR * CONFIG_Log_To_Stderr = ACE_TEXT("log.to_stderr");
@@ -46,6 +48,7 @@ MyServerConfig::MyServerConfig()
   run_as_demon = DEFAULT_RUN_AS_DEMON;
   max_clients = DEFAULT_MAX_CLIENTS;
   mem_pool_dump_interval = DEFAULT_MEM_POOL_DUMP_INTERVAL;
+  status_file_check_interval = DEFAULT_STATUS_FILE_CHECK_INTERVAL;
 
   log_debug_enabled = DEFAULT_LOG_DEBUG_ENABLED;
   log_file_number = DEFAULT_LOG_FILE_NUMBER;
@@ -127,6 +130,9 @@ bool MyServerConfig::loadConfig()
     if (ival > 0 && ival <= 100000) //the upper limit of 100000 is more than enough?
       max_clients = ival;
   }
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_Status_File_Check_Interval, ival) == 0)
+    status_file_check_interval = ival;
 
   if (cfgHeap.get_integer_value (section,  CONFIG_Log_File_Number, ival) == 0)
   {
@@ -217,7 +223,7 @@ int MyStatusFileChecker::handle_timeout(const ACE_Time_Value &, const void *)
 
 //MyServerApp//
 
-MyServerApp::MyServerApp(): m_sig_handler(this)
+MyServerApp::MyServerApp(): m_sig_handler(this), m_status_file_checker(this)
 {
   m_is_running = false;
   //moved the initializations of modules to the static app_init() func
@@ -228,17 +234,37 @@ MyServerApp::MyServerApp(): m_sig_handler(this)
   m_heart_beat_module = NULL;
   m_sighup = false;
   m_sigterm = false;
-  m_status_file_ok = true;;
+  m_status_file_ok = true;
+  m_status_file_checking = false;
 }
 
 void MyServerApp::do_constructor()
 {
   init_log();
   m_config.dump_config_info();
+  MY_INFO(ACE_TEXT("loading modules...\n"));
   m_heart_beat_module = new MyHeartBeatModule();
+
+  MY_INFO(ACE_TEXT("loading modules done!\n"));
 
   m_ace_sig_handler.register_handler(SIGHUP, &m_sig_handler);
   m_ace_sig_handler.register_handler(SIGTERM, &m_sig_handler);
+  if (m_config.status_file_check_interval != 0)
+  {
+    int fd = open(m_config.status_file_name.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd == -1)
+    {
+      MY_WARNING(ACE_TEXT("status_file_check_interval enabled, but can not create/open file %s\n"),
+          m_config.status_file_name.c_str());
+      return;
+    }
+    close(fd);
+    m_status_file_checking = true;
+      //m_app->server_config().status_file_name.c_str()
+    ACE_Time_Value interval (m_config.status_file_check_interval * 60);
+    ACE_Reactor::instance()->schedule_timer (&m_status_file_checker,
+                             0, interval, interval);
+  }
 
 }
 
@@ -246,7 +272,8 @@ MyServerApp::~MyServerApp()
 {
   m_ace_sig_handler.remove_handler(SIGHUP);
   m_ace_sig_handler.remove_handler(SIGTERM);
-
+  if (m_status_file_checking)
+    ACE_Reactor::instance()->cancel_timer(&m_status_file_checker);
   stop();
   delete m_heart_beat_module;
 }
@@ -265,7 +292,7 @@ void MyServerApp::app_init()
 {
   if (!MyServerAppX::instance()->m_config.loadConfig())
   {
-    MY_ERROR(ACE_TEXT("error loading config file, quitting\n"));
+    std::printf("error loading config file, quitting\n");
     exit(5);
   }
   if (MyServerAppX::instance()->m_config.run_as_demon)
@@ -326,6 +353,7 @@ void MyServerApp::init_log()
 
   if (m_config.run_as_demon || !m_config.log_to_stderr)
     ACE_LOG_MSG->clr_flags(ACE_Log_Msg::STDERR);
+  MY_INFO("Starting server (Ver: %s)...\n", const_server_version);
 }
 
 void MyServerApp::dump_memory_pool_info()
@@ -350,9 +378,10 @@ void MyServerApp::start()
 {
   if (m_is_running)
     return;
+  MY_INFO(ACE_TEXT("starting modules...\n"));
   m_is_running = true;
   m_heart_beat_module->start();
-
+  MY_INFO(ACE_TEXT("starting modules done!\n"));
   do_event_loop();
 }
 
@@ -360,8 +389,10 @@ void MyServerApp::stop()
 {
   if (!m_is_running)
     return;
+  MY_INFO(ACE_TEXT("stopping modules...\n"));
   m_is_running = false;
   m_heart_beat_module->stop();
+  MY_INFO(ACE_TEXT("stopping modules done!\n"));
 }
 
 void MyServerApp::on_sig_event(int signum)
@@ -387,17 +418,17 @@ void MyServerApp::do_event_loop()
     ACE_Reactor::instance()->run_reactor_event_loop(timeout);
     if (m_sigterm)
     {
-      MY_INFO("singal sigterm caught, quitting...\n");
+      MY_INFO("signal sigterm caught, quitting...\n");
       return;
     }
     if (m_sighup && !do_sighup())
     {
-      MY_INFO("singal sigterm caught, quitting...\n");
+      MY_INFO("signal sighup caught, quitting...\n");
       return;
     }
     if (!m_status_file_ok)
     {
-      MY_INFO("status file missing, quitting...\n");
+      MY_INFO("status file checking failed, quitting...\n");
       return;
     }
   }

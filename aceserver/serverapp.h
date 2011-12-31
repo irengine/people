@@ -12,6 +12,8 @@
 #include <string>
 #include <ace/Configuration_Import_Export.h>
 
+const ACE_TCHAR * const_server_version = ACE_TEXT("1.0");
+
 class MyHeartBeatModule;
 class MyServerApp;
 
@@ -26,6 +28,7 @@ public:
   bool use_mem_pool;
   bool run_as_demon;
   int  mem_pool_dump_interval;
+  int  status_file_check_interval;
 
   int  log_file_number;
   int  log_file_size_in_MB;
@@ -99,10 +102,12 @@ private:
   MyHeartBeatModule * m_heart_beat_module;
   MySigHandler m_sig_handler;
   ACE_Sig_Handler m_ace_sig_handler;
+  MyStatusFileChecker m_status_file_checker;
   bool m_is_running;
   bool m_sighup;
   bool m_sigterm;
   bool m_status_file_ok;
+  bool m_status_file_checking;
 };
 
 typedef ACE_Unmanaged_Singleton<MyServerApp, ACE_Null_Mutex> MyServerAppX;
