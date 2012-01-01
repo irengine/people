@@ -1,6 +1,92 @@
 #include "baseserver.h"
 
-//MyBaseModule//
+
+//MyClientInfos//
+
+MyClientInfos::MyClientInfos()
+{
+  m_infos.reserve(1000);
+}
+
+bool MyClientInfos::contains(long id)
+{
+  return (index_of(id) >= 0);
+}
+
+MyBaseHandler * MyClientInfos::find_handler(long id)
+{
+  int index = index_of(id);
+  if (index < 0 || index > (int)m_infos.size())
+    return NULL;
+  return m_infos[index].handler;
+}
+void MyClientInfos::set_handler(long id, MyBaseHandler * handler)
+{
+  int index = index_of(id);
+  if (!(index >= 0 && index <(int)m_infos.size()))
+    return;
+  m_infos[index].handler = handler;
+  /*
+  ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_mutex);
+  ClientInfos_map::iterator it;
+  int index = index_of_i(id, &it);
+  bool bExisting = (index >= 0 && index <(int)m_infos.size());
+  bool bRemove = (handler == NULL);
+  if (bRemove)
+  {
+    if (!bExisting)
+      return;
+    m_infos[index].handler = handler;
+    m_map.
+  }else
+  {
+    m_infos[index].handler = handler;
+  }
+  */
+
+}
+
+void MyClientInfos::add(MyClientInfo aInfo)
+{
+  ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_mutex);
+  int index = index_of_i(aInfo.client_id_long);
+  if (index >= 0)
+    return;
+  m_infos.push_back(aInfo);
+  m_map[aInfo.client_id_long] = m_infos.size() - 1;
+}
+
+int MyClientInfos::index_of(long id)
+{
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_mutex, -1);
+  return index_of_i(id);
+}
+
+int MyClientInfos::index_of_i(long id, ClientInfos_map::iterator * pIt)
+{
+  ClientInfos_map::iterator it = m_map.find(id);
+  if (pIt)
+    *pIt = it;
+  if (it == m_map.end())
+    return -1;
+  if (it->second < 0 || it->second >= (int)m_infos.size())
+  {
+    MY_ERROR("Invalid MyClientInfos map index = %d\n", it->second);
+    return -1;
+  }
+  return it->second;
+}
+
+
+//MyBaseHandler//
+
+
+MyBaseHandler::MyBaseHandler(MyBaseAcceptor * xptr)
+{
+  if (xptr)
+    m_active_pointer = xptr->m_active_connections.end();
+  m_client_id = 0;
+}
 
 MyBaseModule * MyBaseHandler::module_x() const
 {
@@ -12,11 +98,32 @@ MyBaseAcceptor * MyBaseHandler::acceptor() const
   return module_x()->dispatcher()->acceptor();
 }
 
+void MyBaseHandler::active_pointer(MyActiveConnectionPointer ptr)
+{
+  m_active_pointer = ptr;
+}
+
+MyActiveConnectionPointer MyBaseHandler::active_pointer()
+{
+  return m_active_pointer;
+}
+
+bool MyBaseHandler::client_id_verified() const
+{
+  return (m_client_id != MyClientInfo::INVALID_CLIENT_ID);
+}
+
+long MyBaseHandler::client_id() const
+{
+  return m_client_id;
+}
+
+
 int MyBaseHandler::open(void * p)
 {
   if (super::open(p) == -1)
     return -1;
-  acceptor()->OnNewConnection(this);
+  acceptor()->on_new_connection(this);
   return 0;
 }
 
@@ -37,7 +144,7 @@ int MyBaseHandler::handle_input (ACE_HANDLE)
 //  ACE_DEBUG ((LM_DEBUG,
 //            ACE_TEXT ("(%P|%t) handle_input, data size= %d\n"), recv_cnt));
 
-  acceptor()->OnDataReceived(this, long(recv_cnt));
+  acceptor()->on_data_received(this, long(recv_cnt));
   //g_bytes += recv_cnt;
   ACE_Message_Block * mb;
   ACE_NEW_RETURN(mb, ACE_Message_Block (&buffer[0], recv_cnt), -1);
@@ -62,7 +169,7 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
   if (close_mask == ACE_Event_Handler::WRITE_MASK)
     return 0;
 
-  acceptor()->OnCloseConnection(this);
+  acceptor()->on_close_connection(this);
   //here comes the tricky part, parent class will NOT call delete as it normally does
   //since we override the operator new/delete pair, the same thing parent class does
   //see ACE_Svc_Handler @ Svc_Handler.cpp
@@ -129,24 +236,54 @@ long MyBaseAcceptor::bytes_processed() const
   return m_bytes_processed;
 }
 
-void MyBaseAcceptor::OnDataReceived(MyBaseHandler *, long data_size)
+void MyBaseAcceptor::on_data_received(MyBaseHandler *, long data_size)
 {
   m_bytes_received += data_size;
 }
 
-void MyBaseAcceptor::OnDataProcessed(MyBaseHandler *, long data_size)
+void MyBaseAcceptor::on_data_processed(MyBaseHandler *, long data_size)
 {
   m_bytes_processed += data_size;
 }
 
-void MyBaseAcceptor::OnNewConnection(MyBaseHandler *)
+void MyBaseAcceptor::on_new_connection(MyBaseHandler * handler)
 {
+  if (handler == NULL)
+    return;
+  MyActiveConnectionPointer it = m_active_connections.insert(m_active_connections.end(), handler);
+  handler->active_pointer(it);
+//  handler->active_pointer()
   ++m_num_connections;
 }
 
-void MyBaseAcceptor::OnCloseConnection(MyBaseHandler *)
+void MyBaseAcceptor::on_close_connection(MyBaseHandler * handler)
 {
+  if (handler == NULL)
+    return;
+
+  if (handler->client_id_verified())
+  {
+    //todo:
+    m_client_infos.set_handler(handler->client_id(), NULL);
+  }
+
+  MyActiveConnectionPointer aPointer = handler->active_pointer();
+  if (aPointer == m_active_connections.end())
+    return;
+  if (m_scan_pointer == aPointer)
+    next_pointer();
+  m_active_connections.erase(aPointer);
   --m_num_connections;
+}
+
+bool MyBaseAcceptor::next_pointer()
+{
+  if (m_scan_pointer == m_active_connections.end())
+    m_scan_pointer = m_active_connections.begin();
+  else
+    ++m_scan_pointer;
+
+  return m_scan_pointer == m_active_connections.end();
 }
 
 
@@ -207,7 +344,7 @@ int MyBaseDispatcher::open (void *)
 //  m_dev_reactor = new ACE_Dev_Poll_Reactor(ACE::max_handles());
   m_reactor = new ACE_Reactor(new ACE_Dev_Poll_Reactor(ACE::max_handles()), true);
   reactor(m_reactor);
-  m_acceptor = makeAcceptor();
+  m_acceptor = make_acceptor();
   if (m_acceptor == NULL)
     return -1;
   m_acceptor->reactor(m_reactor);
@@ -268,7 +405,7 @@ int MyBaseDispatcher::svc()
   ACE_DEBUG ((LM_DEBUG,
              ACE_TEXT ("(%P|%t) entering MyBaseDispatcher::svc()\n")));
 
-  while (m_module->isRunning_app())
+  while (m_module->is_running_app())
   {
     ACE_Time_Value timeout(2);
     int ret = m_acceptor->reactor()->handle_events (&timeout);
@@ -322,7 +459,7 @@ int MyBaseDispatcher::handle_timeout (const ACE_Time_Value &tv,
 //    return (this->msg_queue()->is_empty ()) ? -1 : 0;
 }
 
-MyBaseAcceptor * MyBaseDispatcher::makeAcceptor()
+MyBaseAcceptor * MyBaseDispatcher::make_acceptor()
 {
   return NULL;
 }
@@ -344,12 +481,12 @@ MyBaseModule::~MyBaseModule()
     delete m_dispatcher;
 }
 
-bool MyBaseModule::isRunning() const
+bool MyBaseModule::is_running() const
 {
   return m_running;
 }
 
-bool MyBaseModule::isRunning_app() const
+bool MyBaseModule::is_running_app() const
 {
   return (m_running && MyServerAppX::instance()->running());
 }

@@ -10,6 +10,11 @@
 
 //MyHeartBeatHandler//
 
+MyHeartBeatHandler::MyHeartBeatHandler(MyBaseAcceptor * xptr): MyBaseHandler(xptr)
+{
+
+}
+
 MyBaseModule * MyHeartBeatHandler::module_x() const
 {
   return MyServerAppX::instance()->heart_beat_module();
@@ -36,7 +41,7 @@ int MyHeartBeatService::svc()
 //               ACE_TEXT ("(%P|%t) svc data from queue, size = %d\n"),
 //               log_blk->size()));
 
-    module_x()->dispatcher()->acceptor()->OnDataProcessed(NULL, log_blk->size());
+    module_x()->dispatcher()->acceptor()->on_data_processed(NULL, log_blk->size());
     log_blk->release ();
   }
   ACE_DEBUG ((LM_DEBUG,
@@ -49,7 +54,7 @@ int MyHeartBeatService::svc()
 
 int MyHeartBeatAcceptor::make_svc_handler(MyBaseHandler *& sh)
 {
-  ACE_NEW_RETURN(sh, MyHeartBeatHandler, -1);
+  ACE_NEW_RETURN(sh, MyHeartBeatHandler(this), -1);
   sh->reactor(reactor());
   return 0;
 }
@@ -63,7 +68,7 @@ MyHeartBeatDispatcher::MyHeartBeatDispatcher(MyBaseModule * pModule, int numThre
 
 }
 
-MyBaseAcceptor * MyHeartBeatDispatcher::makeAcceptor()
+MyBaseAcceptor * MyHeartBeatDispatcher::make_acceptor()
 {
   return new MyHeartBeatAcceptor();
 }

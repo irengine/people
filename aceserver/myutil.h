@@ -79,7 +79,6 @@ private:
   long m_max_in_use_count;
 };
 
-//ACE_MT (ACE_GUARD (ACE_LOCK, ace_mon, this->mutex_));
 #define DECLARE_MEMORY_POOL(Cls, Mutex) \
   public: \
     typedef My_Cached_Allocator<Cls, Mutex> Mem_Pool; \

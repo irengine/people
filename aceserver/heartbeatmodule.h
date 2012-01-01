@@ -17,6 +17,7 @@
 class MyHeartBeatHandler: public MyBaseHandler
 {
 public:
+  MyHeartBeatHandler(MyBaseAcceptor * xptr = NULL);
   virtual MyBaseModule * module_x() const;
   DECLARE_MEMORY_POOL(MyHeartBeatHandler, ACE_Thread_Mutex);
 };
@@ -34,7 +35,7 @@ public:
   MyHeartBeatDispatcher(MyBaseModule * pModule, int numThreads = 1);
 
 protected:
-  virtual MyBaseAcceptor * makeAcceptor();
+  virtual MyBaseAcceptor * make_acceptor();
 
 private:
 //  typedef ACE_Cached_Allocator<MyHeartBeatDispatcher, ACE_Thread_Mutex> Mem_Pool;

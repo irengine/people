@@ -12,7 +12,7 @@
 #include <string>
 #include <ace/Configuration_Import_Export.h>
 
-const ACE_TCHAR * const_server_version = ACE_TEXT("1.0");
+extern const ACE_TCHAR * const_server_version;
 
 class MyHeartBeatModule;
 class MyServerApp;

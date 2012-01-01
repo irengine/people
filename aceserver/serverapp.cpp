@@ -12,6 +12,8 @@
 #include "serverapp.h"
 #include "heartbeatmodule.h"
 
+const ACE_TCHAR * const_server_version = ACE_TEXT("1.0");
+
 //MyServerConfig//
 
 const int DEFAULT_MAX_CLIENTS = 10000;

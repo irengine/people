@@ -60,7 +60,7 @@ public:
     m_data = (MyDataPacketHeader *)_data;
     m_data_owner = own_data;
   }
-  MyDataPacketHeader * data() const
+  virtual MyDataPacketHeader * data() const
   {
     return m_data;
   }
@@ -115,6 +115,11 @@ public:
             m_data->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
   }
 
+  virtual MyClientVersionCheckRequest * data() const
+  {
+    return (MyClientVersionCheckRequest *)m_data;
+  }
+
 };
 
 
@@ -144,17 +149,24 @@ public:
 
   virtual bool validate_header()
   {
+    MyClientVersionCheckReply * pData = data();
     if (!MyDataPacketBaseProc::validate_header())
       return false;
-    if (m_data->command != MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY)
+    if (pData->command != MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY)
       return false;
-    if (((MyClientVersionCheckReply*)m_data)->reply_code >= MyClientVersionCheckReply::VER_OK &&
-        ((MyClientVersionCheckReply*)m_data)->reply_code < MyClientVersionCheckReply::VER_SERVER_LIST)
-      return (((MyClientVersionCheckReply*)m_data)->length == sizeof(MyClientVersionCheckReply));
-    if (((MyClientVersionCheckReply*)m_data)->reply_code == MyClientVersionCheckReply::VER_SERVER_LIST)
-      return (m_data->length > (int32_t)sizeof(MyClientVersionCheckReply));
+    if (pData->reply_code >= MyClientVersionCheckReply::VER_OK &&
+        pData->reply_code < MyClientVersionCheckReply::VER_SERVER_LIST)
+      return pData->length == sizeof(MyClientVersionCheckReply);
+    if (pData->reply_code == MyClientVersionCheckReply::VER_SERVER_LIST)
+      return (pData->length > (int32_t)sizeof(MyClientVersionCheckReply));
     return false;
   }
+
+  virtual MyClientVersionCheckReply * data() const
+  {
+    return (MyClientVersionCheckReply *)m_data;
+  }
+
 };
 
 
