@@ -10,6 +10,9 @@
 #define MYCOMUTIL_H_
 
 #include <ace/Log_Msg.h>
+#include <ace/Message_Block.h>
+#include <ace/SOCK_Stream.h>
+#include <ace/Svc_Handler.h>
 
 #define INFO_PREFIX       ACE_TEXT ("(%D %P|%t %N.%l)\n  INFO %I")
 #define MY_INFO(FMT, ...)     \
@@ -34,5 +37,9 @@
         ACE_DEBUG(( LM_ERROR,  \
                     ERROR_PREFIX  FMT, \
                     ## __VA_ARGS__))
+
+int mycomutil_translate_tcp_result(ssize_t transfer_return_value);
+int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
+int mycomutil_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
 
 #endif /* MYCOMUTIL_H_ */

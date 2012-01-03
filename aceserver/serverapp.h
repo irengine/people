@@ -29,6 +29,7 @@ public:
   bool run_as_demon;
   int  mem_pool_dump_interval;
   int  status_file_check_interval;
+  int  message_control_block_mem_pool_size;
 
   int  log_file_number;
   int  log_file_size_in_MB;
@@ -36,6 +37,7 @@ public:
   bool log_to_stderr;
 
   int module_heart_beat_port;
+  int module_heart_beat_mem_pool_size;
 
   std::string exe_path;
   std::string status_file_name;

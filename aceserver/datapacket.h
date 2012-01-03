@@ -76,7 +76,7 @@ public:
   virtual void init_header()
   {
     MyDataPacketBaseProc::init_header();
-    m_data->length = sizeof(MyHeartBeatPingProc);
+    m_data->length = sizeof(MyDataPacketHeader);
     m_data->command = MyDataPacketHeader::CMD_HEARTBEAT_PING;
   };
 

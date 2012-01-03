@@ -17,16 +17,43 @@
 #include <ace/SOCK_Stream.h>
 #include <ace/Svc_Handler.h>
 #include <ace/Dev_Poll_Reactor.h>
+#include <ace/Thread_Mutex.h>
+#include <ace/Signal.h>
 
 #include <vector>
 #include <map>
 #include <list>
 
 #include "myutil.h"
+#include "datapacket.h"
 
 class MyBaseModule;
 class MyBaseHandler;
 class MyBaseAcceptor;
+
+class MyCached_Message_Block: public ACE_Message_Block
+{
+public:
+  MyCached_Message_Block(size_t size,
+      ACE_Allocator * allocator_strategy,
+                ACE_Allocator * data_block_allocator,
+                ACE_Allocator * message_block_allocator,
+                ACE_Message_Type type = MB_DATA
+      ):
+      ACE_Message_Block(
+        size,
+        type,
+        0, //ACE_Message_Block * cont
+        0, //const char * data
+        allocator_strategy,
+        0, //ACE_Lock * locking_strategy
+        ACE_DEFAULT_MESSAGE_BLOCK_PRIORITY, //unsigned long priority
+        ACE_Time_Value::zero, //const ACE_Time_Value & execution_time
+        ACE_Time_Value::max_time, //const ACE_Time_Value & deadline_time
+        data_block_allocator,
+        message_block_allocator)
+  {}
+};
 
 class MyClientInfo
 {
@@ -100,42 +127,70 @@ public:
   virtual int handle_close(ACE_HANDLE handle, ACE_Reactor_Mask close_mask);
   virtual ~MyBaseHandler();
 
-  virtual MyBaseModule * module_x() const; //name collision with parent class
+  MyBaseModule * module_x() const; //name collision with parent class
   MyBaseAcceptor * acceptor() const;
   void active_pointer(MyActiveConnectionPointer ptr);
   MyActiveConnectionPointer active_pointer();
   bool client_id_verified() const;
   long client_id() const;
 
-private:
-  MyActiveConnectionPointer m_active_pointer;
+protected:
+  virtual bool sumbit_received_data();
+
+  MyBaseAcceptor * m_acceptor; //trade space for speed, although we can get acceptor pointer
+                               //by the module_x()->dispatcher()->acceptor() method
+                               //but this is much faster
   int m_client_id;
+  ACE_Message_Block * m_current_block;
+  enum
+  {
+    PEER_ADDR_LEN = 16 //"xxx.xxx.xxx.xxx"
+  };
+  char m_peer_addr[PEER_ADDR_LEN];
+private:
+  ACE_Message_Block * make_message_block();
+  MyActiveConnectionPointer m_active_pointer;
+  MyDataPacketHeader m_packet_header;
+  int m_read_next_offset;
+
 };
 
 class MyBaseAcceptor: public ACE_Acceptor<MyBaseHandler, ACE_SOCK_ACCEPTOR>
 {
 public:
   typedef ACE_Acceptor<MyBaseHandler, ACE_SOCK_ACCEPTOR>  super;
+  MyBaseAcceptor(MyBaseModule * _module);
+  virtual ~MyBaseAcceptor();
 
+  MyBaseModule * module_x() const;
   int  num_connections() const;
   long bytes_received() const;
   long bytes_processed() const;
 
   void on_data_received(MyBaseHandler *, long data_size);
   void on_data_processed(MyBaseHandler *, long data_size);
+  void on_client_id_verified(MyBaseHandler *);
   void on_new_connection(MyBaseHandler *);
   void on_close_connection(MyBaseHandler *);
 
 protected:
   friend class MyBaseHandler;
 
+
   bool next_pointer();
+
+  My_Cached_Allocator<MyDataPacketHeader, ACE_Thread_Mutex> *m_header_pool;
+  My_Cached_Allocator<ACE_Message_Block, ACE_Thread_Mutex> *m_message_block_pool;
+  My_Cached_Allocator<ACE_Data_Block, ACE_Thread_Mutex> *m_data_block_pool;
+//  MyCached_Message_Block Header_Message_Block;
+
   int  m_num_connections;
   long m_bytes_received;
   long m_bytes_processed;
   MyActiveConnections m_active_connections;
   MyActiveConnectionPointer m_scan_pointer;
   MyClientInfos m_client_infos;
+  MyBaseModule * m_module;
 };
 
 
@@ -171,12 +226,12 @@ public:
 
 protected:
   virtual MyBaseAcceptor * make_acceptor();
+  MyBaseModule * m_module;
 
 private:
   MyBaseAcceptor * m_acceptor;
   ACE_Dev_Poll_Reactor * m_dev_reactor;
   ACE_Reactor *m_reactor;
-  MyBaseModule * m_module;
   int m_numThreads;
   int m_numBatchSend;
   int m_tcp_port;

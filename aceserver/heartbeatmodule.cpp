@@ -15,11 +15,6 @@ MyHeartBeatHandler::MyHeartBeatHandler(MyBaseAcceptor * xptr): MyBaseHandler(xpt
 
 }
 
-MyBaseModule * MyHeartBeatHandler::module_x() const
-{
-  return MyServerAppX::instance()->heart_beat_module();
-}
-
 PREPARE_MEMORY_POOL(MyHeartBeatHandler);
 
 //MyHeartBeatService//
@@ -52,6 +47,11 @@ int MyHeartBeatService::svc()
 
 //MyHeartBeatAcceptor//
 
+MyHeartBeatAcceptor::MyHeartBeatAcceptor(MyHeartBeatModule * _module) : MyBaseAcceptor(_module)
+{
+
+}
+
 int MyHeartBeatAcceptor::make_svc_handler(MyBaseHandler *& sh)
 {
   ACE_NEW_RETURN(sh, MyHeartBeatHandler(this), -1);
@@ -70,7 +70,7 @@ MyHeartBeatDispatcher::MyHeartBeatDispatcher(MyBaseModule * pModule, int numThre
 
 MyBaseAcceptor * MyHeartBeatDispatcher::make_acceptor()
 {
-  return new MyHeartBeatAcceptor();
+  return new MyHeartBeatAcceptor((MyHeartBeatModule *)m_module);
 }
 
 

@@ -16,22 +16,27 @@ const ACE_TCHAR * const_server_version = ACE_TEXT("1.0");
 
 //MyServerConfig//
 
-const int DEFAULT_MAX_CLIENTS = 10000;
+const int  DEFAULT_MAX_CLIENTS = 10000;
 const bool DEFAULT_USE_MEM_POOL = true;
 const bool DEFAULT_RUN_AS_DEMON = false;
 const int  DEFAULT_STATUS_FILE_CHECK_INTERVAL = 3;
+const int  DEFAULT_MESSAGE_CONTROL_BLOCK_MPOOL_SIZE = DEFAULT_MAX_CLIENTS * 5;
+const int  DEFAULT_MEM_POOL_DUMP_INTERVAL = 30;
 
-const int DEFAULT_LOG_FILE_NUMBER = 3;
-const int DEFAULT_LOG_FILE_SIZE_IN_MB = 20;
+const int  DEFAULT_LOG_FILE_NUMBER = 3;
+const int  DEFAULT_LOG_FILE_SIZE_IN_MB = 20;
 const bool DEFAULT_LOG_DEBUG_ENABLED = true;
 const bool DEFAULT_LOG_TO_STDERR = true;
-const int DEFAULT_MODULE_HEART_BEAT_PORT = 2222;
-const int DEFAULT_MEM_POOL_DUMP_INTERVAL = 30;
+
+const int  DEFAULT_MODULE_HEART_BEAT_PORT = 2222;
+const int  DEFAULT_MODULE_HEART_BEAT_MPOOL_SIZE = DEFAULT_MAX_CLIENTS * 4;
+
 
 const ACE_TCHAR * CONFIG_Section_Name = ACE_TEXT("global");
 
 const ACE_TCHAR * CONFIG_Use_Mem_Pool = ACE_TEXT("use_mem_pool");
 const ACE_TCHAR * CONFIG_Mem_Pool_Dump_Interval = ACE_TEXT("mem_pool_dump_interval");
+const ACE_TCHAR * CONFIG_Message_Control_Block_Mem_Pool_Size = ACE_TEXT("message_control_block_mempool_size");
 const ACE_TCHAR * CONFIG_Run_As_Demon = ACE_TEXT("run_as_demon");
 const ACE_TCHAR * CONFIG_Max_Clients = ACE_TEXT("max_clients");
 const ACE_TCHAR * CONFIG_Status_File_Check_Interval = ACE_TEXT("status_file_check_interval");
@@ -42,7 +47,7 @@ const ACE_TCHAR * CONFIG_Log_File_Number = ACE_TEXT("log.file_number");
 const ACE_TCHAR * CONFIG_Log_File_Size = ACE_TEXT("log.file_size");
 
 const ACE_TCHAR * CONFIG_Heart_Beat_Port = ACE_TEXT("module.heart_beat.port");
-
+const ACE_TCHAR * CONFIG_Heart_Beat_MPool_Size = ACE_TEXT("module.heart_beat.mempool_size");
 
 MyServerConfig::MyServerConfig()
 {
@@ -58,6 +63,7 @@ MyServerConfig::MyServerConfig()
   log_to_stderr = DEFAULT_LOG_TO_STDERR;
 
   module_heart_beat_port = DEFAULT_MODULE_HEART_BEAT_PORT;
+  module_heart_beat_mem_pool_size = DEFAULT_MODULE_HEART_BEAT_MPOOL_SIZE;
 }
 
 void MyServerConfig::init_path()
@@ -130,7 +136,11 @@ bool MyServerConfig::loadConfig()
   if (cfgHeap.get_integer_value (section,  CONFIG_Max_Clients, ival) == 0)
   {
     if (ival > 0 && ival <= 100000) //the upper limit of 100000 is more than enough?
+    {
       max_clients = ival;
+      module_heart_beat_mem_pool_size = std::max(2 * max_clients, 1000);
+      message_control_block_mem_pool_size = std::max(2 * max_clients, 1000);
+    }
   }
 
   if (cfgHeap.get_integer_value (section,  CONFIG_Status_File_Check_Interval, ival) == 0)
@@ -157,7 +167,7 @@ bool MyServerConfig::loadConfig()
   if (cfgHeap.get_integer_value (section,  CONFIG_Mem_Pool_Dump_Interval, ival) == 0)
     mem_pool_dump_interval = ival;
 
-  if (cfgHeap.get_integer_value (section,  CONFIG_Log_To_Stderr, ival) == 0)
+  if (cfgHeap.get_integer_value (section,  CONFIG_Heart_Beat_Port, ival) == 0)
   {
     if (ival == 0 || ival >= 65535)
     {
@@ -165,6 +175,30 @@ bool MyServerConfig::loadConfig()
       return false;
     }
     module_heart_beat_port = ival;
+  }
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_Heart_Beat_MPool_Size, ival) == 0)
+  {
+    u_int itemp = std::max(2 * max_clients, 1000);
+    if (ival < itemp)
+    {
+      MY_WARNING(ACE_TEXT("Invalid %s value (= %d), should at least max(2 * %s, 1000) = %d, will adjust to %d\n"),
+          CONFIG_Heart_Beat_MPool_Size, ival, CONFIG_Max_Clients, itemp, itemp);
+    }
+    else
+      module_heart_beat_mem_pool_size = ival;
+  }
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_Message_Control_Block_Mem_Pool_Size, ival) == 0)
+  {
+    u_int itemp = std::max(3 * max_clients, 1000);
+    if (ival < itemp)
+    {
+      MY_WARNING(ACE_TEXT("Invalid %s value (= %d), should at least max(3 * %s, 1000) = %d, will adjust to %d\n"),
+          CONFIG_Message_Control_Block_Mem_Pool_Size, ival, CONFIG_Max_Clients, itemp, itemp);
+    }
+    else
+      message_control_block_mem_pool_size = ival;
   }
 
   return true;
@@ -262,7 +296,7 @@ void MyServerApp::do_constructor()
     }
     close(fd);
     m_status_file_checking = true;
-      //m_app->server_config().status_file_name.c_str()
+
     ACE_Time_Value interval (m_config.status_file_check_interval * 60);
     ACE_Reactor::instance()->schedule_timer (&m_status_file_checker,
                              0, interval, interval);

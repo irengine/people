@@ -86,16 +86,22 @@ MyBaseHandler::MyBaseHandler(MyBaseAcceptor * xptr)
   if (xptr)
     m_active_pointer = xptr->m_active_connections.end();
   m_client_id = 0;
+  m_acceptor = xptr;
+  m_read_next_offset = 0;
+  m_current_block = NULL;
+  m_peer_addr[0] = 0;
 }
 
 MyBaseModule * MyBaseHandler::module_x() const
 {
-  return NULL;
+  //return NULL;
+  return m_acceptor->module_x();
 }
 
 MyBaseAcceptor * MyBaseHandler::acceptor() const
 {
-  return module_x()->dispatcher()->acceptor();
+  //return module_x()->dispatcher()->acceptor();
+  return m_acceptor;
 }
 
 void MyBaseHandler::active_pointer(MyActiveConnectionPointer ptr)
@@ -123,45 +129,114 @@ int MyBaseHandler::open(void * p)
 {
   if (super::open(p) == -1)
     return -1;
-  acceptor()->on_new_connection(this);
+  m_acceptor->on_new_connection(this);
+  ACE_INET_Addr peer_addr;
+  if (peer().get_remote_addr(peer_addr) == 0)
+    peer_addr.get_host_addr((char*)m_peer_addr, PEER_ADDR_LEN);
+  if (m_peer_addr[0] == 0)
+    ACE_OS::strsncpy((char*)m_peer_addr, "unknown", PEER_ADDR_LEN);
   return 0;
+}
+
+ACE_Message_Block * MyBaseHandler::make_message_block()
+{
+  if (MyServerAppX::instance()->server_config().use_mem_pool)
+  {
+    if (m_packet_header.length == sizeof(MyDataPacketHeader))
+    {
+      return new MyCached_Message_Block(m_packet_header.length,
+          m_acceptor->m_header_pool,
+          m_acceptor->m_data_block_pool,
+          m_acceptor->m_message_block_pool);
+    }
+    MY_ERROR("Unsupported length @MyBaseHandler::make_message_block, length = %d, command = %d\n",
+        m_packet_header.length,
+        m_packet_header.command);
+    return NULL;
+  } else
+  {
+    return new ACE_Message_Block(m_packet_header.length);
+  }
+}
+
+bool MyBaseHandler::sumbit_received_data()
+{
+  ACE_Time_Value nowait(ACE_OS::gettimeofday());
+
+  if (module_x()->service()->putq(m_current_block, &nowait) == -1)
+  {
+    MY_ERROR("MyBaseHandler::sumbit_received_data().putq() failed\n");
+    return false;
+  }
+
+  m_current_block = NULL;
+  m_read_next_offset = 0;
+  return true;
 }
 
 int MyBaseHandler::handle_input (ACE_HANDLE)
 {
-  const size_t INPUT_SIZE = 4096;
-  char buffer[INPUT_SIZE];
-  ssize_t recv_cnt/*, send_cnt*/;
+  ssize_t recv_cnt;
+  int loop_count = 0;
+__loop:
+  ++loop_count;
 
-  recv_cnt = this->peer ().recv (buffer, sizeof(buffer));
-
-  if (recv_cnt <= 0)
+  if (loop_count >= 4) //do not bias too much toward this connection, this can starve other clients
+    return 0;          //be careful for the malicious/mal-behaved clients
+  if (m_read_next_offset < (int)sizeof(m_packet_header))
   {
-//      ACE_DEBUG ((LM_DEBUG,
-//                  ACE_TEXT ("(%P|%t) Connection closed\n")));
-    return -1;
+    recv_cnt = TEMP_FAILURE_RETRY(this->peer().recv ((char*)&m_packet_header + m_read_next_offset,
+        sizeof(m_packet_header) - m_read_next_offset));
+    int ret = mycomutil_translate_tcp_result(recv_cnt);
+    if (ret <= 0)
+      return ret;
+    m_acceptor->on_data_received(this, long(recv_cnt));
+    m_read_next_offset += recv_cnt;
+    if (m_read_next_offset < (int)sizeof(m_packet_header))
+      return 0;
+
+    MyDataPacketBaseProc headerProc(&m_packet_header);
+    if (!headerProc.validate_header())
+    {
+      MY_ERROR(ACE_TEXT("Invalid data packet header received from %s, id = %d\n"), m_peer_addr, m_client_id);
+      return -1;
+    }
+
+    if (!client_id_verified())
+    {
+      if(m_packet_header.command != MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
+      {
+        MY_ERROR(ACE_TEXT("Bad request received (before client version check is done) from %s, id = %d\n"), m_peer_addr, m_client_id);
+        return -1;
+      }
+      //todo: verify client id now
+
+    }
+
+    m_current_block = make_message_block();
+    if (!m_current_block)
+      return -1;
+    if (m_current_block->copy((const char*)&m_packet_header, sizeof(m_packet_header)) == -1)
+    {
+      MY_ERROR(ACE_TEXT("Message block copy header: m_current_block.copy() failed\n"));
+      return -1;
+    }
+//    if (m_current_block->space() == 0)
+//      return (sumbit_received_data()? 0:-1);
   }
-//  ACE_DEBUG ((LM_DEBUG,
-//            ACE_TEXT ("(%P|%t) handle_input, data size= %d\n"), recv_cnt));
 
-  acceptor()->on_data_received(this, long(recv_cnt));
-  //g_bytes += recv_cnt;
-  ACE_Message_Block * mb;
-  ACE_NEW_RETURN(mb, ACE_Message_Block (&buffer[0], recv_cnt), -1);
-  ACE_Time_Value nowait (ACE_OS::gettimeofday());
-
-  if (module_x()->service()->putq (mb, &nowait) == -1)
+  int val = mycomutil_recv_message_block(this, m_current_block);
+  if (val < 0)
+    return -1;
+  if (m_current_block->space() == 0)
   {
-    ACE_DEBUG ((LM_DEBUG,
-              ACE_TEXT ("(%P|%t) handle_input.putq error.\n")));
-
-    mb->release ();
-    return 0;
+    if (!sumbit_received_data())
+      return -1;
+    goto __loop; //burst transfer, in the hope that more are ready in the buffer
   }
   return 0;
 }
 
-// Called when this handler is removed from the ACE_Reactor.
 int MyBaseHandler::handle_close (ACE_HANDLE handle,
                           ACE_Reactor_Mask close_mask)
 {
@@ -169,50 +244,53 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
   if (close_mask == ACE_Event_Handler::WRITE_MASK)
     return 0;
 
-  acceptor()->on_close_connection(this);
+  ACE_Message_Block *mb;
+  ACE_Time_Value nowait (ACE_OS::gettimeofday ());
+  while (-1 != this->getq (mb, &nowait))
+    mb->release();
+
+  m_acceptor->on_close_connection(this);
   //here comes the tricky part, parent class will NOT call delete as it normally does
   //since we override the operator new/delete pair, the same thing parent class does
   //see ACE_Svc_Handler @ Svc_Handler.cpp
   //ctor: this->dynamic_ = ACE_Dynamic::instance ()->is_dynamic ();
   //destroy(): if (this->mod_ == 0 && this->dynamic_ && this->closing_ == false)
   //             delete this;
-  //so do NOT use the normal method: return super::handle_close (handle, close_mask);
+  //so do NOT use the normal method: return super::handle_close(handle, close_mask);
   //for it will cause memory leaks
   delete this;
   return 0;
   //return super::handle_close (handle, close_mask); //do NOT use
 }
 
-// Called when output is possible.
 int MyBaseHandler::handle_output (ACE_HANDLE fd)
 {
   ACE_UNUSED_ARG(fd);
-  /*
   ACE_Message_Block *mb;
   ACE_Time_Value nowait (ACE_OS::gettimeofday ());
   while (-1 != this->getq (mb, &nowait))
   {
-    ssize_t send_cnt =
-      this->peer ().send (mb->rd_ptr (), mb->length ());
-    if (send_cnt == -1)
-      ACE_ERROR ((LM_ERROR,
-                  ACE_TEXT ("(%P|%t) %p\n"),
-                  ACE_TEXT ("send")));
-    else
-      mb->rd_ptr (send_cnt);
-    if (mb->length () > 0)
+    if (mycomutil_send_message_block(this, mb) < 0)
     {
-      this->ungetq (mb);
+      mb->release();
+      reactor()->remove_handler(this, ACE_Event_Handler::WRITE_MASK | ACE_Event_Handler::READ_MASK |
+                                ACE_Event_Handler::DONT_CALL);
+      return handle_close(ACE_INVALID_HANDLE, 0); //todo: more graceful shutdown
+    }
+    if (mb->length() > 0)
+    {
+      this->ungetq(mb);
       break;
     }
-    mb->release ();
+    mb->release();
   }
-  return (this->msg_queue()->is_empty ()) ? -1 : 0;*/
-  return -1;
+  return (this->msg_queue()->is_empty ()) ? -1 : 0;
 }
 
 MyBaseHandler::~MyBaseHandler()
 {
+  if (m_current_block)
+    m_current_block->release();
   ACE_DEBUG ((LM_DEBUG,
               ACE_TEXT ("(%P|%t) deleting MyBaseHandler objects %X\n"),
               (long)this));
@@ -220,6 +298,37 @@ MyBaseHandler::~MyBaseHandler()
 
 
 //MyBaseAcceptor//
+
+MyBaseAcceptor::MyBaseAcceptor(MyBaseModule * _module): m_module(_module)
+{
+  if (MyServerAppX::instance()->server_config().use_mem_pool)
+  {
+    m_header_pool = new My_Cached_Allocator<MyDataPacketHeader, ACE_Thread_Mutex>
+      (MyServerAppX::instance()->server_config().module_heart_beat_mem_pool_size);
+    m_message_block_pool = new My_Cached_Allocator<ACE_Message_Block, ACE_Thread_Mutex>
+      (MyServerAppX::instance()->server_config().message_control_block_mem_pool_size);
+    m_data_block_pool = new My_Cached_Allocator<ACE_Data_Block, ACE_Thread_Mutex>
+      (MyServerAppX::instance()->server_config().message_control_block_mem_pool_size);
+  }
+  else
+  {
+    m_header_pool = NULL;
+    m_message_block_pool = NULL;
+    m_data_block_pool = NULL;
+  }
+}
+
+MyBaseAcceptor::~MyBaseAcceptor()
+{
+  delete m_header_pool;
+  delete m_message_block_pool;
+  delete m_data_block_pool;
+}
+
+MyBaseModule * MyBaseAcceptor::module_x() const
+{
+  return m_module;
+}
 
 int MyBaseAcceptor::num_connections() const
 {
@@ -252,7 +361,6 @@ void MyBaseAcceptor::on_new_connection(MyBaseHandler * handler)
     return;
   MyActiveConnectionPointer it = m_active_connections.insert(m_active_connections.end(), handler);
   handler->active_pointer(it);
-//  handler->active_pointer()
   ++m_num_connections;
 }
 
@@ -274,6 +382,11 @@ void MyBaseAcceptor::on_close_connection(MyBaseHandler * handler)
     next_pointer();
   m_active_connections.erase(aPointer);
   --m_num_connections;
+}
+
+void MyBaseAcceptor::on_client_id_verified(MyBaseHandler * handler)
+{
+
 }
 
 bool MyBaseAcceptor::next_pointer()
@@ -322,7 +435,7 @@ int MyBaseService::stop()
 //MyBaseDispatcher//
 
 MyBaseDispatcher::MyBaseDispatcher(MyBaseModule * pModule, int tcp_port, int numThreads):
-    m_acceptor(NULL), m_module(pModule), m_numThreads(numThreads), m_numBatchSend(50), m_tcp_port(tcp_port)
+    m_module(pModule), m_acceptor(NULL), m_numThreads(numThreads), m_numBatchSend(50), m_tcp_port(tcp_port)
 {
   m_dev_reactor = NULL;
   m_reactor = NULL;

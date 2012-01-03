@@ -9,16 +9,15 @@
 #define HEARTBEATMODULE_H_
 
 #include "baseserver.h"
-#ifdef MY_USE_MEM_POOL
 #include <ace/Malloc_T.h>
 #include <new>
-#endif
+
+class MyHeartBeatModule;
 
 class MyHeartBeatHandler: public MyBaseHandler
 {
 public:
   MyHeartBeatHandler(MyBaseAcceptor * xptr = NULL);
-  virtual MyBaseModule * module_x() const;
   DECLARE_MEMORY_POOL(MyHeartBeatHandler, ACE_Thread_Mutex);
 };
 
@@ -45,6 +44,7 @@ private:
 class MyHeartBeatAcceptor: public MyBaseAcceptor
 {
 public:
+  MyHeartBeatAcceptor(MyHeartBeatModule * _module);
   virtual int make_svc_handler(MyBaseHandler *& sh);
 };
 

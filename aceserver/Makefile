@@ -1,5 +1,5 @@
 BIN=baseserver
-FILES=baseserver main heartbeatmodule serverapp datapacket
+FILES=baseserver main heartbeatmodule serverapp datapacket mycomutil
 SRC=$(addsuffix .cpp,$(FILES))
 OBJ=$(addsuffix .o,$(FILES))
 BUILD=$(VBIN)
