@@ -35,7 +35,7 @@ class MyCached_Message_Block: public ACE_Message_Block
 {
 public:
   MyCached_Message_Block(size_t size,
-      ACE_Allocator * allocator_strategy,
+                ACE_Allocator * allocator_strategy,
                 ACE_Allocator * data_block_allocator,
                 ACE_Allocator * message_block_allocator,
                 ACE_Message_Type type = MB_DATA
@@ -55,60 +55,30 @@ public:
   {}
 };
 
-class MyClientInfo
+
+class MyClientIDTable
 {
 public:
-  union
-  {
-    char as_string[8];
-    long as_long;
-  }client_id;
-  MyBaseHandler * handler;
-
-#define client_id_long   client_id.as_long
-#define client_id_string client_id.as_string
-
-  enum
-  {
-    INVALID_CLIENT_ID = 0
-  };
-
-  MyClientInfo()
-  {
-    client_id_long = INVALID_CLIENT_ID;
-    handler = NULL;
-  }
-
-  bool operator == (const MyClientInfo & rhs) const
-  {
-    return (client_id_long == rhs.client_id_long);
-  }
-  bool operator != (const MyClientInfo & rhs) const
-  {
-    return ! (operator ==(rhs));
-  }
-};
-
-class MyClientInfos
-{
-public:
-  MyClientInfos();
-  bool contains(long id);
+  MyClientIDTable();
+  bool contains(const MyClientID & id);
 //  bool contains(const char* id) const;
-  MyBaseHandler * find_handler(long id);
-  void set_handler(long id, MyBaseHandler * handler);
-  void add(MyClientInfo aInfo);
+//  MyBaseHandler * find_handler(long id);
+//  void set_handler(const MyClientID & id, MyBaseHandler * handler);
+  void add(const MyClientID & id);
+  void add(const char * str_id);
+  void add_batch(char * idlist); //in the format of "12334434;33222334;34343111;..."
+  int index_of(const MyClientID & id);
+  int count();
 
 private:
-  typedef std::vector<MyClientInfo> ClientInfos_type;
-  typedef std::map<long, int> ClientInfos_map;
+  typedef std::vector<MyClientID> ClientIDTable_type;
+  typedef std::map<MyClientID, int> ClientIDTable_map;
 
-  int index_of(long id);
-  int index_of_i(long id, ClientInfos_map::iterator * pIt = NULL);
-
-  ClientInfos_type m_infos;
-  ClientInfos_map  m_map;
-  ACE_Thread_Mutex m_mutex;
+  int index_of_i(const MyClientID & id, ClientIDTable_map::iterator * pIt = NULL);
+  void add_i(const MyClientID & id);
+  ClientIDTable_type m_table;
+  ClientIDTable_map  m_map;
+  ACE_RW_Thread_Mutex m_mutex;
 };
 
 typedef std::list<MyBaseHandler *> MyActiveConnections;
@@ -132,23 +102,30 @@ public:
   void active_pointer(MyActiveConnectionPointer ptr);
   MyActiveConnectionPointer active_pointer();
   bool client_id_verified() const;
-  long client_id() const;
+  const MyClientID & client_id() const;
 
 protected:
   virtual bool sumbit_received_data();
+  int send_data(ACE_Message_Block * mb);
 
   MyBaseAcceptor * m_acceptor; //trade space for speed, although we can get acceptor pointer
                                //by the module_x()->dispatcher()->acceptor() method
                                //but this is much faster
-  int m_client_id;
+  MyClientID m_client_id;
+  int        m_client_id_index;
   ACE_Message_Block * m_current_block;
+  bool       m_wait_for_close;
   enum
   {
     PEER_ADDR_LEN = 16 //"xxx.xxx.xxx.xxx"
   };
   char m_peer_addr[PEER_ADDR_LEN];
 private:
-  ACE_Message_Block * make_message_block();
+  int process_client_version_check();
+  int read_req_header();
+  ACE_Message_Block * make_recv_message_block();
+  ACE_Message_Block * make_client_version_check_reply_mb(MyClientVersionCheckReply::REPLY_CODE code, int extra_len = 0);
+
   MyActiveConnectionPointer m_active_pointer;
   MyDataPacketHeader m_packet_header;
   int m_read_next_offset;
@@ -179,9 +156,9 @@ protected:
 
   bool next_pointer();
 
-  My_Cached_Allocator<MyDataPacketHeader, ACE_Thread_Mutex> *m_header_pool;
-  My_Cached_Allocator<ACE_Message_Block, ACE_Thread_Mutex> *m_message_block_pool;
-  My_Cached_Allocator<ACE_Data_Block, ACE_Thread_Mutex> *m_data_block_pool;
+  My_Cached_Allocator<ACE_Thread_Mutex> *m_header_pool;
+  My_Cached_Allocator<ACE_Thread_Mutex> *m_message_block_pool;
+  My_Cached_Allocator<ACE_Thread_Mutex> *m_data_block_pool;
 //  MyCached_Message_Block Header_Message_Block;
 
   int  m_num_connections;
@@ -189,7 +166,7 @@ protected:
   long m_bytes_processed;
   MyActiveConnections m_active_connections;
   MyActiveConnectionPointer m_scan_pointer;
-  MyClientInfos m_client_infos;
+  MyClientIDTable m_client_infos;
   MyBaseModule * m_module;
 };
 

@@ -11,6 +11,8 @@
 #include <ace/Singleton.h>
 #include <string>
 #include <ace/Configuration_Import_Export.h>
+#include "baseserver.h"
+
 
 extern const ACE_TCHAR * const_server_version;
 
@@ -88,6 +90,7 @@ public:
   void stop();
   static void dump_memory_pool_info();
   MyHeartBeatModule * heart_beat_module() const;
+  MyClientIDTable & client_id_table();
 
 protected:
   friend class MySigHandler;
@@ -110,6 +113,7 @@ private:
   bool m_sigterm;
   bool m_status_file_ok;
   bool m_status_file_checking;
+  MyClientIDTable m_client_id_table;
 };
 
 typedef ACE_Unmanaged_Singleton<MyServerApp, ACE_Null_Mutex> MyServerAppX;

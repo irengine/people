@@ -10,23 +10,23 @@
 
 #include <ace/Malloc_T.h>
 #include <new>
-#include "serverapp.h"
+//#include "serverapp.h"
 
 #include "mycomutil.h"
 
-template <class T, class ACE_LOCK> class My_Cached_Allocator: public ACE_Cached_Allocator<T, ACE_LOCK>
+template <class ACE_LOCK> class My_Cached_Allocator: public ACE_Dynamic_Cached_Allocator<ACE_LOCK>
 {
 public:
-  typedef ACE_Cached_Allocator<T, ACE_LOCK> super;
+  typedef ACE_Dynamic_Cached_Allocator<ACE_LOCK> super;
 
-  My_Cached_Allocator (size_t n_chunks): super(n_chunks)
+  My_Cached_Allocator (size_t n_chunks, size_t chunk_size): super(n_chunks, chunk_size)
   {
     m_alloc_count = 0;
     m_free_count = 0;
     m_max_in_use_count = 0;
   }
 
-  virtual void *malloc (size_t nbytes = sizeof (T))
+  virtual void *malloc (size_t nbytes = 0)
   {
     {
 //      ACE_DEBUG ((LM_DEBUG, ACE_TEXT ("(%P|%t) enter malloc()\n")));
@@ -81,7 +81,7 @@ private:
 
 #define DECLARE_MEMORY_POOL(Cls, Mutex) \
   public: \
-    typedef My_Cached_Allocator<Cls, Mutex> Mem_Pool; \
+    typedef My_Cached_Allocator<Mutex> Mem_Pool; \
     static void* operator new(size_t _size, std::new_handler p = 0) \
     { \
       ACE_UNUSED_ARG(p); \
@@ -112,7 +112,7 @@ private:
     static void init_mem_pool(int pool_size) \
     { \
       if (MyServerAppX::instance()->server_config().use_mem_pool) \
-        m_mem_pool = new Mem_Pool(pool_size); \
+        m_mem_pool = new Mem_Pool(pool_size, sizeof(Cls)); \
     } \
     static void fini_mem_pool() \
     { \
@@ -131,7 +131,7 @@ private:
 
 #define DECLARE_MEMORY_POOL__NOTHROW(Cls, Mutex) \
   public: \
-    typedef My_Cached_Allocator<Cls, Mutex> Mem_Pool; \
+    typedef My_Cached_Allocator<Mutex> Mem_Pool; \
     static void* operator new(size_t _size, std::new_handler p = 0) throw() \
     { \
       ACE_UNUSED_ARG(p); \
@@ -154,7 +154,7 @@ private:
     static void init_mem_pool(int pool_size) \
     { \
       if (MyServerAppX::instance()->server_config().use_mem_pool) \
-        m_mem_pool = new Mem_Pool(pool_size); \
+        m_mem_pool = new Mem_Pool(pool_size, sizeof(Cls)); \
     } \
     static void fini_mem_pool() \
     { \

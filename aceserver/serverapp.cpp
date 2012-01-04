@@ -470,6 +470,11 @@ void MyServerApp::do_event_loop()
   }
 }
 
+MyClientIDTable & MyServerApp::client_id_table()
+{
+  return m_client_id_table;
+}
+
 bool MyServerApp::do_sighup()
 {
 

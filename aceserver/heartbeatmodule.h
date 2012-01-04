@@ -8,6 +8,7 @@
 #ifndef HEARTBEATMODULE_H_
 #define HEARTBEATMODULE_H_
 
+#include "serverapp.h"
 #include "baseserver.h"
 #include <ace/Malloc_T.h>
 #include <new>
