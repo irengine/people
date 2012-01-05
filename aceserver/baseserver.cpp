@@ -1,6 +1,51 @@
 #include "baseserver.h"
 #include "serverapp.h"
 
+//MyMemPoolFactory//
+
+MyMemPoolFactory::MyMemPoolFactory()
+{
+  m_header_pool = NULL;
+  m_message_block_pool = NULL;
+  m_data_block_pool = NULL;
+  m_use_mem_pool = false;
+}
+
+MyMemPoolFactory::~MyMemPoolFactory()
+{
+  if (m_header_pool)
+    delete m_header_pool;
+  if (m_message_block_pool)
+    delete m_message_block_pool;
+  if (m_data_block_pool)
+    delete m_data_block_pool;
+}
+
+void MyMemPoolFactory::init(MyServerConfig * config)
+{
+  m_use_mem_pool = config->use_mem_pool;
+  if (!m_use_mem_pool)
+    return;
+  m_header_pool = new My_Cached_Allocator<ACE_Thread_Mutex>
+    (config->module_heart_beat_mem_pool_size, sizeof(MyDataPacketHeader));
+  m_message_block_pool = new My_Cached_Allocator<ACE_Thread_Mutex>
+    (config->message_control_block_mem_pool_size, sizeof(ACE_Message_Block));
+  m_data_block_pool = new My_Cached_Allocator<ACE_Thread_Mutex>
+    (config->message_control_block_mem_pool_size, sizeof(ACE_Data_Block));
+}
+
+ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
+{
+  if (!m_use_mem_pool)
+    return new ACE_Message_Block(capacity);
+
+  return new MyCached_Message_Block(capacity,
+      m_header_pool,
+      m_data_block_pool,
+      m_message_block_pool);
+}
+
+
 
 //MyClientInfos//
 
@@ -121,6 +166,176 @@ int MyClientIDTable::count()
   return m_table.size();
 }
 
+//MyBaseProcessor//
+
+MyBaseProcessor::MyBaseProcessor(MyBaseHandler * handler)
+{
+  m_handler = handler;
+  m_wait_for_close = false;
+}
+
+std::string MyBaseProcessor::info_string() const
+{
+  return "";
+}
+
+void MyBaseProcessor::on_open()
+{
+
+}
+
+bool MyBaseProcessor::wait_for_close() const
+{
+  return m_wait_for_close;
+}
+
+MyBaseProcessor::EVENT_RESULT MyBaseProcessor::on_recv_header(const MyDataPacketHeader & header)
+{
+  return ER_CONTINUE;
+}
+
+MyBaseProcessor::EVENT_RESULT MyBaseProcessor::on_recv_packet(ACE_Message_Block * mb)
+{
+
+  MyBaseProcessor::EVENT_RESULT result = on_recv_packet_i(mb);
+  mb->release();
+  return result;
+}
+
+int MyBaseProcessor::copy_header_to_mb(ACE_Message_Block * mb, const MyDataPacketHeader & header)
+{
+  return mb->copy((const char*)&header, sizeof(MyDataPacketHeader));
+}
+
+
+//MyBaseServerProcessor//
+
+MyBaseServerProcessor::MyBaseServerProcessor(MyBaseHandler * handler): MyBaseProcessor(handler)
+{
+  m_client_id_index = -1;
+  m_peer_addr[0] = 0;
+}
+
+std::string MyBaseServerProcessor::info_string() const
+{
+  char buff[512];
+  ACE_OS::snprintf(buff, 512, "(remote addr=%s, client_id=%s)", m_peer_addr, m_client_id.as_string());
+  std::string result(buff);
+  return result;
+}
+
+void MyBaseServerProcessor::on_open()
+{
+  ACE_INET_Addr peer_addr;
+  if (m_handler->peer().get_remote_addr(peer_addr) == 0)
+    peer_addr.get_host_addr((char*)m_peer_addr, PEER_ADDR_LEN);
+  if (m_peer_addr[0] == 0)
+    ACE_OS::strsncpy((char*)m_peer_addr, "unknown", PEER_ADDR_LEN);
+}
+
+
+MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_header(const MyDataPacketHeader & header)
+{
+  bool bVerified = client_id_verified();
+  bool bVersionCheck = (header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
+  if (bVerified == bVersionCheck)
+  {
+    MY_ERROR(ACE_TEXT("Bad request received (verified = %d, request version check = %d) from %s, \n"),
+             bVerified, bVersionCheck, info_string().c_str());
+    return ER_ERROR;
+  }
+  return ER_CONTINUE;
+}
+
+MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+{
+
+}
+
+bool MyBaseServerProcessor::client_id_verified() const
+{
+  return !m_client_id.is_null();
+}
+
+const MyClientID & MyBaseServerProcessor::client_id() const
+{
+  return m_client_id;
+}
+
+bool MyBaseServerProcessor::prefix_client_id() const
+{
+  return false;
+}
+
+int MyBaseServerProcessor::copy_header_to_mb(ACE_Message_Block * mb, const MyDataPacketHeader & header)
+{
+  if (prefix_client_id())
+  {
+    if (mb->copy((const char*)m_client_id_index, sizeof(int32_t)) == -1)
+      return -1;
+  }
+  return MyBaseProcessor::copy_header_to_mb(mb, header);
+}
+
+
+ACE_Message_Block * MyBaseServerProcessor::make_recv_message_block(const MyDataPacketHeader & header)
+{
+
+}
+
+ACE_Message_Block * MyBaseServerProcessor::make_send_message_block(const MyDataPacketHeader & header)
+{
+
+}
+
+ACE_Message_Block * MyBaseServerProcessor::make_client_version_check_reply_mb
+   (MyClientVersionCheckReply::REPLY_CODE code, int extra_len)
+{
+  int total_len = sizeof(MyClientVersionCheckReply) + extra_len;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len);
+
+  MyClientVersionCheckReplyProc vcr;
+  vcr.attach(mb->base());
+  vcr.init_header();
+  vcr.data()->reply_code = code;
+  mb->wr_ptr(total_len);
+  return mb;
+}
+
+int MyBaseServerProcessor::on_req_version_check_common(ACE_Message_Block * mb)
+{
+  MyClientVersionCheckRequestProc vcr;
+  vcr.attach(mb->base());
+  int client_id_index = -1;
+  ACE_Message_Block * reply_mb = NULL;
+  if (vcr.data()->client_version != 1)
+  {
+    m_wait_for_close = true;
+    reply_mb = make_client_version_check_reply_mb(MyClientVersionCheckReply::VER_MISMATCH);
+  } else
+  {
+    client_id_index = MyServerAppX::instance()->client_id_table().index_of(vcr.data()->client_id);
+    if (client_id_index < 0)
+    {
+      m_wait_for_close = true;
+      reply_mb = make_client_version_check_reply_mb(MyClientVersionCheckReply::VER_ACCESS_DENIED);
+    }
+  }
+
+  if (m_wait_for_close)
+  {
+    int ret = m_handler->send_data(reply_mb);
+    if (ret <= 0)
+      return -1;
+    else
+      return 0;
+  }
+  m_client_id_index = client_id_index;
+  m_client_id = vcr.data()->client_id;
+
+  return 0;
+}
+
 
 //MyBaseHandler//
 
@@ -128,13 +343,10 @@ MyBaseHandler::MyBaseHandler(MyBaseAcceptor * xptr)
 {
   if (xptr)
     m_active_pointer = xptr->m_active_connections.end();
-  m_client_id = 0;
   m_acceptor = xptr;
   m_read_next_offset = 0;
   m_current_block = NULL;
-  m_peer_addr[0] = 0;
-  m_client_id_index = -1;
-  m_wait_for_close = false;
+  m_processor = NULL;
 }
 
 MyBaseModule * MyBaseHandler::module_x() const
@@ -159,70 +371,13 @@ MyActiveConnectionPointer MyBaseHandler::active_pointer()
   return m_active_pointer;
 }
 
-bool MyBaseHandler::client_id_verified() const
-{
-  return !m_client_id.is_null();
-}
-
-const MyClientID & MyBaseHandler::client_id() const
-{
-  return m_client_id;
-}
-
-
 int MyBaseHandler::open(void * p)
 {
   if (super::open(p) == -1)
     return -1;
+  m_processor->on_open();
   m_acceptor->on_new_connection(this);
-  ACE_INET_Addr peer_addr;
-  if (peer().get_remote_addr(peer_addr) == 0)
-    peer_addr.get_host_addr((char*)m_peer_addr, PEER_ADDR_LEN);
-  if (m_peer_addr[0] == 0)
-    ACE_OS::strsncpy((char*)m_peer_addr, "unknown", PEER_ADDR_LEN);
   return 0;
-}
-
-ACE_Message_Block * MyBaseHandler::make_recv_message_block()
-{
-  if (MyServerAppX::instance()->server_config().use_mem_pool)
-  {
-    if (m_packet_header.length == sizeof(MyDataPacketHeader))
-    {
-      return new MyCached_Message_Block(m_packet_header.length,
-          m_acceptor->m_header_pool,
-          m_acceptor->m_data_block_pool,
-          m_acceptor->m_message_block_pool);
-    }
-    MY_ERROR("Unsupported length @MyBaseHandler::make_message_block, length = %d, command = %d\n",
-        m_packet_header.length,
-        m_packet_header.command);
-    return NULL;
-  } else
-  {
-    return new ACE_Message_Block(m_packet_header.length);
-  }
-}
-
-ACE_Message_Block * MyBaseHandler::make_client_version_check_reply_mb
-   (MyClientVersionCheckReply::REPLY_CODE code, int extra_len)
-{
-  int total_len = sizeof(MyClientVersionCheckReply) + extra_len;
-  ACE_Message_Block * mb;
-  if (MyServerAppX::instance()->server_config().use_mem_pool)
-    mb = new MyCached_Message_Block(total_len,
-        m_acceptor->m_header_pool,
-        m_acceptor->m_data_block_pool,
-        m_acceptor->m_message_block_pool);
-  else
-    mb = new ACE_Message_Block(total_len);
-
-  MyClientVersionCheckReplyProc vcr;
-  vcr.attach(mb->base());
-  vcr.init_header();
-  vcr.data()->reply_code = code;
-  mb->wr_ptr(total_len);
-  return mb;
 }
 
 int MyBaseHandler::send_data(ACE_Message_Block * mb)
@@ -245,44 +400,6 @@ bool MyBaseHandler::sumbit_received_data()
   return true;
 }
 
-int MyBaseHandler::process_client_version_check()
-{
-  MyClientVersionCheckRequestProc vcr;
-  vcr.attach(m_current_block->base());
-  int client_id_index = -1;
-  ACE_Message_Block * mb = NULL;
-  if (vcr.data()->client_version != 1)
-  {
-    m_wait_for_close = true;
-    mb = make_client_version_check_reply_mb(MyClientVersionCheckReply::VER_MISMATCH);
-  } else
-  {
-    client_id_index = MyServerAppX::instance()->client_id_table().index_of(vcr.data()->client_id);
-    if (client_id_index < 0)
-    {
-      m_wait_for_close = true;
-      mb = make_client_version_check_reply_mb(MyClientVersionCheckReply::VER_ACCESS_DENIED);
-    }
-  }
-
-  if (m_wait_for_close)
-  {
-
-    int ret = send_data(mb);
-    if (ret <= 0)
-      return -1;
-    else
-      return 0;
-  }
-  m_client_id_index = client_id_index;
-  m_client_id = vcr.data()->client_id;
-
-  m_current_block->release();
-  m_current_block = NULL;
-  m_read_next_offset = 0;
-  return 0;
-
-}
 
 int MyBaseHandler::read_req_header()
 {
@@ -299,45 +416,59 @@ int MyBaseHandler::read_req_header()
   MyDataPacketBaseProc headerProc((char*)&m_packet_header);
   if (!headerProc.validate_header())
   {
-    MY_ERROR(ACE_TEXT("Invalid data packet header received from %s, id = %s\n"), m_peer_addr, m_client_id.as_string());
+    MY_ERROR(ACE_TEXT("Invalid data packet header received %s\n"), m_processor->info_string().c_str());
     return -1;
   }
 
-  if (!client_id_verified())
+  MyBaseProcessor::EVENT_RESULT er = m_processor->on_recv_header(m_packet_header);
+  switch(er)
   {
-    if(m_packet_header.command != MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
+  case MyBaseProcessor::ER_ERROR:
+  case MyBaseProcessor::ER_CONTINUE:
+    return -1;
+  case MyBaseProcessor::ER_OK_FINISHED:
+    if (m_packet_header.length != sizeof(m_packet_header))
     {
-      MY_ERROR(ACE_TEXT("Bad request received (before client version check is done) from %s, id = %s\n"), m_peer_addr, m_client_id.as_string());
+      MY_FATAL("got ER_OK_FINISHED.\n");
       return -1;
     }
-
-    //todo: verify client id now
-
-  } else if(m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
-  {
-    MY_ERROR(ACE_TEXT("Bad client version check request received (already done) from %s, id = %s\n"), m_peer_addr, m_client_id.as_string());
-    return -1;
-  }
-
-  if (false)
-  { //todo: handle heart beat
-    //the thread context switching and synchronization cost outbeat the benefit of using another thread
-
     m_read_next_offset = 0;
-  }
-  m_current_block = make_recv_message_block();
-  if (!m_current_block)
-    return -1;
-  if (m_current_block->copy((const char*)&m_packet_header, sizeof(m_packet_header)) == -1)
-  {
-    MY_ERROR(ACE_TEXT("Message block copy header: m_current_block.copy() failed\n"));
+    return 0;
+  case MyBaseProcessor::ER_OK:
+    return 0;
+  default:
+    MY_FATAL(ACE_TEXT("unexpected MyBaseProcessor::EVENT_RESULT value = %d.\n"), er);
     return -1;
   }
+}
 
+int MyBaseHandler::read_req_body()
+{
+  if (!m_current_block)
+  {
+    m_current_block = m_processor->make_recv_message_block(m_packet_header);
+    if (!m_current_block)
+      return -1;
+    if (m_processor->copy_header_to_mb(m_current_block, m_packet_header) < 0)
+    {
+      MY_ERROR(ACE_TEXT("Message block copy header: m_current_block.copy() failed\n"));
+      return -1;
+    }
+  }
+  return mycomutil_recv_message_block(this, m_current_block);
+}
+
+int MyBaseHandler::handle_req()
+{
+  if (m_processor->on_recv_packet(m_current_block) != MyBaseProcessor::ER_OK)
+    return -1;
+
+  m_current_block = 0;
+  m_read_next_offset = 0;
   return 0;
 }
 
-int MyBaseHandler::handle_input (ACE_HANDLE)
+int MyBaseHandler::handle_input(ACE_HANDLE)
 {
   int loop_count = 0;
 __loop:
@@ -354,24 +485,17 @@ __loop:
   if (m_read_next_offset < (int)sizeof(m_packet_header))
     return 0;
 
-  if (!m_current_block)
-  {
-    MY_ERROR("Fatal error, unexpected m_current_block = NULL.\n");
+  int ret = read_req_body();
+  if (ret < 0)
     return -1;
-  }
+  else if (ret > 0)
+    return 0;
 
-  if (mycomutil_recv_message_block(this, m_current_block) < 0)
+  if (handle_req() < 0)
     return -1;
-  if (m_current_block->space() == 0)
-  {
-    //
-    if(m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
-      return process_client_version_check();
 
-    if (!sumbit_received_data())
-      return -1;
-    goto __loop; //burst transfer, in the hope that more are ready in the buffer
-  }
+  goto __loop; //burst transfer, in the hope that more are ready in the buffer
+
   return 0;
 }
 
@@ -379,9 +503,11 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
                           ACE_Reactor_Mask close_mask)
 {
   ACE_UNUSED_ARG(handle);
-  if (!m_wait_for_close && close_mask == ACE_Event_Handler::WRITE_MASK)
+  if (close_mask == ACE_Event_Handler::WRITE_MASK)
+  {
+    if (!m_processor->wait_for_close())
     return 0;
-
+  }
   ACE_Message_Block *mb;
   ACE_Time_Value nowait(ACE_OS::gettimeofday());
   while (-1 != this->getq (mb, &nowait))
@@ -413,7 +539,7 @@ int MyBaseHandler::handle_output (ACE_HANDLE fd)
       mb->release();
       reactor()->remove_handler(this, ACE_Event_Handler::WRITE_MASK | ACE_Event_Handler::READ_MASK |
                                 ACE_Event_Handler::DONT_CALL);
-      return handle_close(ACE_INVALID_HANDLE, 0); //todo: more graceful shutdown
+      return handle_close(get_handle(), 0); //todo: more graceful shutdown
     }
     if (mb->length() > 0)
     {
@@ -429,6 +555,8 @@ MyBaseHandler::~MyBaseHandler()
 {
   if (m_current_block)
     m_current_block->release();
+  delete m_processor;
+
   ACE_DEBUG ((LM_DEBUG,
               ACE_TEXT ("(%P|%t) deleting MyBaseHandler objects %X\n"),
               (long)this));
@@ -439,28 +567,12 @@ MyBaseHandler::~MyBaseHandler()
 
 MyBaseAcceptor::MyBaseAcceptor(MyBaseModule * _module): m_module(_module)
 {
-  if (MyServerAppX::instance()->server_config().use_mem_pool)
-  {
-    m_header_pool = new My_Cached_Allocator<ACE_Thread_Mutex>
-      (MyServerAppX::instance()->server_config().module_heart_beat_mem_pool_size, sizeof(MyDataPacketHeader));
-    m_message_block_pool = new My_Cached_Allocator<ACE_Thread_Mutex>
-      (MyServerAppX::instance()->server_config().message_control_block_mem_pool_size, sizeof(ACE_Message_Block));
-    m_data_block_pool = new My_Cached_Allocator<ACE_Thread_Mutex>
-      (MyServerAppX::instance()->server_config().message_control_block_mem_pool_size, sizeof(ACE_Data_Block));
-  }
-  else
-  {
-    m_header_pool = NULL;
-    m_message_block_pool = NULL;
-    m_data_block_pool = NULL;
-  }
+
 }
 
 MyBaseAcceptor::~MyBaseAcceptor()
 {
-  delete m_header_pool;
-  delete m_message_block_pool;
-  delete m_data_block_pool;
+
 }
 
 MyBaseModule * MyBaseAcceptor::module_x() const
@@ -507,7 +619,7 @@ void MyBaseAcceptor::on_close_connection(MyBaseHandler * handler)
   if (handler == NULL)
     return;
 
-  if (handler->client_id_verified())
+  //if (handler->client_id_verified())
   {
     //todo:
     //m_client_infos.set_handler(handler->client_id(), NULL);

@@ -38,6 +38,13 @@
                     ERROR_PREFIX  FMT, \
                     ## __VA_ARGS__))
 
+#define FATAL_PREFIX       ACE_TEXT("(%D %P|%t %N.%l)\n  FATAL  %I")
+#define MY_FATAL(FMT, ...)     \
+        ACE_DEBUG(( LM_ERROR,  \
+                    FATAL_PREFIX  FMT, \
+                    ## __VA_ARGS__))
+
+
 int mycomutil_translate_tcp_result(ssize_t transfer_return_value);
 int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
 int mycomutil_send_message_block_queue(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);

@@ -326,15 +326,17 @@ bool MyServerApp::running() const
 
 void MyServerApp::app_init()
 {
-  if (!MyServerAppX::instance()->m_config.loadConfig())
+  MyServerApp * app = MyServerAppX::instance();
+  if (!app->m_config.loadConfig())
   {
     std::printf("error loading config file, quitting\n");
     exit(5);
   }
-  if (MyServerAppX::instance()->m_config.run_as_demon)
+  if (app->m_config.run_as_demon)
     MyServerApp::app_demonize();
-  MyHeartBeatHandler::init_mem_pool(MyServerAppX::instance()->m_config.max_clients);
-  MyServerAppX::instance()->do_constructor();
+  MyHeartBeatHandler::init_mem_pool(app->m_config.max_clients);
+  MyMemPoolFactoryX::instance()->init(&(app->m_config));
+  app->do_constructor();
 }
 
 void MyServerApp::app_fini()
@@ -342,6 +344,7 @@ void MyServerApp::app_fini()
   MyServerApp::dump_memory_pool_info();
   MyServerAppX::close();  //this comes before the releasing of memory pool
   MyHeartBeatHandler::fini_mem_pool();
+  MyMemPoolFactoryX::close();
 }
 
 void MyServerApp::app_demonize()

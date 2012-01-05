@@ -8,11 +8,41 @@
 #include "heartbeatmodule.h"
 #include "serverapp.h"
 
+//MyHeartBeatProcessor//
+
+MyHeartBeatProcessor::MyHeartBeatProcessor(MyBaseHandler * handler): MyBaseServerProcessor(handler)
+{
+
+}
+
+MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header(const MyDataPacketHeader & header)
+{
+  if (MyBaseServerProcessor::on_recv_header(header) == ER_ERROR)
+    return ER_ERROR;
+
+  if (header.command == MyDataPacketHeader::CMD_HEARTBEAT_PING)
+  { //todo: handle heart beat
+    //the thread context switching and synchronization cost outbeat the benefit of using another thread
+
+    return ER_OK_FINISHED;
+  }
+
+  return ER_ERROR;
+}
+
+MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+{
+
+
+}
+
+
+
 //MyHeartBeatHandler//
 
 MyHeartBeatHandler::MyHeartBeatHandler(MyBaseAcceptor * xptr): MyBaseHandler(xptr)
 {
-
+  m_processor = new MyHeartBeatProcessor(this);
 }
 
 PREPARE_MEMORY_POOL(MyHeartBeatHandler);

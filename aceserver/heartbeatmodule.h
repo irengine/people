@@ -15,6 +15,17 @@
 
 class MyHeartBeatModule;
 
+class MyHeartBeatProcessor: public MyBaseServerProcessor
+{
+public:
+  MyHeartBeatProcessor(MyBaseHandler * handler);
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
+
+protected:
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+
+};
+
 class MyHeartBeatHandler: public MyBaseHandler
 {
 public:

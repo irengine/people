@@ -23,6 +23,7 @@
 #include <vector>
 #include <map>
 #include <list>
+#include <string>
 
 #include "myutil.h"
 #include "datapacket.h"
@@ -55,6 +56,23 @@ public:
   {}
 };
 
+class MyServerConfig;
+class MyMemPoolFactory
+{
+public:
+  MyMemPoolFactory();
+  ~MyMemPoolFactory();
+  void init(MyServerConfig * config);
+  ACE_Message_Block * get_message_block(int capacity);
+private:
+  My_Cached_Allocator<ACE_Thread_Mutex> *m_header_pool;
+  My_Cached_Allocator<ACE_Thread_Mutex> *m_message_block_pool;
+  My_Cached_Allocator<ACE_Thread_Mutex> *m_data_block_pool;
+  bool m_use_mem_pool; //local copy
+};
+typedef ACE_Unmanaged_Singleton<MyMemPoolFactory, ACE_Null_Mutex> MyMemPoolFactoryX;
+
+
 
 class MyClientIDTable
 {
@@ -84,6 +102,64 @@ private:
 typedef std::list<MyBaseHandler *> MyActiveConnections;
 typedef MyActiveConnections::iterator MyActiveConnectionPointer;
 
+class MyBaseProcessor
+{
+public:
+  enum EVENT_RESULT
+  {
+    ER_ERROR = -1,
+    ER_OK = 0,
+    ER_CONTINUE,
+    ER_OK_FINISHED
+  };
+  MyBaseProcessor(MyBaseHandler * handler);
+
+  virtual std::string info_string() const;
+  virtual void on_open();
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
+  MyBaseProcessor::EVENT_RESULT on_recv_packet(ACE_Message_Block * mb);
+  virtual ACE_Message_Block * make_recv_message_block(const MyDataPacketHeader & header) = 0;
+  virtual ACE_Message_Block * make_send_message_block(const MyDataPacketHeader & header) = 0;
+  virtual int copy_header_to_mb(ACE_Message_Block * mb, const MyDataPacketHeader & header);
+  bool wait_for_close() const;
+
+
+protected:
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb) = 0;
+
+  MyBaseHandler * m_handler;
+  bool       m_wait_for_close;
+};
+
+class MyBaseServerProcessor: public MyBaseProcessor
+{
+public:
+  MyBaseServerProcessor(MyBaseHandler * handler);
+  std::string info_string() const;
+  virtual void on_open();
+  bool client_id_verified() const;
+  const MyClientID & client_id() const;
+  virtual ACE_Message_Block * make_recv_message_block(const MyDataPacketHeader & header);
+  virtual ACE_Message_Block * make_send_message_block(const MyDataPacketHeader & header);
+  virtual int copy_header_to_mb(ACE_Message_Block * mb, const MyDataPacketHeader & header);
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
+
+protected:
+  virtual bool prefix_client_id() const;
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  int on_req_version_check_common(ACE_Message_Block * mb);
+
+  ACE_Message_Block * make_client_version_check_reply_mb(MyClientVersionCheckReply::REPLY_CODE code, int extra_len = 0);
+
+  MyClientID m_client_id;
+  int32_t    m_client_id_index;
+  enum
+  {
+    PEER_ADDR_LEN = 16 //"xxx.xxx.xxx.xxx"
+  };
+  char m_peer_addr[PEER_ADDR_LEN];
+};
+
 
 class MyBaseHandler: public ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH>
 {
@@ -101,35 +177,23 @@ public:
   MyBaseAcceptor * acceptor() const;
   void active_pointer(MyActiveConnectionPointer ptr);
   MyActiveConnectionPointer active_pointer();
-  bool client_id_verified() const;
-  const MyClientID & client_id() const;
+  int send_data(ACE_Message_Block * mb);
 
 protected:
   virtual bool sumbit_received_data();
-  int send_data(ACE_Message_Block * mb);
 
   MyBaseAcceptor * m_acceptor; //trade space for speed, although we can get acceptor pointer
                                //by the module_x()->dispatcher()->acceptor() method
                                //but this is much faster
-  MyClientID m_client_id;
-  int        m_client_id_index;
   ACE_Message_Block * m_current_block;
-  bool       m_wait_for_close;
-  enum
-  {
-    PEER_ADDR_LEN = 16 //"xxx.xxx.xxx.xxx"
-  };
-  char m_peer_addr[PEER_ADDR_LEN];
+  MyBaseProcessor * m_processor;
 private:
-  int process_client_version_check();
   int read_req_header();
-  ACE_Message_Block * make_recv_message_block();
-  ACE_Message_Block * make_client_version_check_reply_mb(MyClientVersionCheckReply::REPLY_CODE code, int extra_len = 0);
-
+  int read_req_body();
+  int handle_req();
   MyActiveConnectionPointer m_active_pointer;
   MyDataPacketHeader m_packet_header;
   int m_read_next_offset;
-
 };
 
 class MyBaseAcceptor: public ACE_Acceptor<MyBaseHandler, ACE_SOCK_ACCEPTOR>
@@ -155,11 +219,6 @@ protected:
 
 
   bool next_pointer();
-
-  My_Cached_Allocator<ACE_Thread_Mutex> *m_header_pool;
-  My_Cached_Allocator<ACE_Thread_Mutex> *m_message_block_pool;
-  My_Cached_Allocator<ACE_Thread_Mutex> *m_data_block_pool;
-//  MyCached_Message_Block Header_Message_Block;
 
   int  m_num_connections;
   long m_bytes_received;
