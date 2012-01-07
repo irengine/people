@@ -42,6 +42,15 @@ public:
     ACE_OS::strsncpy(client_id_value_s, s, sizeof(client_id) - 1);
   }
 
+  const MyClientID & operator = (const MyClientID & rhs)
+  {
+    if (&rhs == this)
+      return *this;
+    client_id_value_i[0] = rhs.client_id_value_i[0];
+    client_id_value_i[1] = rhs.client_id_value_i[1];
+    client_id_value_i[sizeof(client_id) - 1] = 0;
+    return *this;
+  }
   const char * as_string() const
   {
     return client_id_value_s;
@@ -80,9 +89,9 @@ class MyDataPacketHeader
 public:
   enum
   {
-    DATAPACKET_MAGIC = 0x9397
+    DATAPACKET_MAGIC = 0x80089397
   };
-  enum
+  enum COMMAND
   {
     CMD_NULL = 0,
     CMD_HEARTBEAT_PING,
@@ -91,15 +100,15 @@ public:
     CMD_END
   };
   int32_t length;
+  u_int32_t magic;
   int16_t command;
-  u_int16_t magic;
 };
 
 //the ultimate root class for all data packets Proc
 class MyDataPacketBaseProc
 {
 public:
-  MyDataPacketBaseProc(char * _data = NULL): m_data((MyDataPacketHeader *)_data), m_data_owner(m_data == NULL)
+  MyDataPacketBaseProc(const char * _data = NULL): m_data((MyDataPacketHeader *)_data), m_data_owner(m_data == NULL)
   {}
   virtual ~MyDataPacketBaseProc()
   {
@@ -118,7 +127,7 @@ public:
   {
     return true;
   }
-  void attach(char * _data, bool own_data = false)
+  void attach(const char * _data, bool own_data = false)
   //renamed just because gcc 4.4 is not smart enough to distinguish this
   //from the sub-class override and overload version
   //void data(char * _data, bool own_data = false)

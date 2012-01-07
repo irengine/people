@@ -14,6 +14,7 @@
 #include <new>
 
 class MyHeartBeatModule;
+class MyPingSubmitter;
 
 class MyHeartBeatProcessor: public MyBaseServerProcessor
 {
@@ -21,15 +22,42 @@ public:
   MyHeartBeatProcessor(MyBaseHandler * handler);
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
 
+  static MyPingSubmitter * m_sumbitter;
+
 protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
+private:
+  void do_ping();
+  MyBaseProcessor::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
+};
+
+class MyPingSubmitter
+{
+public:
+  MyPingSubmitter();
+  void add_ping(const char * client_id, const int len);
+  void check_time_out();
+
+private:
+  void do_submit();
+  void reset();
+  enum
+  {
+    BLOCK_SIZE = 4096
+  };
+  ACE_Message_Block * m_current_block;
+  long m_last_add;
+  char * m_current_ptr;
+  int  m_current_length;
+
+  //todo: add target
 };
 
 class MyHeartBeatHandler: public MyBaseHandler
 {
 public:
-  MyHeartBeatHandler(MyBaseAcceptor * xptr = NULL);
+  MyHeartBeatHandler(MyBaseConnectionManager * xptr = NULL);
   DECLARE_MEMORY_POOL(MyHeartBeatHandler, ACE_Thread_Mutex);
 };
 
@@ -56,7 +84,7 @@ private:
 class MyHeartBeatAcceptor: public MyBaseAcceptor
 {
 public:
-  MyHeartBeatAcceptor(MyHeartBeatModule * _module);
+  MyHeartBeatAcceptor(MyHeartBeatModule * _module, MyBaseConnectionManager * manager);
   virtual int make_svc_handler(MyBaseHandler *& sh);
 };
 
@@ -66,12 +94,8 @@ class MyHeartBeatModule: public MyBaseModule
 public:
   MyHeartBeatModule();
   virtual ~MyHeartBeatModule();
-//  static MyHeartBeatModule *instance();
-
-//private:
-//  static MyHeartBeatModule * m_instance;
+private:
+  MyPingSubmitter m_ping_sumbitter;
 };
-
-//typedef ACE_Unmanaged_Singleton<MyHeartBeatModule, ACE_Null_Mutex> MyHeartBeatModuleX;
 
 #endif /* HEARTBEATMODULE_H_ */

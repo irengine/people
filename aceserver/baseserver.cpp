@@ -172,6 +172,13 @@ MyBaseProcessor::MyBaseProcessor(MyBaseHandler * handler)
 {
   m_handler = handler;
   m_wait_for_close = false;
+  m_last_activity = g_clock_tick;
+  m_check_activity = true;
+}
+
+MyBaseProcessor::~MyBaseProcessor()
+{
+
 }
 
 std::string MyBaseProcessor::info_string() const
@@ -189,22 +196,34 @@ bool MyBaseProcessor::wait_for_close() const
   return m_wait_for_close;
 }
 
-MyBaseProcessor::EVENT_RESULT MyBaseProcessor::on_recv_header(const MyDataPacketHeader & header)
+int MyBaseProcessor::handle_input()
 {
-  return ER_CONTINUE;
+  return 0;
 }
 
-MyBaseProcessor::EVENT_RESULT MyBaseProcessor::on_recv_packet(ACE_Message_Block * mb)
+bool MyBaseProcessor::dead() const
 {
-
-  MyBaseProcessor::EVENT_RESULT result = on_recv_packet_i(mb);
-  mb->release();
-  return result;
+  return m_last_activity + 100 < g_clock_tick;
 }
 
-int MyBaseProcessor::copy_header_to_mb(ACE_Message_Block * mb, const MyDataPacketHeader & header)
+void MyBaseProcessor::update_last_activity()
 {
-  return mb->copy((const char*)&header, sizeof(MyDataPacketHeader));
+  m_last_activity = g_clock_tick;
+}
+
+long MyBaseProcessor::last_activity() const
+{
+  return m_last_activity;
+}
+
+bool MyBaseProcessor::check_activity() const
+{
+  return m_check_activity;
+}
+
+void MyBaseProcessor::check_activity(bool bCheck)
+{
+  m_check_activity = bCheck;
 }
 
 
@@ -214,6 +233,14 @@ MyBaseServerProcessor::MyBaseServerProcessor(MyBaseHandler * handler): MyBasePro
 {
   m_client_id_index = -1;
   m_peer_addr[0] = 0;
+  m_read_next_offset = 0;
+  m_current_block = NULL;
+}
+
+MyBaseServerProcessor::~MyBaseServerProcessor()
+{
+  if (m_current_block)
+    m_current_block->release();
 }
 
 std::string MyBaseServerProcessor::info_string() const
@@ -224,252 +251,18 @@ std::string MyBaseServerProcessor::info_string() const
   return result;
 }
 
-void MyBaseServerProcessor::on_open()
+int MyBaseServerProcessor::handle_input()
 {
-  ACE_INET_Addr peer_addr;
-  if (m_handler->peer().get_remote_addr(peer_addr) == 0)
-    peer_addr.get_host_addr((char*)m_peer_addr, PEER_ADDR_LEN);
-  if (m_peer_addr[0] == 0)
-    ACE_OS::strsncpy((char*)m_peer_addr, "unknown", PEER_ADDR_LEN);
-}
-
-
-MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_header(const MyDataPacketHeader & header)
-{
-  bool bVerified = client_id_verified();
-  bool bVersionCheck = (header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
-  if (bVerified == bVersionCheck)
-  {
-    MY_ERROR(ACE_TEXT("Bad request received (verified = %d, request version check = %d) from %s, \n"),
-             bVerified, bVersionCheck, info_string().c_str());
-    return ER_ERROR;
-  }
-  return ER_CONTINUE;
-}
-
-MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_packet_i(ACE_Message_Block * mb)
-{
-
-}
-
-bool MyBaseServerProcessor::client_id_verified() const
-{
-  return !m_client_id.is_null();
-}
-
-const MyClientID & MyBaseServerProcessor::client_id() const
-{
-  return m_client_id;
-}
-
-bool MyBaseServerProcessor::prefix_client_id() const
-{
-  return false;
-}
-
-int MyBaseServerProcessor::copy_header_to_mb(ACE_Message_Block * mb, const MyDataPacketHeader & header)
-{
-  if (prefix_client_id())
-  {
-    if (mb->copy((const char*)m_client_id_index, sizeof(int32_t)) == -1)
-      return -1;
-  }
-  return MyBaseProcessor::copy_header_to_mb(mb, header);
-}
-
-
-ACE_Message_Block * MyBaseServerProcessor::make_recv_message_block(const MyDataPacketHeader & header)
-{
-
-}
-
-ACE_Message_Block * MyBaseServerProcessor::make_send_message_block(const MyDataPacketHeader & header)
-{
-
-}
-
-ACE_Message_Block * MyBaseServerProcessor::make_client_version_check_reply_mb
-   (MyClientVersionCheckReply::REPLY_CODE code, int extra_len)
-{
-  int total_len = sizeof(MyClientVersionCheckReply) + extra_len;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len);
-
-  MyClientVersionCheckReplyProc vcr;
-  vcr.attach(mb->base());
-  vcr.init_header();
-  vcr.data()->reply_code = code;
-  mb->wr_ptr(total_len);
-  return mb;
-}
-
-int MyBaseServerProcessor::on_req_version_check_common(ACE_Message_Block * mb)
-{
-  MyClientVersionCheckRequestProc vcr;
-  vcr.attach(mb->base());
-  int client_id_index = -1;
-  ACE_Message_Block * reply_mb = NULL;
-  if (vcr.data()->client_version != 1)
-  {
-    m_wait_for_close = true;
-    reply_mb = make_client_version_check_reply_mb(MyClientVersionCheckReply::VER_MISMATCH);
-  } else
-  {
-    client_id_index = MyServerAppX::instance()->client_id_table().index_of(vcr.data()->client_id);
-    if (client_id_index < 0)
-    {
-      m_wait_for_close = true;
-      reply_mb = make_client_version_check_reply_mb(MyClientVersionCheckReply::VER_ACCESS_DENIED);
-    }
-  }
-
   if (m_wait_for_close)
   {
-    int ret = m_handler->send_data(reply_mb);
-    if (ret <= 0)
+    char buffer[4096];
+    ssize_t recv_cnt = TEMP_FAILURE_RETRY(m_handler->peer().recv (buffer, 4096));
+    int ret = mycomutil_translate_tcp_result(recv_cnt);
+    if (ret < 0)
       return -1;
-    else
-      return 0;
-  }
-  m_client_id_index = client_id_index;
-  m_client_id = vcr.data()->client_id;
-
-  return 0;
-}
-
-
-//MyBaseHandler//
-
-MyBaseHandler::MyBaseHandler(MyBaseAcceptor * xptr)
-{
-  if (xptr)
-    m_active_pointer = xptr->m_active_connections.end();
-  m_acceptor = xptr;
-  m_read_next_offset = 0;
-  m_current_block = NULL;
-  m_processor = NULL;
-}
-
-MyBaseModule * MyBaseHandler::module_x() const
-{
-  //return NULL;
-  return m_acceptor->module_x();
-}
-
-MyBaseAcceptor * MyBaseHandler::acceptor() const
-{
-  //return module_x()->dispatcher()->acceptor();
-  return m_acceptor;
-}
-
-void MyBaseHandler::active_pointer(MyActiveConnectionPointer ptr)
-{
-  m_active_pointer = ptr;
-}
-
-MyActiveConnectionPointer MyBaseHandler::active_pointer()
-{
-  return m_active_pointer;
-}
-
-int MyBaseHandler::open(void * p)
-{
-  if (super::open(p) == -1)
-    return -1;
-  m_processor->on_open();
-  m_acceptor->on_new_connection(this);
-  return 0;
-}
-
-int MyBaseHandler::send_data(ACE_Message_Block * mb)
-{
-  return mycomutil_send_message_block_queue(this, mb);
-}
-
-bool MyBaseHandler::sumbit_received_data()
-{
-  ACE_Time_Value nowait(ACE_OS::gettimeofday());
-
-  if (module_x()->service()->putq(m_current_block, &nowait) == -1)
-  {
-    MY_ERROR("MyBaseHandler::sumbit_received_data().putq() failed\n");
-    return false;
+    return (m_handler->msg_queue()->is_empty ()) ? -1 : 0;
   }
 
-  m_current_block = NULL;
-  m_read_next_offset = 0;
-  return true;
-}
-
-
-int MyBaseHandler::read_req_header()
-{
-  ssize_t recv_cnt = TEMP_FAILURE_RETRY(this->peer().recv ((char*)&m_packet_header + m_read_next_offset,
-      sizeof(m_packet_header) - m_read_next_offset));
-  int ret = mycomutil_translate_tcp_result(recv_cnt);
-  if (ret <= 0)
-    return ret;
-  m_acceptor->on_data_received(this, long(recv_cnt));
-  m_read_next_offset += recv_cnt;
-  if (m_read_next_offset < (int)sizeof(m_packet_header))
-    return 0;
-
-  MyDataPacketBaseProc headerProc((char*)&m_packet_header);
-  if (!headerProc.validate_header())
-  {
-    MY_ERROR(ACE_TEXT("Invalid data packet header received %s\n"), m_processor->info_string().c_str());
-    return -1;
-  }
-
-  MyBaseProcessor::EVENT_RESULT er = m_processor->on_recv_header(m_packet_header);
-  switch(er)
-  {
-  case MyBaseProcessor::ER_ERROR:
-  case MyBaseProcessor::ER_CONTINUE:
-    return -1;
-  case MyBaseProcessor::ER_OK_FINISHED:
-    if (m_packet_header.length != sizeof(m_packet_header))
-    {
-      MY_FATAL("got ER_OK_FINISHED.\n");
-      return -1;
-    }
-    m_read_next_offset = 0;
-    return 0;
-  case MyBaseProcessor::ER_OK:
-    return 0;
-  default:
-    MY_FATAL(ACE_TEXT("unexpected MyBaseProcessor::EVENT_RESULT value = %d.\n"), er);
-    return -1;
-  }
-}
-
-int MyBaseHandler::read_req_body()
-{
-  if (!m_current_block)
-  {
-    m_current_block = m_processor->make_recv_message_block(m_packet_header);
-    if (!m_current_block)
-      return -1;
-    if (m_processor->copy_header_to_mb(m_current_block, m_packet_header) < 0)
-    {
-      MY_ERROR(ACE_TEXT("Message block copy header: m_current_block.copy() failed\n"));
-      return -1;
-    }
-  }
-  return mycomutil_recv_message_block(this, m_current_block);
-}
-
-int MyBaseHandler::handle_req()
-{
-  if (m_processor->on_recv_packet(m_current_block) != MyBaseProcessor::ER_OK)
-    return -1;
-
-  m_current_block = 0;
-  m_read_next_offset = 0;
-  return 0;
-}
-
-int MyBaseHandler::handle_input(ACE_HANDLE)
-{
   int loop_count = 0;
 __loop:
   ++loop_count;
@@ -478,8 +271,11 @@ __loop:
     return 0;          //just in case of the malicious/ill-behaved clients
   if (m_read_next_offset < (int)sizeof(m_packet_header))
   {
-    if (read_req_header() < 0)
+    int ret = read_req_header();
+    if (ret < 0)
       return -1;
+    else if (ret > 0)
+      return 0;
   }
 
   if (m_read_next_offset < (int)sizeof(m_packet_header))
@@ -499,6 +295,330 @@ __loop:
   return 0;
 }
 
+int MyBaseServerProcessor::copy_header_to_mb(ACE_Message_Block * mb, const MyDataPacketHeader & header)
+{
+  return mb->copy((const char*)&header, sizeof(MyDataPacketHeader));
+}
+
+void MyBaseServerProcessor::on_open()
+{
+  ACE_INET_Addr peer_addr;
+  if (m_handler->peer().get_remote_addr(peer_addr) == 0)
+    peer_addr.get_host_addr((char*)m_peer_addr, PEER_ADDR_LEN);
+  if (m_peer_addr[0] == 0)
+    ACE_OS::strsncpy((char*)m_peer_addr, "unknown", PEER_ADDR_LEN);
+}
+
+
+MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_header(const MyDataPacketHeader & header)
+{
+  MyDataPacketBaseProc proc((const char*)&header);
+  if (!proc.validate_header())
+  {
+    MY_ERROR(ACE_TEXT("Bad request received (invalid header magic check) from %s, \n"),
+             info_string().c_str());
+    return ER_ERROR;
+  }
+
+  bool bVerified = client_id_verified();
+  bool bVersionCheck = (header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
+  if (bVerified == bVersionCheck)
+  {
+    MY_ERROR(ACE_TEXT("Bad request received (verified = %d, request version check = %d) from %s, \n"),
+             bVerified, bVersionCheck, info_string().c_str());
+    return ER_ERROR;
+  }
+  return ER_CONTINUE;
+}
+
+MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_packet(ACE_Message_Block * mb)
+{
+  if (mb->size() < sizeof(MyDataPacketHeader))
+  {
+    MY_ERROR(ACE_TEXT("message block size too little ( = %d)"), mb->size());
+    return ER_ERROR;
+  }
+  mb->rd_ptr(mb->base());
+
+  MyBaseProcessor::EVENT_RESULT result = on_recv_packet_i(mb);
+  mb->release();
+  return result;
+}
+
+
+MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+{
+  MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
+  header->magic = m_client_id_index;
+  return ER_OK;
+}
+
+bool MyBaseServerProcessor::client_id_verified() const
+{
+  return !m_client_id.is_null();
+}
+
+const MyClientID & MyBaseServerProcessor::client_id() const
+{
+  return m_client_id;
+}
+
+ACE_Message_Block * MyBaseServerProcessor::make_version_check_reply_mb
+   (MyClientVersionCheckReply::REPLY_CODE code, int extra_len)
+{
+  int total_len = sizeof(MyClientVersionCheckReply) + extra_len;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len);
+
+  MyClientVersionCheckReplyProc vcr;
+  vcr.attach(mb->base());
+  vcr.init_header();
+  vcr.data()->reply_code = code;
+  mb->wr_ptr(total_len);
+  return mb;
+}
+
+MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE_Message_Block * mb)
+{
+  MyClientVersionCheckRequestProc vcr;
+  vcr.attach(mb->base());
+  int client_id_index = -1;
+  ACE_Message_Block * reply_mb = NULL;
+  if (vcr.data()->client_version != 1)
+  {
+    m_wait_for_close = true;
+    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_MISMATCH);
+  } else
+  {
+    client_id_index = MyServerAppX::instance()->client_id_table().index_of(vcr.data()->client_id);
+    if (client_id_index < 0)
+    {
+      m_wait_for_close = true;
+      reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_ACCESS_DENIED);
+    }
+  }
+
+  if (m_wait_for_close)
+  {
+    if (m_handler->send_data(reply_mb) <= 0)
+      return ER_ERROR;
+    else
+      return ER_OK;
+  }
+  m_client_id_index = client_id_index;
+  m_client_id = vcr.data()->client_id;
+  m_client_id_length = strlen(m_client_id.as_string());
+  return ER_CONTINUE;
+}
+
+int MyBaseServerProcessor::read_req_header()
+{
+  update_last_activity();
+  ssize_t recv_cnt = TEMP_FAILURE_RETRY(m_handler->peer().recv ((char*)&m_packet_header + m_read_next_offset,
+      sizeof(m_packet_header) - m_read_next_offset));
+  int ret = mycomutil_translate_tcp_result(recv_cnt);
+  if (ret <= 0)
+    return ret;
+  m_read_next_offset += recv_cnt;
+  if (m_read_next_offset < (int)sizeof(m_packet_header))
+    return 0;
+
+  MyDataPacketBaseProc headerProc((char*)&m_packet_header);
+  if (!headerProc.validate_header())
+  {
+    MY_ERROR(ACE_TEXT("Invalid data packet header received %s\n"), info_string().c_str());
+    return -1;
+  }
+
+  MyBaseProcessor::EVENT_RESULT er = on_recv_header(m_packet_header);
+  switch(er)
+  {
+  case MyBaseProcessor::ER_ERROR:
+  case MyBaseProcessor::ER_CONTINUE:
+    return -1;
+  case MyBaseProcessor::ER_OK_FINISHED:
+    if (m_packet_header.length != sizeof(m_packet_header))
+    {
+      MY_FATAL("got ER_OK_FINISHED.\n");
+      return -1;
+    }
+    if (m_handler->connection_manager())
+      m_handler->connection_manager()->on_data_received(sizeof(m_packet_header));
+    m_read_next_offset = 0;
+    return 1;
+  case MyBaseProcessor::ER_OK:
+    return 0;
+  default:
+    MY_FATAL(ACE_TEXT("unexpected MyBaseProcessor::EVENT_RESULT value = %d.\n"), er);
+    return -1;
+  }
+}
+
+int MyBaseServerProcessor::read_req_body()
+{
+  if (!m_current_block)
+  {
+    m_current_block = MyMemPoolFactoryX::instance()->get_message_block(m_packet_header.length);
+    if (!m_current_block)
+      return -1;
+    if (copy_header_to_mb(m_current_block, m_packet_header) < 0)
+    {
+      MY_ERROR(ACE_TEXT("Message block copy header: m_current_block.copy() failed\n"));
+      return -1;
+    }
+  }
+  update_last_activity();
+  return mycomutil_recv_message_block(m_handler, m_current_block);
+}
+
+int MyBaseServerProcessor::handle_req()
+{
+  if (m_handler->connection_manager())
+     m_handler->connection_manager()->on_data_received(m_current_block->size());
+
+  if (on_recv_packet(m_current_block) != MyBaseProcessor::ER_OK)
+    return -1;
+
+  m_current_block = 0;
+  m_read_next_offset = 0;
+  return 0;
+}
+
+
+//MyBaseConnectionManager//
+
+MyBaseConnectionManager::MyBaseConnectionManager()
+{
+  m_num_connections = 0;
+  m_bytes_received = 0;
+  m_bytes_sent = 0;
+}
+
+MyActiveConnectionPointer MyBaseConnectionManager::end()
+{
+  return m_active_connections.end();
+}
+
+int MyBaseConnectionManager::num_connections() const
+{
+  return m_num_connections;
+}
+
+long MyBaseConnectionManager::bytes_received() const
+{
+  return m_bytes_received;
+}
+
+long MyBaseConnectionManager::bytes_sent() const
+{
+  return m_bytes_sent;
+}
+
+void MyBaseConnectionManager::on_data_received(long data_size)
+{
+  m_bytes_received += data_size;
+}
+
+void MyBaseConnectionManager::on_data_send(long data_size)
+{
+  m_bytes_sent += data_size;
+}
+
+void MyBaseConnectionManager::on_new_connection(MyBaseHandler * handler)
+{
+  if (handler == NULL)
+    return;
+  MyActiveConnectionPointer it = m_active_connections.insert(m_active_connections.end(), handler);
+  handler->active_pointer(it);
+  ++m_num_connections;
+}
+
+void MyBaseConnectionManager::on_close_connection(MyBaseHandler * handler)
+{
+  if (handler == NULL)
+    return;
+
+  MyActiveConnectionPointer aPointer = handler->active_pointer();
+  if (aPointer == m_active_connections.end())
+    return;
+//  if (m_scan_pointer == aPointer)
+//    next_pointer();
+  m_active_connections.erase(aPointer);
+  --m_num_connections;
+}
+
+
+void MyBaseConnectionManager::detect_dead_connections()
+{
+  MyActiveConnectionPointer aPointer, bPointer;
+  for (aPointer = m_active_connections.begin(); aPointer != m_active_connections.end(); )
+  {
+    if ((*aPointer)->processor()->dead())
+    {
+      bPointer = aPointer;
+      ++aPointer;
+      (*bPointer)->handle_close(ACE_INVALID_HANDLE, 0);
+    }
+  }
+}
+
+
+//MyBaseHandler//
+
+MyBaseHandler::MyBaseHandler(MyBaseConnectionManager * xptr)
+{
+  if (xptr)
+    m_active_pointer = xptr->end();
+  m_connection_manager = xptr;
+  m_processor = NULL;
+}
+
+MyBaseConnectionManager * MyBaseHandler::connection_manager()
+{
+  return m_connection_manager;
+}
+
+void MyBaseHandler::active_pointer(MyActiveConnectionPointer ptr)
+{
+  m_active_pointer = ptr;
+}
+
+MyActiveConnectionPointer MyBaseHandler::active_pointer()
+{
+  return m_active_pointer;
+}
+
+MyBaseProcessor * MyBaseHandler::processor() const
+{
+  return m_processor;
+}
+
+int MyBaseHandler::open(void * p)
+{
+  if (super::open(p) == -1)
+    return -1;
+  m_processor->on_open();
+  if (m_connection_manager)
+    m_connection_manager->on_new_connection(this);
+  return 0;
+}
+
+int MyBaseHandler::send_data(ACE_Message_Block * mb)
+{
+  m_processor->update_last_activity();
+  int ret = mycomutil_send_message_block_queue(this, mb);
+  if (ret >= 0)
+  {
+    if (m_connection_manager)
+      m_connection_manager->on_data_send(mb->size());
+  }
+  return ret;
+}
+
+int MyBaseHandler::handle_input(ACE_HANDLE)
+{
+  return m_processor->handle_input();
+}
+
 int MyBaseHandler::handle_close (ACE_HANDLE handle,
                           ACE_Reactor_Mask close_mask)
 {
@@ -513,7 +633,8 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
   while (-1 != this->getq (mb, &nowait))
     mb->release();
 
-  m_acceptor->on_close_connection(this);
+  if (m_connection_manager)
+    m_connection_manager->on_close_connection(this);
   //here comes the tricky part, parent class will NOT call delete as it normally does
   //since we override the operator new/delete pair, the same thing parent class does
   //see ACE_Svc_Handler @ Svc_Handler.cpp
@@ -553,8 +674,6 @@ int MyBaseHandler::handle_output (ACE_HANDLE fd)
 
 MyBaseHandler::~MyBaseHandler()
 {
-  if (m_current_block)
-    m_current_block->release();
   delete m_processor;
 
   ACE_DEBUG ((LM_DEBUG,
@@ -565,14 +684,16 @@ MyBaseHandler::~MyBaseHandler()
 
 //MyBaseAcceptor//
 
-MyBaseAcceptor::MyBaseAcceptor(MyBaseModule * _module): m_module(_module)
+MyBaseAcceptor::MyBaseAcceptor(MyBaseModule * _module, MyBaseConnectionManager * _manager):
+    m_module(_module), m_connection_manager(_manager)
 {
 
 }
 
 MyBaseAcceptor::~MyBaseAcceptor()
 {
-
+  if (m_connection_manager)
+    delete m_connection_manager;
 }
 
 MyBaseModule * MyBaseAcceptor::module_x() const
@@ -580,75 +701,10 @@ MyBaseModule * MyBaseAcceptor::module_x() const
   return m_module;
 }
 
-int MyBaseAcceptor::num_connections() const
+MyBaseConnectionManager * MyBaseAcceptor::connection_manager() const
 {
-  return m_num_connections;
+  return m_connection_manager;
 }
-
-long MyBaseAcceptor::bytes_received() const
-{
-  return m_bytes_received;
-}
-
-long MyBaseAcceptor::bytes_processed() const
-{
-  return m_bytes_processed;
-}
-
-void MyBaseAcceptor::on_data_received(MyBaseHandler *, long data_size)
-{
-  m_bytes_received += data_size;
-}
-
-void MyBaseAcceptor::on_data_processed(MyBaseHandler *, long data_size)
-{
-  m_bytes_processed += data_size;
-}
-
-void MyBaseAcceptor::on_new_connection(MyBaseHandler * handler)
-{
-  if (handler == NULL)
-    return;
-  MyActiveConnectionPointer it = m_active_connections.insert(m_active_connections.end(), handler);
-  handler->active_pointer(it);
-  ++m_num_connections;
-}
-
-void MyBaseAcceptor::on_close_connection(MyBaseHandler * handler)
-{
-  if (handler == NULL)
-    return;
-
-  //if (handler->client_id_verified())
-  {
-    //todo:
-    //m_client_infos.set_handler(handler->client_id(), NULL);
-  }
-
-  MyActiveConnectionPointer aPointer = handler->active_pointer();
-  if (aPointer == m_active_connections.end())
-    return;
-  if (m_scan_pointer == aPointer)
-    next_pointer();
-  m_active_connections.erase(aPointer);
-  --m_num_connections;
-}
-
-void MyBaseAcceptor::on_client_id_verified(MyBaseHandler * handler)
-{
-
-}
-
-bool MyBaseAcceptor::next_pointer()
-{
-  if (m_scan_pointer == m_active_connections.end())
-    m_scan_pointer = m_active_connections.begin();
-  else
-    ++m_scan_pointer;
-
-  return m_scan_pointer == m_active_connections.end();
-}
-
 
 //MyBaseService//
 
@@ -689,6 +745,7 @@ MyBaseDispatcher::MyBaseDispatcher(MyBaseModule * pModule, int tcp_port, int num
 {
   m_dev_reactor = NULL;
   m_reactor = NULL;
+  m_clock_interval = 60;
 }
 
 MyBaseDispatcher::~MyBaseDispatcher()
@@ -721,11 +778,10 @@ int MyBaseDispatcher::open (void *)
   if (m_acceptor->open (port_to_listen, m_reactor) == -1)
     return -1;
 
-  ACE_Time_Value initialDelay (5);
-  ACE_Time_Value interval (5);
+  ACE_Time_Value interval (m_clock_interval);
   m_reactor->schedule_timer (this,
                              0,
-                             initialDelay,
+                             interval,
                              interval);
   return 0;
 }
@@ -776,6 +832,7 @@ int MyBaseDispatcher::svc()
     {
       if (errno == EINTR)
         continue;
+      MY_INFO(ACE_TEXT ("exiting MyBaseDispatcher::svc() due to errno = %d\n"), errno);
       break;
     }
   }
@@ -792,9 +849,9 @@ int MyBaseDispatcher::handle_timeout (const ACE_Time_Value &tv,
   ACE_UNUSED_ARG(tv);
   ACE_UNUSED_ARG(act);
   ACE_Message_Block *mb;
-  ACE_Time_Value nowait (ACE_OS::gettimeofday ());
+  ACE_Time_Value nowait(ACE_OS::gettimeofday ());
   int i = 0;
-  while (-1 != this->getq (mb, &nowait))
+  while (-1 != this->getq(mb, &nowait))
   {/*
     ssize_t send_cnt =
       this->peer ().send (mb->rd_ptr (), mb->length ());
@@ -814,9 +871,9 @@ int MyBaseDispatcher::handle_timeout (const ACE_Time_Value &tv,
     if (i >= m_numBatchSend)
       return 0;
   }
-  ACE_DEBUG ((LM_DEBUG,
-             ACE_TEXT ("(%P|%t) connections:=%d, received_bytes=%d, processed=%d\n"),
-             acceptor()->num_connections(), acceptor()->bytes_received(), acceptor()->bytes_processed()));
+//  ACE_DEBUG ((LM_DEBUG,
+//             ACE_TEXT ("(%P|%t) connections:=%d, received_bytes=%d, processed=%d\n"),
+//             acceptor()->num_connections(), acceptor()->bytes_received(), acceptor()->bytes_sent()));
 
   return 0;
 //    return (this->msg_queue()->is_empty ()) ? -1 : 0;

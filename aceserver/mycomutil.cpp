@@ -64,7 +64,7 @@ int mycomutil_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH
   ssize_t recv_cnt = TEMP_FAILURE_RETRY(handler->peer().recv (mb->wr_ptr(), mb->space()));
   int ret = mycomutil_translate_tcp_result(recv_cnt);
   if (ret < 0)
-    return ret;
+    return -1;
   mb->wr_ptr(recv_cnt);
   return (mb->space() == 0 ? 0:1);
 }

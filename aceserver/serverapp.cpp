@@ -13,6 +13,7 @@
 #include "heartbeatmodule.h"
 
 const ACE_TCHAR * const_server_version = ACE_TEXT("1.0");
+long g_clock_tick = 0;
 
 //MyServerConfig//
 
@@ -257,6 +258,15 @@ int MyStatusFileChecker::handle_timeout(const ACE_Time_Value &, const void *)
 }
 
 
+//MyClock//
+
+int MyClock::handle_timeout (const ACE_Time_Value &, const void *)
+{
+  ++g_clock_tick;
+  return 0;
+}
+
+
 //MyServerApp//
 
 MyServerApp::MyServerApp(): m_sig_handler(this), m_status_file_checker(this)
@@ -302,6 +312,8 @@ void MyServerApp::do_constructor()
                              0, interval, interval);
   }
 
+  ACE_Time_Value interval(10);
+  ACE_Reactor::instance()->schedule_timer(&m_clock, 0, interval, interval);
 }
 
 MyServerApp::~MyServerApp()
@@ -310,6 +322,7 @@ MyServerApp::~MyServerApp()
   m_ace_sig_handler.remove_handler(SIGTERM);
   if (m_status_file_checking)
     ACE_Reactor::instance()->cancel_timer(&m_status_file_checker);
+  ACE_Reactor::instance()->cancel_timer(&m_clock);
   stop();
   delete m_heart_beat_module;
 }

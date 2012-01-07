@@ -31,6 +31,7 @@
 class MyBaseModule;
 class MyBaseHandler;
 class MyBaseAcceptor;
+class MyBaseConnectionManager;
 
 class MyCached_Message_Block: public ACE_Message_Block
 {
@@ -113,51 +114,81 @@ public:
     ER_OK_FINISHED
   };
   MyBaseProcessor(MyBaseHandler * handler);
+  virtual ~MyBaseProcessor();
 
   virtual std::string info_string() const;
   virtual void on_open();
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
-  MyBaseProcessor::EVENT_RESULT on_recv_packet(ACE_Message_Block * mb);
-  virtual ACE_Message_Block * make_recv_message_block(const MyDataPacketHeader & header) = 0;
-  virtual ACE_Message_Block * make_send_message_block(const MyDataPacketHeader & header) = 0;
-  virtual int copy_header_to_mb(ACE_Message_Block * mb, const MyDataPacketHeader & header);
+  virtual int handle_input();
   bool wait_for_close() const;
 
+  bool dead() const;
+  void update_last_activity();
+  long last_activity() const;
+  bool check_activity() const;
+  void check_activity(bool bCheck);
 
 protected:
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb) = 0;
-
   MyBaseHandler * m_handler;
-  bool       m_wait_for_close;
+  long m_last_activity;
+  bool m_wait_for_close;
+  bool m_check_activity;
 };
 
 class MyBaseServerProcessor: public MyBaseProcessor
 {
 public:
   MyBaseServerProcessor(MyBaseHandler * handler);
+  virtual ~MyBaseServerProcessor();
   std::string info_string() const;
   virtual void on_open();
   bool client_id_verified() const;
   const MyClientID & client_id() const;
-  virtual ACE_Message_Block * make_recv_message_block(const MyDataPacketHeader & header);
-  virtual ACE_Message_Block * make_send_message_block(const MyDataPacketHeader & header);
-  virtual int copy_header_to_mb(ACE_Message_Block * mb, const MyDataPacketHeader & header);
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
+  virtual int handle_input();
 
 protected:
-  virtual bool prefix_client_id() const;
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
+  MyBaseProcessor::EVENT_RESULT on_recv_packet(ACE_Message_Block * mb);
+  int copy_header_to_mb(ACE_Message_Block * mb, const MyDataPacketHeader & header);
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
-  int on_req_version_check_common(ACE_Message_Block * mb);
-
-  ACE_Message_Block * make_client_version_check_reply_mb(MyClientVersionCheckReply::REPLY_CODE code, int extra_len = 0);
+  MyBaseProcessor::EVENT_RESULT do_version_check_common(ACE_Message_Block * mb);
+  ACE_Message_Block * make_version_check_reply_mb(MyClientVersionCheckReply::REPLY_CODE code, int extra_len = 0);
+  int read_req_header();
+  int read_req_body();
+  int handle_req();
 
   MyClientID m_client_id;
   int32_t    m_client_id_index;
+  int        m_client_id_length;
   enum
   {
     PEER_ADDR_LEN = 16 //"xxx.xxx.xxx.xxx"
   };
   char m_peer_addr[PEER_ADDR_LEN];
+  ACE_Message_Block * m_current_block;
+  MyDataPacketHeader m_packet_header;
+  int m_read_next_offset;
+};
+
+class MyBaseConnectionManager
+{
+public:
+  MyBaseConnectionManager();
+  int  num_connections() const;
+  long bytes_received() const;
+  long bytes_sent() const;
+
+  void on_data_received(long data_size);
+  void on_data_send(long data_size);
+  void on_new_connection(MyBaseHandler *);
+  void on_close_connection(MyBaseHandler *);
+  MyActiveConnectionPointer end();
+  void detect_dead_connections();
+
+private:
+  int  m_num_connections;
+  long m_bytes_received;
+  long m_bytes_sent;
+  MyActiveConnections m_active_connections;
 };
 
 
@@ -165,7 +196,7 @@ class MyBaseHandler: public ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH>
 {
 public:
   typedef ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> super;
-  MyBaseHandler(MyBaseAcceptor * xptr = NULL);
+  MyBaseHandler(MyBaseConnectionManager * xptr = NULL);
 
   virtual int open (void * = 0);
   virtual int handle_input(ACE_HANDLE fd = ACE_INVALID_HANDLE);
@@ -173,60 +204,39 @@ public:
   virtual int handle_close(ACE_HANDLE handle, ACE_Reactor_Mask close_mask);
   virtual ~MyBaseHandler();
 
-  MyBaseModule * module_x() const; //name collision with parent class
-  MyBaseAcceptor * acceptor() const;
+  MyBaseConnectionManager * connection_manager();
   void active_pointer(MyActiveConnectionPointer ptr);
   MyActiveConnectionPointer active_pointer();
+  MyBaseProcessor * processor() const;
   int send_data(ACE_Message_Block * mb);
 
 protected:
-  virtual bool sumbit_received_data();
 
-  MyBaseAcceptor * m_acceptor; //trade space for speed, although we can get acceptor pointer
-                               //by the module_x()->dispatcher()->acceptor() method
-                               //but this is much faster
-  ACE_Message_Block * m_current_block;
+  MyBaseConnectionManager * m_connection_manager;
   MyBaseProcessor * m_processor;
+
 private:
-  int read_req_header();
-  int read_req_body();
-  int handle_req();
   MyActiveConnectionPointer m_active_pointer;
-  MyDataPacketHeader m_packet_header;
-  int m_read_next_offset;
 };
 
 class MyBaseAcceptor: public ACE_Acceptor<MyBaseHandler, ACE_SOCK_ACCEPTOR>
 {
 public:
   typedef ACE_Acceptor<MyBaseHandler, ACE_SOCK_ACCEPTOR>  super;
-  MyBaseAcceptor(MyBaseModule * _module);
+  MyBaseAcceptor(MyBaseModule * _module, MyBaseConnectionManager * _manager);
   virtual ~MyBaseAcceptor();
 
   MyBaseModule * module_x() const;
-  int  num_connections() const;
-  long bytes_received() const;
-  long bytes_processed() const;
-
-  void on_data_received(MyBaseHandler *, long data_size);
-  void on_data_processed(MyBaseHandler *, long data_size);
-  void on_client_id_verified(MyBaseHandler *);
-  void on_new_connection(MyBaseHandler *);
-  void on_close_connection(MyBaseHandler *);
+  MyBaseConnectionManager * connection_manager() const;
 
 protected:
-  friend class MyBaseHandler;
 
 
   bool next_pointer();
 
-  int  m_num_connections;
-  long m_bytes_received;
-  long m_bytes_processed;
-  MyActiveConnections m_active_connections;
-  MyActiveConnectionPointer m_scan_pointer;
-  MyClientIDTable m_client_infos;
+//  MyActiveConnectionPointer m_scan_pointer;
   MyBaseModule * m_module;
+  MyBaseConnectionManager * m_connection_manager;
 };
 
 
@@ -263,6 +273,7 @@ public:
 protected:
   virtual MyBaseAcceptor * make_acceptor();
   MyBaseModule * m_module;
+  int m_clock_interval;
 
 private:
   MyBaseAcceptor * m_acceptor;

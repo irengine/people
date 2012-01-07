@@ -15,6 +15,7 @@
 
 
 extern const ACE_TCHAR * const_server_version;
+extern long g_clock_tick;
 
 class MyHeartBeatModule;
 class MyServerApp;
@@ -72,6 +73,16 @@ private:
   MyServerApp * m_app;
 };
 
+class MyClock: public ACE_Event_Handler
+{
+public:
+  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
+
+private:
+  MyServerApp * m_app;
+};
+
+
 class MyServerApp
 {
 public:
@@ -108,6 +119,7 @@ private:
   MySigHandler m_sig_handler;
   ACE_Sig_Handler m_ace_sig_handler;
   MyStatusFileChecker m_status_file_checker;
+  MyClock m_clock;
   bool m_is_running;
   bool m_sighup;
   bool m_sigterm;
