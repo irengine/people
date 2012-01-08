@@ -39,7 +39,7 @@ public:
     if (!s)
       return;
 
-    ACE_OS::strsncpy(client_id_value_s, s, sizeof(client_id) - 1);
+    ACE_OS::strsncpy(client_id_value_s, s, sizeof(client_id));
   }
 
   const MyClientID & operator = (const MyClientID & rhs)
@@ -97,6 +97,7 @@ public:
     CMD_HEARTBEAT_PING,
     CMD_CLIENT_VERSION_CHECK_REQ,
     CMD_CLIENT_VERSION_CHECK_REPLY,
+    CMD_LOAD_BALANCE_REQ,
     CMD_END
   };
   int32_t length;
@@ -211,8 +212,16 @@ public:
     VER_SERVER_BUSY,
     VER_SERVER_LIST
   };
+  enum
+  {
+    REPLY_DATA_LENGTH = 40 * 5
+  };
+  enum
+  {
+    SERVER_LIST_SEPERATOR = ';'
+  };
   int8_t reply_code;
-  char data[0];
+  char data[REPLY_DATA_LENGTH];
 };
 
 class MyClientVersionCheckReplyProc: public MyDataPacketBaseProc
@@ -236,12 +245,8 @@ public:
   virtual bool validate_data() const
   {
     MyClientVersionCheckReply * pData = data();
-    if (pData->reply_code >= MyClientVersionCheckReply::VER_OK &&
-        pData->reply_code < MyClientVersionCheckReply::VER_SERVER_LIST)
-      return pData->length == sizeof(MyClientVersionCheckReply);
-    if (pData->reply_code == MyClientVersionCheckReply::VER_SERVER_LIST)
-      return (pData->length > (int32_t)sizeof(MyClientVersionCheckReply));
-    return false;
+    return (pData->reply_code >= MyClientVersionCheckReply::VER_OK &&
+        pData->reply_code <= MyClientVersionCheckReply::VER_SERVER_LIST);
   }
 
   virtual MyClientVersionCheckReply * data() const
@@ -249,6 +254,15 @@ public:
     return (MyClientVersionCheckReply *)m_data;
   }
 
+};
+
+
+
+class MyLoadBalanceRequest: public MyDataPacketHeader
+{
+public:
+  char ip_addr[40];
+  int32_t clients_connected;
 };
 
 

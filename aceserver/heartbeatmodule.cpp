@@ -70,6 +70,12 @@ MyPingSubmitter::MyPingSubmitter()
   reset();
 }
 
+MyPingSubmitter::~MyPingSubmitter()
+{
+  if (m_current_block)
+    m_current_block->release();
+}
+
 void MyPingSubmitter::reset()
 {
   m_current_block = MyMemPoolFactoryX::instance()->get_message_block(BLOCK_SIZE);
@@ -152,7 +158,7 @@ int MyHeartBeatService::svc()
 MyHeartBeatAcceptor::MyHeartBeatAcceptor(MyHeartBeatModule * _module, MyBaseConnectionManager * _manager):
     MyBaseAcceptor(_module, _manager)
 {
-
+  m_tcp_port = MyServerAppX::instance()->server_config().module_heart_beat_port;
 }
 
 int MyHeartBeatAcceptor::make_svc_handler(MyBaseHandler *& sh)
@@ -162,8 +168,8 @@ int MyHeartBeatAcceptor::make_svc_handler(MyBaseHandler *& sh)
   return 0;
 }
 
-//MyHeartBeatDispatcher//
 
+//MyHeartBeatDispatcher//
 
 MyHeartBeatDispatcher::MyHeartBeatDispatcher(MyBaseModule * pModule, int numThreads):
     MyBaseDispatcher(pModule, numThreads)
@@ -171,12 +177,20 @@ MyHeartBeatDispatcher::MyHeartBeatDispatcher(MyBaseModule * pModule, int numThre
 
 }
 
-MyBaseAcceptor * MyHeartBeatDispatcher::make_acceptor()
+int MyHeartBeatDispatcher::open(void * p)
 {
-  return new MyHeartBeatAcceptor((MyHeartBeatModule *)m_module, new MyBaseConnectionManager());
+  if (MyBaseDispatcher::open(p) == -1)
+    return -1;
+  m_acceptor = new MyHeartBeatAcceptor((MyHeartBeatModule *)m_module, new MyBaseConnectionManager());
+  return 0;
 }
 
-
+void MyHeartBeatDispatcher::on_stop()
+{
+  m_acceptor->stop();
+  delete m_acceptor;
+  m_acceptor = NULL;
+}
 
 
 //MyHeartBeatModule//
@@ -184,7 +198,7 @@ MyBaseAcceptor * MyHeartBeatDispatcher::make_acceptor()
 MyHeartBeatModule::MyHeartBeatModule()
 {
   m_service = new MyHeartBeatService(this, 1);
-  m_dispatcher = new MyHeartBeatDispatcher(this, MyServerAppX::instance()->server_config().module_heart_beat_port);
+  m_dispatcher = new MyHeartBeatDispatcher(this);
   MyHeartBeatProcessor::m_sumbitter = &m_ping_sumbitter;
 }
 
@@ -192,13 +206,3 @@ MyHeartBeatModule::~MyHeartBeatModule()
 {
 
 }
-/*
-MyHeartBeatModule * MyHeartBeatModule::m_instance = NULL;
-
-MyHeartBeatModule * MyHeartBeatModule::instance()
-{
-  if (m_instance == NULL)
-    m_instance = new MyHeartBeatModule();
-  return m_instance;
-}
-*/

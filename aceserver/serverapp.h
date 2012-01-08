@@ -24,7 +24,7 @@ class MyServerConfig
 {
 public:
   MyServerConfig();
-  bool loadConfig();
+  bool loadConfig(const char * app_home_path);
   void dump_config_info();
 
   int  max_clients;
@@ -48,7 +48,7 @@ public:
   std::string config_file_name;
   std::string app_path;
 private:
-  void init_path();
+  void init_path(const char * app_home_path);
 };
 
 
@@ -91,7 +91,7 @@ public:
   const MyServerConfig & server_config() const;
   bool running() const;
 
-  static void app_init();
+  static void app_init(const char * app_home_path = NULL);
   static void app_fini();
   static void app_demonize();
 

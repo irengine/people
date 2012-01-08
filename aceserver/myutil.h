@@ -26,6 +26,8 @@ public:
     m_max_in_use_count = 0;
   }
 
+  virtual ~My_Cached_Allocator() {}
+
   virtual void *malloc (size_t nbytes = 0)
   {
     {
@@ -72,8 +74,14 @@ public:
     free_count = m_free_count;
     max_in_use_count = m_max_in_use_count;
   }
+
+  size_t chunk_size() const
+  {
+    return m_chunk_size;
+  }
 private:
   ACE_LOCK m_mutex;
+  size_t m_chunk_size;
   long m_alloc_count;
   long m_free_count;
   long m_max_in_use_count;

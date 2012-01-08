@@ -15,6 +15,7 @@
 
 class MyHeartBeatModule;
 class MyPingSubmitter;
+class MyHeartBeatAcceptor;
 
 class MyHeartBeatProcessor: public MyBaseServerProcessor
 {
@@ -36,6 +37,7 @@ class MyPingSubmitter
 {
 public:
   MyPingSubmitter();
+  ~MyPingSubmitter();
   void add_ping(const char * client_id, const int len);
   void check_time_out();
 
@@ -64,7 +66,7 @@ public:
 class MyHeartBeatService: public MyBaseService
 {
 public:
-  MyHeartBeatService(MyBaseModule * module, int numThreads);
+  MyHeartBeatService(MyBaseModule * module, int numThreads = 1);
   virtual int svc();
 };
 
@@ -72,13 +74,13 @@ class MyHeartBeatDispatcher: public MyBaseDispatcher
 {
 public:
   MyHeartBeatDispatcher(MyBaseModule * pModule, int numThreads = 1);
+  virtual int open (void * = 0);
 
 protected:
-  virtual MyBaseAcceptor * make_acceptor();
+  virtual void on_stop();
 
 private:
-//  typedef ACE_Cached_Allocator<MyHeartBeatDispatcher, ACE_Thread_Mutex> Mem_Pool;
-//  static Mem_Pool * m_mem_pool;
+  MyHeartBeatAcceptor * m_acceptor;
 };
 
 class MyHeartBeatAcceptor: public MyBaseAcceptor
@@ -94,6 +96,7 @@ class MyHeartBeatModule: public MyBaseModule
 public:
   MyHeartBeatModule();
   virtual ~MyHeartBeatModule();
+
 private:
   MyPingSubmitter m_ping_sumbitter;
 };

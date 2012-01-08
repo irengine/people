@@ -19,11 +19,14 @@
 #include <ace/Dev_Poll_Reactor.h>
 #include <ace/Thread_Mutex.h>
 #include <ace/Signal.h>
+#include <ace/Connector.h>
+#include <ace/SOCK_Connector.h>
 
 #include <vector>
 #include <map>
 #include <list>
 #include <string>
+#include <algorithm>
 
 #include "myutil.h"
 #include "datapacket.h"
@@ -66,9 +69,15 @@ public:
   void init(MyServerConfig * config);
   ACE_Message_Block * get_message_block(int capacity);
 private:
-  My_Cached_Allocator<ACE_Thread_Mutex> *m_header_pool;
+  typedef My_Cached_Allocator<ACE_Thread_Mutex> MyMemPool;
+  typedef std::vector<MyMemPool *> MyMemPools;
+
+//  My_Cached_Allocator<ACE_Thread_Mutex> *m_header_pool;
+//  My_Cached_Allocator<ACE_Thread_Mutex> *m_four_k_pool;
+
   My_Cached_Allocator<ACE_Thread_Mutex> *m_message_block_pool;
   My_Cached_Allocator<ACE_Thread_Mutex> *m_data_block_pool;
+  MyMemPools m_pools;
   bool m_use_mem_pool; //local copy
 };
 typedef ACE_Unmanaged_Singleton<MyMemPoolFactory, ACE_Null_Mutex> MyMemPoolFactoryX;
@@ -229,14 +238,48 @@ public:
   MyBaseModule * module_x() const;
   MyBaseConnectionManager * connection_manager() const;
 
+  int start();
+  int stop();
+
 protected:
 
 
-  bool next_pointer();
+//  bool next_pointer();
 
 //  MyActiveConnectionPointer m_scan_pointer;
   MyBaseModule * m_module;
   MyBaseConnectionManager * m_connection_manager;
+  int m_tcp_port;
+};
+
+
+class MyBaseConnector: public ACE_Connector<MyBaseHandler, ACE_SOCK_CONNECTOR>
+{
+public:
+  typedef ACE_Connector<MyBaseHandler, ACE_SOCK_CONNECTOR> super;
+  MyBaseConnector(MyBaseModule * _module, MyBaseConnectionManager * _manager);
+  virtual ~MyBaseConnector();
+
+  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
+  MyBaseModule * module_x() const;
+  MyBaseConnectionManager * connection_manager() const;
+  MyBaseHandler * unique_handler() const;
+  int start();
+  int stop();
+
+protected:
+  enum
+  {
+    RECONNECT_TIMER = 1
+  };
+  int do_connect(int count = 1);
+  MyBaseModule * m_module;
+  MyBaseConnectionManager * m_connection_manager;
+  int m_tcp_port;
+  std::string m_tcp_addr;
+  int m_num_connection;
+  MyBaseHandler * m_unique_handler;
+  int m_reconnect_interval;
 };
 
 
@@ -258,30 +301,26 @@ private:
 class MyBaseDispatcher: public ACE_Task<ACE_MT_SYNCH>
 {
 public:
-  MyBaseDispatcher(MyBaseModule * pModule, int tcp_port, int numThreads = 1);
+  MyBaseDispatcher(MyBaseModule * pModule, int numThreads = 1);
 
   virtual ~MyBaseDispatcher();
   virtual int open (void * = 0);
   virtual int svc();
   virtual int handle_timeout (const ACE_Time_Value &tv,
                               const void *act);
-  MyBaseAcceptor * acceptor() const;
-
   int start();
   int stop();
 
 protected:
-  virtual MyBaseAcceptor * make_acceptor();
+  virtual void on_stop();
+
   MyBaseModule * m_module;
   int m_clock_interval;
 
 private:
-  MyBaseAcceptor * m_acceptor;
-  ACE_Dev_Poll_Reactor * m_dev_reactor;
   ACE_Reactor *m_reactor;
   int m_numThreads;
   int m_numBatchSend;
-  int m_tcp_port;
 };
 
 

@@ -5,7 +5,8 @@
 
 MyMemPoolFactory::MyMemPoolFactory()
 {
-  m_header_pool = NULL;
+//  m_header_pool = NULL;
+//  m_four_k_pool = NULL;
   m_message_block_pool = NULL;
   m_data_block_pool = NULL;
   m_use_mem_pool = false;
@@ -13,12 +14,12 @@ MyMemPoolFactory::MyMemPoolFactory()
 
 MyMemPoolFactory::~MyMemPoolFactory()
 {
-  if (m_header_pool)
-    delete m_header_pool;
   if (m_message_block_pool)
     delete m_message_block_pool;
   if (m_data_block_pool)
     delete m_data_block_pool;
+  for (size_t i = 0; i < m_pools.size(); ++i)
+    delete m_pools[i];
 }
 
 void MyMemPoolFactory::init(MyServerConfig * config)
@@ -26,8 +27,15 @@ void MyMemPoolFactory::init(MyServerConfig * config)
   m_use_mem_pool = config->use_mem_pool;
   if (!m_use_mem_pool)
     return;
-  m_header_pool = new My_Cached_Allocator<ACE_Thread_Mutex>
-    (config->module_heart_beat_mem_pool_size, sizeof(MyDataPacketHeader));
+
+  const int pool_size[] = {32, 64, 128, 256, 512, 1024, 2048, 4096};
+  //todo: change default pool size
+  int count = sizeof(pool_size) / sizeof(int);
+  m_pools.reserve(count);
+  for (size_t i = 0; i < sizeof(pool_size) / sizeof(int); ++i)
+    m_pools.push_back(new My_Cached_Allocator<ACE_Thread_Mutex>
+      (/*config->module_heart_beat_mem_pool_size*/ 3000, sizeof(MyDataPacketHeader)));
+//todo: change default pool's chunk number
   m_message_block_pool = new My_Cached_Allocator<ACE_Thread_Mutex>
     (config->message_control_block_mem_pool_size, sizeof(ACE_Message_Block));
   m_data_block_pool = new My_Cached_Allocator<ACE_Thread_Mutex>
@@ -36,15 +44,19 @@ void MyMemPoolFactory::init(MyServerConfig * config)
 
 ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
 {
+  if (capacity <= 0)
+  {
+    MY_ERROR(ACE_TEXT("calling MyMemPoolFactory::get_message_block() with capacity <= 0 (= %d).\n"), capacity);
+    return NULL;
+  }
   if (!m_use_mem_pool)
     return new ACE_Message_Block(capacity);
-
-  return new MyCached_Message_Block(capacity,
-      m_header_pool,
-      m_data_block_pool,
-      m_message_block_pool);
+  int count = m_pools.size();
+  for (int i = 0; i < count; ++i)
+    if (size_t(capacity) <= m_pools[i]->chunk_size())
+      return new MyCached_Message_Block(capacity, m_pools[i], m_data_block_pool, m_message_block_pool);
+  return new ACE_Message_Block(capacity);
 }
-
 
 
 //MyClientInfos//
@@ -687,7 +699,7 @@ MyBaseHandler::~MyBaseHandler()
 MyBaseAcceptor::MyBaseAcceptor(MyBaseModule * _module, MyBaseConnectionManager * _manager):
     m_module(_module), m_connection_manager(_manager)
 {
-
+  m_tcp_port = 0;
 }
 
 MyBaseAcceptor::~MyBaseAcceptor()
@@ -705,6 +717,144 @@ MyBaseConnectionManager * MyBaseAcceptor::connection_manager() const
 {
   return m_connection_manager;
 }
+
+int MyBaseAcceptor::start()
+{
+  reactor(m_module->dispatcher()->reactor());
+
+  if (m_tcp_port <= 0)
+  {
+    MY_FATAL(ACE_TEXT ("attempt to listen on invalid port %d\n"), m_tcp_port);
+    return -1;
+  }
+  ACE_INET_Addr port_to_listen (m_tcp_port);
+
+  int ret = super::open (port_to_listen, m_module->dispatcher()->reactor());
+
+  if (ret == 0)
+    MY_INFO(ACE_TEXT ("listening on port %d... OK\n"), m_tcp_port);
+  else if (ret == -1)
+    MY_ERROR(ACE_TEXT ("acceptor.open on port %d failed!\n"), m_tcp_port);
+  return ret;
+}
+
+int MyBaseAcceptor::stop()
+{
+  close();
+  return 0;
+}
+
+
+//////////////
+//MyBaseAcceptor//
+
+MyBaseConnector::MyBaseConnector(MyBaseModule * _module, MyBaseConnectionManager * _manager):
+    m_module(_module), m_connection_manager(_manager)
+{
+  m_tcp_port = 0;
+  m_num_connection = 1;
+  m_unique_handler = NULL;
+  m_reconnect_interval = 0;
+}
+
+MyBaseConnector::~MyBaseConnector()
+{
+  if (m_connection_manager)
+    delete m_connection_manager;
+}
+
+MyBaseModule * MyBaseConnector::module_x() const
+{
+  return m_module;
+}
+
+MyBaseConnectionManager * MyBaseConnector::connection_manager() const
+{
+  return m_connection_manager;
+}
+
+MyBaseHandler * MyBaseConnector::unique_handler() const
+{
+  return m_unique_handler;
+}
+
+int MyBaseConnector::handle_timeout(const ACE_Time_Value &current_time, const void *act)
+{
+  ACE_UNUSED_ARG(current_time);
+  if (long(act) == RECONNECT_TIMER && m_reconnect_interval > 0)
+  {
+    if (m_connection_manager->num_connections() < m_num_connection)
+      do_connect(m_num_connection - m_connection_manager->num_connections());
+  }
+  return 0;
+}
+
+int MyBaseConnector::start()
+{
+  reactor(m_module->dispatcher()->reactor());
+
+  if (m_tcp_port <= 0)
+  {
+    MY_FATAL(ACE_TEXT ("attempt to connect to an invalid port %d\n"), m_tcp_port);
+    return -1;
+  }
+
+  if (m_tcp_addr.length() == 0)
+  {
+    MY_FATAL(ACE_TEXT ("attempt to connect to an NULL host\n"));
+    return -1;
+  }
+
+  int ret = do_connect(m_num_connection);
+  if (m_reconnect_interval > 0)
+  {
+    ACE_Time_Value interval (m_reconnect_interval * 60);
+    reactor()->schedule_timer (this, (void*)RECONNECT_TIMER, interval, interval);
+  }
+  return ret;
+}
+
+int MyBaseConnector::stop()
+{
+  if (m_reconnect_interval > 0)
+    reactor()->cancel_timer(this);
+
+  close();
+  return 0;
+}
+
+int MyBaseConnector::do_connect(int count)
+{
+  if (count <= 0 || count > m_num_connection)
+  {
+    MY_FATAL(ACE_TEXT("invalid connect count = %d, maximum allowed connections = %d"), count, m_num_connection);
+    return -1;
+  }
+
+  ACE_INET_Addr port_to_connect(m_tcp_port, m_tcp_addr.c_str());
+  MyBaseHandler * handler = NULL;
+  int ok_count = 0;
+  for (int i = 1; i <= count; ++i)
+  {
+    handler = NULL;
+    int ret_i = connect(handler, port_to_connect);
+    if (ret_i == 0)
+      ++ok_count ;
+
+  }
+  if (ok_count != count)
+    MY_ERROR(ACE_TEXT("connecting on %s:%d (%d of %d)... failed!\n"), m_tcp_addr.c_str(), m_tcp_port, count - ok_count, count);
+  else
+    MY_INFO(ACE_TEXT("connecting on %s:%d (%d of %d)... OK\n"), m_tcp_addr.c_str(), m_tcp_port, count, count);
+
+  if (m_num_connection == 1 && ok_count == 1)
+  {
+    m_unique_handler = handler;
+  }
+  return ok_count;
+}
+
+
 
 //MyBaseService//
 
@@ -740,49 +890,34 @@ int MyBaseService::stop()
 
 //MyBaseDispatcher//
 
-MyBaseDispatcher::MyBaseDispatcher(MyBaseModule * pModule, int tcp_port, int numThreads):
-    m_module(pModule), m_acceptor(NULL), m_numThreads(numThreads), m_numBatchSend(50), m_tcp_port(tcp_port)
+MyBaseDispatcher::MyBaseDispatcher(MyBaseModule * pModule, int numThreads):
+    m_module(pModule), m_numThreads(numThreads), m_numBatchSend(50)
 {
-  m_dev_reactor = NULL;
   m_reactor = NULL;
-  m_clock_interval = 60;
+  m_clock_interval = 0;
 }
 
 MyBaseDispatcher::~MyBaseDispatcher()
 {
   //fixme: cleanup correctly
-  if (m_acceptor)
-    delete m_acceptor;
   if (m_reactor)
     delete m_reactor;
 }
 
 int MyBaseDispatcher::open (void *)
 {
-  if (m_dev_reactor != NULL)
-    return -1;
-//  m_dev_reactor = new ACE_Dev_Poll_Reactor(ACE::max_handles());
   m_reactor = new ACE_Reactor(new ACE_Dev_Poll_Reactor(ACE::max_handles()), true);
   reactor(m_reactor);
-  m_acceptor = make_acceptor();
-  if (m_acceptor == NULL)
-    return -1;
-  m_acceptor->reactor(m_reactor);
 
-  ACE_INET_Addr port_to_listen (m_tcp_port);
-
-  ACE_DEBUG ((LM_DEBUG,
-             ACE_TEXT ("(%P|%t) listening on port: %d\n"),
-             port_to_listen.get_port_number()));
-
-  if (m_acceptor->open (port_to_listen, m_reactor) == -1)
-    return -1;
-
-  ACE_Time_Value interval (m_clock_interval);
-  m_reactor->schedule_timer (this,
+  if (m_clock_interval > 0)
+  {
+    ACE_Time_Value interval(m_clock_interval);
+    m_reactor->schedule_timer (this,
                              0,
                              interval,
                              interval);
+  }
+
   return 0;
 }
 
@@ -794,30 +929,27 @@ int MyBaseDispatcher::start()
   return activate (THR_NEW_LWP, m_numThreads);
 }
 
+void MyBaseDispatcher::on_stop()
+{
+
+}
+
 int MyBaseDispatcher::stop()
 {
   wait();
   msg_queue()->flush();
-  if (m_reactor)
+  if (m_reactor && m_clock_interval > 0)
     m_reactor->cancel_timer(this);
-  if (m_acceptor)
-    m_acceptor->close();
+  on_stop();
   if (m_reactor)
     m_reactor->close();
 
-  delete m_acceptor;
-  m_acceptor = NULL;
   delete m_reactor;
   m_reactor = NULL;
 
   return 0;
 }
 
-
-MyBaseAcceptor * MyBaseDispatcher::acceptor() const
-{
-  return m_acceptor;
-}
 
 int MyBaseDispatcher::svc()
 {
@@ -827,7 +959,7 @@ int MyBaseDispatcher::svc()
   while (m_module->is_running_app())
   {
     ACE_Time_Value timeout(2);
-    int ret = m_acceptor->reactor()->handle_events (&timeout);
+    int ret = reactor()->handle_events (&timeout);
     if (ret == -1)
     {
       if (errno == EINTR)
@@ -879,11 +1011,6 @@ int MyBaseDispatcher::handle_timeout (const ACE_Time_Value &tv,
 //    return (this->msg_queue()->is_empty ()) ? -1 : 0;
 }
 
-MyBaseAcceptor * MyBaseDispatcher::make_acceptor()
-{
-  return NULL;
-}
-
 
 //MyBaseModule//
 
@@ -925,11 +1052,15 @@ int MyBaseModule::start()
 {
   if (m_running)
     return 0;
+
   m_running = true;
-  if (m_service->start() == -1)
+  if (m_service)
   {
-    m_running = false;
-    return -1;
+    if (m_service->start() == -1)
+    {
+      m_running = false;
+      return -1;
+    }
   }
 
   if (m_dispatcher)

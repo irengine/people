@@ -16,7 +16,11 @@ int main(int argc, const char * argv[])
   ACE_Sig_Action original_action;
   no_sigpipe.register_action (SIGPIPE, &original_action);
 
-  MyServerApp::app_init();
+  if (argc == 3 && strcmp(argv[1], "-home") == 0 && argv[2][0] == '/')
+    MyServerApp::app_init(argv[2]);
+  else
+    MyServerApp::app_init(NULL);
+
   ACE_DEBUG ((LM_DEBUG,
               ACE_TEXT ("(%P|%t) 2\n")));
 

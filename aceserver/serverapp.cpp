@@ -57,6 +57,7 @@ MyServerConfig::MyServerConfig()
   max_clients = DEFAULT_MAX_CLIENTS;
   mem_pool_dump_interval = DEFAULT_MEM_POOL_DUMP_INTERVAL;
   status_file_check_interval = DEFAULT_STATUS_FILE_CHECK_INTERVAL;
+  message_control_block_mem_pool_size = DEFAULT_MESSAGE_CONTROL_BLOCK_MPOOL_SIZE;
 
   log_debug_enabled = DEFAULT_LOG_DEBUG_ENABLED;
   log_file_number = DEFAULT_LOG_FILE_NUMBER;
@@ -67,43 +68,53 @@ MyServerConfig::MyServerConfig()
   module_heart_beat_mem_pool_size = DEFAULT_MODULE_HEART_BEAT_MPOOL_SIZE;
 }
 
-void MyServerConfig::init_path()
+void MyServerConfig::init_path(const char * app_home_path)
 {
   const size_t BUFF_SIZE = 4096;
   char path[BUFF_SIZE];
-  ssize_t ret = readlink("/proc/self/exe", path, BUFF_SIZE);
-  if (ret > 0 && ret < ssize_t(BUFF_SIZE))
+
+  if (!app_home_path)
   {
-    path[ret] = '\0';
-    exe_path = path;
-    size_t pos = exe_path.rfind('/');
-    if (pos == exe_path.npos || pos == 0)
+    ssize_t ret = readlink("/proc/self/exe", path, BUFF_SIZE);
+    if (ret > 0 && ret < ssize_t(BUFF_SIZE))
     {
-      std::printf("exe_path (= %s) error\n", path);
-      exit(1);
-    }
-    exe_path = exe_path.substr(0, pos);
-    app_path = exe_path;
-    pos = app_path.rfind('/', pos);
-    if (pos == app_path.npos || pos == 0)
+      path[ret] = '\0';
+      exe_path = path;
+      size_t pos = exe_path.rfind('/');
+      if (pos == exe_path.npos || pos == 0)
+      {
+        std::printf("exe_path (= %s) error\n", path);
+        exit(1);
+      }
+      exe_path = exe_path.substr(0, pos);
+      app_path = exe_path;
+      pos = app_path.rfind('/', pos);
+      if (pos == app_path.npos || pos == 0)
+      {
+        std::printf("app_path (= %s) error\n", app_path.c_str());
+        exit(2);
+      }
+      app_path = app_path.substr(0, pos);
+    } else
     {
-      std::printf("app_path (= %s) error\n", app_path.c_str());
-      exit(2);
+      std::perror("readlink(\"/proc/self/exe\") failed\n");
+      exit(3);
     }
-    app_path = app_path.substr(0, pos);
-    status_file_name = app_path + "/running/aceserver.pid";
-    log_file_name = app_path + "/log/aceserver.log";
-    config_file_name = app_path + "/config/aceserver.cfg";
   } else
   {
-    std::perror("readlink(\"/proc/self/exe\") failed\n");
-    exit(3);
+    app_path = app_home_path;
+    exe_path = app_path + "/bin";
   }
+
+  status_file_name = app_path + "/running/aceserver.pid";
+  log_file_name = app_path + "/log/aceserver.log";
+  config_file_name = app_path + "/config/aceserver.cfg";
+
 }
 
-bool MyServerConfig::loadConfig()
+bool MyServerConfig::loadConfig(const char * app_home_path)
 {
-  init_path();
+  init_path(app_home_path);
 
   ACE_Configuration_Heap cfgHeap;
   if (cfgHeap.open () == -1)
@@ -212,6 +223,7 @@ void MyServerConfig::dump_config_info()
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Run_As_Demon, run_as_demon));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Use_Mem_Pool, use_mem_pool));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Mem_Pool_Dump_Interval, mem_pool_dump_interval));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Message_Control_Block_Mem_Pool_Size, message_control_block_mem_pool_size));
 
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Log_File_Number, log_file_number));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_Log_File_Size, log_file_size_in_MB));
@@ -337,10 +349,10 @@ bool MyServerApp::running() const
   return m_is_running;
 }
 
-void MyServerApp::app_init()
+void MyServerApp::app_init(const char * app_home_path)
 {
   MyServerApp * app = MyServerAppX::instance();
-  if (!app->m_config.loadConfig())
+  if (!app->m_config.loadConfig(app_home_path))
   {
     std::printf("error loading config file, quitting\n");
     exit(5);
