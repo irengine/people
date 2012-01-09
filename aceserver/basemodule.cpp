@@ -1,4 +1,4 @@
-#include "baseserver.h"
+#include "basemodule.h"
 #include "serverapp.h"
 
 //MyMemPoolFactory//
@@ -213,6 +213,17 @@ int MyBaseProcessor::handle_input()
   return 0;
 }
 
+int MyBaseProcessor::handle_input_wait_for_close()
+{
+  char buffer[4096];
+  ssize_t recv_cnt = TEMP_FAILURE_RETRY(m_handler->peer().recv (buffer, 4096));
+  int ret = mycomutil_translate_tcp_result(recv_cnt);
+  if (ret < 0)
+    return -1;
+  return (m_handler->msg_queue()->is_empty ()) ? -1 : 0;
+}
+
+
 bool MyBaseProcessor::dead() const
 {
   return m_last_activity + 100 < g_clock_tick;
@@ -266,14 +277,7 @@ std::string MyBaseServerProcessor::info_string() const
 int MyBaseServerProcessor::handle_input()
 {
   if (m_wait_for_close)
-  {
-    char buffer[4096];
-    ssize_t recv_cnt = TEMP_FAILURE_RETRY(m_handler->peer().recv (buffer, 4096));
-    int ret = mycomutil_translate_tcp_result(recv_cnt);
-    if (ret < 0)
-      return -1;
-    return (m_handler->msg_queue()->is_empty ()) ? -1 : 0;
-  }
+    return handle_input_wait_for_close();
 
   int loop_count = 0;
 __loop:

@@ -66,6 +66,7 @@ MyDistLoads::MyDistLoadVecIt MyDistLoads::find_i(const char * addr)
 void MyDistLoads::calc_server_list()
 {
   m_server_list[0] = 0;
+  sort(m_loads.begin(), m_loads.end());
   MyDistLoadVecIt it;
   int remain_len = MyClientVersionCheckReply::REPLY_DATA_LENGTH - 2;
   char * ptr = m_server_list;
@@ -230,6 +231,167 @@ MyLocationModule::MyLocationModule()
 }
 
 MyLocationModule::~MyLocationModule()
+{
+
+}
+
+
+//============================//
+//http module stuff begins here
+//============================//
+
+//MyHttpProcessor//
+
+//MyPingSubmitter * MyHttpProcessor::m_sumbitter = NULL;
+
+MyHttpProcessor::MyHttpProcessor(MyBaseHandler * handler): MyBaseProcessor(handler)
+{
+  m_current_block = NULL;
+}
+
+MyHttpProcessor::~MyHttpProcessor()
+{
+  if (m_current_block)
+    m_current_block->release();
+}
+
+int MyHttpProcessor::handle_input()
+{
+  const size_t BLOCK_SIZE = 4096;
+  if (m_wait_for_close)
+    return handle_input_wait_for_close();
+
+  if (!m_current_block)
+  {
+    m_current_block = MyMemPoolFactoryX::instance()->get_message_block(BLOCK_SIZE);
+    if (!m_current_block)
+      return -1;
+  }
+  update_last_activity();
+  if (mycomutil_recv_message_block(m_handler, m_current_block) < 0)
+    return -1;
+  if (m_current_block->length() > 0)
+  {
+    if (*(m_current_block->wr_ptr() - 1) == 0x10)
+    {
+      if (do_process_input_data())
+      {
+        ACE_Message_Block * reply_mb = MyMemPoolFactoryX::instance()->get_message_block(32);
+        if (!reply_mb)
+        {
+          MY_ERROR(ACE_TEXT("failed to allocate 32 bytes sized memory block @MyHttpProcessor::handle_input().\n"));
+          return -1;
+        }
+        m_wait_for_close = true;
+        const char reply_str[] = "200 OK\r\n";
+        const int reply_len = sizeof(reply_str) / sizeof(char);
+        ACE_OS::strsncpy(reply_mb->base(), reply_str, reply_len);
+        reply_mb->wr_ptr(reply_len);
+        return (m_handler->send_data(reply_mb) <= 0 ? -1:0);
+      } else
+        return -1;
+    }
+  }
+
+  if (m_current_block->length() == BLOCK_SIZE) //too large to fit in one block
+    return -1; //todo: need to know the largest incoming data length
+
+  return 0;
+}
+
+bool MyHttpProcessor::do_process_input_data()
+{
+  //todo: add logic here
+  return true;
+}
+
+//MyHttpHandler//
+
+MyHttpHandler::MyHttpHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
+{
+  m_processor = new MyHttpProcessor(this);
+}
+
+PREPARE_MEMORY_POOL(MyHttpHandler);
+
+//MyHttpService//
+
+MyHttpService::MyHttpService(MyBaseModule * module, int numThreads):
+    MyBaseService(module, numThreads)
+{
+
+}
+
+int MyHttpService::svc()
+{
+  ACE_DEBUG ((LM_DEBUG,
+             ACE_TEXT ("(%P|%t) running svc()\n")));
+
+  for (ACE_Message_Block *log_blk; getq (log_blk) != -1; )
+  {
+//    ACE_DEBUG ((LM_DEBUG,
+//               ACE_TEXT ("(%P|%t) svc data from queue, size = %d\n"),
+//               log_blk->size()));
+
+
+    log_blk->release ();
+  }
+  ACE_DEBUG ((LM_DEBUG,
+               ACE_TEXT ("(%P|%t) quitting svc()\n")));
+  return 0;
+}
+
+
+//MyHttpAcceptor//
+
+MyHttpAcceptor::MyHttpAcceptor(MyHttpModule * _module, MyBaseConnectionManager * _manager):
+    MyBaseAcceptor(_module, _manager)
+{
+  m_tcp_port = MyServerAppX::instance()->server_config().module_heart_beat_port;
+}
+
+int MyHttpAcceptor::make_svc_handler(MyBaseHandler *& sh)
+{
+  ACE_NEW_RETURN(sh, MyHttpHandler(m_connection_manager), -1);
+  sh->reactor(reactor());
+  return 0;
+}
+
+
+//MyHttpDispatcher//
+
+MyHttpDispatcher::MyHttpDispatcher(MyBaseModule * pModule, int numThreads):
+    MyBaseDispatcher(pModule, numThreads)
+{
+
+}
+
+int MyHttpDispatcher::open(void * p)
+{
+  if (MyBaseDispatcher::open(p) == -1)
+    return -1;
+  m_acceptor = new MyHttpAcceptor((MyHttpModule *)m_module, new MyBaseConnectionManager());
+  return 0;
+}
+
+void MyHttpDispatcher::on_stop()
+{
+  m_acceptor->stop();
+  delete m_acceptor;
+  m_acceptor = NULL;
+}
+
+
+//MyHttpModule//
+
+MyHttpModule::MyHttpModule()
+{
+  m_service = new MyHttpService(this, 1);
+  m_dispatcher = new MyHttpDispatcher(this);
+//  MyHttpProcessor::m_sumbitter = &m_ping_sumbitter;
+}
+
+MyHttpModule::~MyHttpModule()
 {
 
 }

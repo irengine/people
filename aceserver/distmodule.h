@@ -9,7 +9,7 @@
 #define HEARTBEATMODULE_H_
 
 #include "serverapp.h"
-#include "baseserver.h"
+#include "basemodule.h"
 #include <ace/Malloc_T.h>
 #include <new>
 

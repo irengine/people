@@ -137,6 +137,7 @@ public:
   void check_activity(bool bCheck);
 
 protected:
+  int handle_input_wait_for_close();
   MyBaseHandler * m_handler;
   long m_last_activity;
   bool m_wait_for_close;

@@ -5,7 +5,7 @@
  *      Author: root
  */
 
-#include "heartbeatmodule.h"
+#include "distmodule.h"
 #include "serverapp.h"
 
 //MyHeartBeatProcessor//

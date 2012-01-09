@@ -11,13 +11,14 @@
 #include <ace/Singleton.h>
 #include <string>
 #include <ace/Configuration_Import_Export.h>
-#include "baseserver.h"
+#include "basemodule.h"
 
 
 extern const ACE_TCHAR * const_server_version;
 extern long g_clock_tick;
 
 class MyHeartBeatModule;
+class MyLocationModule;
 class MyServerApp;
 
 class MyServerConfig
@@ -116,6 +117,7 @@ private:
   void do_constructor();
   MyServerConfig m_config;
   MyHeartBeatModule * m_heart_beat_module;
+  MyLocationModule * m_location_module;
   MySigHandler m_sig_handler;
   ACE_Sig_Handler m_ace_sig_handler;
   MyStatusFileChecker m_status_file_checker;

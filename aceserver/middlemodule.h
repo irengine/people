@@ -9,7 +9,7 @@
 #define DISTMODULE_H_
 
 #include "serverapp.h"
-#include "baseserver.h"
+#include "basemodule.h"
 #include <ace/Malloc_T.h>
 #include <new>
 
@@ -129,6 +129,76 @@ public:
 private:
   //MyPingSubmitter m_ping_sumbitter;
   MyDistLoads m_dist_loads;
+};
+
+//============================//
+//http module stuff begins here
+//============================//
+
+class MyHttpModule;
+//class MyPingSubmitter;
+class MyHttpAcceptor;
+
+class MyHttpProcessor: public MyBaseProcessor
+{
+public:
+  MyHttpProcessor(MyBaseHandler * handler);
+  virtual ~MyHttpProcessor();
+
+  virtual int handle_input();
+
+//  static MyPingSubmitter * m_sumbitter;
+
+private:
+  bool do_process_input_data();
+  ACE_Message_Block * m_current_block;
+
+};
+
+
+class MyHttpHandler: public MyBaseHandler
+{
+public:
+  MyHttpHandler(MyBaseConnectionManager * xptr = NULL);
+  DECLARE_MEMORY_POOL(MyHttpHandler, ACE_Thread_Mutex);
+};
+
+class MyHttpService: public MyBaseService
+{
+public:
+  MyHttpService(MyBaseModule * module, int numThreads = 1);
+  virtual int svc();
+};
+
+class MyHttpDispatcher: public MyBaseDispatcher
+{
+public:
+  MyHttpDispatcher(MyBaseModule * pModule, int numThreads = 1);
+  virtual int open (void * = 0);
+
+protected:
+  virtual void on_stop();
+
+private:
+  MyHttpAcceptor * m_acceptor;
+};
+
+class MyHttpAcceptor: public MyBaseAcceptor
+{
+public:
+  MyHttpAcceptor(MyHttpModule * _module, MyBaseConnectionManager * manager);
+  virtual int make_svc_handler(MyBaseHandler *& sh);
+};
+
+
+class MyHttpModule: public MyBaseModule
+{
+public:
+  MyHttpModule();
+  virtual ~MyHttpModule();
+
+private:
+//  MyPingSubmitter m_ping_sumbitter;
 };
 
 

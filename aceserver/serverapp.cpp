@@ -10,7 +10,8 @@
 #include <ace/Logging_Strategy.h>
 #include <cstdio>
 #include "serverapp.h"
-#include "heartbeatmodule.h"
+#include "distmodule.h"
+#include "middlemodule.h"
 
 const ACE_TCHAR * const_server_version = ACE_TEXT("1.0");
 long g_clock_tick = 0;
@@ -290,6 +291,7 @@ MyServerApp::MyServerApp(): m_sig_handler(this), m_status_file_checker(this)
   //to MyServerApp's singleton.
   //This is Ugly, but works right now
   m_heart_beat_module = NULL;
+  m_location_module = NULL;
   m_sighup = false;
   m_sigterm = false;
   m_status_file_ok = true;
@@ -302,6 +304,7 @@ void MyServerApp::do_constructor()
   m_config.dump_config_info();
   MY_INFO(ACE_TEXT("loading modules...\n"));
   m_heart_beat_module = new MyHeartBeatModule();
+  m_location_module = new MyLocationModule;
 
   MY_INFO(ACE_TEXT("loading modules done!\n"));
 
@@ -337,6 +340,7 @@ MyServerApp::~MyServerApp()
   ACE_Reactor::instance()->cancel_timer(&m_clock);
   stop();
   delete m_heart_beat_module;
+  delete m_location_module;
 }
 
 const MyServerConfig & MyServerApp::server_config() const
@@ -360,6 +364,7 @@ void MyServerApp::app_init(const char * app_home_path)
   if (app->m_config.run_as_demon)
     MyServerApp::app_demonize();
   MyHeartBeatHandler::init_mem_pool(app->m_config.max_clients);
+  MyLocationHandler::init_mem_pool(1000);
   MyMemPoolFactoryX::instance()->init(&(app->m_config));
   app->do_constructor();
 }
@@ -369,6 +374,7 @@ void MyServerApp::app_fini()
   MyServerApp::dump_memory_pool_info();
   MyServerAppX::close();  //this comes before the releasing of memory pool
   MyHeartBeatHandler::fini_mem_pool();
+  MyLocationHandler::fini_mem_pool();
   MyMemPoolFactoryX::close();
 }
 
@@ -444,7 +450,10 @@ void MyServerApp::start()
     return;
   MY_INFO(ACE_TEXT("starting modules...\n"));
   m_is_running = true;
-  m_heart_beat_module->start();
+  if (m_heart_beat_module)
+    m_heart_beat_module->start();
+  if (m_location_module)
+    m_location_module->start();
   MY_INFO(ACE_TEXT("starting modules done!\n"));
   do_event_loop();
 }
@@ -455,7 +464,10 @@ void MyServerApp::stop()
     return;
   MY_INFO(ACE_TEXT("stopping modules...\n"));
   m_is_running = false;
-  m_heart_beat_module->stop();
+  if (m_heart_beat_module)
+    m_heart_beat_module->stop();
+  if (m_location_module)
+    m_location_module->stop();
   MY_INFO(ACE_TEXT("stopping modules done!\n"));
 }
 
