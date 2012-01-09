@@ -8,7 +8,7 @@
 #ifndef HEARTBEATMODULE_H_
 #define HEARTBEATMODULE_H_
 
-#include "serverapp.h"
+#include "baseapp.h"
 #include "basemodule.h"
 #include <ace/Malloc_T.h>
 #include <new>
@@ -94,7 +94,7 @@ public:
 class MyHeartBeatModule: public MyBaseModule
 {
 public:
-  MyHeartBeatModule();
+  MyHeartBeatModule(MyBaseApp * app);
   virtual ~MyHeartBeatModule();
 
 private:

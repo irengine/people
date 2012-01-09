@@ -19,38 +19,54 @@ class MyClientID
 public:
   union
   {
-    char    as_string[16];
+    char    as_string[];
     int64_t as_long[2];
   }client_id;
+
+  enum
+  {
+    ID_LENGTH_AS_INT64 = sizeof(client_id)/sizeof(int64_t),
+    ID_LENGTH_AS_STRING = sizeof(client_id)/sizeof(char)
+  };
+
 #define client_id_value_i client_id.as_long
 #define client_id_value_s client_id.as_string
 
   MyClientID()
   {
-    client_id_value_i[0] = 0;
-    client_id_value_i[1] = 0;
+    ACE_OS::memset((void*)&(client_id_value_i), 0, ID_LENGTH_AS_STRING);
   }
 
   MyClientID(const char * s)
   {
-    client_id_value_i[0] = 0;
-    client_id_value_i[1] = 0;
+    ACE_OS::memset((void*)&(client_id_value_i), 0, ID_LENGTH_AS_STRING);
 
-    if (!s)
+    if (!s || !*s)
       return;
 
-    ACE_OS::strsncpy(client_id_value_s, s, sizeof(client_id));
+    ACE_OS::strsncpy(client_id_value_s, s, ID_LENGTH_AS_STRING);
   }
 
-  const MyClientID & operator = (const MyClientID & rhs)
+  MyClientID & operator = (const char * s)
+  {
+    ACE_OS::memset((void*)&(client_id_value_i), 0, ID_LENGTH_AS_STRING);
+
+    if (!s || !*s)
+      return *this;
+
+    ACE_OS::strsncpy(client_id_value_s, s, ID_LENGTH_AS_STRING);
+    return *this;
+  }
+
+  MyClientID & operator = (const MyClientID & rhs)
   {
     if (&rhs == this)
       return *this;
-    client_id_value_i[0] = rhs.client_id_value_i[0];
-    client_id_value_i[1] = rhs.client_id_value_i[1];
-    client_id_value_i[sizeof(client_id) - 1] = 0;
+    ACE_OS::memcpy(client_id.as_string, rhs.client_id.as_string, ID_LENGTH_AS_STRING);
+    client_id_value_s[ID_LENGTH_AS_STRING - 1] = 0;
     return *this;
   }
+
   const char * as_string() const
   {
     return client_id_value_s;
@@ -58,22 +74,29 @@ public:
 
   bool is_null() const
   {
-    return (client_id_value_i[0] == 0 && client_id_value_i[1] == 0);
+    return (client_id_value_s[0] == 0);
   }
 
   bool operator < (const MyClientID & rhs) const
   {
-    if (client_id_value_i[0] < rhs.client_id_value_i[0])
-      return true;
-    if (client_id_value_i[0] == rhs.client_id_value_i[0])
-      return client_id_value_i[1] < rhs.client_id_value_i[1];
+    for (int i = 0; i < ID_LENGTH_AS_INT64; ++i)
+    {
+      if (client_id_value_i[i] < rhs.client_id_value_i[i])
+        return true;
+      if (client_id_value_i[i] > rhs.client_id_value_i[i])
+        return false;
+    }
     return false;
   }
 
   bool operator == (const MyClientID & rhs) const
   {
-    return (client_id_value_i[0] == rhs.client_id_value_i[0] &&
-        client_id_value_i[1] == rhs.client_id_value_i[1]);
+    for (int i = 0; i < ID_LENGTH_AS_INT64; ++i)
+    {
+      if (client_id_value_i[i] != rhs.client_id_value_i[i])
+        return false;
+    }
+    return true;
   }
 
   bool operator != (const MyClientID & rhs) const
@@ -87,10 +110,7 @@ public:
 class MyDataPacketHeader
 {
 public:
-  enum
-  {
-    DATAPACKET_MAGIC = 0x80089397
-  };
+  enum { DATAPACKET_MAGIC = 0x80089397 };
   enum COMMAND
   {
     CMD_NULL = 0,
@@ -207,19 +227,14 @@ public:
   enum REPLY_CODE
   {
     VER_OK = 1,
+    VER_OK_CAN_UPGRADE, //todo upgrade hint
     VER_MISMATCH,
     VER_ACCESS_DENIED,
     VER_SERVER_BUSY,
     VER_SERVER_LIST
   };
-  enum
-  {
-    REPLY_DATA_LENGTH = 40 * 5
-  };
-  enum
-  {
-    SERVER_LIST_SEPERATOR = ';'
-  };
+  enum { REPLY_DATA_LENGTH = 40 * 5  };
+  enum { SERVER_LIST_SEPERATOR = ';' };
   int8_t reply_code;
   char data[REPLY_DATA_LENGTH];
 };

@@ -1,0 +1,722 @@
+/*
+ * serverapp.cpp
+ *
+ *  Created on: Dec 28, 2011
+ *      Author: root
+ */
+
+#include <ace/streams.h>
+#include <ace/Service_Config.h>
+#include <ace/Logging_Strategy.h>
+#include <cstdio>
+#include "baseapp.h"
+
+const ACE_TCHAR * const_server_version = ACE_TEXT("1.0");
+long g_clock_tick = 0;
+
+//MyServerConfig//
+
+const int  DEFAULT_max_clients = 10000;
+const bool DEFAULT_use_mem_pool = true;
+const bool DEFAULT_run_as_demon = false;
+const int  DEFAULT_status_file_check_interval = 3;
+const int  DEFAULT_message_control_block_mem_pool_size = DEFAULT_max_clients * 5;
+const int  DEFAULT_mem_pool_dump_interval = 30;
+
+const int  DEFAULT_log_file_number = 3;
+const int  DEFAULT_log_file_size_in_MB = 20;
+const bool DEFAULT_log_debug_enabled = true;
+const bool DEFAULT_log_to_stderr = true;
+
+const int  DEFAULT_dist_server_heart_beat_port = 2222;
+const int  DEFAULT_MODULE_HEART_BEAT_MPOOL_SIZE = DEFAULT_max_clients * 4;
+
+const int  DEFAULT_middle_server_client_port = 2223;
+const int  DEFAULT_middle_server_dist_port = 2224;
+
+
+
+//common for all
+const ACE_TCHAR * CONFIG_Section_global = ACE_TEXT("global");
+
+const ACE_TCHAR * CONFIG_running_mode = ACE_TEXT("running_mode");
+const ACE_TCHAR * CONFIG_use_mem_pool = ACE_TEXT("use_mem_pool");
+const ACE_TCHAR * CONFIG_mem_pool_dump_interval = ACE_TEXT("mem_pool_dump_interval");
+const ACE_TCHAR * CONFIG_message_control_block_mem_pool_size = ACE_TEXT("message_control_block_mempool_size");
+const ACE_TCHAR * CONFIG_run_as_demon = ACE_TEXT("run_as_demon");
+const ACE_TCHAR * CONFIG_status_file_check_interval = ACE_TEXT("status_file_check_interval");
+
+const ACE_TCHAR * CONFIG_log_debug_enabled = ACE_TEXT("log.debug_enabled");
+const ACE_TCHAR * CONFIG_log_to_stderr = ACE_TEXT("log.to_stderr");
+const ACE_TCHAR * CONFIG_log_file_number = ACE_TEXT("log.file_number");
+const ACE_TCHAR * CONFIG_log_file_size_in_MB = ACE_TEXT("log.file_size");
+
+//dist and middle servers
+const ACE_TCHAR * CONFIG_max_clients = ACE_TEXT("max_clients");
+const ACE_TCHAR * CONFIG_middle_server_dist_port = ACE_TEXT("middle_server.dist_port");
+
+//client and dist
+const ACE_TCHAR *  CONFIG_middle_server_addr = ACE_TEXT("middle_server.addr");
+const ACE_TCHAR * CONFIG_dist_server_heart_beat_port = ACE_TEXT("module.heart_beat.port");
+
+//client and middle
+const ACE_TCHAR *  CONFIG_middle_server_client_port = ACE_TEXT("middle_server.client_port");
+
+//middle specific
+const ACE_TCHAR * CONFIG_Section_middle = ACE_TEXT("middle");
+
+//dist specific
+const ACE_TCHAR * CONFIG_module_heart_beat_mem_pool_size = ACE_TEXT("module.heart_beat.mempool_size");
+
+//client specific
+
+
+MyConfig::MyConfig()
+{
+  //common configuration
+  running_mode = RM_UNKNOWN;
+  use_mem_pool = DEFAULT_use_mem_pool;
+  run_as_demon = DEFAULT_run_as_demon;
+  mem_pool_dump_interval = DEFAULT_mem_pool_dump_interval;
+  status_file_check_interval = DEFAULT_status_file_check_interval;
+  message_control_block_mem_pool_size = DEFAULT_message_control_block_mem_pool_size;
+
+  log_debug_enabled = DEFAULT_log_debug_enabled;
+  log_file_number = DEFAULT_log_file_number;
+  log_file_size_in_MB = DEFAULT_log_file_size_in_MB;
+  log_to_stderr = DEFAULT_log_to_stderr;
+
+  //dist and middle server
+  max_clients = DEFAULT_max_clients;
+  middle_server_dist_port = DEFAULT_middle_server_dist_port;
+
+  //client and dist
+  middle_server_client_port = DEFAULT_middle_server_client_port;
+
+  //dist server only
+  dist_server_heart_beat_port = DEFAULT_dist_server_heart_beat_port;
+  module_heart_beat_mem_pool_size = DEFAULT_MODULE_HEART_BEAT_MPOOL_SIZE;
+}
+
+void MyConfig::init_path(const char * app_home_path)
+{
+  const size_t BUFF_SIZE = 4096;
+  char path[BUFF_SIZE];
+
+  if (!app_home_path)
+  {
+    ssize_t ret = readlink("/proc/self/exe", path, BUFF_SIZE);
+    if (ret > 0 && ret < ssize_t(BUFF_SIZE))
+    {
+      path[ret] = '\0';
+      exe_path = path;
+      size_t pos = exe_path.rfind('/');
+      if (pos == exe_path.npos || pos == 0)
+      {
+        std::printf("exe_path (= %s) error\n", path);
+        exit(1);
+      }
+      exe_path = exe_path.substr(0, pos);
+      app_path = exe_path;
+      pos = app_path.rfind('/', pos);
+      if (pos == app_path.npos || pos == 0)
+      {
+        std::printf("app_path (= %s) error\n", app_path.c_str());
+        exit(2);
+      }
+      app_path = app_path.substr(0, pos);
+    } else
+    {
+      std::perror("readlink(\"/proc/self/exe\") failed\n");
+      exit(3);
+    }
+  } else
+  {
+    app_path = app_home_path;
+    exe_path = app_path + "/bin";
+  }
+
+  status_file_name = app_path + "/running/aceserver.pid";
+  log_file_name = app_path + "/log/aceserver.log";
+  config_file_name = app_path + "/config/aceserver.cfg";
+
+}
+
+bool MyConfig::is_server() const
+{
+  return running_mode != RM_CLIENT;
+}
+
+bool MyConfig::is_client() const
+{
+  return running_mode == RM_CLIENT;
+}
+
+bool MyConfig::is_dist_server() const
+{
+  return running_mode == RM_DIST_SERVER;
+}
+
+bool MyConfig::is_middle_server() const
+{
+  return running_mode == RM_MIDDLE_SERVER;
+}
+
+bool MyConfig::load_config(const char * app_home_path, RUNNING_MODE mode)
+{
+  init_path(app_home_path);
+
+  running_mode = mode;
+
+  ACE_Configuration_Heap cfgHeap;
+  if (cfgHeap.open () == -1)
+  {
+    MY_FATAL("config.open().\n");
+    return false;
+  }
+
+  ACE_Registry_ImpExp config_importer(cfgHeap);
+  if (config_importer.import_config (config_file_name.c_str()) == -1)
+  {
+    MY_FATAL("import_config() failed on %s\n", config_file_name.c_str());
+    return false;
+  }
+
+  ACE_Configuration_Section_Key section;
+  if (cfgHeap.open_section (cfgHeap.root_section (), CONFIG_Section_global,
+                           0, section) == -1)
+  {
+    MY_FATAL("config.open_section failed, section = %s\n", CONFIG_Section_global);
+    return false;
+  }
+
+  if (!load_config_common(cfgHeap, section))
+    return false;
+
+  if (running_mode <= RM_UNKNOWN || running_mode > RM_CLIENT)
+  {
+    MY_FATAL("unknown running mode (= %d)", running_mode);
+    return false;
+  }
+
+  if (!load_config_dist_middle(cfgHeap, section))
+    return false;
+
+  if (!load_config_client_middle(cfgHeap, section))
+    return false;
+
+  if (!load_config_client_dist(cfgHeap, section))
+    return false;
+
+  if (!load_config_dist(cfgHeap, section))
+    return false;
+
+  if (!load_config_middle(cfgHeap, section))
+    return false;
+
+  if (!load_config_client(cfgHeap, section))
+    return false;
+
+  return true;
+}
+
+bool MyConfig::load_config_common(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section)
+{
+  u_int ival;
+  if (running_mode == RM_UNKNOWN)
+  {
+    if (cfgHeap.get_integer_value (section,  CONFIG_running_mode, ival) == 0)
+    {
+      if (ival != RM_DIST_SERVER || ival != RM_MIDDLE_SERVER)
+      {
+        MY_FATAL("invalid server running mode = %d.\n", ival);
+        return false;
+      }
+      running_mode = RUNNING_MODE(ival);
+    } else
+    {
+      MY_FATAL("get not get server running mode = %d.\n", ival);
+      return false;
+    }
+  }
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_use_mem_pool, ival) == 0)
+    use_mem_pool = (ival != 0);
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_run_as_demon, ival) == 0)
+    run_as_demon = (ival != 0);
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_status_file_check_interval, ival) == 0)
+    status_file_check_interval = ival;
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_log_file_number, ival) == 0)
+  {
+    if (ival > 0 && ival <= 1000)
+      log_file_number = ival;
+  }
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_log_file_size_in_MB, ival) == 0)
+  {
+    if (ival > 0 && ival <= 10000)
+      log_file_size_in_MB = ival;
+  }
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_log_debug_enabled, ival) == 0)
+    log_debug_enabled = (ival != 0);
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_log_to_stderr, ival) == 0)
+    log_to_stderr = (ival != 0);
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_mem_pool_dump_interval, ival) == 0)
+    mem_pool_dump_interval = ival;
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_message_control_block_mem_pool_size, ival) == 0)
+  {
+    if (ival > 0 && ival < 1000000)
+      message_control_block_mem_pool_size = ival;
+  }
+  else if (is_client())
+    message_control_block_mem_pool_size = 1000;
+
+
+  return true;
+}
+
+bool MyConfig::load_config_dist_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section)
+{
+  if (!is_server())
+    return true;
+
+  u_int ival;
+  if (cfgHeap.get_integer_value (section,  CONFIG_max_clients, ival) == 0)
+  {
+    if (ival > 0 && ival <= 100000) //the upper limit of 100000 is more than enough?
+    {
+      max_clients = ival;
+    }
+  }
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_middle_server_dist_port, ival) == 0)
+  {
+    if (ival == 0 || ival >= 65535)
+    {
+      MY_ERROR(ACE_TEXT("Invalid config value %s (= %d).\n"), CONFIG_middle_server_dist_port, ival);
+      return false;
+    }
+    middle_server_dist_port = ival;
+  }
+
+  return true;
+}
+
+bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section)
+{
+  if (is_server())
+    return true;
+
+  return true;
+}
+
+bool MyConfig::load_config_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section)
+{
+  if (!is_dist_server())
+    return true;
+
+  u_int ival;
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_module_heart_beat_mem_pool_size, ival) == 0)
+  {
+    u_int itemp = std::max(2 * max_clients, 1000);
+    if (ival < itemp)
+    {
+      MY_WARNING(ACE_TEXT("Invalid %s value (= %d), should at least max(2 * %s, 1000) = %d, will adjust to %d\n"),
+          CONFIG_module_heart_beat_mem_pool_size, ival, CONFIG_max_clients, itemp, itemp);
+    }
+    else
+      module_heart_beat_mem_pool_size = ival;
+  }
+
+  return true;
+}
+
+bool MyConfig::load_config_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section)
+{
+  if (!is_middle_server())
+    return true;
+
+
+  return true;
+}
+
+bool MyConfig::load_config_client_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section)
+{
+  if (is_dist_server())
+    return true;
+
+  u_int ival;
+  if (cfgHeap.get_integer_value (section,  CONFIG_middle_server_client_port, ival) == 0)
+  {
+    if (ival == 0 || ival >= 65535)
+    {
+      MY_ERROR(ACE_TEXT("Invalid config value %s (= %d).\n"), CONFIG_middle_server_client_port, ival);
+      return false;
+    }
+    middle_server_client_port = ival;
+  }
+
+  return true;
+}
+
+bool MyConfig::load_config_client_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section)
+{
+  if (is_middle_server())
+    return true;
+
+  u_int ival;
+  if (cfgHeap.get_integer_value (section, CONFIG_dist_server_heart_beat_port, ival) == 0)
+  {
+    if (ival == 0 || ival >= 65535)
+    {
+      MY_ERROR(ACE_TEXT("Invalid config value %s (= %d).\n"), CONFIG_dist_server_heart_beat_port, ival);
+      return false;
+    }
+    dist_server_heart_beat_port = ival;
+  }
+
+  ACE_TString sval;
+  if (cfgHeap.get_string_value(section, CONFIG_middle_server_addr, sval) == 0)
+    middle_server_addr = sval.c_str();
+  else
+  {
+    MY_ERROR(ACE_TEXT("can not read config value %s.\n"), CONFIG_middle_server_addr);
+    return false;
+  }
+
+  return true;
+}
+
+void MyConfig::dump_config_info()
+{
+  MY_INFO(ACE_TEXT ("Loaded configuration:\n"));
+
+  const char * smode;
+  switch (running_mode)
+  {
+  case RM_DIST_SERVER:
+    smode = "dist server";
+    break;
+  case RM_MIDDLE_SERVER:
+    smode = "middle server";
+    break;
+  case RM_CLIENT:
+    smode = "client";
+    break;
+  default:
+    MY_FATAL("unexpected running mode (=%d).\n", running_mode);
+    exit(10);
+  }
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_running_mode, smode));
+
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_run_as_demon, run_as_demon));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_use_mem_pool, use_mem_pool));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_mem_pool_dump_interval, mem_pool_dump_interval));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_message_control_block_mem_pool_size, message_control_block_mem_pool_size));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_status_file_check_interval, status_file_check_interval));
+
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_file_number, log_file_number));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_file_size_in_MB, log_file_size_in_MB));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_debug_enabled, log_debug_enabled));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_to_stderr, log_to_stderr));
+
+  //dist and middle server
+  if (is_server())
+  {
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_max_clients, max_clients));
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_middle_server_dist_port, middle_server_dist_port));
+  }
+
+  //client an dist
+  if (is_client() || is_dist_server())
+  {
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_dist_server_heart_beat_port, dist_server_heart_beat_port));
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_middle_server_addr, middle_server_addr.c_str()));
+  }
+
+  //client and middle
+  if (is_client() || is_middle_server())
+  {
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_middle_server_client_port, middle_server_client_port));
+  }
+
+  //client only
+
+  //dist only
+  if (is_dist_server())
+  {
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_module_heart_beat_mem_pool_size, module_heart_beat_mem_pool_size));
+  }
+
+  //middle only
+
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tstatus_file = %s\n"), status_file_name.c_str()));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tlog_file = %s\n"), log_file_name.c_str()));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tconfig_file = %s\n"), config_file_name.c_str()));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tapp_path = %s\n"), app_path.c_str()));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\texe_path = %s\n"), exe_path.c_str()));
+}
+
+
+//MySigHandler//
+
+MySigHandler::MySigHandler(MyBaseApp * app)
+{
+  m_app = app;
+}
+
+int MySigHandler::handle_signal (int signum, siginfo_t*, ucontext_t*)
+{
+  m_app->on_sig_event(signum);
+  return 0;
+};
+
+
+//MyStatusFileChecker//
+
+MyStatusFileChecker::MyStatusFileChecker(MyBaseApp * app)
+{
+  m_app = app;
+}
+
+int MyStatusFileChecker::handle_timeout(const ACE_Time_Value &, const void *)
+{
+  struct stat st;
+  if (::stat(MyConfigX::instance()->status_file_name.c_str(), &st) == -1 && errno == ENOENT)
+    m_app->on_status_file_missing();
+  return 0;
+}
+
+
+//MyClock//
+
+int MyClock::handle_timeout (const ACE_Time_Value &, const void *)
+{
+  ++g_clock_tick;
+  return 0;
+}
+
+
+//MyServerApp//
+
+MyBaseApp::MyBaseApp(): m_sig_handler(this), m_status_file_checker(this)
+{
+  m_is_running = false;
+  //moved the initializations of modules to the static app_init() func
+  //Just can NOT do it in constructor simply because the singleton pattern
+  //will make recursively calls to our constructor by the module constructor's ref
+  //to MyServerApp's singleton.
+  //This is Ugly, but works right now
+  m_sighup = false;
+  m_sigterm = false;
+  m_status_file_ok = true;
+  m_status_file_checking = false;
+}
+
+bool MyBaseApp::on_construct()
+{
+  return true;
+}
+
+void MyBaseApp::do_constructor()
+{
+  init_log();
+  MyConfigX::instance()->dump_config_info();
+  MY_INFO(ACE_TEXT("loading modules...\n"));
+
+  on_construct();
+
+  MY_INFO(ACE_TEXT("loading modules done!\n"));
+
+  m_ace_sig_handler.register_handler(SIGHUP, &m_sig_handler);
+  m_ace_sig_handler.register_handler(SIGTERM, &m_sig_handler);
+  if (MyConfigX::instance()->status_file_check_interval != 0)
+  {
+    int fd = open(MyConfigX::instance()->status_file_name.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd == -1)
+    {
+      MY_WARNING(ACE_TEXT("status_file_check_interval enabled, but can not create/open file %s\n"),
+          MyConfigX::instance()->status_file_name.c_str());
+      return;
+    }
+    close(fd);
+    m_status_file_checking = true;
+
+    ACE_Time_Value interval (MyConfigX::instance()->status_file_check_interval * 60);
+    ACE_Reactor::instance()->schedule_timer (&m_status_file_checker,
+                             0, interval, interval);
+  }
+
+  ACE_Time_Value interval(10);
+  ACE_Reactor::instance()->schedule_timer(&m_clock, 0, interval, interval);
+}
+
+MyBaseApp::~MyBaseApp()
+{
+  m_ace_sig_handler.remove_handler(SIGHUP);
+  m_ace_sig_handler.remove_handler(SIGTERM);
+  if (m_status_file_checking)
+    ACE_Reactor::instance()->cancel_timer(&m_status_file_checker);
+  ACE_Reactor::instance()->cancel_timer(&m_clock);
+  stop();
+}
+
+/*const MyConfig & MyBaseApp::config() const
+{
+  return m_config;
+}*/
+
+bool MyBaseApp::running() const
+{
+  return m_is_running;
+}
+
+void MyBaseApp::app_demonize()
+{
+  int i;
+  pid_t pid;
+
+  if ((pid = fork()) != 0)
+    exit(0);
+
+  setsid();
+  signal(SIGHUP, SIG_IGN);
+
+  if ((pid = fork()) != 0)
+    exit(0);
+
+  umask(0);
+
+  for (i = 0; i <= 1024; ++i)
+    close(i);
+}
+
+void MyBaseApp::init_log()
+{
+  const char * cmd = "dynamic Logger Service_Object *ACE:_make_ACE_Logging_Strategy()"
+   "\"-o -s %s -N %d -m %d000 -i 1 -f STDERR|OSTREAM \"";
+
+  int m = strlen(cmd) + MyConfigX::instance()->log_file_name.length() + 100;
+  char * buff = new char[m];
+  std::snprintf(buff, m, cmd, MyConfigX::instance()->log_file_name.c_str(),
+      MyConfigX::instance()->log_file_number,
+      MyConfigX::instance()->log_file_size_in_MB);
+  if (ACE_Service_Config::process_directive (buff) == -1)
+  {
+    std::printf("ACE_Service_Config::process_directive failed, args = %s\n", buff);
+    exit(6);
+  }
+  delete []buff;
+  u_long log_mask = LM_INFO | LM_WARNING | LM_ERROR;
+  if (MyConfigX::instance()->log_debug_enabled)
+    log_mask |= LM_DEBUG;
+  ACE_LOG_MSG->priority_mask (log_mask, ACE_Log_Msg::PROCESS);
+
+//  ACE_LOG_MSG->open ("aceserver", ACE_Log_Msg::OSTREAM | ACE_Log_Msg::STDERR);
+//  ACE_OSTREAM_TYPE *output = new ofstream (m_config.log_file_name.c_str(), ios::app | ios::out);
+//  ACE_LOG_MSG->msg_ostream (output);
+
+  if (MyConfigX::instance()->run_as_demon || !MyConfigX::instance()->log_to_stderr)
+    ACE_LOG_MSG->clr_flags(ACE_Log_Msg::STDERR);
+  MY_INFO("Starting server (Ver: %s)...\n", const_server_version);
+}
+
+void MyBaseApp::dump_info()
+{
+
+}
+
+bool MyBaseApp::on_start()
+{
+  return true;
+}
+
+void MyBaseApp::start()
+{
+  if (m_is_running)
+    return;
+  MY_INFO(ACE_TEXT("starting modules...\n"));
+  m_is_running = true;
+  on_start();
+
+/*
+  if (m_heart_beat_module)
+    m_heart_beat_module->start();
+  if (m_location_module)
+    m_location_module->start();
+*/
+  MY_INFO(ACE_TEXT("starting modules done!\n"));
+  do_event_loop();
+}
+
+void MyBaseApp::on_stop()
+{
+
+}
+
+void MyBaseApp::stop()
+{
+  if (!m_is_running)
+    return;
+  MY_INFO(ACE_TEXT("stopping modules...\n"));
+  m_is_running = false;
+  on_stop();
+  MY_INFO(ACE_TEXT("stopping modules done!\n"));
+}
+
+void MyBaseApp::on_sig_event(int signum)
+{
+  switch (signum)
+  {
+  case SIGTERM:
+    m_sigterm = true;
+    break;
+  case SIGHUP:
+    m_sighup = true;
+    break;
+  }
+  MY_DEBUG("signal caught %d\n", signum);
+}
+
+void MyBaseApp::do_event_loop()
+{
+  while(true)
+  {
+    ACE_Time_Value timeout(2);
+    ACE_Reactor::instance()->run_reactor_event_loop(timeout);
+    if (m_sigterm)
+    {
+      MY_INFO("signal sigterm caught, quitting...\n");
+      return;
+    }
+    if (m_sighup && !do_sighup())
+    {
+      MY_INFO("signal sighup caught, quitting...\n");
+      return;
+    }
+    if (!m_status_file_ok)
+    {
+      MY_INFO("status file checking failed, quitting...\n");
+      return;
+    }
+  }
+}
+
+bool MyBaseApp::do_sighup()
+{
+  m_sighup = false;
+  return true;
+}
+
+void MyBaseApp::on_status_file_missing()
+{
+  m_status_file_ok = false;
+}

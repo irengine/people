@@ -1,10 +1,10 @@
-BIN=server
-FILES=basemodule distmodule baseapp datapacket mycomutil middlemodule server 
+BIN=client
+FILES=../aceserver/basemodule ../aceserver/datapacket ../aceserver/mycomutil ../aceserver/baseapp clientmodule client
 SRC=$(addsuffix .cpp,$(FILES))
 OBJ=$(addsuffix .o,$(FILES))
 BUILD=$(VBIN)
 LIBS=-lACE
-CPPFLAGS=-O0 -g
+CPPFLAGS=-O0 -g -I../aceserver
 VLDLIBS=$(LDLIBS:%=%$(VAR))
 #---------------------------------------------------------
 # Include macros and targets

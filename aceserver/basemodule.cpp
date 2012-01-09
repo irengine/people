@@ -1,5 +1,5 @@
 #include "basemodule.h"
-#include "serverapp.h"
+#include "baseapp.h"
 
 //MyMemPoolFactory//
 
@@ -22,7 +22,7 @@ MyMemPoolFactory::~MyMemPoolFactory()
     delete m_pools[i];
 }
 
-void MyMemPoolFactory::init(MyServerConfig * config)
+void MyMemPoolFactory::init(MyConfig * config)
 {
   m_use_mem_pool = config->use_mem_pool;
   if (!m_use_mem_pool)
@@ -393,7 +393,16 @@ ACE_Message_Block * MyBaseServerProcessor::make_version_check_reply_mb
   return mb;
 }
 
-MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE_Message_Block * mb)
+ACE_Message_Block * MyBaseServerProcessor::make_version_check_request_mb()
+{
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyClientVersionCheckRequest));
+  MyClientVersionCheckRequestProc vcr;
+  vcr.attach(mb->base());
+  vcr.init_header();
+  return mb;
+}
+
+MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE_Message_Block * mb, MyClientIDTable & client_id_table)
 {
   MyClientVersionCheckRequestProc vcr;
   vcr.attach(mb->base());
@@ -405,7 +414,7 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE
     reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_MISMATCH);
   } else
   {
-    client_id_index = MyServerAppX::instance()->client_id_table().index_of(vcr.data()->client_id);
+    client_id_index = client_id_table.index_of(vcr.data()->client_id);
     if (client_id_index < 0)
     {
       m_wait_for_close = true;
@@ -621,7 +630,7 @@ int MyBaseHandler::open(void * p)
 int MyBaseHandler::send_data(ACE_Message_Block * mb)
 {
   m_processor->update_last_activity();
-  int ret = mycomutil_send_message_block_queue(this, mb);
+  int ret = mycomutil_send_message_block_queue(this, mb, true);
   if (ret >= 0)
   {
     if (m_connection_manager)
@@ -669,7 +678,7 @@ int MyBaseHandler::handle_output (ACE_HANDLE fd)
   ACE_UNUSED_ARG(fd);
   ACE_Message_Block *mb;
   ACE_Time_Value nowait (ACE_OS::gettimeofday ());
-  while (-1 != this->getq (mb, &nowait))
+  while (-1 != this->getq(mb, &nowait))
   {
     if (mycomutil_send_message_block(this, mb) < 0)
     {
@@ -685,7 +694,7 @@ int MyBaseHandler::handle_output (ACE_HANDLE fd)
     }
     mb->release();
   }
-  return (this->msg_queue()->is_empty ()) ? -1 : 0;
+  return (this->msg_queue()->is_empty()) ? -1 : 0;
 }
 
 MyBaseHandler::~MyBaseHandler()
@@ -759,6 +768,7 @@ MyBaseConnector::MyBaseConnector(MyBaseModule * _module, MyBaseConnectionManager
   m_num_connection = 1;
   m_unique_handler = NULL;
   m_reconnect_interval = 0;
+  m_reconnect_retry_count = 1;
 }
 
 MyBaseConnector::~MyBaseConnector()
@@ -782,13 +792,29 @@ MyBaseHandler * MyBaseConnector::unique_handler() const
   return m_unique_handler;
 }
 
+void MyBaseConnector::tcp_addr(const char * addr)
+{
+  m_tcp_addr = (addr? addr:"");
+}
+
+bool MyBaseConnector::before_reconnect()
+{
+  return true;
+}
+
 int MyBaseConnector::handle_timeout(const ACE_Time_Value &current_time, const void *act)
 {
   ACE_UNUSED_ARG(current_time);
   if (long(act) == RECONNECT_TIMER && m_reconnect_interval > 0)
   {
     if (m_connection_manager->num_connections() < m_num_connection)
-      do_connect(m_num_connection - m_connection_manager->num_connections());
+    {
+      if (before_reconnect())
+      {
+        m_reconnect_retry_count++;
+        do_connect(m_num_connection - m_connection_manager->num_connections());
+      }
+    }
   }
   return 0;
 }
@@ -796,6 +822,7 @@ int MyBaseConnector::handle_timeout(const ACE_Time_Value &current_time, const vo
 int MyBaseConnector::start()
 {
   reactor(m_module->dispatcher()->reactor());
+  m_reconnect_retry_count = 1;
 
   if (m_tcp_port <= 0)
   {
@@ -960,7 +987,7 @@ int MyBaseDispatcher::svc()
   ACE_DEBUG ((LM_DEBUG,
              ACE_TEXT ("(%P|%t) entering MyBaseDispatcher::svc()\n")));
 
-  while (m_module->is_running_app())
+  while (m_module->running_with_app())
   {
     ACE_Time_Value timeout(2);
     int ret = reactor()->handle_events (&timeout);
@@ -1018,7 +1045,7 @@ int MyBaseDispatcher::handle_timeout (const ACE_Time_Value &tv,
 
 //MyBaseModule//
 
-MyBaseModule::MyBaseModule(): m_service(NULL), m_dispatcher(NULL), m_running(false)
+MyBaseModule::MyBaseModule(MyBaseApp * app): m_app(app), m_service(NULL), m_dispatcher(NULL), m_running(false)
 {
 
 }
@@ -1032,14 +1059,19 @@ MyBaseModule::~MyBaseModule()
     delete m_dispatcher;
 }
 
-bool MyBaseModule::is_running() const
+bool MyBaseModule::running() const
 {
   return m_running;
 }
 
-bool MyBaseModule::is_running_app() const
+MyBaseApp * MyBaseModule::app() const
 {
-  return (m_running && MyServerAppX::instance()->running());
+  return m_app;
+}
+
+bool MyBaseModule::running_with_app() const
+{
+  return (m_running && m_app->running());
 }
 
 MyBaseDispatcher * MyBaseModule::dispatcher() const

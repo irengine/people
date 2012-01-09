@@ -8,6 +8,8 @@
 #include <algorithm>
 #include "mycomutil.h"
 
+int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
+
 int mycomutil_translate_tcp_result(ssize_t transfer_return_value)
 {
   if (transfer_return_value == 0)
@@ -21,7 +23,8 @@ int mycomutil_translate_tcp_result(ssize_t transfer_return_value)
   return 1;
 }
 
-int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb)
+int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler,
+    ACE_Message_Block *mb)
 {
   if (!handler || !mb)
     return -1;
@@ -35,29 +38,62 @@ int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH
   return (mb->length() == 0 ? 0:1);
 }
 
-int mycomutil_send_message_block_queue(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb)
+int mycomutil_send_message_block_queue(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler,
+    ACE_Message_Block *mb, bool discard)
 {
-  int ret = mycomutil_send_message_block(handler, mb);
-  if (ret < 0)
+  if (!mb)
     return -1;
+  int ret;
+  if (!handler)
+  {
+    MY_FATAL("null handler @mycomutil_send_message_block_queue.\n");
+    ret = -1;
+    goto _exit_;
+  }
+
+  if (!handler->msg_queue()->is_empty())
+  {
+    ACE_Time_Value nowait(ACE_OS::gettimeofday());
+    if (handler->putq(mb, &nowait) < 0)
+    {
+      ret = -1;
+      goto _exit_;
+    }
+    else return 1;
+  }
+
+  ret = mycomutil_send_message_block(handler, mb);
+  if (ret < 0)
+  {
+    ret = -1;
+    goto _exit_;
+  }
+
   if (mb->length() == 0)
   {
-    mb->release();
-    return 0;
+    ret = 0;
+    goto _exit_;
   } else
   {
     ACE_Time_Value nowait(ACE_OS::gettimeofday());
     if (handler->putq(mb, &nowait) < 0)
-      return -1;
+    {
+      ret = -1;
+      goto _exit_;
+    }
     handler->reactor()->register_handler(handler, ACE_Event_Handler::WRITE_MASK);
     return 1;
   }
 
+_exit_:
+  if (discard)
+    mb->release();
+  return ret;
 }
 
 int mycomutil_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb)
 {
-  if (!handler || !mb)
+  if (!mb || !handler)
     return -1;
   if (mb->space() == 0)
     return 0;

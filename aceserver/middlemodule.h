@@ -8,7 +8,7 @@
 #ifndef DISTMODULE_H_
 #define DISTMODULE_H_
 
-#include "serverapp.h"
+#include "baseapp.h"
 #include "basemodule.h"
 #include <ace/Malloc_T.h>
 #include <new>
@@ -123,7 +123,7 @@ public:
 class MyLocationModule: public MyBaseModule
 {
 public:
-  MyLocationModule();
+  MyLocationModule(MyBaseApp * app);
   virtual ~MyLocationModule();
 
 private:
@@ -194,7 +194,7 @@ public:
 class MyHttpModule: public MyBaseModule
 {
 public:
-  MyHttpModule();
+  MyHttpModule(MyBaseApp * app);
   virtual ~MyHttpModule();
 
 private:

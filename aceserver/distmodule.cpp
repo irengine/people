@@ -6,7 +6,8 @@
  */
 
 #include "distmodule.h"
-#include "serverapp.h"
+#include "baseapp.h"
+#include "server.h"
 
 //MyHeartBeatProcessor//
 
@@ -51,7 +52,7 @@ void MyHeartBeatProcessor::do_ping()
 
 MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message_Block * mb)
 {
-  MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb);
+  MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, MyServerAppX::instance()->client_id_table());
   if (ret != ER_CONTINUE)
     return ret;
   ACE_Message_Block * reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK);
@@ -158,7 +159,7 @@ int MyHeartBeatService::svc()
 MyHeartBeatAcceptor::MyHeartBeatAcceptor(MyHeartBeatModule * _module, MyBaseConnectionManager * _manager):
     MyBaseAcceptor(_module, _manager)
 {
-  m_tcp_port = MyServerAppX::instance()->server_config().module_heart_beat_port;
+  m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
 }
 
 int MyHeartBeatAcceptor::make_svc_handler(MyBaseHandler *& sh)
@@ -195,7 +196,7 @@ void MyHeartBeatDispatcher::on_stop()
 
 //MyHeartBeatModule//
 
-MyHeartBeatModule::MyHeartBeatModule()
+MyHeartBeatModule::MyHeartBeatModule(MyBaseApp * app): MyBaseModule(app)
 {
   m_service = new MyHeartBeatService(this, 1);
   m_dispatcher = new MyHeartBeatDispatcher(this);

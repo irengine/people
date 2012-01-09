@@ -6,6 +6,8 @@
  */
 
 #include "middlemodule.h"
+#include "server.h"
+
 
 //MyFindDistLoad//
 
@@ -129,7 +131,7 @@ MyBaseProcessor::EVENT_RESULT MyLocationProcessor::on_recv_packet_i(ACE_Message_
 
 MyBaseProcessor::EVENT_RESULT MyLocationProcessor::do_version_check(ACE_Message_Block * mb)
 {
-  MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb);
+  MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, MyServerAppX::instance()->client_id_table());
   if (ret != ER_CONTINUE)
     return ret;
   ACE_Message_Block * reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_SERVER_LIST);
@@ -186,7 +188,7 @@ int MyLocationService::svc()
 MyLocationAcceptor::MyLocationAcceptor(MyLocationModule * _module, MyBaseConnectionManager * _manager):
     MyBaseAcceptor(_module, _manager)
 {
-  m_tcp_port = MyServerAppX::instance()->server_config().module_heart_beat_port;
+  m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
 }
 
 int MyLocationAcceptor::make_svc_handler(MyBaseHandler *& sh)
@@ -223,7 +225,7 @@ void MyLocationDispatcher::on_stop()
 
 //MyLocationModule//
 
-MyLocationModule::MyLocationModule()
+MyLocationModule::MyLocationModule(MyBaseApp * app): MyBaseModule(app)
 {
   m_service = new MyLocationService(this, 1);
   m_dispatcher = new MyLocationDispatcher(this);
@@ -347,7 +349,7 @@ int MyHttpService::svc()
 MyHttpAcceptor::MyHttpAcceptor(MyHttpModule * _module, MyBaseConnectionManager * _manager):
     MyBaseAcceptor(_module, _manager)
 {
-  m_tcp_port = MyServerAppX::instance()->server_config().module_heart_beat_port;
+  m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
 }
 
 int MyHttpAcceptor::make_svc_handler(MyBaseHandler *& sh)
@@ -384,7 +386,7 @@ void MyHttpDispatcher::on_stop()
 
 //MyHttpModule//
 
-MyHttpModule::MyHttpModule()
+MyHttpModule::MyHttpModule(MyBaseApp * app): MyBaseModule(app)
 {
   m_service = new MyHttpService(this, 1);
   m_dispatcher = new MyHttpDispatcher(this);

@@ -35,6 +35,7 @@ class MyBaseModule;
 class MyBaseHandler;
 class MyBaseAcceptor;
 class MyBaseConnectionManager;
+class MyBaseApp;
 
 class MyCached_Message_Block: public ACE_Message_Block
 {
@@ -60,13 +61,13 @@ public:
   {}
 };
 
-class MyServerConfig;
+class MyConfig;
 class MyMemPoolFactory
 {
 public:
   MyMemPoolFactory();
   ~MyMemPoolFactory();
-  void init(MyServerConfig * config);
+  void init(MyConfig * config);
   ACE_Message_Block * get_message_block(int capacity);
 private:
   typedef My_Cached_Allocator<ACE_Thread_Mutex> MyMemPool;
@@ -160,8 +161,9 @@ protected:
   MyBaseProcessor::EVENT_RESULT on_recv_packet(ACE_Message_Block * mb);
   int copy_header_to_mb(ACE_Message_Block * mb, const MyDataPacketHeader & header);
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_version_check_common(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_version_check_common(ACE_Message_Block * mb, MyClientIDTable & client_id_table);
   ACE_Message_Block * make_version_check_reply_mb(MyClientVersionCheckReply::REPLY_CODE code, int extra_len = 0);
+  ACE_Message_Block * make_version_check_request_mb();
   int read_req_header();
   int read_req_body();
   int handle_req();
@@ -265,6 +267,7 @@ public:
   MyBaseModule * module_x() const;
   MyBaseConnectionManager * connection_manager() const;
   MyBaseHandler * unique_handler() const;
+  void tcp_addr(const char * addr);
   int start();
   int stop();
 
@@ -274,6 +277,7 @@ protected:
     RECONNECT_TIMER = 1
   };
   int do_connect(int count = 1);
+  virtual bool before_reconnect();
   MyBaseModule * m_module;
   MyBaseConnectionManager * m_connection_manager;
   int m_tcp_port;
@@ -281,6 +285,7 @@ protected:
   int m_num_connection;
   MyBaseHandler * m_unique_handler;
   int m_reconnect_interval;
+  int m_reconnect_retry_count;
 };
 
 
@@ -328,18 +333,21 @@ private:
 class MyBaseModule
 {
 public:
-  MyBaseModule();
+  MyBaseModule(MyBaseApp * app);
   virtual ~MyBaseModule();
   //module specific
-  bool is_running() const;
+  bool running() const;
   //both module and app
-  bool is_running_app() const;
+  bool running_with_app() const;
   MyBaseDispatcher * dispatcher() const;
   MyBaseService * service() const;
+  MyBaseApp * app() const;
   int start();
   int stop();
 
+
 protected:
+  MyBaseApp * m_app;
   MyBaseService * m_service;
   MyBaseDispatcher * m_dispatcher;
   bool m_running;

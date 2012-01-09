@@ -93,7 +93,7 @@ private:
     static void* operator new(size_t _size, std::new_handler p = 0) \
     { \
       ACE_UNUSED_ARG(p); \
-      if (_size != sizeof(Cls) || !MyServerAppX::instance()->server_config().use_mem_pool) \
+      if (_size != sizeof(Cls) || !MyConfigX::instance()->use_mem_pool) \
         return ::operator new(_size); \
       void* _ptr = m_mem_pool->malloc(); \
       if (_ptr) \
@@ -109,7 +109,7 @@ private:
     { \
       if (_ptr != NULL) \
       { \
-        if (!MyServerAppX::instance()->server_config().use_mem_pool) \
+        if (!MyConfigX::instance()->use_mem_pool) \
         { \
           ::operator delete(_ptr); \
           return; \
@@ -119,7 +119,7 @@ private:
     } \
     static void init_mem_pool(int pool_size) \
     { \
-      if (MyServerAppX::instance()->server_config().use_mem_pool) \
+      if (MyConfigX::instance()->use_mem_pool) \
         m_mem_pool = new Mem_Pool(pool_size, sizeof(Cls)); \
     } \
     static void fini_mem_pool() \
@@ -143,7 +143,7 @@ private:
     static void* operator new(size_t _size, std::new_handler p = 0) throw() \
     { \
       ACE_UNUSED_ARG(p); \
-      if (_size != sizeof(Cls) || !MyServerAppX::instance()->server_config().use_mem_pool) \
+      if (_size != sizeof(Cls) || !MyConfigX::instance()->use_mem_pool) \
         return ::operator new(_size); \
       return m_mem_pool->malloc(); \
     } \
@@ -151,7 +151,7 @@ private:
     { \
       if (_ptr != NULL) \
       { \
-        if (!MyServerAppX::instance()->server_config().use_mem_pool) \
+        if (!MyConfigX::instance()->use_mem_pool) \
         { \
           ::operator delete(_ptr); \
           return; \
@@ -161,7 +161,7 @@ private:
     } \
     static void init_mem_pool(int pool_size) \
     { \
-      if (MyServerAppX::instance()->server_config().use_mem_pool) \
+      if (MyConfigX::instance()->use_mem_pool) \
         m_mem_pool = new Mem_Pool(pool_size, sizeof(Cls)); \
     } \
     static void fini_mem_pool() \
