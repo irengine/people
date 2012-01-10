@@ -8,10 +8,12 @@
 #ifndef HEARTBEATMODULE_H_
 #define HEARTBEATMODULE_H_
 
-#include "baseapp.h"
-#include "basemodule.h"
 #include <ace/Malloc_T.h>
 #include <new>
+
+#include "common.h"
+#include "baseapp.h"
+#include "basemodule.h"
 
 class MyHeartBeatModule;
 class MyPingSubmitter;
@@ -74,10 +76,10 @@ class MyHeartBeatDispatcher: public MyBaseDispatcher
 {
 public:
   MyHeartBeatDispatcher(MyBaseModule * pModule, int numThreads = 1);
-  virtual int open (void * = 0);
 
 protected:
   virtual void on_stop();
+  virtual int on_start();
 
 private:
   MyHeartBeatAcceptor * m_acceptor;

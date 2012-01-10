@@ -8,10 +8,12 @@
 #ifndef CLIENTMODULE_H_
 #define CLIENTMODULE_H_
 
-#include "baseapp.h"
-#include "basemodule.h"
 #include <ace/Malloc_T.h>
 #include <new>
+
+#include "common.h"
+#include "baseapp.h"
+#include "basemodule.h"
 
 class MyClientToDistModule;
 //class MyPingSubmitter;
@@ -19,27 +21,23 @@ class MyClientToDistConnector;
 
 const int16_t const_client_version = 1;
 
-class MyClientToDistProcessor: public MyBaseServerProcessor
+class MyClientToDistProcessor: public MyBaseClientProcessor
 {
 public:
   MyClientToDistProcessor(MyBaseHandler * handler);
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
 
 //  static MyPingSubmitter * m_sumbitter;
-  void terminal_id(const char * id);
+  int send_heart_beat();
 
 protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
-  void do_ping();
   MyBaseProcessor::EVENT_RESULT send_version_check_req();
   MyBaseProcessor::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
 
-  enum { TERMIANL_ID_LENGTH = 32 };
-  char m_terminal_id[TERMIANL_ID_LENGTH];
   bool m_version_check_reply_done;
-
 };
 
 class MyDistServerAddrList
@@ -84,7 +82,19 @@ class MyClientToDistHandler: public MyBaseHandler
 {
 public:
   MyClientToDistHandler(MyBaseConnectionManager * xptr = NULL);
+  virtual int open (void * = 0);
+  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
   DECLARE_MEMORY_POOL(MyClientToDistHandler, ACE_Thread_Mutex);
+
+protected:
+  virtual void on_close();
+
+private:
+  enum
+  {
+    HEART_BEAT_PING_TIMER = 1
+  };
+  long m_heat_beat_ping_timer_id;
 };
 
 class MyClientToDistService: public MyBaseService
@@ -98,10 +108,11 @@ class MyClientToDistDispatcher: public MyBaseDispatcher
 {
 public:
   MyClientToDistDispatcher(MyBaseModule * pModule, int numThreads = 1);
-  virtual int open (void * = 0);
+//  virtual int open (void * = 0);
 
 protected:
   virtual void on_stop();
+  virtual int on_start();
 
 private:
   MyClientToDistConnector * m_connector;

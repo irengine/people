@@ -28,7 +28,8 @@
 #include <string>
 #include <algorithm>
 
-#include "myutil.h"
+#include "common.h"
+#include "mycomutil.h"
 #include "datapacket.h"
 
 class MyBaseModule;
@@ -145,15 +146,16 @@ protected:
   bool m_check_activity;
 };
 
-class MyBaseServerProcessor: public MyBaseProcessor
+class MyBasePacketProcessor: public MyBaseProcessor
 {
 public:
-  MyBaseServerProcessor(MyBaseHandler * handler);
-  virtual ~MyBaseServerProcessor();
-  std::string info_string() const;
+  MyBasePacketProcessor(MyBaseHandler * handler);
+  virtual ~MyBasePacketProcessor();
+  virtual std::string info_string() const;
   virtual void on_open();
-  bool client_id_verified() const;
+  virtual bool client_id_verified() const;
   const MyClientID & client_id() const;
+  void client_id(const char *id);
   virtual int handle_input();
 
 protected:
@@ -181,18 +183,39 @@ protected:
   int m_read_next_offset;
 };
 
+class MyBaseServerProcessor: public MyBasePacketProcessor
+{
+public:
+  MyBaseServerProcessor(MyBaseHandler * handler);
+  virtual ~MyBaseServerProcessor();
+  virtual bool client_id_verified() const;
+};
+
+class MyBaseClientProcessor: public MyBasePacketProcessor
+{
+public:
+  MyBaseClientProcessor(MyBaseHandler * handler);
+  virtual ~MyBaseClientProcessor();
+  virtual bool client_id_verified() const;
+
+private:
+  bool m_client_id_verified;
+};
+
+
 class MyBaseConnectionManager
 {
 public:
   MyBaseConnectionManager();
+  virtual ~MyBaseConnectionManager();
   int  num_connections() const;
   long bytes_received() const;
   long bytes_sent() const;
 
   void on_data_received(long data_size);
   void on_data_send(long data_size);
-  void on_new_connection(MyBaseHandler *);
-  void on_close_connection(MyBaseHandler *);
+  virtual void on_new_connection(MyBaseHandler *);
+  virtual void on_close_connection(MyBaseHandler *);
   MyActiveConnectionPointer end();
   void detect_dead_connections();
 
@@ -223,6 +246,7 @@ public:
   int send_data(ACE_Message_Block * mb);
 
 protected:
+  virtual void on_close();
 
   MyBaseConnectionManager * m_connection_manager;
   MyBaseProcessor * m_processor;
@@ -274,7 +298,9 @@ public:
 protected:
   enum
   {
-    RECONNECT_TIMER = 1
+    RECONNECT_TIMER = 1,
+    UNUSED_TIMER_1,
+    UNUSED_TIMER_2
   };
   int do_connect(int count = 1);
   virtual bool before_reconnect();
@@ -286,6 +312,7 @@ protected:
   MyBaseHandler * m_unique_handler;
   int m_reconnect_interval;
   int m_reconnect_retry_count;
+  long m_reconnect_timer_id;
 };
 
 
@@ -319,6 +346,7 @@ public:
 
 protected:
   virtual void on_stop();
+  virtual int on_start();
 
   MyBaseModule * m_module;
   int m_clock_interval;

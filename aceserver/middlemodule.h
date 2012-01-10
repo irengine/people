@@ -8,10 +8,12 @@
 #ifndef DISTMODULE_H_
 #define DISTMODULE_H_
 
-#include "baseapp.h"
-#include "basemodule.h"
 #include <ace/Malloc_T.h>
 #include <new>
+
+#include "common.h"
+#include "baseapp.h"
+#include "basemodule.h"
 
 class MyLocationAcceptor;
 class MyLocationModule;
@@ -103,9 +105,9 @@ class MyLocationDispatcher: public MyBaseDispatcher
 {
 public:
   MyLocationDispatcher(MyBaseModule * pModule, int numThreads = 1);
-  virtual int open (void * = 0);
 
 protected:
+  virtual int on_start();
   virtual void on_stop();
 
 private:

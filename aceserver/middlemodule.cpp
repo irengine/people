@@ -204,22 +204,24 @@ int MyLocationAcceptor::make_svc_handler(MyBaseHandler *& sh)
 MyLocationDispatcher::MyLocationDispatcher(MyBaseModule * pModule, int numThreads):
     MyBaseDispatcher(pModule, numThreads)
 {
-
+  m_acceptor = NULL;
 }
 
-int MyLocationDispatcher::open(void * p)
+int MyLocationDispatcher::on_start()
 {
-  if (MyBaseDispatcher::open(p) == -1)
-    return -1;
-  m_acceptor = new MyLocationAcceptor((MyLocationModule *)m_module, new MyBaseConnectionManager());
-  return 0;
+  if (!m_acceptor)
+    m_acceptor = new MyLocationAcceptor((MyLocationModule *)m_module, new MyBaseConnectionManager());
+  return m_acceptor->start();
 }
 
 void MyLocationDispatcher::on_stop()
 {
-  m_acceptor->stop();
-  delete m_acceptor;
-  m_acceptor = NULL;
+  if (m_acceptor)
+  {
+    m_acceptor->stop();
+    delete m_acceptor;
+    m_acceptor = NULL;
+  }
 }
 
 

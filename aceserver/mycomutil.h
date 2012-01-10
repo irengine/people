@@ -13,6 +13,11 @@
 #include <ace/Message_Block.h>
 #include <ace/SOCK_Stream.h>
 #include <ace/Svc_Handler.h>
+#include <ace/Malloc_T.h>
+#include <new>
+#include <vector>
+
+#include "common.h"
 
 #define INFO_PREFIX       ACE_TEXT ("(%D %P|%t %N.%l)\n  INFO %I")
 #define MY_INFO(FMT, ...)     \
@@ -44,6 +49,246 @@
                     FATAL_PREFIX  FMT, \
                     ## __VA_ARGS__))
 
+
+class MyErrno
+{
+public:
+  MyErrno(int err = errno)
+  {
+    format_message(err);
+  }
+  operator const char *() //convert this object into a string
+  {
+    return buff;
+  }
+private:
+  void format_message(int err)
+  {
+    ACE_OS::snprintf(buff, BUFF_LEN, "errno = %d msg = ", err);
+    int len = ACE_OS::strlen(buff);
+    //ACE is using _GNU_SOURCE, so we can not get the POSIX version of strerror_r as per POSIX200112L
+    //using another buffer is needed here, since the GNU version is crapped
+    char temp[BUFF_LEN];
+    const char * ret = strerror_r(err, temp, BUFF_LEN);
+    ACE_OS::strsncpy(buff + len, (ret ? ret: "NULL"), BUFF_LEN - len);
+  }
+  enum { BUFF_LEN = 256 };
+  char buff[BUFF_LEN];
+};
+
+template <class ACE_LOCK> class My_Cached_Allocator: public ACE_Dynamic_Cached_Allocator<ACE_LOCK>
+{
+public:
+  typedef ACE_Dynamic_Cached_Allocator<ACE_LOCK> super;
+
+  My_Cached_Allocator (size_t n_chunks, size_t chunk_size): super(n_chunks, chunk_size)
+  {
+    m_alloc_count = 0;
+    m_free_count = 0;
+    m_max_in_use_count = 0;
+  }
+
+  virtual ~My_Cached_Allocator() {}
+
+  virtual void *malloc (size_t nbytes = 0)
+  {
+    {
+//      ACE_DEBUG ((LM_DEBUG, ACE_TEXT ("(%P|%t) enter malloc()\n")));
+      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, 0));
+//      ACE_DEBUG ((LM_DEBUG, ACE_TEXT ("(%P|%t) enter malloc() OK\n")));
+      ++m_alloc_count;
+      if (m_alloc_count - m_free_count > m_max_in_use_count)
+        m_max_in_use_count = m_alloc_count - m_free_count;
+    }
+    return super::malloc(nbytes);
+  }
+
+  virtual void *calloc (size_t nbytes,
+                          char initial_value = '\0')
+  {
+    {
+      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, 0));
+      ++m_alloc_count;
+      if (m_alloc_count - m_free_count > m_max_in_use_count)
+        m_max_in_use_count = m_alloc_count - m_free_count;
+    }
+    return super::calloc(nbytes, initial_value);
+  }
+// NOT implemented
+//  virtual void *calloc (size_t n_elem,  size_t elem_size,
+//                        char initial_value = '\0')
+  void free (void * p)
+  {
+    {
+//      ACE_DEBUG ((LM_DEBUG, ACE_TEXT ("(%P|%t) enter free()\n")));
+      ACE_MT (ACE_GUARD(ACE_LOCK, ace_mon, this->m_mutex));
+//      ACE_DEBUG ((LM_DEBUG, ACE_TEXT ("(%P|%t) enter free() OK\n")));
+      if (p != NULL)
+        ++m_free_count;
+    }
+    super::free(p);
+  }
+
+  void get_usage(long & alloc_count, long &free_count, long & max_in_use_count)
+  {
+    ACE_MT (ACE_GUARD(ACE_LOCK, ace_mon, this->m_mutex));
+    alloc_count = m_alloc_count;
+    free_count = m_free_count;
+    max_in_use_count = m_max_in_use_count;
+  }
+
+  size_t chunk_size() const
+  {
+    return m_chunk_size;
+  }
+private:
+  ACE_LOCK m_mutex;
+  size_t m_chunk_size;
+  long m_alloc_count;
+  long m_free_count;
+  long m_max_in_use_count;
+};
+
+#define DECLARE_MEMORY_POOL(Cls, Mutex) \
+  public: \
+    typedef My_Cached_Allocator<Mutex> Mem_Pool; \
+    static void* operator new(size_t _size, std::new_handler p = 0) \
+    { \
+      ACE_UNUSED_ARG(p); \
+      if (_size != sizeof(Cls) || !MyConfigX::instance()->use_mem_pool) \
+        return ::operator new(_size); \
+      void* _ptr = m_mem_pool->malloc(); \
+      if (_ptr) \
+        return _ptr; \
+      else \
+        throw std::bad_alloc(); \
+    } \
+    static void * operator new (size_t _size, const std::nothrow_t &) \
+    { \
+      return operator new(_size, 0); \
+    } \
+    static void operator delete(void* _ptr) \
+    { \
+      if (_ptr != NULL) \
+      { \
+        if (!MyConfigX::instance()->use_mem_pool) \
+        { \
+          ::operator delete(_ptr); \
+          return; \
+        } \
+        m_mem_pool->free(_ptr); \
+      } \
+    } \
+    static void init_mem_pool(int pool_size) \
+    { \
+      if (MyConfigX::instance()->use_mem_pool) \
+        m_mem_pool = new Mem_Pool(pool_size, sizeof(Cls)); \
+    } \
+    static void fini_mem_pool() \
+    { \
+      if (m_mem_pool) \
+      { \
+        delete m_mem_pool; \
+        m_mem_pool = NULL; \
+      } \
+    } \
+    static Mem_Pool * mem_pool() \
+    { \
+      return m_mem_pool; \
+    } \
+  private: \
+    static Mem_Pool * m_mem_pool
+
+#define DECLARE_MEMORY_POOL__NOTHROW(Cls, Mutex) \
+  public: \
+    typedef My_Cached_Allocator<Mutex> Mem_Pool; \
+    static void* operator new(size_t _size, std::new_handler p = 0) throw() \
+    { \
+      ACE_UNUSED_ARG(p); \
+      if (_size != sizeof(Cls) || !MyConfigX::instance()->use_mem_pool) \
+        return ::operator new(_size); \
+      return m_mem_pool->malloc(); \
+    } \
+    static void operator delete(void* _ptr, size_t size) \
+    { \
+      if (_ptr != NULL) \
+      { \
+        if (!MyConfigX::instance()->use_mem_pool) \
+        { \
+          ::operator delete(_ptr); \
+          return; \
+        } \
+        m_mem_pool->free(_ptr); \
+      } \
+    } \
+    static void init_mem_pool(int pool_size) \
+    { \
+      if (MyConfigX::instance()->use_mem_pool) \
+        m_mem_pool = new Mem_Pool(pool_size, sizeof(Cls)); \
+    } \
+    static void fini_mem_pool() \
+    { \
+      if (m_mem_pool) \
+      { \
+        delete m_mem_pool; \
+        m_mem_pool = NULL; \
+      } \
+    } \
+  private: \
+    static Mem_Pool * m_mem_pool
+
+#define PREPARE_MEMORY_POOL(Cls) \
+  Cls::Mem_Pool * Cls::m_mem_pool = NULL
+
+#if defined(MY_client_test) || defined(MY_server_test)
+
+//simple implementation, not thread safe, multiple calls to put on the same id will generate duplicate
+//IDs for later gets. but it works for our test. that is enough
+class MyTestClientIDGenerator
+{
+public:
+  MyTestClientIDGenerator(int64_t _start, int _count)
+  {
+    m_start = _start;
+    m_count = _count;
+    m_id_list.reserve(m_count);
+    for (int64_t i = m_start + m_count - 1; i >= m_start; --i)
+      m_id_list.push_back(i);
+  }
+  const char * get()
+  {
+    if (m_id_list.empty())
+      return NULL;
+    int64_t id = m_id_list.back();
+    m_id_list.pop_back();
+    ACE_OS::snprintf(m_result, BUFF_LEN, "%lld", (long long)id);
+    return m_result;
+  }
+  void put(const char * id)
+  {
+    if (!id || !*id)
+      return;
+    int64_t val = atoll(id);
+    m_id_list.push_back(val);
+  }
+  bool empty() const
+  {
+    return m_id_list.empty();
+  }
+  int count() const
+  {
+    return m_id_list.size();
+  }
+private:
+  typedef std::vector<int64_t> MyClientIDList;
+  enum { BUFF_LEN = 32 };
+  char  m_result[BUFF_LEN];
+  int64_t m_start;
+  int     m_count;
+  MyClientIDList m_id_list;
+};
+
+#endif //MY_client_test
 
 int mycomutil_translate_tcp_result(ssize_t transfer_return_value);
 int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);

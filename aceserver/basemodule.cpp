@@ -250,9 +250,9 @@ void MyBaseProcessor::check_activity(bool bCheck)
 }
 
 
-//MyBaseServerProcessor//
+//MyBasePacketProcessor//
 
-MyBaseServerProcessor::MyBaseServerProcessor(MyBaseHandler * handler): MyBaseProcessor(handler)
+MyBasePacketProcessor::MyBasePacketProcessor(MyBaseHandler * handler): MyBaseProcessor(handler)
 {
   m_client_id_index = -1;
   m_peer_addr[0] = 0;
@@ -260,13 +260,13 @@ MyBaseServerProcessor::MyBaseServerProcessor(MyBaseHandler * handler): MyBasePro
   m_current_block = NULL;
 }
 
-MyBaseServerProcessor::~MyBaseServerProcessor()
+MyBasePacketProcessor::~MyBasePacketProcessor()
 {
   if (m_current_block)
     m_current_block->release();
 }
 
-std::string MyBaseServerProcessor::info_string() const
+std::string MyBasePacketProcessor::info_string() const
 {
   char buff[512];
   ACE_OS::snprintf(buff, 512, "(remote addr=%s, client_id=%s)", m_peer_addr, m_client_id.as_string());
@@ -274,7 +274,7 @@ std::string MyBaseServerProcessor::info_string() const
   return result;
 }
 
-int MyBaseServerProcessor::handle_input()
+int MyBasePacketProcessor::handle_input()
 {
   if (m_wait_for_close)
     return handle_input_wait_for_close();
@@ -311,12 +311,12 @@ __loop:
   return 0;
 }
 
-int MyBaseServerProcessor::copy_header_to_mb(ACE_Message_Block * mb, const MyDataPacketHeader & header)
+int MyBasePacketProcessor::copy_header_to_mb(ACE_Message_Block * mb, const MyDataPacketHeader & header)
 {
   return mb->copy((const char*)&header, sizeof(MyDataPacketHeader));
 }
 
-void MyBaseServerProcessor::on_open()
+void MyBasePacketProcessor::on_open()
 {
   ACE_INET_Addr peer_addr;
   if (m_handler->peer().get_remote_addr(peer_addr) == 0)
@@ -326,7 +326,7 @@ void MyBaseServerProcessor::on_open()
 }
 
 
-MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_header(const MyDataPacketHeader & header)
+MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_header(const MyDataPacketHeader & header)
 {
   MyDataPacketBaseProc proc((const char*)&header);
   if (!proc.validate_header())
@@ -347,7 +347,7 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_header(const MyData
   return ER_CONTINUE;
 }
 
-MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_packet(ACE_Message_Block * mb)
+MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_packet(ACE_Message_Block * mb)
 {
   if (mb->size() < sizeof(MyDataPacketHeader))
   {
@@ -362,24 +362,29 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_packet(ACE_Message_
 }
 
 
-MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
   MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
   header->magic = m_client_id_index;
   return ER_OK;
 }
 
-bool MyBaseServerProcessor::client_id_verified() const
+bool MyBasePacketProcessor::client_id_verified() const
 {
-  return !m_client_id.is_null();
+  return false;
 }
 
-const MyClientID & MyBaseServerProcessor::client_id() const
+const MyClientID & MyBasePacketProcessor::client_id() const
 {
   return m_client_id;
 }
 
-ACE_Message_Block * MyBaseServerProcessor::make_version_check_reply_mb
+void MyBasePacketProcessor::client_id(const char *id)
+{
+  m_client_id = id;
+}
+
+ACE_Message_Block * MyBasePacketProcessor::make_version_check_reply_mb
    (MyClientVersionCheckReply::REPLY_CODE code, int extra_len)
 {
   int total_len = sizeof(MyClientVersionCheckReply) + extra_len;
@@ -393,7 +398,7 @@ ACE_Message_Block * MyBaseServerProcessor::make_version_check_reply_mb
   return mb;
 }
 
-ACE_Message_Block * MyBaseServerProcessor::make_version_check_request_mb()
+ACE_Message_Block * MyBasePacketProcessor::make_version_check_request_mb()
 {
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyClientVersionCheckRequest));
   MyClientVersionCheckRequestProc vcr;
@@ -402,7 +407,7 @@ ACE_Message_Block * MyBaseServerProcessor::make_version_check_request_mb()
   return mb;
 }
 
-MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE_Message_Block * mb, MyClientIDTable & client_id_table)
+MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::do_version_check_common(ACE_Message_Block * mb, MyClientIDTable & client_id_table)
 {
   MyClientVersionCheckRequestProc vcr;
   vcr.attach(mb->base());
@@ -435,7 +440,7 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE
   return ER_CONTINUE;
 }
 
-int MyBaseServerProcessor::read_req_header()
+int MyBasePacketProcessor::read_req_header()
 {
   update_last_activity();
   ssize_t recv_cnt = TEMP_FAILURE_RETRY(m_handler->peer().recv ((char*)&m_packet_header + m_read_next_offset,
@@ -478,7 +483,7 @@ int MyBaseServerProcessor::read_req_header()
   }
 }
 
-int MyBaseServerProcessor::read_req_body()
+int MyBasePacketProcessor::read_req_body()
 {
   if (!m_current_block)
   {
@@ -495,7 +500,7 @@ int MyBaseServerProcessor::read_req_body()
   return mycomutil_recv_message_block(m_handler, m_current_block);
 }
 
-int MyBaseServerProcessor::handle_req()
+int MyBasePacketProcessor::handle_req()
 {
   if (m_handler->connection_manager())
      m_handler->connection_manager()->on_data_received(m_current_block->size());
@@ -509,6 +514,42 @@ int MyBaseServerProcessor::handle_req()
 }
 
 
+//MyBaseServerProcessor//
+
+MyBaseServerProcessor::MyBaseServerProcessor(MyBaseHandler * handler) : MyBasePacketProcessor(handler)
+{
+
+}
+
+MyBaseServerProcessor::~MyBaseServerProcessor()
+{
+
+}
+
+bool MyBaseServerProcessor::client_id_verified() const
+{
+  return !m_client_id.is_null();
+}
+
+
+//MyBaseClientProcessor//
+
+MyBaseClientProcessor::MyBaseClientProcessor(MyBaseHandler * handler) : MyBasePacketProcessor(handler)
+{
+  m_client_id_verified = false;
+}
+
+MyBaseClientProcessor::~MyBaseClientProcessor()
+{
+
+}
+
+bool MyBaseClientProcessor::client_id_verified() const
+{
+  return m_client_id_verified;
+}
+
+
 //MyBaseConnectionManager//
 
 MyBaseConnectionManager::MyBaseConnectionManager()
@@ -516,6 +557,11 @@ MyBaseConnectionManager::MyBaseConnectionManager()
   m_num_connections = 0;
   m_bytes_received = 0;
   m_bytes_sent = 0;
+}
+
+MyBaseConnectionManager::~MyBaseConnectionManager()
+{
+
 }
 
 MyActiveConnectionPointer MyBaseConnectionManager::end()
@@ -630,11 +676,12 @@ int MyBaseHandler::open(void * p)
 int MyBaseHandler::send_data(ACE_Message_Block * mb)
 {
   m_processor->update_last_activity();
+  int sent_len = mb->length();
   int ret = mycomutil_send_message_block_queue(this, mb, true);
   if (ret >= 0)
   {
     if (m_connection_manager)
-      m_connection_manager->on_data_send(mb->size());
+      m_connection_manager->on_data_send(sent_len);
   }
   return ret;
 }
@@ -644,6 +691,11 @@ int MyBaseHandler::handle_input(ACE_HANDLE)
   return m_processor->handle_input();
 }
 
+void MyBaseHandler::on_close()
+{
+
+}
+
 int MyBaseHandler::handle_close (ACE_HANDLE handle,
                           ACE_Reactor_Mask close_mask)
 {
@@ -651,7 +703,7 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
   if (close_mask == ACE_Event_Handler::WRITE_MASK)
   {
     if (!m_processor->wait_for_close())
-    return 0;
+      return 0;
   }
   ACE_Message_Block *mb;
   ACE_Time_Value nowait(ACE_OS::gettimeofday());
@@ -660,6 +712,8 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
 
   if (m_connection_manager)
     m_connection_manager->on_close_connection(this);
+
+  on_close();
   //here comes the tricky part, parent class will NOT call delete as it normally does
   //since we override the operator new/delete pair, the same thing parent class does
   //see ACE_Svc_Handler @ Svc_Handler.cpp
@@ -700,10 +754,9 @@ int MyBaseHandler::handle_output (ACE_HANDLE fd)
 MyBaseHandler::~MyBaseHandler()
 {
   delete m_processor;
-
-  ACE_DEBUG ((LM_DEBUG,
-              ACE_TEXT ("(%P|%t) deleting MyBaseHandler objects %X\n"),
-              (long)this));
+//  ACE_DEBUG ((LM_DEBUG,
+//              ACE_TEXT ("(%P|%t) deleting MyBaseHandler objects %X\n"),
+//              (long)this));
 }
 
 
@@ -768,7 +821,8 @@ MyBaseConnector::MyBaseConnector(MyBaseModule * _module, MyBaseConnectionManager
   m_num_connection = 1;
   m_unique_handler = NULL;
   m_reconnect_interval = 0;
-  m_reconnect_retry_count = 1;
+  m_reconnect_retry_count = 3;
+  m_reconnect_timer_id = -1;
 }
 
 MyBaseConnector::~MyBaseConnector()
@@ -840,15 +894,17 @@ int MyBaseConnector::start()
   if (m_reconnect_interval > 0)
   {
     ACE_Time_Value interval (m_reconnect_interval * 60);
-    reactor()->schedule_timer (this, (void*)RECONNECT_TIMER, interval, interval);
+    m_reconnect_timer_id = reactor()->schedule_timer (this, (void*)RECONNECT_TIMER, interval, interval);
+    if (m_reconnect_timer_id < 0)
+      MY_ERROR(ACE_TEXT("MyBaseConnector setup reconnect timer failed, %s"), (const char*)MyErrno());
   }
   return ret;
 }
 
 int MyBaseConnector::stop()
 {
-  if (m_reconnect_interval > 0)
-    reactor()->cancel_timer(this);
+  if (m_reconnect_timer_id >= 0)
+    reactor()->cancel_timer(m_reconnect_timer_id);
 
   close();
   return 0;
@@ -882,7 +938,7 @@ int MyBaseConnector::do_connect(int count)
   {
     m_unique_handler = handler;
   }
-  return ok_count;
+  return (ok_count > 0 ? 0:-1);
 }
 
 
@@ -952,11 +1008,18 @@ int MyBaseDispatcher::open (void *)
   return 0;
 }
 
+int MyBaseDispatcher::on_start()
+{
+  return 0;
+}
+
 int MyBaseDispatcher::start()
 {
   if (open(NULL) == -1)
     return -1;
   msg_queue()->flush();
+  if (on_start() < 0)
+    return -1;
   return activate (THR_NEW_LWP, m_numThreads);
 }
 

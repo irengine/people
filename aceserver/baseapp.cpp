@@ -11,7 +11,7 @@
 #include <cstdio>
 #include "baseapp.h"
 
-const ACE_TCHAR * const_server_version = ACE_TEXT("1.0");
+const ACE_TCHAR * const_app_version = ACE_TEXT("1.0");
 long g_clock_tick = 0;
 
 //MyServerConfig//
@@ -33,7 +33,10 @@ const int  DEFAULT_MODULE_HEART_BEAT_MPOOL_SIZE = DEFAULT_max_clients * 4;
 
 const int  DEFAULT_middle_server_client_port = 2223;
 const int  DEFAULT_middle_server_dist_port = 2224;
-
+const int  DEFAULT_client_heart_beat_interval = 60;
+#ifdef MY_client_test
+  const int  DEFAULT_test_client_connection_number = 1;
+#endif
 
 
 //common for all
@@ -63,12 +66,17 @@ const ACE_TCHAR * CONFIG_dist_server_heart_beat_port = ACE_TEXT("module.heart_be
 const ACE_TCHAR *  CONFIG_middle_server_client_port = ACE_TEXT("middle_server.client_port");
 
 //middle specific
-const ACE_TCHAR * CONFIG_Section_middle = ACE_TEXT("middle");
+
 
 //dist specific
 const ACE_TCHAR * CONFIG_module_heart_beat_mem_pool_size = ACE_TEXT("module.heart_beat.mempool_size");
 
 //client specific
+const ACE_TCHAR * CONFIG_client_heart_beat_interval = ACE_TEXT("module.client_heart_beat_interval");
+#ifdef MY_client_test
+  const ACE_TCHAR * CONFIG_test_client_connection_number = ACE_TEXT("module.test_client_connection_number");
+  const ACE_TCHAR * CONFIG_test_client_start_client_id = ACE_TEXT("module.test_client_start_client_id");
+#endif
 
 
 MyConfig::MyConfig()
@@ -96,6 +104,9 @@ MyConfig::MyConfig()
   //dist server only
   dist_server_heart_beat_port = DEFAULT_dist_server_heart_beat_port;
   module_heart_beat_mem_pool_size = DEFAULT_MODULE_HEART_BEAT_MPOOL_SIZE;
+
+  //client only
+  client_heart_beat_interval = DEFAULT_client_heart_beat_interval;
 }
 
 void MyConfig::init_path(const char * app_home_path)
@@ -227,15 +238,15 @@ bool MyConfig::load_config_common(ACE_Configuration_Heap & cfgHeap, ACE_Configur
   {
     if (cfgHeap.get_integer_value (section,  CONFIG_running_mode, ival) == 0)
     {
-      if (ival != RM_DIST_SERVER || ival != RM_MIDDLE_SERVER)
+      if (ival != RM_DIST_SERVER && ival != RM_MIDDLE_SERVER)
       {
-        MY_FATAL("invalid server running mode = %d.\n", ival);
+        MY_FATAL("invalid server running mode = %d\n", ival);
         return false;
       }
       running_mode = RUNNING_MODE(ival);
     } else
     {
-      MY_FATAL("get not get server running mode = %d.\n", ival);
+      MY_FATAL("can not read server running mode\n");
       return false;
     }
   }
@@ -300,7 +311,7 @@ bool MyConfig::load_config_dist_middle(ACE_Configuration_Heap & cfgHeap, ACE_Con
   {
     if (ival == 0 || ival >= 65535)
     {
-      MY_ERROR(ACE_TEXT("Invalid config value %s (= %d).\n"), CONFIG_middle_server_dist_port, ival);
+      MY_ERROR(ACE_TEXT("Invalid config value %s (= %d)\n"), CONFIG_middle_server_dist_port, ival);
       return false;
     }
     middle_server_dist_port = ival;
@@ -313,6 +324,48 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
 {
   if (is_server())
     return true;
+
+  u_int ival;
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_client_heart_beat_interval, ival) == 0)
+  {
+    if (ival == 0 || ival > 0xFFFF )
+    {
+      MY_WARNING(ACE_TEXT("Invalid %s value (= %d), using default value = %d\n"),
+          CONFIG_module_heart_beat_mem_pool_size, ival, DEFAULT_client_heart_beat_interval);
+    }
+    else
+      client_heart_beat_interval = ival;
+  }
+
+#ifdef MY_client_test
+  if (cfgHeap.get_integer_value (section,  CONFIG_test_client_connection_number, ival) == 0)
+  {
+    if (ival == 0 || ival > 60000 )
+    {
+      MY_WARNING(ACE_TEXT("Invalid %s value (= %d), using default value = %d\n"),
+          CONFIG_test_client_connection_number, ival, DEFAULT_test_client_connection_number);
+    }
+    else
+      test_client_connection_number = ival;
+  }
+
+  ACE_TString sval;
+  if (cfgHeap.get_string_value(section, CONFIG_test_client_start_client_id, sval) == 0)
+  {
+    test_client_start_client_id = atoll(sval.c_str());
+    if (test_client_start_client_id < 0)
+    {
+      MY_WARNING(ACE_TEXT("Invalid %s value (= %d)\n"), CONFIG_test_client_start_client_id, test_client_start_client_id);
+      return false;
+    }
+  }
+  else
+  {
+    MY_ERROR("can not read config value %s\n", CONFIG_test_client_start_client_id);
+    return false;
+  }
+#endif
 
   return true;
 }
@@ -358,7 +411,7 @@ bool MyConfig::load_config_client_middle(ACE_Configuration_Heap & cfgHeap, ACE_C
   {
     if (ival == 0 || ival >= 65535)
     {
-      MY_ERROR(ACE_TEXT("Invalid config value %s (= %d).\n"), CONFIG_middle_server_client_port, ival);
+      MY_ERROR(ACE_TEXT("Invalid config value %s (= %d)\n"), CONFIG_middle_server_client_port, ival);
       return false;
     }
     middle_server_client_port = ival;
@@ -377,7 +430,7 @@ bool MyConfig::load_config_client_dist(ACE_Configuration_Heap & cfgHeap, ACE_Con
   {
     if (ival == 0 || ival >= 65535)
     {
-      MY_ERROR(ACE_TEXT("Invalid config value %s (= %d).\n"), CONFIG_dist_server_heart_beat_port, ival);
+      MY_ERROR(ACE_TEXT("Invalid config value %s (= %d)\n"), CONFIG_dist_server_heart_beat_port, ival);
       return false;
     }
     dist_server_heart_beat_port = ival;
@@ -388,7 +441,7 @@ bool MyConfig::load_config_client_dist(ACE_Configuration_Heap & cfgHeap, ACE_Con
     middle_server_addr = sval.c_str();
   else
   {
-    MY_ERROR(ACE_TEXT("can not read config value %s.\n"), CONFIG_middle_server_addr);
+    MY_ERROR(ACE_TEXT("can not read config value %s\n"), CONFIG_middle_server_addr);
     return false;
   }
 
@@ -449,6 +502,17 @@ void MyConfig::dump_config_info()
   }
 
   //client only
+  if (is_client())
+  {
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_heart_beat_interval, client_heart_beat_interval));
+#ifdef MY_client_test
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tclient_test_mode = 1\n")));
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_test_client_start_client_id, test_client_start_client_id));
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_test_client_connection_number, test_client_connection_number));
+#else
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tclient_test_mode = 0\n")));
+#endif
+  }
 
   //dist only
   if (is_dist_server())
@@ -458,6 +522,7 @@ void MyConfig::dump_config_info()
 
   //middle only
 
+  //common: file/path locations printout
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tstatus_file = %s\n"), status_file_name.c_str()));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tlog_file = %s\n"), log_file_name.c_str()));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tconfig_file = %s\n"), config_file_name.c_str()));
@@ -626,7 +691,10 @@ void MyBaseApp::init_log()
 
   if (MyConfigX::instance()->run_as_demon || !MyConfigX::instance()->log_to_stderr)
     ACE_LOG_MSG->clr_flags(ACE_Log_Msg::STDERR);
-  MY_INFO("Starting server (Ver: %s)...\n", const_server_version);
+  if (MyConfigX::instance()->is_server())
+    MY_INFO("Starting server (Ver: %s)...\n", const_app_version);
+  else
+    MY_INFO("Starting client (Ver: %s)...\n", const_app_version);
 }
 
 void MyBaseApp::dump_info()

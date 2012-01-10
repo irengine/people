@@ -11,10 +11,11 @@
 #include <ace/Singleton.h>
 #include <string>
 #include <ace/Configuration_Import_Export.h>
+#include "common.h"
 #include "basemodule.h"
 
 
-extern const ACE_TCHAR * const_server_version;
+extern const ACE_TCHAR * const_app_version;
 extern long g_clock_tick;
 
 class MyBaseApp;
@@ -65,6 +66,11 @@ public:
   int middle_server_client_port;
 
   //client only
+  int client_heart_beat_interval;
+#ifdef MY_client_test
+  int test_client_connection_number;
+  int64_t test_client_start_client_id;
+#endif
 
   //dist only
   int module_heart_beat_mem_pool_size;

@@ -8,6 +8,7 @@
 #ifndef CLIENT_H_
 #define CLIENT_H_
 
+#include "common.h"
 #include "baseapp.h"
 
 class MyClientToDistModule;

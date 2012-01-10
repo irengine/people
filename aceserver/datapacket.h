@@ -12,6 +12,8 @@
 #include <stddef.h>
 #include <ace/OS_NS_string.h>
 
+#include "common.h"
+
 #pragma pack(push, 1)
 
 class MyClientID

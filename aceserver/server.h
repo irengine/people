@@ -8,6 +8,7 @@
 #ifndef SERVER_H_
 #define SERVER_H_
 
+#include "common.h"
 #include "baseapp.h"
 
 class MyHeartBeatModule;

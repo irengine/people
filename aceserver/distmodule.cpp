@@ -175,22 +175,24 @@ int MyHeartBeatAcceptor::make_svc_handler(MyBaseHandler *& sh)
 MyHeartBeatDispatcher::MyHeartBeatDispatcher(MyBaseModule * pModule, int numThreads):
     MyBaseDispatcher(pModule, numThreads)
 {
-
-}
-
-int MyHeartBeatDispatcher::open(void * p)
-{
-  if (MyBaseDispatcher::open(p) == -1)
-    return -1;
-  m_acceptor = new MyHeartBeatAcceptor((MyHeartBeatModule *)m_module, new MyBaseConnectionManager());
-  return 0;
+  m_acceptor = NULL;
 }
 
 void MyHeartBeatDispatcher::on_stop()
 {
-  m_acceptor->stop();
-  delete m_acceptor;
-  m_acceptor = NULL;
+  if (m_acceptor)
+  {
+    m_acceptor->stop();
+    delete m_acceptor;
+    m_acceptor = NULL;
+  }
+}
+
+int MyHeartBeatDispatcher::on_start()
+{
+  if (!m_acceptor)
+    m_acceptor = new MyHeartBeatAcceptor((MyHeartBeatModule *)m_module, new MyBaseConnectionManager());
+  return m_acceptor->start();
 }
 
 
