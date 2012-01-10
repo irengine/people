@@ -30,6 +30,12 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header(const MyDataP
     return ER_OK_FINISHED;
   }
 
+  if (header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
+    return ER_OK;
+
+  MY_ERROR(ACE_TEXT("unexpected packet header received @MyHeartBeatProcessor.on_recv_header, cmd = %d\n"),
+      header.command);
+
   return ER_ERROR;
 }
 
@@ -41,7 +47,8 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
   if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
     return do_version_check(mb);
 
-  MY_ERROR("unsupported command received, command = %d\n", header->command);
+  MY_ERROR("unsupported command received @MyHeartBeatProcessor::on_recv_packet_i, command = %d\n",
+      header->command);
   return ER_ERROR;
 }
 
@@ -55,6 +62,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
   MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, MyServerAppX::instance()->client_id_table());
   if (ret != ER_CONTINUE)
     return ret;
+
+  MY_INFO(ACE_TEXT("client version check ok: %s\n"), info_string().c_str());
+
   ACE_Message_Block * reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK);
 
   if (m_handler->send_data(reply_mb) < 0)

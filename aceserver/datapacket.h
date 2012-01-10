@@ -19,7 +19,7 @@
 class MyClientID
 {
 public:
-  union
+  union ClientID
   {
     char    as_string[];
     int64_t as_long[2];
@@ -36,12 +36,12 @@ public:
 
   MyClientID()
   {
-    ACE_OS::memset((void*)&(client_id_value_i), 0, ID_LENGTH_AS_STRING);
+    ACE_OS::memset((void*)client_id_value_i, 0, ID_LENGTH_AS_STRING);
   }
 
   MyClientID(const char * s)
   {
-    ACE_OS::memset((void*)&(client_id_value_i), 0, ID_LENGTH_AS_STRING);
+    ACE_OS::memset((void*)client_id_value_i, 0, ID_LENGTH_AS_STRING);
 
     if (!s || !*s)
       return;
@@ -49,9 +49,14 @@ public:
     ACE_OS::strsncpy(client_id_value_s, s, ID_LENGTH_AS_STRING);
   }
 
+  void fix_data()
+  {
+    client_id_value_s[ID_LENGTH_AS_STRING - 1] = 0;
+  }
+
   MyClientID & operator = (const char * s)
   {
-    ACE_OS::memset((void*)&(client_id_value_i), 0, ID_LENGTH_AS_STRING);
+    ACE_OS::memset((void*)client_id_value_i, 0, ID_LENGTH_AS_STRING);
 
     if (!s || !*s)
       return *this;
@@ -218,6 +223,12 @@ public:
   virtual MyClientVersionCheckRequest * data() const
   {
     return (MyClientVersionCheckRequest *)m_data;
+  }
+
+  virtual bool validate_data() const
+  {
+    data()->client_id.fix_data();
+    return true;
   }
 
 };

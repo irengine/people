@@ -34,7 +34,7 @@ void MyMemPoolFactory::init(MyConfig * config)
   m_pools.reserve(count);
   for (size_t i = 0; i < sizeof(pool_size) / sizeof(int); ++i)
     m_pools.push_back(new My_Cached_Allocator<ACE_Thread_Mutex>
-      (/*config->module_heart_beat_mem_pool_size*/ 3000, sizeof(MyDataPacketHeader)));
+      (/*config->module_heart_beat_mem_pool_size*/ 3000, pool_size[i]));
 //todo: change default pool's chunk number
   m_message_block_pool = new My_Cached_Allocator<ACE_Thread_Mutex>
     (config->message_control_block_mem_pool_size, sizeof(ACE_Message_Block));
@@ -53,8 +53,11 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
     return new ACE_Message_Block(capacity);
   int count = m_pools.size();
   for (int i = 0; i < count; ++i)
+  {
+    MY_INFO("i = %d, capacity = %d, m_pools[i]->chunk_size() = %d\n", i, capacity, m_pools[i]->chunk_size());
     if (size_t(capacity) <= m_pools[i]->chunk_size())
       return new MyCached_Message_Block(capacity, m_pools[i], m_data_block_pool, m_message_block_pool);
+  }
   return new ACE_Message_Block(capacity);
 }
 
@@ -198,9 +201,9 @@ std::string MyBaseProcessor::info_string() const
   return "";
 }
 
-void MyBaseProcessor::on_open()
+int MyBaseProcessor::on_open()
 {
-
+  return 0;
 }
 
 bool MyBaseProcessor::wait_for_close() const
@@ -316,13 +319,14 @@ int MyBasePacketProcessor::copy_header_to_mb(ACE_Message_Block * mb, const MyDat
   return mb->copy((const char*)&header, sizeof(MyDataPacketHeader));
 }
 
-void MyBasePacketProcessor::on_open()
+int MyBasePacketProcessor::on_open()
 {
   ACE_INET_Addr peer_addr;
   if (m_handler->peer().get_remote_addr(peer_addr) == 0)
     peer_addr.get_host_addr((char*)m_peer_addr, PEER_ADDR_LEN);
   if (m_peer_addr[0] == 0)
     ACE_OS::strsncpy((char*)m_peer_addr, "unknown", PEER_ADDR_LEN);
+  return 0;
 }
 
 
@@ -344,19 +348,23 @@ MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_header(const MyData
              bVerified, bVersionCheck, info_string().c_str());
     return ER_ERROR;
   }
+
   return ER_CONTINUE;
 }
 
 MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_packet(ACE_Message_Block * mb)
 {
+  MyBaseProcessor::EVENT_RESULT result;
   if (mb->size() < sizeof(MyDataPacketHeader))
   {
     MY_ERROR(ACE_TEXT("message block size too little ( = %d)"), mb->size());
-    return ER_ERROR;
+    result = ER_ERROR;
+    goto _exit_;
   }
   mb->rd_ptr(mb->base());
 
-  MyBaseProcessor::EVENT_RESULT result = on_recv_packet_i(mb);
+  result = on_recv_packet_i(mb);
+_exit_:
   mb->release();
   return result;
 }
@@ -384,61 +392,16 @@ void MyBasePacketProcessor::client_id(const char *id)
   m_client_id = id;
 }
 
-ACE_Message_Block * MyBasePacketProcessor::make_version_check_reply_mb
-   (MyClientVersionCheckReply::REPLY_CODE code, int extra_len)
-{
-  int total_len = sizeof(MyClientVersionCheckReply) + extra_len;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len);
-
-  MyClientVersionCheckReplyProc vcr;
-  vcr.attach(mb->base());
-  vcr.init_header();
-  vcr.data()->reply_code = code;
-  mb->wr_ptr(total_len);
-  return mb;
-}
-
 ACE_Message_Block * MyBasePacketProcessor::make_version_check_request_mb()
 {
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyClientVersionCheckRequest));
   MyClientVersionCheckRequestProc vcr;
   vcr.attach(mb->base());
   vcr.init_header();
+  mb->wr_ptr(sizeof(MyClientVersionCheckRequest));
   return mb;
 }
 
-MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::do_version_check_common(ACE_Message_Block * mb, MyClientIDTable & client_id_table)
-{
-  MyClientVersionCheckRequestProc vcr;
-  vcr.attach(mb->base());
-  int client_id_index = -1;
-  ACE_Message_Block * reply_mb = NULL;
-  if (vcr.data()->client_version != 1)
-  {
-    m_wait_for_close = true;
-    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_MISMATCH);
-  } else
-  {
-    client_id_index = client_id_table.index_of(vcr.data()->client_id);
-    if (client_id_index < 0)
-    {
-      m_wait_for_close = true;
-      reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_ACCESS_DENIED);
-    }
-  }
-
-  if (m_wait_for_close)
-  {
-    if (m_handler->send_data(reply_mb) <= 0)
-      return ER_ERROR;
-    else
-      return ER_OK;
-  }
-  m_client_id_index = client_id_index;
-  m_client_id = vcr.data()->client_id;
-  m_client_id_length = strlen(m_client_id.as_string());
-  return ER_CONTINUE;
-}
 
 int MyBasePacketProcessor::read_req_header()
 {
@@ -505,12 +468,13 @@ int MyBasePacketProcessor::handle_req()
   if (m_handler->connection_manager())
      m_handler->connection_manager()->on_data_received(m_current_block->size());
 
+  int ret = 0;
   if (on_recv_packet(m_current_block) != MyBaseProcessor::ER_OK)
-    return -1;
+    ret = -1;
 
   m_current_block = 0;
   m_read_next_offset = 0;
-  return 0;
+  return ret;
 }
 
 
@@ -531,6 +495,56 @@ bool MyBaseServerProcessor::client_id_verified() const
   return !m_client_id.is_null();
 }
 
+MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE_Message_Block * mb, MyClientIDTable & client_id_table)
+{
+  MyClientVersionCheckRequestProc vcr;
+  vcr.attach(mb->base());
+  vcr.validate_data();
+  int client_id_index = -1;
+  ACE_Message_Block * reply_mb = NULL;
+  if (vcr.data()->client_version != 1)
+  {
+    m_wait_for_close = true;
+    MY_WARNING(ACE_TEXT("closing connection due to mismatched client_version = %d\n"), vcr.data()->client_version);
+    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_MISMATCH);
+  } else
+  {
+    client_id_index = client_id_table.index_of(vcr.data()->client_id);
+    if (client_id_index < 0)
+    {
+      m_wait_for_close = true;
+      MY_WARNING(ACE_TEXT("closing connection due to invalid client_id = %s\n"), vcr.data()->client_id.as_string());
+      reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_ACCESS_DENIED);
+    }
+  }
+
+  if (m_wait_for_close)
+  {
+    if (m_handler->send_data(reply_mb) <= 0)
+      return ER_ERROR;
+    else
+      return ER_OK;
+  }
+
+  m_client_id_index = client_id_index;
+  m_client_id = vcr.data()->client_id;
+  m_client_id_length = strlen(m_client_id.as_string());
+  return ER_CONTINUE;
+}
+
+ACE_Message_Block * MyBaseServerProcessor::make_version_check_reply_mb
+   (MyClientVersionCheckReply::REPLY_CODE code, int extra_len)
+{
+  int total_len = sizeof(MyClientVersionCheckReply) + extra_len;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len);
+
+  MyClientVersionCheckReplyProc vcr;
+  vcr.attach(mb->base());
+  vcr.init_header();
+  vcr.data()->reply_code = code;
+  mb->wr_ptr(total_len);
+  return mb;
+}
 
 //MyBaseClientProcessor//
 
@@ -663,14 +677,20 @@ MyBaseProcessor * MyBaseHandler::processor() const
   return m_processor;
 }
 
+int MyBaseHandler::on_open()
+{
+  return 0;
+}
+
 int MyBaseHandler::open(void * p)
 {
   if (super::open(p) == -1)
     return -1;
-  m_processor->on_open();
   if (m_connection_manager)
     m_connection_manager->on_new_connection(this);
-  return 0;
+  if (on_open() < 0)
+    return -1;
+  return m_processor->on_open();
 }
 
 int MyBaseHandler::send_data(ACE_Message_Block * mb)
@@ -924,9 +944,13 @@ int MyBaseConnector::do_connect(int count)
   for (int i = 1; i <= count; ++i)
   {
     handler = NULL;
-    int ret_i = connect(handler, port_to_connect);
+    int ret_i = do_connect_one(handler, port_to_connect); //connect(handler, port_to_connect);
     if (ret_i == 0)
-      ++ok_count ;
+      ++ok_count;
+    else if (ret_i == -1)
+    {
+      MY_ERROR(ACE_TEXT("connecting to %s:%d failed, %s\n"), m_tcp_addr.c_str(), m_tcp_port, (const char*)MyErrno());
+    }
 
   }
   if (ok_count != count)
@@ -941,7 +965,22 @@ int MyBaseConnector::do_connect(int count)
   return (ok_count > 0 ? 0:-1);
 }
 
-
+int MyBaseConnector::do_connect_one(MyBaseHandler * & handler, const ACE_INET_Addr & addr)
+{
+  const size_t MAX_RETRIES = 3;
+  ACE_Time_Value timeout(10);
+  size_t i;
+  for (i = 0; i < MAX_RETRIES; ++i)
+  {
+    ACE_Synch_Options options(ACE_Synch_Options::USE_TIMEOUT, timeout);
+    if (i > 0)
+      ACE_OS::sleep(timeout);
+    if (connect(handler, addr, options) == 0)
+      break;
+    timeout *= 2; // Exponential backoff.
+  }
+  return i == MAX_RETRIES ? -1 : 0;
+}
 
 //MyBaseService//
 

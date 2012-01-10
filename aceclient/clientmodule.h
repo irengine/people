@@ -24,9 +24,11 @@ const int16_t const_client_version = 1;
 class MyClientToDistProcessor: public MyBaseClientProcessor
 {
 public:
+  typedef MyBaseClientProcessor super;
+
   MyClientToDistProcessor(MyBaseHandler * handler);
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
-
+  virtual int on_open();
 //  static MyPingSubmitter * m_sumbitter;
   int send_heart_beat();
 
@@ -34,7 +36,7 @@ protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
-  MyBaseProcessor::EVENT_RESULT send_version_check_req();
+  int send_version_check_req();
   MyBaseProcessor::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
 
   bool m_version_check_reply_done;
@@ -82,12 +84,12 @@ class MyClientToDistHandler: public MyBaseHandler
 {
 public:
   MyClientToDistHandler(MyBaseConnectionManager * xptr = NULL);
-  virtual int open (void * = 0);
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
   DECLARE_MEMORY_POOL(MyClientToDistHandler, ACE_Thread_Mutex);
 
 protected:
   virtual void on_close();
+  virtual int  on_open();
 
 private:
   enum

@@ -19,16 +19,6 @@ public:
   {
     return m_id_generator;
   }
-  virtual void on_new_connection(MyBaseHandler * handler)
-  {
-    MyBaseConnectionManager::on_new_connection(handler);
-    ((MyTestClientToDistConnectionManager*)(handler->connection_manager()))->id_generator().get();
-  }
-
-  virtual void on_close_connection(MyBaseHandler *)
-  {
-
-  }
 
 private:
   MyTestClientIDGenerator m_id_generator;
@@ -43,6 +33,24 @@ private:
 MyClientToDistProcessor::MyClientToDistProcessor(MyBaseHandler * handler): MyBaseClientProcessor(handler)
 {
   m_version_check_reply_done = false;
+}
+
+int MyClientToDistProcessor::on_open()
+{
+  if (super::on_open() < 0)
+    return -1;
+
+#ifdef MY_client_test
+  const char * myid = ((MyTestClientToDistConnectionManager*)m_handler->connection_manager())->id_generator().get();
+  if (!myid)
+  {
+    MY_ERROR(ACE_TEXT("can not fetch a test client id @MyClientToDistHandler::open\n"));
+    return -1;
+  }
+  client_id(myid);
+#endif
+
+  return send_version_check_req();
 }
 
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header(const MyDataPacketHeader & header)
@@ -120,18 +128,14 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
 
 }
 
-MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::send_version_check_req()
+int MyClientToDistProcessor::send_version_check_req()
 {
   ACE_Message_Block * mb = make_version_check_request_mb();
   MyClientVersionCheckRequestProc proc;
   proc.attach(mb->base());
   proc.data()->client_version = const_client_version;
   proc.data()->client_id = m_client_id;
-
-  if (m_handler->send_data(mb) < 0)
-    return ER_ERROR;
-  else
-    return ER_OK;
+  return (m_handler->send_data(mb) < 0? -1: 0);
 }
 
 /*
@@ -247,25 +251,12 @@ MyClientToDistHandler::MyClientToDistHandler(MyBaseConnectionManager * xptr): My
   m_heat_beat_ping_timer_id = -1;
 }
 
-int MyClientToDistHandler::open (void * p)
+int MyClientToDistHandler::on_open()
 {
-  if (MyBaseHandler::open(p) < 0)
-    return -1;
   ACE_Time_Value interval (MyConfigX::instance()->client_heart_beat_interval);
   m_heat_beat_ping_timer_id = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval, interval);
   if (m_heat_beat_ping_timer_id < 0)
     MY_ERROR(ACE_TEXT("MyClientToDistHandler setup heart beat timer failed, %s"), (const char*)MyErrno());
-
-#ifdef MY_client_test
-  const char * myid = ((MyTestClientToDistConnectionManager*)m_connection_manager)->id_generator().get();
-  if (!myid)
-  {
-    MY_ERROR(ACE_TEXT("can not fetch a test client id @MyClientToDistHandler::open\n"));
-    return -1;
-  }
-  ((MyClientToDistProcessor*)m_processor)->client_id(myid);
-#endif
-
   return 0;
 }
 
@@ -285,6 +276,14 @@ void MyClientToDistHandler::on_close()
 {
   if (m_heat_beat_ping_timer_id >= 0)
     reactor()->cancel_timer(m_heat_beat_ping_timer_id);
+
+#ifdef MY_client_test
+  ((MyTestClientToDistConnectionManager*)m_connection_manager)->id_generator().put
+      (
+        ((MyClientToDistProcessor*)m_processor)->client_id().as_string()
+      );
+#endif
+
 }
 
 PREPARE_MEMORY_POOL(MyClientToDistHandler);

@@ -128,7 +128,7 @@ public:
   virtual ~MyBaseProcessor();
 
   virtual std::string info_string() const;
-  virtual void on_open();
+  virtual int on_open();
   virtual int handle_input();
   bool wait_for_close() const;
 
@@ -152,7 +152,7 @@ public:
   MyBasePacketProcessor(MyBaseHandler * handler);
   virtual ~MyBasePacketProcessor();
   virtual std::string info_string() const;
-  virtual void on_open();
+  virtual int on_open();
   virtual bool client_id_verified() const;
   const MyClientID & client_id() const;
   void client_id(const char *id);
@@ -163,8 +163,6 @@ protected:
   MyBaseProcessor::EVENT_RESULT on_recv_packet(ACE_Message_Block * mb);
   int copy_header_to_mb(ACE_Message_Block * mb, const MyDataPacketHeader & header);
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_version_check_common(ACE_Message_Block * mb, MyClientIDTable & client_id_table);
-  ACE_Message_Block * make_version_check_reply_mb(MyClientVersionCheckReply::REPLY_CODE code, int extra_len = 0);
   ACE_Message_Block * make_version_check_request_mb();
   int read_req_header();
   int read_req_body();
@@ -189,6 +187,10 @@ public:
   MyBaseServerProcessor(MyBaseHandler * handler);
   virtual ~MyBaseServerProcessor();
   virtual bool client_id_verified() const;
+
+protected:
+  MyBaseProcessor::EVENT_RESULT do_version_check_common(ACE_Message_Block * mb, MyClientIDTable & client_id_table);
+  ACE_Message_Block * make_version_check_reply_mb(MyClientVersionCheckReply::REPLY_CODE code, int extra_len = 0);
 };
 
 class MyBaseClientProcessor: public MyBasePacketProcessor
@@ -233,7 +235,7 @@ public:
   typedef ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> super;
   MyBaseHandler(MyBaseConnectionManager * xptr = NULL);
 
-  virtual int open (void * = 0);
+  virtual int open (void * p = 0);
   virtual int handle_input(ACE_HANDLE fd = ACE_INVALID_HANDLE);
   virtual int handle_output(ACE_HANDLE fd = ACE_INVALID_HANDLE);
   virtual int handle_close(ACE_HANDLE handle, ACE_Reactor_Mask close_mask);
@@ -247,6 +249,7 @@ public:
 
 protected:
   virtual void on_close();
+  virtual int  on_open();
 
   MyBaseConnectionManager * m_connection_manager;
   MyBaseProcessor * m_processor;
@@ -303,6 +306,8 @@ protected:
     UNUSED_TIMER_2
   };
   int do_connect(int count = 1);
+  int do_connect_one(MyBaseHandler * & handler, const ACE_INET_Addr & addr);
+
   virtual bool before_reconnect();
   MyBaseModule * m_module;
   MyBaseConnectionManager * m_connection_manager;
