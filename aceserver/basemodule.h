@@ -311,7 +311,6 @@ protected:
     UNUSED_TIMER_2
   };
   int do_connect(int count = 1);
-  int do_connect_one(MyBaseHandler * & handler, const ACE_INET_Addr & addr);
 
   virtual bool before_reconnect();
   MyBaseModule * m_module;
@@ -333,7 +332,7 @@ public:
   MyBaseModule * module_x() const; //name collision with parent class
   int start();
   int stop();
-
+  virtual void dump_info();
 
 private:
   MyBaseModule * m_module;
@@ -353,6 +352,7 @@ public:
                               const void *act);
   int start();
   int stop();
+  virtual void dump_info();
 
 protected:
   virtual void on_stop();
@@ -365,6 +365,8 @@ private:
   ACE_Reactor *m_reactor;
   int m_numThreads;
   int m_numBatchSend;
+  ACE_Thread_Mutex m_mutex;
+  bool m_init_done;
 };
 
 
@@ -382,7 +384,7 @@ public:
   MyBaseApp * app() const;
   int start();
   int stop();
-
+  virtual void dump_info();
 
 protected:
   MyBaseApp * m_app;

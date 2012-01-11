@@ -771,12 +771,12 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
   MY_DEBUG("handle_close.2 (handle = %d, mask=%x)\n", handle, close_mask);
   ACE_Message_Block *mb;
   ACE_Time_Value nowait(ACE_OS::gettimeofday());
-  while (-1 != this->getq (mb, &nowait))
+  while (-1 != this->getq(mb, &nowait))
     mb->release();
-
+  MY_DEBUG("handle_close.x (handle = %d, mask=%x)\n", handle, close_mask);
   if (m_connection_manager)
     m_connection_manager->on_close_connection(this);
-
+  MY_DEBUG("handle_close.y (handle = %d, mask=%x)\n", handle, close_mask);
   on_close();
   //here comes the tricky part, parent class will NOT call delete as it normally does
   //since we override the operator new/delete pair, the same thing parent class does
@@ -802,8 +802,8 @@ int MyBaseHandler::handle_output (ACE_HANDLE fd)
     if (mycomutil_send_message_block(this, mb) < 0)
     {
       mb->release();
-      reactor()->remove_handler(this, ACE_Event_Handler::WRITE_MASK | ACE_Event_Handler::READ_MASK |
-                                ACE_Event_Handler::DONT_CALL);
+//      reactor()->remove_handler(this, ACE_Event_Handler::WRITE_MASK | ACE_Event_Handler::READ_MASK |
+//                                ACE_Event_Handler::DONT_CALL);
       return handle_close(get_handle(), 0); //todo: more graceful shutdown
     }
     if (mb->length() > 0)
@@ -940,7 +940,7 @@ int MyBaseConnector::handle_timeout(const ACE_Time_Value &current_time, const vo
 
 int MyBaseConnector::start()
 {
-  if (super::open(m_module->dispatcher()->reactor(), ACE_NONBLOCK) == -1)
+  if (open(m_module->dispatcher()->reactor(), ACE_NONBLOCK) == -1)
     return -1;
   reactor(m_module->dispatcher()->reactor());
   m_reconnect_retry_count = 1;
@@ -957,7 +957,7 @@ int MyBaseConnector::start()
     return -1;
   }
 
-  int ret = do_connect(m_num_connection);
+  do_connect(m_num_connection);
   if (m_reconnect_interval > 0)
   {
     ACE_Time_Value interval (m_reconnect_interval * 60);
@@ -965,7 +965,7 @@ int MyBaseConnector::start()
     if (m_reconnect_timer_id < 0)
       MY_ERROR(ACE_TEXT("MyBaseConnector setup reconnect timer failed, %s"), (const char*)MyErrno());
   }
-  return ret;
+  return 0; //
 }
 
 int MyBaseConnector::stop()
@@ -987,52 +987,33 @@ int MyBaseConnector::do_connect(int count)
 
   ACE_INET_Addr port_to_connect(m_tcp_port, m_tcp_addr.c_str());
   MyBaseHandler * handler = NULL;
-  int ok_count = 0;
+  int ok_count = 0, pending_count = 0;
+
+  ACE_Time_Value timeout(30);
+  ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
   for (int i = 1; i <= count; ++i)
   {
     handler = NULL;
-    int ret_i = do_connect_one(handler, port_to_connect); //connect(handler, port_to_connect);
+    int ret_i = connect(handler, port_to_connect, synch_options);
     if (ret_i == 0)
       ++ok_count;
     else if (ret_i == -1)
     {
-      MY_ERROR(ACE_TEXT("connecting to %s:%d failed, %s\n"), m_tcp_addr.c_str(), m_tcp_port, (const char*)MyErrno());
+      if (errno == EWOULDBLOCK)
+        pending_count++;
     }
 
   }
-  if (ok_count != count)
-    MY_ERROR(ACE_TEXT("connecting on %s:%d (%d of %d)... failed!\n"), m_tcp_addr.c_str(), m_tcp_port, count - ok_count, count);
-  else
-    MY_INFO(ACE_TEXT("connecting on %s:%d (%d of %d)... OK\n"), m_tcp_addr.c_str(), m_tcp_port, count, count);
+  MY_INFO(ACE_TEXT("connecting on %s:%d (total = %d, ok = %d, failed = %d, pending = %d)... \n"),
+      m_tcp_addr.c_str(), m_tcp_port, count, ok_count, count - ok_count- pending_count, pending_count);
 
   if (m_num_connection == 1 && ok_count == 1)
   {
     m_unique_handler = handler;
   }
-  return (ok_count > 0 ? 0:-1);
+  return ok_count + pending_count > 0;
 }
 
-int MyBaseConnector::do_connect_one(MyBaseHandler * & handler, const ACE_INET_Addr & addr)
-{/*
-  const size_t MAX_RETRIES = 3;
-  ACE_Time_Value timeout(10);
-  size_t i;
-  for (i = 0; i < MAX_RETRIES; ++i)
-  {
-    ACE_Synch_Options options(ACE_Synch_Options::USE_TIMEOUT, timeout);
-    if (i > 0)
-      ACE_OS::sleep(timeout);
-    if (connect(handler, addr, options) == 0)
-      break;
-    timeout *= 2; // Exponential backoff.
-  }
-  return i == MAX_RETRIES ? -1 : 0;
-  */
-   connect(handler, addr);
-   ACE_Time_Value timeout(10);
-   ACE_OS::sleep(timeout);
-   return 0;
-}
 
 //MyBaseService//
 
@@ -1065,6 +1046,11 @@ int MyBaseService::stop()
   return 0;
 }
 
+void MyBaseService::dump_info()
+{
+
+}
+
 
 //MyBaseDispatcher//
 
@@ -1073,6 +1059,7 @@ MyBaseDispatcher::MyBaseDispatcher(MyBaseModule * pModule, int numThreads):
 {
   m_reactor = NULL;
   m_clock_interval = 0;
+  m_init_done = false;
 }
 
 MyBaseDispatcher::~MyBaseDispatcher()
@@ -1106,12 +1093,6 @@ int MyBaseDispatcher::on_start()
 
 int MyBaseDispatcher::start()
 {
-  if (open(NULL) == -1)
-    return -1;
-  msg_queue()->flush();
-  if (on_start() < 0)
-    return -1;
-
   return activate (THR_NEW_LWP, m_numThreads);
 }
 
@@ -1123,31 +1104,32 @@ void MyBaseDispatcher::on_stop()
 int MyBaseDispatcher::stop()
 {
   wait();
-  msg_queue()->flush();
-  if (m_reactor && m_clock_interval > 0)
-    m_reactor->cancel_timer(this);
-  on_stop();
-  if (m_reactor)
-    m_reactor->close();
-
-  delete m_reactor;
-  m_reactor = NULL;
-
   return 0;
 }
 
 
-int MyBaseDispatcher::svc()
-{/*
-  ACE_DEBUG ((LM_DEBUG,
-             ACE_TEXT ("(%P|%t) entering MyBaseDispatcher::svc()\n")));
+void MyBaseDispatcher::dump_info()
+{
 
-  if (open(NULL) == -1)
-    return -1;
-  msg_queue()->flush();
-  if (on_start() < 0)
-    return -1;
-  */
+}
+
+int MyBaseDispatcher::svc()
+{
+  MY_DEBUG(ACE_TEXT ("entering MyBaseDispatcher::svc()\n"));
+
+  {
+    ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, 0);
+    if (!m_init_done)
+    {
+      m_init_done = true;
+      if (open(NULL) == -1)
+        return -1;
+      msg_queue()->flush();
+      if (on_start() < 0)
+        return -1;
+    }
+  }
+
   while (m_module->running_with_app())
   {
     ACE_Time_Value timeout(2);
@@ -1159,10 +1141,24 @@ int MyBaseDispatcher::svc()
       MY_INFO(ACE_TEXT ("exiting MyBaseDispatcher::svc() due to errno = %d\n"), errno);
       break;
     }
-//    MY_DEBUG("    returning from reactor()->handle_events()\n");
+    //MY_DEBUG("    returning from reactor()->handle_events()\n");
   }
-  ACE_DEBUG ((LM_DEBUG,
-             ACE_TEXT ("(%P|%t) exiting MyBaseDispatcher::svc()\n")));
+  MY_DEBUG(ACE_TEXT ("exiting MyBaseDispatcher::svc()\n"));
+
+  {
+    ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, 0);
+    if (!m_reactor) //reuse m_reactor as cleanup flag
+      return 0;
+    msg_queue()->flush();
+    if (m_reactor && m_clock_interval > 0)
+      m_reactor->cancel_timer(this);
+    if (m_reactor)
+      m_reactor->close();
+    on_stop();
+    delete m_reactor;
+    m_reactor = NULL;
+  }
+
   return 0;
 }
 
@@ -1172,7 +1168,7 @@ int MyBaseDispatcher::handle_timeout (const ACE_Time_Value &tv,
 {
   ACE_UNUSED_ARG(tv);
   ACE_UNUSED_ARG(act);
-  MY_DEBUG("MyBaseDispatcher::handle_timeout().\n");
+
   ACE_Message_Block *mb;
   ACE_Time_Value nowait(ACE_OS::gettimeofday ());
   int i = 0;
@@ -1187,7 +1183,6 @@ int MyBaseDispatcher::handle_timeout (const ACE_Time_Value &tv,
 //             acceptor()->num_connections(), acceptor()->bytes_received(), acceptor()->bytes_sent()));
 
   return 0;
-//    return (this->msg_queue()->is_empty ()) ? -1 : 0;
 }
 
 
@@ -1268,4 +1263,9 @@ int MyBaseModule::stop()
   if (m_dispatcher)
     m_dispatcher->stop();
   return 0;
+}
+
+void MyBaseModule::dump_info()
+{
+
 }

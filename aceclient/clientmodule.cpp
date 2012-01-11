@@ -155,60 +155,6 @@ int MyClientToDistProcessor::send_version_check_req()
   return (m_handler->send_data(mb) < 0? -1: 0);
 }
 
-/*
-//MyPingSubmitter//
-
-MyPingSubmitter::MyPingSubmitter()
-{
-  reset();
-}
-
-MyPingSubmitter::~MyPingSubmitter()
-{
-  if (m_current_block)
-    m_current_block->release();
-}
-
-void MyPingSubmitter::reset()
-{
-  m_current_block = MyMemPoolFactoryX::instance()->get_message_block(BLOCK_SIZE);
-  m_current_length = 0;
-  m_current_ptr = m_current_block->base();
-  m_last_add = 0;
-}
-
-void MyPingSubmitter::add_ping(const char * client_id, const int len)
-{
-  if (!client_id || !*client_id)
-    return;
-  if (len + m_current_length > BLOCK_SIZE)// not zero-terminated// - 1)
-  {
-    do_submit();
-    m_last_add = g_clock_tick;
-  }
-  ACE_OS::memcpy(m_current_ptr, client_id, len);
-  m_current_length += len;
-  m_current_ptr += len;
-  *(m_current_ptr - 1) = ';';
-}
-
-void MyPingSubmitter::do_submit()
-{
-  m_current_block->wr_ptr(m_current_length);
-  //todo: do sumbit now
-  m_current_block->release(); //just a test
-  //
-  reset();
-}
-
-void MyPingSubmitter::check_time_out()
-{
-  if (m_current_length == 0)
-    return;
-  if (g_clock_tick > m_last_add + 4)
-    do_submit();
-}
-*/
 
 MyDistServerAddrList::MyDistServerAddrList()
 {
@@ -329,20 +275,13 @@ MyClientToDistService::MyClientToDistService(MyBaseModule * module, int numThrea
 
 int MyClientToDistService::svc()
 {
-  ACE_DEBUG ((LM_DEBUG,
-             ACE_TEXT ("(%P|%t) running svc()\n")));
 
-  for (ACE_Message_Block *log_blk; getq (log_blk) != -1; )
+  MY_INFO("MyClientToDistService::svc() start\n");
+  for (ACE_Message_Block *log_blk; getq(log_blk) != -1; )
   {
-//    ACE_DEBUG ((LM_DEBUG,
-//               ACE_TEXT ("(%P|%t) svc data from queue, size = %d\n"),
-//               log_blk->size()));
-
-
     log_blk->release ();
   }
-  ACE_DEBUG ((LM_DEBUG,
-               ACE_TEXT ("(%P|%t) quitting svc()\n")));
+  MY_INFO("MyClientToDistService::svc() end\n");
   return 0;
 }
 
@@ -393,23 +332,6 @@ MyClientToDistDispatcher::MyClientToDistDispatcher(MyBaseModule * pModule, int n
   m_connector = NULL;
 }
 
-/*
-int MyClientToDistDispatcher::open(void * p)
-{
-  if (MyBaseDispatcher::open(p) == -1)
-    return -1;
-  m_connector = new MyClientToDistConnector((MyClientToDistModule *)m_module,
-#ifdef MY_client_test
-      new MyTestClientToDistConnectionManager(
-          MyConfigX::instance()->test_client_start_client_id,
-          MyConfigX::instance()->test_client_connection_number)
-#else
-      new MyBaseConnectionManager()
-#endif
-      );
-  return 0;
-}
-*/
 
 int MyClientToDistDispatcher::on_start()
 {

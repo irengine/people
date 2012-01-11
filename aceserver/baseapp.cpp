@@ -717,12 +717,6 @@ void MyBaseApp::start()
   m_is_running = true;
   on_start();
 
-/*
-  if (m_heart_beat_module)
-    m_heart_beat_module->start();
-  if (m_location_module)
-    m_location_module->start();
-*/
   MY_INFO(ACE_TEXT("starting modules done!\n"));
   do_event_loop();
 }
