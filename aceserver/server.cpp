@@ -54,9 +54,16 @@ void MyServerApp::on_stop()
 
 bool MyServerApp::on_construct()
 {
-  if (MyConfigX::instance()->is_dist_server())
+  MyConfig * cfg = MyConfigX::instance();
+#ifdef MY_server_test
+  MyTestClientIDGenerator gen(cfg->test_client_start_client_id, cfg->test_client_connection_number);
+  const char * id;
+  while ((id = gen.get()) != NULL)
+    m_client_id_table.add(id);
+#endif
+  if (cfg->is_dist_server())
     m_heart_beat_module = new MyHeartBeatModule(this);
-  if (MyConfigX::instance()->is_middle_server())
+  if (cfg->is_middle_server())
     m_location_module = new MyLocationModule(this);
   return true;
 }

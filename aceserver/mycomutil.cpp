@@ -30,7 +30,7 @@ int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH
     return -1;
   if (mb->length() == 0)
     return 0;
-  ssize_t send_cnt = TEMP_FAILURE_RETRY(handler->peer().send(mb->rd_ptr(), mb->length()));
+  ssize_t send_cnt = handler->peer().send(mb->rd_ptr(), mb->length());//TEMP_FAILURE_RETRY(handler->peer().send(mb->rd_ptr(), mb->length()));
   int ret = mycomutil_translate_tcp_result(send_cnt);
   if (ret < 0)
     return ret;
@@ -97,7 +97,7 @@ int mycomutil_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH
     return -1;
   if (mb->space() == 0)
     return 0;
-  ssize_t recv_cnt = TEMP_FAILURE_RETRY(handler->peer().recv(mb->wr_ptr(), mb->space()));
+  ssize_t recv_cnt = handler->peer().recv(mb->wr_ptr(), mb->space());//TEMP_FAILURE_RETRY(handler->peer().recv(mb->wr_ptr(), mb->space()));
   int ret = mycomutil_translate_tcp_result(recv_cnt);
   if (ret < 0)
     return -1;

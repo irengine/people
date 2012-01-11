@@ -55,17 +55,22 @@ int MyClientToDistProcessor::on_open()
 
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header(const MyDataPacketHeader & header)
 {
-  if (MyBasePacketProcessor::on_recv_header(header) == ER_ERROR)
+  MyBaseProcessor::EVENT_RESULT result = super::on_recv_header(header);
+  if (result != ER_CONTINUE)
     return ER_ERROR;
 
   bool bVersionCheckReply = header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY; //m_version_check_reply_done
-  if ((bVersionCheckReply && m_version_check_reply_done) || (!bVersionCheckReply && !m_version_check_reply_done))
+  if (bVersionCheckReply == m_version_check_reply_done)
   {
-    MY_ERROR(ACE_TEXT("unexpected packet from dist server, version_check_reply_done = %d, "
+    MY_ERROR(ACE_TEXT("unexpected packet header from dist server, version_check_reply_done = %d, "
                       "packet is version_check_reply = %d.\n"), m_version_check_reply_done, bVersionCheckReply);
     return ER_ERROR;
   }
 
+  if (bVersionCheckReply)
+    return ER_OK;
+
+  MY_ERROR("unexpected packet header from dist server, header.command = %d\n", header.command);
   return ER_ERROR;
 }
 
@@ -76,31 +81,43 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
   MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
 
   if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY)
-    return do_version_check_reply(mb);
+  {
+    MyBaseProcessor::EVENT_RESULT result = do_version_check_reply(mb);
+    if (result == ER_OK)
+      ((MyClientToDistHandler*)m_handler)->setup_timer();
+    return result;//do_version_check_reply(mb);
+  }
 
-  MY_ERROR("unsupported command received, command = %d\n", header->command);
+  MY_ERROR("unsupported command received @MyClientToDistProcessor::on_recv_packet_i(), command = %d\n",
+      header->command);
   return ER_ERROR;
 }
 
 int MyClientToDistProcessor::send_heart_beat()
 {
+  if (!m_version_check_reply_done)
+    return 0;
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyDataPacketHeader));
   MyHeartBeatPingProc proc;
   proc.attach(mb->base());
   proc.init_header();
   mb->wr_ptr(sizeof(MyDataPacketHeader));
-  return (m_handler->send_data(mb) < 0? -1: 0);
+  int ret = (m_handler->send_data(mb) < 0? -1: 0);
+  MY_DEBUG("send_heart_beat = %d\n", ret);
+  return ret;
 }
 
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(ACE_Message_Block * mb)
 {
+  m_version_check_reply_done = true;
+
   const char * prefix_msg = "dist server version check reply:";
   MyClientVersionCheckReplyProc vcr;
   vcr.attach(mb->base());
   switch (vcr.data()->reply_code)
   {
   case MyClientVersionCheckReply::VER_OK:
-    MY_ERROR("%s get version mismatch response\n", prefix_msg);
+    MY_INFO("%s OK\n", prefix_msg);
     return MyBaseProcessor::ER_OK;
 
   case MyClientVersionCheckReply::VER_OK_CAN_UPGRADE:
@@ -118,7 +135,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
     return MyBaseProcessor::ER_ERROR;
 
   case MyClientVersionCheckReply::VER_SERVER_BUSY:
-    MY_INFO("%s get server busy response\n", prefix_msg);
+    MY_ERROR("%s get server busy response\n", prefix_msg);
     return MyBaseProcessor::ER_ERROR;
 
   default: //server_list
@@ -251,18 +268,31 @@ MyClientToDistHandler::MyClientToDistHandler(MyBaseConnectionManager * xptr): My
   m_heat_beat_ping_timer_id = -1;
 }
 
-int MyClientToDistHandler::on_open()
+void MyClientToDistHandler::setup_timer()
 {
+  MY_DEBUG("MyClientToDistHandler scheduling timer...\n");
   ACE_Time_Value interval (MyConfigX::instance()->client_heart_beat_interval);
   m_heat_beat_ping_timer_id = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval, interval);
   if (m_heat_beat_ping_timer_id < 0)
     MY_ERROR(ACE_TEXT("MyClientToDistHandler setup heart beat timer failed, %s"), (const char*)MyErrno());
+}
+
+int MyClientToDistHandler::on_open()
+{
+/*
+  MY_DEBUG("MyClientToDistHandler scheduling timer...\n");
+  ACE_Time_Value interval (MyConfigX::instance()->client_heart_beat_interval);
+  m_heat_beat_ping_timer_id = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval, interval);
+  if (m_heat_beat_ping_timer_id < 0)
+    MY_ERROR(ACE_TEXT("MyClientToDistHandler setup heart beat timer failed, %s"), (const char*)MyErrno());
+*/
   return 0;
 }
 
 int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, const void *act)
 {
   ACE_UNUSED_ARG(current_time);
+  MY_DEBUG("MyClientToDistHandler::handle_timeout()\n");
   if (long(act) == HEART_BEAT_PING_TIMER)
     return ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
   else
@@ -332,6 +362,7 @@ MyClientToDistConnector::MyClientToDistConnector(MyClientToDistModule * _module,
 int MyClientToDistConnector::make_svc_handler(MyBaseHandler *& sh)
 {
   ACE_NEW_RETURN(sh, MyClientToDistHandler(m_connection_manager), -1);
+  MY_DEBUG("setting MyClientToDistHandler's reactor()...\n");
   sh->reactor(reactor());
   return 0;
 }

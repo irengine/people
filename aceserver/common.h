@@ -12,5 +12,8 @@
 #define MY_client_test
 #endif
 
+#ifndef MY_server_test
+#define MY_server_test
+#endif
 
 #endif /* COMMON_H_ */

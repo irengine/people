@@ -56,35 +56,13 @@ private:
   int m_index;
 };
 
-/*
-class MyPingSubmitter
-{
-public:
-  MyPingSubmitter();
-  ~MyPingSubmitter();
-  void add_ping(const char * client_id, const int len);
-  void check_time_out();
-
-private:
-  void do_submit();
-  void reset();
-  enum
-  {
-    BLOCK_SIZE = 4096
-  };
-  ACE_Message_Block * m_current_block;
-  long m_last_add;
-  char * m_current_ptr;
-  int  m_current_length;
-
-  //todo: add target
-};
-*/
 class MyClientToDistHandler: public MyBaseHandler
 {
 public:
   MyClientToDistHandler(MyBaseConnectionManager * xptr = NULL);
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
+  void setup_timer();
+
   DECLARE_MEMORY_POOL(MyClientToDistHandler, ACE_Thread_Mutex);
 
 protected:
@@ -92,10 +70,7 @@ protected:
   virtual int  on_open();
 
 private:
-  enum
-  {
-    HEART_BEAT_PING_TIMER = 1
-  };
+  enum { HEART_BEAT_PING_TIMER = 1 };
   long m_heat_beat_ping_timer_id;
 };
 

@@ -94,14 +94,15 @@ public:
   virtual void *malloc (size_t nbytes = 0)
   {
     {
-//      ACE_DEBUG ((LM_DEBUG, ACE_TEXT ("(%P|%t) enter malloc()\n")));
       ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, 0));
-//      ACE_DEBUG ((LM_DEBUG, ACE_TEXT ("(%P|%t) enter malloc() OK\n")));
       ++m_alloc_count;
       if (m_alloc_count - m_free_count > m_max_in_use_count)
         m_max_in_use_count = m_alloc_count - m_free_count;
     }
-    return super::malloc(nbytes);
+    void * result = super::malloc(nbytes);
+    MY_DEBUG(ACE_TEXT("call My_Cached_Allocator.malloc(%d) = %@ from chunk_size = %d\n"),
+        nbytes, result, m_chunk_size);
+    return result;
   }
 
   virtual void *calloc (size_t nbytes,
@@ -113,7 +114,10 @@ public:
       if (m_alloc_count - m_free_count > m_max_in_use_count)
         m_max_in_use_count = m_alloc_count - m_free_count;
     }
-    return super::calloc(nbytes, initial_value);
+    void * result = super::calloc(nbytes, initial_value);
+    MY_DEBUG(ACE_TEXT("call My_Cached_Allocator.calloc(%d) = %@ from chunk_size = %d\n"),
+        nbytes, result, m_chunk_size);
+    return result;
   }
 // NOT implemented
 //  virtual void *calloc (size_t n_elem,  size_t elem_size,
@@ -121,9 +125,8 @@ public:
   void free (void * p)
   {
     {
-//      ACE_DEBUG ((LM_DEBUG, ACE_TEXT ("(%P|%t) enter free()\n")));
       ACE_MT (ACE_GUARD(ACE_LOCK, ace_mon, this->m_mutex));
-//      ACE_DEBUG ((LM_DEBUG, ACE_TEXT ("(%P|%t) enter free() OK\n")));
+      MY_DEBUG(ACE_TEXT("call My_Cached_Allocator.free(%@) from chunk_size = %d\n"), p, m_chunk_size);
       if (p != NULL)
         ++m_free_count;
     }

@@ -74,9 +74,6 @@ private:
   typedef My_Cached_Allocator<ACE_Thread_Mutex> MyMemPool;
   typedef std::vector<MyMemPool *> MyMemPools;
 
-//  My_Cached_Allocator<ACE_Thread_Mutex> *m_header_pool;
-//  My_Cached_Allocator<ACE_Thread_Mutex> *m_four_k_pool;
-
   My_Cached_Allocator<ACE_Thread_Mutex> *m_message_block_pool;
   My_Cached_Allocator<ACE_Thread_Mutex> *m_data_block_pool;
   MyMemPools m_pools;
@@ -149,6 +146,7 @@ protected:
 class MyBasePacketProcessor: public MyBaseProcessor
 {
 public:
+  typedef MyBaseProcessor super;
   MyBasePacketProcessor(MyBaseHandler * handler);
   virtual ~MyBasePacketProcessor();
   virtual std::string info_string() const;
@@ -184,11 +182,13 @@ protected:
 class MyBaseServerProcessor: public MyBasePacketProcessor
 {
 public:
+  typedef MyBasePacketProcessor super;
   MyBaseServerProcessor(MyBaseHandler * handler);
   virtual ~MyBaseServerProcessor();
   virtual bool client_id_verified() const;
 
 protected:
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
   MyBaseProcessor::EVENT_RESULT do_version_check_common(ACE_Message_Block * mb, MyClientIDTable & client_id_table);
   ACE_Message_Block * make_version_check_reply_mb(MyClientVersionCheckReply::REPLY_CODE code, int extra_len = 0);
 };
@@ -196,9 +196,14 @@ protected:
 class MyBaseClientProcessor: public MyBasePacketProcessor
 {
 public:
+  typedef MyBasePacketProcessor super;
+
   MyBaseClientProcessor(MyBaseHandler * handler);
   virtual ~MyBaseClientProcessor();
   virtual bool client_id_verified() const;
+
+protected:
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
 
 private:
   bool m_client_id_verified;
@@ -342,7 +347,7 @@ public:
   MyBaseDispatcher(MyBaseModule * pModule, int numThreads = 1);
 
   virtual ~MyBaseDispatcher();
-  virtual int open (void * = 0);
+  virtual int open (void * p= 0);
   virtual int svc();
   virtual int handle_timeout (const ACE_Time_Value &tv,
                               const void *act);

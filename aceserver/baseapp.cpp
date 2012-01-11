@@ -54,6 +54,12 @@ const ACE_TCHAR * CONFIG_log_to_stderr = ACE_TEXT("log.to_stderr");
 const ACE_TCHAR * CONFIG_log_file_number = ACE_TEXT("log.file_number");
 const ACE_TCHAR * CONFIG_log_file_size_in_MB = ACE_TEXT("log.file_size");
 
+#if defined(MY_client_test) || defined(MY_server_test)
+  const ACE_TCHAR * CONFIG_test_client_connection_number = ACE_TEXT("module.test_client_connection_number");
+  const ACE_TCHAR * CONFIG_test_client_start_client_id = ACE_TEXT("module.test_client_start_client_id");
+#endif
+
+
 //dist and middle servers
 const ACE_TCHAR * CONFIG_max_clients = ACE_TEXT("max_clients");
 const ACE_TCHAR * CONFIG_middle_server_dist_port = ACE_TEXT("middle_server.dist_port");
@@ -73,10 +79,6 @@ const ACE_TCHAR * CONFIG_module_heart_beat_mem_pool_size = ACE_TEXT("module.hear
 
 //client specific
 const ACE_TCHAR * CONFIG_client_heart_beat_interval = ACE_TEXT("module.client_heart_beat_interval");
-#ifdef MY_client_test
-  const ACE_TCHAR * CONFIG_test_client_connection_number = ACE_TEXT("module.test_client_connection_number");
-  const ACE_TCHAR * CONFIG_test_client_start_client_id = ACE_TEXT("module.test_client_start_client_id");
-#endif
 
 
 MyConfig::MyConfig()
@@ -289,6 +291,34 @@ bool MyConfig::load_config_common(ACE_Configuration_Heap & cfgHeap, ACE_Configur
   else if (is_client())
     message_control_block_mem_pool_size = 1000;
 
+#if defined(MY_client_test) || defined(MY_server_test)
+  if (cfgHeap.get_integer_value (section,  CONFIG_test_client_connection_number, ival) == 0)
+  {
+    if (ival == 0 || ival > 60000 )
+    {
+      MY_WARNING(ACE_TEXT("Invalid %s value (= %d), using default value = %d\n"),
+          CONFIG_test_client_connection_number, ival, DEFAULT_test_client_connection_number);
+    }
+    else
+      test_client_connection_number = ival;
+  }
+
+  ACE_TString sval;
+  if (cfgHeap.get_string_value(section, CONFIG_test_client_start_client_id, sval) == 0)
+  {
+    test_client_start_client_id = atoll(sval.c_str());
+    if (test_client_start_client_id < 0)
+    {
+      MY_WARNING(ACE_TEXT("Invalid %s value (= %d)\n"), CONFIG_test_client_start_client_id, test_client_start_client_id);
+      return false;
+    }
+  }
+  else
+  {
+    MY_ERROR("can not read config value %s\n", CONFIG_test_client_start_client_id);
+    return false;
+  }
+#endif
 
   return true;
 }
@@ -337,35 +367,6 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
     else
       client_heart_beat_interval = ival;
   }
-
-#ifdef MY_client_test
-  if (cfgHeap.get_integer_value (section,  CONFIG_test_client_connection_number, ival) == 0)
-  {
-    if (ival == 0 || ival > 60000 )
-    {
-      MY_WARNING(ACE_TEXT("Invalid %s value (= %d), using default value = %d\n"),
-          CONFIG_test_client_connection_number, ival, DEFAULT_test_client_connection_number);
-    }
-    else
-      test_client_connection_number = ival;
-  }
-
-  ACE_TString sval;
-  if (cfgHeap.get_string_value(section, CONFIG_test_client_start_client_id, sval) == 0)
-  {
-    test_client_start_client_id = atoll(sval.c_str());
-    if (test_client_start_client_id < 0)
-    {
-      MY_WARNING(ACE_TEXT("Invalid %s value (= %d)\n"), CONFIG_test_client_start_client_id, test_client_start_client_id);
-      return false;
-    }
-  }
-  else
-  {
-    MY_ERROR("can not read config value %s\n", CONFIG_test_client_start_client_id);
-    return false;
-  }
-#endif
 
   return true;
 }
@@ -481,6 +482,14 @@ void MyConfig::dump_config_info()
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_debug_enabled, log_debug_enabled));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_to_stderr, log_to_stderr));
 
+#if defined(MY_client_test) || defined(MY_server_test)
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_mode = 1\n")));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_test_client_start_client_id, test_client_start_client_id));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_test_client_connection_number, test_client_connection_number));
+#else
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_mode = 0\n")));
+#endif
+
   //dist and middle server
   if (is_server())
   {
@@ -505,13 +514,6 @@ void MyConfig::dump_config_info()
   if (is_client())
   {
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_heart_beat_interval, client_heart_beat_interval));
-#ifdef MY_client_test
-    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tclient_test_mode = 1\n")));
-    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_test_client_start_client_id, test_client_start_client_id));
-    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_test_client_connection_number, test_client_connection_number));
-#else
-    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tclient_test_mode = 0\n")));
-#endif
   }
 
   //dist only

@@ -58,16 +58,20 @@ class MyDistLoads
 public:
   typedef std::vector<MyDistLoad> MyDistLoadVec;
   typedef MyDistLoadVec::iterator MyDistLoadVecIt;
+  enum { SERVER_LIST_LENGTH = 1024};
+
+  MyDistLoads();
 
   void update(const MyDistLoad & load);
   void remove(const char * addr);
-  void get_server_list(char * buffer, int buffer_len);
+  int  get_server_list(char * buffer, int buffer_len);
+
 private:
   void calc_server_list();
-
   MyDistLoads::MyDistLoadVecIt find_i(const char * addr);
   MyDistLoadVec m_loads;
-  char m_server_list[MyClientVersionCheckReply::REPLY_DATA_LENGTH];
+  char m_server_list[SERVER_LIST_LENGTH];
+  int  m_server_list_length;
   ACE_Thread_Mutex m_mutex;
 };
 

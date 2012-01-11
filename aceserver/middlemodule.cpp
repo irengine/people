@@ -33,6 +33,12 @@ private:
 
 //MyDistLoads//
 
+MyDistLoads::MyDistLoads()
+{
+  m_server_list_length = 0;
+  m_server_list[0] = 0;
+}
+
 void MyDistLoads::update(const MyDistLoad & load)
 {
   if (load.m_ip_addr[0] == 0)
@@ -70,7 +76,7 @@ void MyDistLoads::calc_server_list()
   m_server_list[0] = 0;
   sort(m_loads.begin(), m_loads.end());
   MyDistLoadVecIt it;
-  int remain_len = MyClientVersionCheckReply::REPLY_DATA_LENGTH - 2;
+  int remain_len = SERVER_LIST_LENGTH - 2;
   char * ptr = m_server_list;
   for (it = m_loads.begin(); it != m_loads.end(); ++it)
   {
@@ -85,14 +91,19 @@ void MyDistLoads::calc_server_list()
     ++ptr;
   }
   *ptr = 0;
+
+  m_server_list_length = ACE_OS::strlen(m_server_list);
+  if (m_server_list_length > 0)
+    ++m_server_list_length;
 }
 
-void MyDistLoads::get_server_list(char * buffer, int buffer_len)
+int MyDistLoads::get_server_list(char * buffer, int buffer_len)
 {
-  if (!buffer || buffer_len <= 1)
-    return;
-  ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_mutex);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_mutex, 0);
+  if (!buffer || buffer_len < m_server_list_length)
+    return 0;
   ACE_OS::strsncpy(buffer, m_server_list, buffer_len);
+  return m_server_list_length;
 }
 
 
@@ -134,11 +145,17 @@ MyBaseProcessor::EVENT_RESULT MyLocationProcessor::do_version_check(ACE_Message_
   MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, MyServerAppX::instance()->client_id_table());
   if (ret != ER_CONTINUE)
     return ret;
-  ACE_Message_Block * reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_SERVER_LIST);
+
+  char server_list[MyDistLoads::SERVER_LIST_LENGTH];
+  int len = m_dist_loads->get_server_list(server_list, MyDistLoads::SERVER_LIST_LENGTH); //double copy
+  ACE_Message_Block * reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_SERVER_LIST, len);
 
   MyClientVersionCheckReplyProc proc;
-  proc.attach(((const char*)reply_mb->base()));
-  m_dist_loads->get_server_list(proc.data()->data, MyClientVersionCheckReply::REPLY_DATA_LENGTH);
+  proc.attach(reply_mb->base());
+  proc.init_header(len);
+  if (len > 0)
+    ACE_OS::memcpy(proc.data()->data, server_list, len);
+  reply_mb->wr_ptr(reply_mb->capacity());
   if (m_handler->send_data(reply_mb) <= 0)
     return ER_ERROR; //no unsent data, force a close
   else

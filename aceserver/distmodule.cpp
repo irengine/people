@@ -20,7 +20,7 @@ MyHeartBeatProcessor::MyHeartBeatProcessor(MyBaseHandler * handler): MyBaseServe
 
 MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header(const MyDataPacketHeader & header)
 {
-  if (MyBaseServerProcessor::on_recv_header(header) == ER_ERROR)
+  if (super::on_recv_header(header) == ER_ERROR)
     return ER_ERROR;
 
   if (header.command == MyDataPacketHeader::CMD_HEARTBEAT_PING)
@@ -54,6 +54,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
 
 void MyHeartBeatProcessor::do_ping()
 {
+  MY_DEBUG(ACE_TEXT("got a ping from %s\n"), info_string().c_str());
   m_sumbitter->add_ping(m_client_id.as_string(), m_client_id_length + 1);
 }
 

@@ -54,6 +54,11 @@ public:
   bool log_debug_enabled;
   bool log_to_stderr;
 
+#if defined(MY_client_test) || defined(MY_server_test)
+  int test_client_connection_number;
+  int64_t test_client_start_client_id;
+#endif
+
   //dist and middle server
   int  max_clients;
   int  middle_server_dist_port;
@@ -67,10 +72,6 @@ public:
 
   //client only
   int client_heart_beat_interval;
-#ifdef MY_client_test
-  int test_client_connection_number;
-  int64_t test_client_start_client_id;
-#endif
 
   //dist only
   int module_heart_beat_mem_pool_size;

@@ -56,7 +56,12 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
   {
     MY_INFO("i = %d, capacity = %d, m_pools[i]->chunk_size() = %d\n", i, capacity, m_pools[i]->chunk_size());
     if (size_t(capacity) <= m_pools[i]->chunk_size())
-      return new MyCached_Message_Block(capacity, m_pools[i], m_data_block_pool, m_message_block_pool);
+    {
+      void * p = m_message_block_pool->malloc();
+      ACE_Message_Block * result = new (p) MyCached_Message_Block(capacity, m_pools[i], m_data_block_pool, m_message_block_pool);
+//      result->set_self_flags(ACE_Message_Block::USER_FLAGS);
+      return result;
+    }
   }
   return new ACE_Message_Block(capacity);
 }
@@ -219,7 +224,8 @@ int MyBaseProcessor::handle_input()
 int MyBaseProcessor::handle_input_wait_for_close()
 {
   char buffer[4096];
-  ssize_t recv_cnt = TEMP_FAILURE_RETRY(m_handler->peer().recv (buffer, 4096));
+  ssize_t recv_cnt = m_handler->peer().recv (buffer, 4096);
+  //TEMP_FAILURE_RETRY(m_handler->peer().recv (buffer, 4096));
   int ret = mycomutil_translate_tcp_result(recv_cnt);
   if (ret < 0)
     return -1;
@@ -272,6 +278,9 @@ MyBasePacketProcessor::~MyBasePacketProcessor()
 std::string MyBasePacketProcessor::info_string() const
 {
   char buff[512];
+  const char * str_id = m_client_id.as_string();
+  if (!*str_id)
+    str_id = "NULL";
   ACE_OS::snprintf(buff, 512, "(remote addr=%s, client_id=%s)", m_peer_addr, m_client_id.as_string());
   std::string result(buff);
   return result;
@@ -340,15 +349,6 @@ MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_header(const MyData
     return ER_ERROR;
   }
 
-  bool bVerified = client_id_verified();
-  bool bVersionCheck = (header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
-  if (bVerified == bVersionCheck)
-  {
-    MY_ERROR(ACE_TEXT("Bad request received (verified = %d, request version check = %d) from %s, \n"),
-             bVerified, bVersionCheck, info_string().c_str());
-    return ER_ERROR;
-  }
-
   return ER_CONTINUE;
 }
 
@@ -398,7 +398,7 @@ ACE_Message_Block * MyBasePacketProcessor::make_version_check_request_mb()
   MyClientVersionCheckRequestProc vcr;
   vcr.attach(mb->base());
   vcr.init_header();
-  mb->wr_ptr(sizeof(MyClientVersionCheckRequest));
+  mb->wr_ptr(mb->capacity());
   return mb;
 }
 
@@ -406,8 +406,10 @@ ACE_Message_Block * MyBasePacketProcessor::make_version_check_request_mb()
 int MyBasePacketProcessor::read_req_header()
 {
   update_last_activity();
-  ssize_t recv_cnt = TEMP_FAILURE_RETRY(m_handler->peer().recv ((char*)&m_packet_header + m_read_next_offset,
-      sizeof(m_packet_header) - m_read_next_offset));
+  ssize_t recv_cnt = m_handler->peer().recv((char*)&m_packet_header + m_read_next_offset,
+      sizeof(m_packet_header) - m_read_next_offset);
+//      TEMP_FAILURE_RETRY(m_handler->peer().recv((char*)&m_packet_header + m_read_next_offset,
+//      sizeof(m_packet_header) - m_read_next_offset));
   int ret = mycomutil_translate_tcp_result(recv_cnt);
   if (ret <= 0)
     return ret;
@@ -495,6 +497,24 @@ bool MyBaseServerProcessor::client_id_verified() const
   return !m_client_id.is_null();
 }
 
+MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_header(const MyDataPacketHeader & header)
+{
+  MyBaseProcessor::EVENT_RESULT result = super::on_recv_header(header);
+  if (result != ER_CONTINUE)
+    return result;
+
+  bool bVerified = client_id_verified();
+  bool bVersionCheck = (header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
+  if (bVerified == bVersionCheck)
+  {
+    MY_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s, \n"),
+        header.command, bVerified, bVersionCheck, info_string().c_str());
+    return ER_ERROR;
+  }
+
+  return ER_CONTINUE;
+}
+
 MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE_Message_Block * mb, MyClientIDTable & client_id_table)
 {
   MyClientVersionCheckRequestProc vcr;
@@ -542,7 +562,7 @@ ACE_Message_Block * MyBaseServerProcessor::make_version_check_reply_mb
   vcr.attach(mb->base());
   vcr.init_header();
   vcr.data()->reply_code = code;
-  mb->wr_ptr(total_len);
+  mb->wr_ptr(mb->capacity());
   return mb;
 }
 
@@ -561,6 +581,24 @@ MyBaseClientProcessor::~MyBaseClientProcessor()
 bool MyBaseClientProcessor::client_id_verified() const
 {
   return m_client_id_verified;
+}
+
+MyBaseProcessor::EVENT_RESULT MyBaseClientProcessor::on_recv_header(const MyDataPacketHeader & header)
+{
+  MyBaseProcessor::EVENT_RESULT result = super::on_recv_header(header);
+  if (result != ER_CONTINUE)
+    return result;
+
+  bool bVerified = client_id_verified();
+  bool bVersionCheck = (header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY);
+  if (bVerified == bVersionCheck)
+  {
+    MY_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s, \n"),
+        header.command, bVerified, bVersionCheck, info_string().c_str());
+    return ER_ERROR;
+  }
+
+  return ER_CONTINUE;
 }
 
 
@@ -706,8 +744,9 @@ int MyBaseHandler::send_data(ACE_Message_Block * mb)
   return ret;
 }
 
-int MyBaseHandler::handle_input(ACE_HANDLE)
+int MyBaseHandler::handle_input(ACE_HANDLE h)
 {
+  MY_DEBUG("handle_input (handle = %d)\n", h);
   return m_processor->handle_input();
 }
 
@@ -720,11 +759,16 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
                           ACE_Reactor_Mask close_mask)
 {
   ACE_UNUSED_ARG(handle);
+  MY_DEBUG("handle_close.1 (handle = %d, mask=%x)\n", handle, close_mask);
   if (close_mask == ACE_Event_Handler::WRITE_MASK)
   {
     if (!m_processor->wait_for_close())
       return 0;
+  } else if (!m_processor->wait_for_close())
+  {
+    //m_processor->handle_input();
   }
+  MY_DEBUG("handle_close.2 (handle = %d, mask=%x)\n", handle, close_mask);
   ACE_Message_Block *mb;
   ACE_Time_Value nowait(ACE_OS::gettimeofday());
   while (-1 != this->getq (mb, &nowait))
@@ -742,6 +786,7 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
   //             delete this;
   //so do NOT use the normal method: return super::handle_close(handle, close_mask);
   //for it will cause memory leaks
+  MY_DEBUG("handle_close.3 deleting object (handle = %d, mask=%x)\n", handle, close_mask);
   delete this;
   return 0;
   //return super::handle_close (handle, close_mask); //do NOT use
@@ -815,7 +860,7 @@ int MyBaseAcceptor::start()
   }
   ACE_INET_Addr port_to_listen (m_tcp_port);
 
-  int ret = super::open (port_to_listen, m_module->dispatcher()->reactor());
+  int ret = super::open (port_to_listen, m_module->dispatcher()->reactor(), ACE_NONBLOCK);
 
   if (ret == 0)
     MY_INFO(ACE_TEXT ("listening on port %d... OK\n"), m_tcp_port);
@@ -895,6 +940,8 @@ int MyBaseConnector::handle_timeout(const ACE_Time_Value &current_time, const vo
 
 int MyBaseConnector::start()
 {
+  if (super::open(m_module->dispatcher()->reactor(), ACE_NONBLOCK) == -1)
+    return -1;
   reactor(m_module->dispatcher()->reactor());
   m_reconnect_retry_count = 1;
 
@@ -966,7 +1013,7 @@ int MyBaseConnector::do_connect(int count)
 }
 
 int MyBaseConnector::do_connect_one(MyBaseHandler * & handler, const ACE_INET_Addr & addr)
-{
+{/*
   const size_t MAX_RETRIES = 3;
   ACE_Time_Value timeout(10);
   size_t i;
@@ -980,6 +1027,11 @@ int MyBaseConnector::do_connect_one(MyBaseHandler * & handler, const ACE_INET_Ad
     timeout *= 2; // Exponential backoff.
   }
   return i == MAX_RETRIES ? -1 : 0;
+  */
+   connect(handler, addr);
+   ACE_Time_Value timeout(10);
+   ACE_OS::sleep(timeout);
+   return 0;
 }
 
 //MyBaseService//
@@ -1059,6 +1111,7 @@ int MyBaseDispatcher::start()
   msg_queue()->flush();
   if (on_start() < 0)
     return -1;
+
   return activate (THR_NEW_LWP, m_numThreads);
 }
 
@@ -1085,10 +1138,16 @@ int MyBaseDispatcher::stop()
 
 
 int MyBaseDispatcher::svc()
-{
+{/*
   ACE_DEBUG ((LM_DEBUG,
              ACE_TEXT ("(%P|%t) entering MyBaseDispatcher::svc()\n")));
 
+  if (open(NULL) == -1)
+    return -1;
+  msg_queue()->flush();
+  if (on_start() < 0)
+    return -1;
+  */
   while (m_module->running_with_app())
   {
     ACE_Time_Value timeout(2);
@@ -1100,6 +1159,7 @@ int MyBaseDispatcher::svc()
       MY_INFO(ACE_TEXT ("exiting MyBaseDispatcher::svc() due to errno = %d\n"), errno);
       break;
     }
+//    MY_DEBUG("    returning from reactor()->handle_events()\n");
   }
   ACE_DEBUG ((LM_DEBUG,
              ACE_TEXT ("(%P|%t) exiting MyBaseDispatcher::svc()\n")));
@@ -1107,31 +1167,17 @@ int MyBaseDispatcher::svc()
 }
 
 
-
 int MyBaseDispatcher::handle_timeout (const ACE_Time_Value &tv,
                             const void *act)
 {
   ACE_UNUSED_ARG(tv);
   ACE_UNUSED_ARG(act);
+  MY_DEBUG("MyBaseDispatcher::handle_timeout().\n");
   ACE_Message_Block *mb;
   ACE_Time_Value nowait(ACE_OS::gettimeofday ());
   int i = 0;
   while (-1 != this->getq(mb, &nowait))
-  {/*
-    ssize_t send_cnt =
-      this->peer ().send (mb->rd_ptr (), mb->length ());
-    if (send_cnt == -1)
-      ACE_ERROR ((LM_ERROR,
-                  ACE_TEXT ("(%P|%t) %p\n"),
-                  ACE_TEXT ("send")));
-    else
-      mb->rd_ptr (send_cnt);
-    if (mb->length () > 0)
-      {
-        this->ungetq (mb);
-        break;
-      }
-    mb->release ();*/
+  {
     ++i;
     if (i >= m_numBatchSend)
       return 0;

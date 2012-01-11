@@ -89,9 +89,9 @@ void MyClientApp::app_fini()
 
 int main(int argc, const char * argv[])
 {
+/*
   MyConfigX::instance()->use_mem_pool = true;
   MyMemPoolFactoryX::instance()->init(MyConfigX::instance());
-
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(32);
   mb->clr_self_flags(ACE_Message_Block::DONT_DELETE);
   mb->release();
@@ -100,7 +100,7 @@ int main(int argc, const char * argv[])
   MyMemPoolFactoryX::close();
   MyConfigX::close();
   return 0;
-
+*/
   ACE_UNUSED_ARG(argc);
   ACE_UNUSED_ARG(argv);
   ACE_Sig_Action no_sigpipe ((ACE_SignalHandler) SIG_IGN);

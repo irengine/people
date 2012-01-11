@@ -22,7 +22,7 @@ public:
   union ClientID
   {
     char    as_string[];
-    int64_t as_long[2];
+    int64_t as_long[3];
   }client_id;
 
   enum
@@ -246,19 +246,19 @@ public:
     VER_SERVER_BUSY,
     VER_SERVER_LIST
   };
-  enum { REPLY_DATA_LENGTH = 40 * 5  };
+  enum { MAX_REPLY_DATA_LENGTH = 4096 };
   enum { SERVER_LIST_SEPERATOR = ';' };
   int8_t reply_code;
-  char data[REPLY_DATA_LENGTH];
+  char data[0]; //placeholder
 };
 
 class MyClientVersionCheckReplyProc: public MyDataPacketBaseProc
 {
 public:
-  virtual void init_header()
+  virtual void init_header(int extra_length = 0)
   {
     MyDataPacketBaseProc::init_header();
-    m_data->length = sizeof(MyClientVersionCheckReply);
+    m_data->length = sizeof(MyClientVersionCheckReply) + extra_length;
     m_data->command = MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY;
   };
 
@@ -267,14 +267,22 @@ public:
     MyClientVersionCheckReply * pData = data();
     if (!MyDataPacketBaseProc::validate_header())
       return false;
-    return (pData->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY);
+    if (pData->command != MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY)
+      return false;
+    return (pData->length >= (int)sizeof(MyClientVersionCheckReply)) &&
+        (pData->length <= (int)sizeof(MyClientVersionCheckReply) + MyClientVersionCheckReply::MAX_REPLY_DATA_LENGTH);
   }
 
   virtual bool validate_data() const
   {
     MyClientVersionCheckReply * pData = data();
-    return (pData->reply_code >= MyClientVersionCheckReply::VER_OK &&
-        pData->reply_code <= MyClientVersionCheckReply::VER_SERVER_LIST);
+    if (pData->reply_code >= MyClientVersionCheckReply::VER_OK &&
+        pData->reply_code < MyClientVersionCheckReply::VER_SERVER_LIST)
+      return pData->length == (int)sizeof(MyClientVersionCheckReply);
+    else
+      return (pData->reply_code == MyClientVersionCheckReply::VER_SERVER_LIST) &&
+             (pData->length >= (int)sizeof(MyClientVersionCheckReply)) &&
+             (pData->length <= (int)sizeof(MyClientVersionCheckReply) + MyClientVersionCheckReply::MAX_REPLY_DATA_LENGTH);
   }
 
   virtual MyClientVersionCheckReply * data() const
