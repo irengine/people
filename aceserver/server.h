@@ -26,13 +26,13 @@ public:
 
   static void app_init(const char * app_home_path = NULL, MyConfig::RUNNING_MODE mode = MyConfig::RM_UNKNOWN);
   static void app_fini();
-
-  virtual void dump_info();
+  static void dump_mem_pool_info();
 
 protected:
   virtual bool on_start();
   virtual bool on_construct();
   virtual void on_stop();
+  virtual void do_dump_info();
 
 private:
   MyHeartBeatModule * m_heart_beat_module;

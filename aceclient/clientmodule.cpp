@@ -288,14 +288,19 @@ int MyClientToDistService::svc()
 
 //MyClientToDistConnector//
 
-MyClientToDistConnector::MyClientToDistConnector(MyClientToDistModule * _module, MyBaseConnectionManager * _manager):
-    MyBaseConnector(_module, _manager)
+MyClientToDistConnector::MyClientToDistConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
+    MyBaseConnector(_dispatcher, _manager)
 {
   m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
   m_tcp_addr = "localhost"; //todo
 #ifdef MY_client_test
   m_num_connection = MyConfigX::instance()->test_client_connection_number;
 #endif
+}
+
+const char * MyClientToDistConnector::name() const
+{
+  return "MyClientToDistConnector";
 }
 
 int MyClientToDistConnector::make_svc_handler(MyBaseHandler *& sh)
@@ -332,11 +337,10 @@ MyClientToDistDispatcher::MyClientToDistDispatcher(MyBaseModule * pModule, int n
   m_connector = NULL;
 }
 
-
-int MyClientToDistDispatcher::on_start()
+bool MyClientToDistDispatcher::on_start()
 {
   if (!m_connector)
-    m_connector = new MyClientToDistConnector((MyClientToDistModule *)m_module,
+    m_connector = new MyClientToDistConnector(this,
 #ifdef MY_client_test
          new MyTestClientToDistConnectionManager(
              MyConfigX::instance()->test_client_start_client_id,
@@ -344,18 +348,18 @@ int MyClientToDistDispatcher::on_start()
 #else
          new MyBaseConnectionManager());
 #endif
+  add_connector(m_connector);
+  return true;
+}
 
-  return m_connector->start();
+const char * MyClientToDistDispatcher::name() const
+{
+  return "MyClientToDistDispatcher";
 }
 
 void MyClientToDistDispatcher::on_stop()
 {
-  if (m_connector)
-  {
-    m_connector->stop();
-    delete m_connector;
-    m_connector = NULL;
-  }
+  m_connector = NULL;
 }
 
 
@@ -363,15 +367,33 @@ void MyClientToDistDispatcher::on_stop()
 
 MyClientToDistModule::MyClientToDistModule(MyBaseApp * app): MyBaseModule(app)
 {
-  m_service = new MyClientToDistService(this, 1);
-  m_dispatcher = new MyClientToDistDispatcher(this);
-//  MyClientToDistProcessor::m_sumbitter = &m_ping_sumbitter;
+  m_service = NULL;
+  m_dispatcher = NULL;
 }
 
 MyClientToDistModule::~MyClientToDistModule()
 {
 
 }
+
+const char * MyClientToDistModule::name() const
+{
+  return "MyClientToDistModule";
+}
+
+bool MyClientToDistModule::on_start()
+{
+  add_service(m_service = new MyClientToDistService(this, 1));
+  add_dispatcher(m_dispatcher = new MyClientToDistDispatcher(this));
+  return true;
+}
+
+void MyClientToDistModule::on_stop()
+{
+  m_service = NULL;
+  m_dispatcher = NULL;
+}
+
 
 MyDistServerAddrList & MyClientToDistModule::server_addr_list()
 {

@@ -108,10 +108,10 @@ public:
 class MyLocationDispatcher: public MyBaseDispatcher
 {
 public:
-  MyLocationDispatcher(MyBaseModule * pModule, int numThreads = 1);
+  MyLocationDispatcher(MyBaseModule * _module, int numThreads = 1);
 
 protected:
-  virtual int on_start();
+  virtual bool on_start();
   virtual void on_stop();
 
 private:
@@ -121,7 +121,7 @@ private:
 class MyLocationAcceptor: public MyBaseAcceptor
 {
 public:
-  MyLocationAcceptor(MyLocationModule * _module, MyBaseConnectionManager * manager);
+  MyLocationAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
   virtual int make_svc_handler(MyBaseHandler *& sh);
 };
 
@@ -132,9 +132,15 @@ public:
   MyLocationModule(MyBaseApp * app);
   virtual ~MyLocationModule();
 
+protected:
+  virtual bool on_start();
+  virtual void on_stop();
+
 private:
-  //MyPingSubmitter m_ping_sumbitter;
   MyDistLoads m_dist_loads;
+  MyLocationService * m_service;
+  MyLocationDispatcher *m_dispatcher;
+
 };
 
 //============================//
@@ -180,10 +186,10 @@ class MyHttpDispatcher: public MyBaseDispatcher
 {
 public:
   MyHttpDispatcher(MyBaseModule * pModule, int numThreads = 1);
-  virtual int open (void * = 0);
 
 protected:
   virtual void on_stop();
+  virtual bool on_start();
 
 private:
   MyHttpAcceptor * m_acceptor;
@@ -192,7 +198,7 @@ private:
 class MyHttpAcceptor: public MyBaseAcceptor
 {
 public:
-  MyHttpAcceptor(MyHttpModule * _module, MyBaseConnectionManager * manager);
+  MyHttpAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
   virtual int make_svc_handler(MyBaseHandler *& sh);
 };
 
@@ -203,8 +209,14 @@ public:
   MyHttpModule(MyBaseApp * app);
   virtual ~MyHttpModule();
 
+protected:
+  virtual bool on_start();
+  virtual void on_stop();
+
 private:
-//  MyPingSubmitter m_ping_sumbitter;
+  MyHttpService *m_service;
+  MyHttpDispatcher * m_dispatcher;
+
 };
 
 

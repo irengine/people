@@ -19,9 +19,9 @@ long g_clock_tick = 0;
 const int  DEFAULT_max_clients = 10000;
 const bool DEFAULT_use_mem_pool = true;
 const bool DEFAULT_run_as_demon = false;
-const int  DEFAULT_status_file_check_interval = 3;
+const int  DEFAULT_status_file_check_interval = 3; //in minutes
 const int  DEFAULT_message_control_block_mem_pool_size = DEFAULT_max_clients * 5;
-const int  DEFAULT_mem_pool_dump_interval = 30;
+const int  DEFAULT_mem_pool_dump_interval = 30; //in minutes
 
 const int  DEFAULT_log_file_number = 3;
 const int  DEFAULT_log_file_size_in_MB = 20;
@@ -33,7 +33,7 @@ const int  DEFAULT_MODULE_HEART_BEAT_MPOOL_SIZE = DEFAULT_max_clients * 4;
 
 const int  DEFAULT_middle_server_client_port = 2223;
 const int  DEFAULT_middle_server_dist_port = 2224;
-const int  DEFAULT_client_heart_beat_interval = 60;
+const int  DEFAULT_client_heart_beat_interval = 60; //in seconds
 #ifdef MY_client_test
   const int  DEFAULT_test_client_connection_number = 1;
 #endif
@@ -563,6 +563,19 @@ int MyStatusFileChecker::handle_timeout(const ACE_Time_Value &, const void *)
 }
 
 
+//MyInfoDumper//
+MyInfoDumper::MyInfoDumper(MyBaseApp * app)
+{
+  m_app = app;
+}
+
+int MyInfoDumper::handle_timeout (const ACE_Time_Value &, const void *)
+{
+  m_app->dump_info();
+  return 0;
+}
+
+
 //MyClock//
 
 int MyClock::handle_timeout (const ACE_Time_Value &, const void *)
@@ -574,7 +587,7 @@ int MyClock::handle_timeout (const ACE_Time_Value &, const void *)
 
 //MyServerApp//
 
-MyBaseApp::MyBaseApp(): m_sig_handler(this), m_status_file_checker(this)
+MyBaseApp::MyBaseApp(): m_sig_handler(this), m_status_file_checker(this), m_info_dumper(this)
 {
   m_is_running = false;
   //moved the initializations of modules to the static app_init() func
@@ -591,6 +604,16 @@ MyBaseApp::MyBaseApp(): m_sig_handler(this), m_status_file_checker(this)
 bool MyBaseApp::on_construct()
 {
   return true;
+}
+
+void MyBaseApp::add_module(MyBaseModule * module)
+{
+  if (!module)
+  {
+    MY_ERROR(ACE_TEXT("MyBaseApp::add_module(): module is NULL\n"));
+    return;
+  }
+  m_modules.push_back(module);
 }
 
 void MyBaseApp::do_constructor()
@@ -622,6 +645,13 @@ void MyBaseApp::do_constructor()
                              0, interval, interval);
   }
 
+  if (MyConfigX::instance()->mem_pool_dump_interval > 0)
+  {
+    ACE_Time_Value interval(60 * MyConfigX::instance()->mem_pool_dump_interval);
+    ACE_Reactor::instance()->schedule_timer (&m_info_dumper,
+                             0, interval, interval);
+  }
+
   ACE_Time_Value interval(10);
   ACE_Reactor::instance()->schedule_timer(&m_clock, 0, interval, interval);
 }
@@ -632,14 +662,12 @@ MyBaseApp::~MyBaseApp()
   m_ace_sig_handler.remove_handler(SIGTERM);
   if (m_status_file_checking)
     ACE_Reactor::instance()->cancel_timer(&m_status_file_checker);
+  if (MyConfigX::instance()->mem_pool_dump_interval > 0)
+    ACE_Reactor::instance()->cancel_timer(&m_info_dumper);
   ACE_Reactor::instance()->cancel_timer(&m_clock);
   stop();
+  std::for_each(m_modules.begin(), m_modules.end(), MyObjectDeletor());
 }
-
-/*const MyConfig & MyBaseApp::config() const
-{
-  return m_config;
-}*/
 
 bool MyBaseApp::running() const
 {
@@ -699,9 +727,25 @@ void MyBaseApp::init_log()
     MY_INFO("Starting client (Ver: %s)...\n", const_app_version);
 }
 
-void MyBaseApp::dump_info()
+void MyBaseApp::do_dump_info()
 {
 
+}
+
+void MyBaseApp::mem_pool_dump_one(const char * poolname, long nAlloc, long nFree, long nMaxUse, int block_size)
+{
+  long nInUse = nAlloc - nFree;
+  ACE_DEBUG((LM_INFO, ACE_TEXT("    mem pool[%s], inUse=%d, alloc=%d, "
+      "free=%d, peek=%d, block_size=%d\n"),
+      poolname, nInUse, nAlloc, nFree, nMaxUse, block_size));
+}
+
+void MyBaseApp::dump_info()
+{
+  MY_INFO("##### Running Information Dump #####\n");
+  std::for_each(m_modules.begin(), m_modules.end(), std::mem_fun(&MyBaseModule::dump_info));
+  do_dump_info();
+  ACE_DEBUG((LM_INFO, "##### Dump End #####\n"));
 }
 
 bool MyBaseApp::on_start()
@@ -716,6 +760,7 @@ void MyBaseApp::start()
   MY_INFO(ACE_TEXT("starting modules...\n"));
   m_is_running = true;
   on_start();
+  std::for_each(m_modules.begin(), m_modules.end(), std::mem_fun(&MyBaseModule::start));
 
   MY_INFO(ACE_TEXT("starting modules done!\n"));
   do_event_loop();
@@ -732,6 +777,7 @@ void MyBaseApp::stop()
     return;
   MY_INFO(ACE_TEXT("stopping modules...\n"));
   m_is_running = false;
+  std::for_each(m_modules.begin(), m_modules.end(), std::mem_fun(&MyBaseModule::stop));
   on_stop();
   MY_INFO(ACE_TEXT("stopping modules done!\n"));
 }
@@ -746,8 +792,10 @@ void MyBaseApp::on_sig_event(int signum)
   case SIGHUP:
     m_sighup = true;
     break;
+  default:
+    MY_ERROR("unexpected signal caught %d\n", signum);
+    break;
   }
-  MY_DEBUG("signal caught %d\n", signum);
 }
 
 void MyBaseApp::do_event_loop()
@@ -777,6 +825,7 @@ void MyBaseApp::do_event_loop()
 bool MyBaseApp::do_sighup()
 {
   m_sighup = false;
+  dump_info();
   return true;
 }
 

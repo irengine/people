@@ -118,6 +118,16 @@ private:
   MyBaseApp * m_app;
 };
 
+class MyInfoDumper: public ACE_Event_Handler
+{
+public:
+  MyInfoDumper(MyBaseApp * app);
+  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
+
+private:
+  MyBaseApp * m_app;
+};
+
 class MyClock: public ACE_Event_Handler
 {
 public:
@@ -142,27 +152,35 @@ public:
 
   void start();
   void stop();
-  virtual void dump_info();
+  void dump_info();
+  static void mem_pool_dump_one(const char * poolname, long nAlloc, long nFree, long nMaxUse, int block_size);
 
 protected:
   friend class MySigHandler;
   friend class MyStatusFileChecker;
+
+  typedef std::vector<MyBaseModule *> MyModules;
+
+  virtual void do_dump_info();
 
   void on_sig_event(int signum);
   void do_event_loop();
   bool do_sighup();
   void on_status_file_missing();
   void do_constructor();
+  void add_module(MyBaseModule * module);
 
   virtual bool on_start();
   virtual bool on_construct();
   virtual void on_stop();
 
+  MyModules m_modules;
 private:
 
   MySigHandler m_sig_handler;
   ACE_Sig_Handler m_ace_sig_handler;
   MyStatusFileChecker m_status_file_checker;
+  MyInfoDumper m_info_dumper;
   MyClock m_clock;
   bool m_is_running;
   bool m_sighup;

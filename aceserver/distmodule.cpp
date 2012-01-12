@@ -167,8 +167,8 @@ int MyHeartBeatService::svc()
 
 //MyHeartBeatAcceptor//
 
-MyHeartBeatAcceptor::MyHeartBeatAcceptor(MyHeartBeatModule * _module, MyBaseConnectionManager * _manager):
-    MyBaseAcceptor(_module, _manager)
+MyHeartBeatAcceptor::MyHeartBeatAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
+    MyBaseAcceptor(_dispatcher, _manager)
 {
   m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
 }
@@ -180,6 +180,11 @@ int MyHeartBeatAcceptor::make_svc_handler(MyBaseHandler *& sh)
   return 0;
 }
 
+const char * MyHeartBeatAcceptor::name() const
+{
+  return "MyHeartBeatAcceptor";
+}
+
 
 //MyHeartBeatDispatcher//
 
@@ -189,21 +194,22 @@ MyHeartBeatDispatcher::MyHeartBeatDispatcher(MyBaseModule * pModule, int numThre
   m_acceptor = NULL;
 }
 
-void MyHeartBeatDispatcher::on_stop()
+const char * MyHeartBeatDispatcher::name() const
 {
-  if (m_acceptor)
-  {
-    m_acceptor->stop();
-    delete m_acceptor;
-    m_acceptor = NULL;
-  }
+  return "MyHeartBeatDispatcher";
 }
 
-int MyHeartBeatDispatcher::on_start()
+void MyHeartBeatDispatcher::on_stop()
+{
+  m_acceptor = NULL;
+}
+
+bool MyHeartBeatDispatcher::on_start()
 {
   if (!m_acceptor)
-    m_acceptor = new MyHeartBeatAcceptor((MyHeartBeatModule *)m_module, new MyBaseConnectionManager());
-  return m_acceptor->start();
+    m_acceptor = new MyHeartBeatAcceptor(this, new MyBaseConnectionManager());
+  add_acceptor(m_acceptor);
+  return true;
 }
 
 
@@ -211,12 +217,30 @@ int MyHeartBeatDispatcher::on_start()
 
 MyHeartBeatModule::MyHeartBeatModule(MyBaseApp * app): MyBaseModule(app)
 {
-  m_service = new MyHeartBeatService(this, 1);
-  m_dispatcher = new MyHeartBeatDispatcher(this);
+  m_service = NULL;
+  m_dispatcher = NULL;
   MyHeartBeatProcessor::m_sumbitter = &m_ping_sumbitter;
 }
 
 MyHeartBeatModule::~MyHeartBeatModule()
 {
 
+}
+
+const char * MyHeartBeatModule::name() const
+{
+  return "MyHeartBeatModule";
+}
+
+bool MyHeartBeatModule::on_start()
+{
+  add_service(m_service = new MyHeartBeatService(this, 1));
+  add_dispatcher(m_dispatcher = new MyHeartBeatDispatcher(this));
+  return true;
+}
+
+void MyHeartBeatModule::on_stop()
+{
+  m_service = NULL;
+  m_dispatcher = NULL;
 }

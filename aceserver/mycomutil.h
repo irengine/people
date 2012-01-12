@@ -53,7 +53,7 @@
 class MyErrno
 {
 public:
-  MyErrno(int err = errno)
+  MyErrno(int err = ACE_OS::last_error())
   {
     format_message(err);
   }
@@ -74,6 +74,15 @@ private:
   }
   enum { BUFF_LEN = 256 };
   char buff[BUFF_LEN];
+};
+
+class MyObjectDeletor
+{
+public:
+  template <typename T> void operator()(const T * ptr)
+  {
+    delete ptr;
+  }
 };
 
 template <class ACE_LOCK> class My_Cached_Allocator: public ACE_Dynamic_Cached_Allocator<ACE_LOCK>
@@ -145,6 +154,7 @@ public:
   {
     return m_chunk_size;
   }
+
 private:
   ACE_LOCK m_mutex;
   size_t m_chunk_size;

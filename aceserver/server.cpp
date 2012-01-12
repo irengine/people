@@ -21,8 +21,7 @@ MyServerApp::MyServerApp()
 
 MyServerApp::~MyServerApp()
 {
-  delete m_heart_beat_module;
-  delete m_location_module;
+
 }
 
 MyClientIDTable & MyServerApp::client_id_table()
@@ -37,19 +36,35 @@ MyHeartBeatModule * MyServerApp::heart_beat_module() const
 
 bool MyServerApp::on_start()
 {
-  if (m_heart_beat_module)
-    m_heart_beat_module->start();
-  if (m_location_module)
-    m_location_module->start();
+
   return true;
 }
 
 void MyServerApp::on_stop()
 {
-  if (m_heart_beat_module)
-    m_heart_beat_module->stop();
-  if (m_location_module)
-    m_location_module->stop();
+
+}
+
+void MyServerApp::dump_mem_pool_info()
+{
+  ACE_DEBUG((LM_INFO, "  !!! Memory Dump start !!!\n"));
+  long nAlloc = 0, nFree = 0, nMaxUse = 0;
+  if (!MyHeartBeatHandler::mem_pool())
+  {
+    ACE_DEBUG((LM_INFO, "    Memory Pool Disabled\n"));
+    goto _exit_;
+  }
+  MyHeartBeatHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse);
+  MyBaseApp::mem_pool_dump_one("MyHeartBeatHandler", nAlloc, nFree, nMaxUse, sizeof(MyHeartBeatHandler));
+  MyMemPoolFactoryX::instance()->dump_info();
+
+_exit_:
+  ACE_DEBUG((LM_INFO, "  !!! Memory Dump End !!!\n"));
+}
+
+void MyServerApp::do_dump_info()
+{
+  MyServerApp::dump_mem_pool_info();
 }
 
 bool MyServerApp::on_construct()
@@ -62,49 +77,37 @@ bool MyServerApp::on_construct()
     m_client_id_table.add(id);
 #endif
   if (cfg->is_dist_server())
-    m_heart_beat_module = new MyHeartBeatModule(this);
+    add_module(m_heart_beat_module = new MyHeartBeatModule(this));
   if (cfg->is_middle_server())
-    m_location_module = new MyLocationModule(this);
+    add_module(m_location_module = new MyLocationModule(this));
   return true;
-}
-
-void MyServerApp::dump_info()
-{
-  long nAlloc = 0, nFree = 0, nMaxUse = 0, nInUse = 0;
-  if (MyHeartBeatHandler::mem_pool())
-  {
-    MyHeartBeatHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse);
-    nInUse = nAlloc - nFree;
-
-    MY_INFO (ACE_TEXT ("(%P|%t) memory info dump, inUse = %d, alloc = %d, free = %d, maxInUse = %d\n"),
-             nInUse, nAlloc, nFree, nMaxUse);
-  }
 }
 
 void MyServerApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mode)
 {
   MyServerApp * app = MyServerAppX::instance();
+  MyConfig* cfg = MyConfigX::instance();
   if (!MyConfigX::instance()->load_config(app_home_path, mode))
   {
     std::printf("error loading config file, quitting\n");
     exit(5);
   }
-  if (MyConfigX::instance()->run_as_demon)
+  if (cfg->run_as_demon)
     MyBaseApp::app_demonize();
-  if (MyConfigX::instance()->is_dist_server())
-    MyHeartBeatHandler::init_mem_pool(MyConfigX::instance()->max_clients);
-  if (MyConfigX::instance()->is_middle_server())
+  if (cfg->is_dist_server())
+    MyHeartBeatHandler::init_mem_pool(cfg->max_clients);
+  if (cfg->is_middle_server())
     MyLocationHandler::init_mem_pool(1000);
-  MyMemPoolFactoryX::instance()->init(MyConfigX::instance());
+  MyMemPoolFactoryX::instance()->init(cfg);
   app->do_constructor();
 }
 
 void MyServerApp::app_fini()
 {
   MY_INFO(ACE_TEXT("shutdown server...\n"));
-  MyServerAppX::instance()->dump_info();
   MyServerAppX::close();  //this comes before the releasing of memory pool
   MyConfigX::close();
+  dump_mem_pool_info(); //only mem pool info, other objects should gone by now
   MyHeartBeatHandler::fini_mem_pool();
   MyLocationHandler::fini_mem_pool();
   MyMemPoolFactoryX::close();

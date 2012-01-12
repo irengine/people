@@ -78,10 +78,11 @@ class MyHeartBeatDispatcher: public MyBaseDispatcher
 {
 public:
   MyHeartBeatDispatcher(MyBaseModule * pModule, int numThreads = 1);
+  virtual const char * name() const;
 
 protected:
   virtual void on_stop();
-  virtual int on_start();
+  virtual bool on_start();
 
 private:
   MyHeartBeatAcceptor * m_acceptor;
@@ -90,8 +91,9 @@ private:
 class MyHeartBeatAcceptor: public MyBaseAcceptor
 {
 public:
-  MyHeartBeatAcceptor(MyHeartBeatModule * _module, MyBaseConnectionManager * manager);
+  MyHeartBeatAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
   virtual int make_svc_handler(MyBaseHandler *& sh);
+  virtual const char * name() const;
 };
 
 
@@ -100,9 +102,17 @@ class MyHeartBeatModule: public MyBaseModule
 public:
   MyHeartBeatModule(MyBaseApp * app);
   virtual ~MyHeartBeatModule();
+  virtual const char * name() const;
+
+protected:
+  virtual bool on_start();
+  virtual void on_stop();
 
 private:
   MyPingSubmitter m_ping_sumbitter;
+  MyHeartBeatService * m_service;
+  MyHeartBeatDispatcher * m_dispatcher;
+
 };
 
 #endif /* HEARTBEATMODULE_H_ */

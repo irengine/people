@@ -20,7 +20,7 @@ MyClientApp::MyClientApp()
 
 MyClientApp::~MyClientApp()
 {
-  delete m_client_to_dist_module;
+
 }
 
 MyClientToDistModule * MyClientApp::client_to_dist_module() const
@@ -30,49 +30,55 @@ MyClientToDistModule * MyClientApp::client_to_dist_module() const
 
 bool MyClientApp::on_start()
 {
-  if (m_client_to_dist_module)
-    m_client_to_dist_module->start();
   return true;
 }
 
 void MyClientApp::on_stop()
 {
-  if (m_client_to_dist_module)
-    m_client_to_dist_module->stop();
+
 }
 
 bool MyClientApp::on_construct()
 {
-  m_client_to_dist_module = new MyClientToDistModule(this);
+  add_module(m_client_to_dist_module = new MyClientToDistModule(this));
   return true;
 }
 
-void MyClientApp::dump_info()
+void MyClientApp::do_dump_info()
 {
-/*  long nAlloc = 0, nFree = 0, nMaxUse = 0, nInUse = 0;
-  if (MyHeartBeatHandler::mem_pool())
-  {
-    MyHeartBeatHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse);
-    nInUse = nAlloc - nFree;
+  MyClientApp::dump_mem_pool_info();
+}
 
-    MY_INFO (ACE_TEXT ("(%P|%t) memory info dump, inUse = %d, alloc = %d, free = %d, maxInUse = %d\n"),
-             nInUse, nAlloc, nFree, nMaxUse);
+void MyClientApp::dump_mem_pool_info()
+{
+  ACE_DEBUG((LM_INFO, "  !!! Memory Dump start !!!\n"));
+  long nAlloc = 0, nFree = 0, nMaxUse = 0;
+  if (!MyClientToDistHandler::mem_pool())
+  {
+    ACE_DEBUG((LM_INFO, "    Memory Pool Disabled\n"));
+    goto _exit_;
   }
-*/
+  MyClientToDistHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse);
+  MyBaseApp::mem_pool_dump_one("MyClientToDistHandler", nAlloc, nFree, nMaxUse, sizeof(MyClientToDistHandler));
+  MyMemPoolFactoryX::instance()->dump_info();
+
+_exit_:
+  ACE_DEBUG((LM_INFO, "  !!! Memory Dump End !!!\n"));
 }
 
 void MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mode)
 {
   MyClientApp * app = MyClientAppX::instance();
-  if (!MyConfigX::instance()->load_config(app_home_path, mode))
+  MyConfig * cfg = MyConfigX::instance();
+  if (!cfg->load_config(app_home_path, mode))
   {
     std::printf("error loading config file, quitting\n");
     exit(5);
   }
-  if (MyConfigX::instance()->run_as_demon)
+  if (cfg->run_as_demon)
     MyBaseApp::app_demonize();
   MyClientToDistHandler::init_mem_pool(1000);
-  MyMemPoolFactoryX::instance()->init(MyConfigX::instance());
+  MyMemPoolFactoryX::instance()->init(cfg);
   app->do_constructor();
 }
 

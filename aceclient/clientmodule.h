@@ -29,7 +29,6 @@ public:
   MyClientToDistProcessor(MyBaseHandler * handler);
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
   virtual int on_open();
-//  static MyPingSubmitter * m_sumbitter;
   int send_heart_beat();
 
 protected:
@@ -85,11 +84,11 @@ class MyClientToDistDispatcher: public MyBaseDispatcher
 {
 public:
   MyClientToDistDispatcher(MyBaseModule * pModule, int numThreads = 1);
-//  virtual int open (void * = 0);
+  virtual const char * name() const;
 
 protected:
   virtual void on_stop();
-  virtual int on_start();
+  virtual bool on_start();
 
 private:
   MyClientToDistConnector * m_connector;
@@ -99,8 +98,9 @@ private:
 class MyClientToDistConnector: public MyBaseConnector
 {
 public:
-  MyClientToDistConnector(MyClientToDistModule * _module, MyBaseConnectionManager * _manager);
+  MyClientToDistConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
   virtual int make_svc_handler(MyBaseHandler *& sh);
+  virtual const char * name() const;
 
 protected:
   virtual bool before_reconnect();
@@ -112,10 +112,17 @@ public:
   MyClientToDistModule(MyBaseApp * app);
   virtual ~MyClientToDistModule();
   MyDistServerAddrList & server_addr_list();
+  virtual const char * name() const;
+
+protected:
+  virtual bool on_start();
+  virtual void on_stop();
 
 private:
   MyDistServerAddrList m_server_addr_list;
-//  MyPingSubmitter m_ping_sumbitter;
+  MyClientToDistService * m_service;
+  MyClientToDistDispatcher *m_dispatcher;
+
 };
 
 

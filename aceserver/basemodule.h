@@ -37,6 +37,7 @@ class MyBaseHandler;
 class MyBaseAcceptor;
 class MyBaseConnectionManager;
 class MyBaseApp;
+class MyBaseDispatcher;
 
 class MyCached_Message_Block: public ACE_Message_Block
 {
@@ -70,6 +71,8 @@ public:
   ~MyMemPoolFactory();
   void init(MyConfig * config);
   ACE_Message_Block * get_message_block(int capacity);
+  void dump_info();
+
 private:
   typedef My_Cached_Allocator<ACE_Thread_Mutex> MyMemPool;
   typedef std::vector<MyMemPool *> MyMemPools;
@@ -216,11 +219,11 @@ public:
   MyBaseConnectionManager();
   virtual ~MyBaseConnectionManager();
   int  num_connections() const;
-  long bytes_received() const;
-  long bytes_sent() const;
+  long long int bytes_received() const;
+  long long int bytes_sent() const;
 
-  void on_data_received(long data_size);
-  void on_data_send(long data_size);
+  void on_data_received(int data_size);
+  void on_data_send(int data_size);
   virtual void on_new_connection(MyBaseHandler *);
   virtual void on_close_connection(MyBaseHandler *);
   MyActiveConnectionPointer end();
@@ -228,8 +231,8 @@ public:
 
 private:
   int  m_num_connections;
-  long m_bytes_received;
-  long m_bytes_sent;
+  long long int m_bytes_received;
+  long long int m_bytes_sent;
   MyActiveConnections m_active_connections;
 };
 
@@ -267,21 +270,25 @@ class MyBaseAcceptor: public ACE_Acceptor<MyBaseHandler, ACE_SOCK_ACCEPTOR>
 {
 public:
   typedef ACE_Acceptor<MyBaseHandler, ACE_SOCK_ACCEPTOR>  super;
-  MyBaseAcceptor(MyBaseModule * _module, MyBaseConnectionManager * _manager);
+  MyBaseAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
   virtual ~MyBaseAcceptor();
 
   MyBaseModule * module_x() const;
   MyBaseConnectionManager * connection_manager() const;
+  MyBaseDispatcher * dispatcher() const;
 
   int start();
   int stop();
+  void dump_info();
+  virtual const char * name() const;
 
 protected:
-
+  virtual void do_dump_info();
 
 //  bool next_pointer();
 
 //  MyActiveConnectionPointer m_scan_pointer;
+  MyBaseDispatcher * m_dispatcher;
   MyBaseModule * m_module;
   MyBaseConnectionManager * m_connection_manager;
   int m_tcp_port;
@@ -292,16 +299,19 @@ class MyBaseConnector: public ACE_Connector<MyBaseHandler, ACE_SOCK_CONNECTOR>
 {
 public:
   typedef ACE_Connector<MyBaseHandler, ACE_SOCK_CONNECTOR> super;
-  MyBaseConnector(MyBaseModule * _module, MyBaseConnectionManager * _manager);
+  MyBaseConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
   virtual ~MyBaseConnector();
 
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
   MyBaseModule * module_x() const;
   MyBaseConnectionManager * connection_manager() const;
+  MyBaseDispatcher * dispatcher() const;
   MyBaseHandler * unique_handler() const;
   void tcp_addr(const char * addr);
   int start();
   int stop();
+  void dump_info();
+  virtual const char * name() const;
 
 protected:
   enum
@@ -311,8 +321,10 @@ protected:
     UNUSED_TIMER_2
   };
   int do_connect(int count = 1);
-
+  virtual void do_dump_info();
   virtual bool before_reconnect();
+
+  MyBaseDispatcher * m_dispatcher;
   MyBaseModule * m_module;
   MyBaseConnectionManager * m_connection_manager;
   int m_tcp_port;
@@ -332,7 +344,11 @@ public:
   MyBaseModule * module_x() const; //name collision with parent class
   int start();
   int stop();
-  virtual void dump_info();
+  void dump_info();
+  virtual const char * name() const;
+
+protected:
+  virtual void do_dump_info();
 
 private:
   MyBaseModule * m_module;
@@ -352,16 +368,28 @@ public:
                               const void *act);
   int start();
   int stop();
-  virtual void dump_info();
+  MyBaseModule * module_x() const;
+  void dump_info();
+  virtual const char * name() const;
 
 protected:
+  typedef std::vector<MyBaseConnector *> MyConnectors;
+  typedef std::vector<MyBaseAcceptor *> MyAcceptors;
+
   virtual void on_stop();
-  virtual int on_start();
+  virtual bool on_start();
+  void add_connector(MyBaseConnector * _connector);
+  void add_acceptor(MyBaseAcceptor * _acceptor);
+  virtual void do_dump_info();
 
   MyBaseModule * m_module;
   int m_clock_interval;
+  MyConnectors m_connectors;;
+  MyAcceptors m_acceptors;
 
 private:
+  bool do_start_i();
+  void do_stop_i();
   ACE_Reactor *m_reactor;
   int m_numThreads;
   int m_numBatchSend;
@@ -379,18 +407,27 @@ public:
   bool running() const;
   //both module and app
   bool running_with_app() const;
-  MyBaseDispatcher * dispatcher() const;
-  MyBaseService * service() const;
   MyBaseApp * app() const;
   int start();
   int stop();
-  virtual void dump_info();
+  void dump_info();
+  virtual const char * name() const;
 
 protected:
+  typedef std::vector<MyBaseService *> MyServices;
+  typedef std::vector<MyBaseDispatcher *> MyBaseDispatchers;
+
+  virtual bool on_start();
+  virtual void on_stop();
+  void add_service(MyBaseService * _service);
+  void add_dispatcher(MyBaseDispatcher * _dispatcher);
+  virtual void do_dump_info();
+
   MyBaseApp * m_app;
-  MyBaseService * m_service;
-  MyBaseDispatcher * m_dispatcher;
   bool m_running;
+
+  MyServices m_services;
+  MyBaseDispatchers m_dispatchers;
 };
 
 

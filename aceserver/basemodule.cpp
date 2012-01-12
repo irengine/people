@@ -66,6 +66,32 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
   return new ACE_Message_Block(capacity);
 }
 
+void MyMemPoolFactory::dump_info()
+{
+//  typedef My_Cached_Allocator<ACE_Thread_Mutex> MyMemPool;
+//  typedef std::vector<MyMemPool *> MyMemPools;
+  if (!m_use_mem_pool)
+    return;
+
+  long nAlloc = 0, nFree = 0, nMaxUse = 0;
+  m_message_block_pool->get_usage(nAlloc, nFree, nMaxUse);
+  MyBaseApp::mem_pool_dump_one("MessageBlockCtrlPool", nAlloc, nFree, nMaxUse, m_message_block_pool->chunk_size());
+
+  nAlloc = 0, nFree = 0, nMaxUse = 0;
+  m_data_block_pool->get_usage(nAlloc, nFree, nMaxUse);
+  MyBaseApp::mem_pool_dump_one("DataBlockCtrlPool", nAlloc, nFree, nMaxUse, m_data_block_pool->chunk_size());
+
+  const int BUFF_LEN = 64;
+  char buff[BUFF_LEN];
+  for(int i = 0; i < (int)m_pools.size(); ++i)
+  {
+    nAlloc = 0, nFree = 0, nMaxUse = 0;
+    m_pools[i]->get_usage(nAlloc, nFree, nMaxUse);
+    ACE_OS::snprintf(buff, BUFF_LEN, "DataPool.%d", i + 1);
+    MyBaseApp::mem_pool_dump_one(buff, nAlloc, nFree, nMaxUse, m_pools[i]->chunk_size());
+  }
+}
+
 
 //MyClientInfos//
 
@@ -566,6 +592,7 @@ ACE_Message_Block * MyBaseServerProcessor::make_version_check_reply_mb
   return mb;
 }
 
+
 //MyBaseClientProcessor//
 
 MyBaseClientProcessor::MyBaseClientProcessor(MyBaseHandler * handler) : MyBasePacketProcessor(handler)
@@ -626,22 +653,22 @@ int MyBaseConnectionManager::num_connections() const
   return m_num_connections;
 }
 
-long MyBaseConnectionManager::bytes_received() const
+long long int MyBaseConnectionManager::bytes_received() const
 {
   return m_bytes_received;
 }
 
-long MyBaseConnectionManager::bytes_sent() const
+long long int MyBaseConnectionManager::bytes_sent() const
 {
   return m_bytes_sent;
 }
 
-void MyBaseConnectionManager::on_data_received(long data_size)
+void MyBaseConnectionManager::on_data_received(int data_size)
 {
   m_bytes_received += data_size;
 }
 
-void MyBaseConnectionManager::on_data_send(long data_size)
+void MyBaseConnectionManager::on_data_send(int data_size)
 {
   m_bytes_sent += data_size;
 }
@@ -827,10 +854,11 @@ MyBaseHandler::~MyBaseHandler()
 
 //MyBaseAcceptor//
 
-MyBaseAcceptor::MyBaseAcceptor(MyBaseModule * _module, MyBaseConnectionManager * _manager):
-    m_module(_module), m_connection_manager(_manager)
+MyBaseAcceptor::MyBaseAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
+    m_dispatcher(_dispatcher), m_connection_manager(_manager)
 {
   m_tcp_port = 0;
+  m_module = m_dispatcher->module_x();
 }
 
 MyBaseAcceptor::~MyBaseAcceptor()
@@ -844,6 +872,11 @@ MyBaseModule * MyBaseAcceptor::module_x() const
   return m_module;
 }
 
+MyBaseDispatcher * MyBaseAcceptor::dispatcher() const
+{
+  return m_dispatcher;
+}
+
 MyBaseConnectionManager * MyBaseAcceptor::connection_manager() const
 {
   return m_connection_manager;
@@ -851,7 +884,7 @@ MyBaseConnectionManager * MyBaseAcceptor::connection_manager() const
 
 int MyBaseAcceptor::start()
 {
-  reactor(m_module->dispatcher()->reactor());
+  reactor(m_dispatcher->reactor());
 
   if (m_tcp_port <= 0)
   {
@@ -860,7 +893,7 @@ int MyBaseAcceptor::start()
   }
   ACE_INET_Addr port_to_listen (m_tcp_port);
 
-  int ret = super::open (port_to_listen, m_module->dispatcher()->reactor(), ACE_NONBLOCK);
+  int ret = super::open (port_to_listen, m_dispatcher->reactor(), ACE_NONBLOCK);
 
   if (ret == 0)
     MY_INFO(ACE_TEXT ("listening on port %d... OK\n"), m_tcp_port);
@@ -875,12 +908,37 @@ int MyBaseAcceptor::stop()
   return 0;
 }
 
+void MyBaseAcceptor::do_dump_info()
+{
+  const int BUFF_LEN = 1024;
+  char buff[BUFF_LEN];
+  //it seems that ACE's logging system can not handle 64bit formatting, let's do it ourself
+  ACE_OS::snprintf(buff, BUFF_LEN, "        connection number = %d\n", m_connection_manager->num_connections());
+  ACE_DEBUG((LM_INFO, buff));
+  ACE_OS::snprintf(buff, BUFF_LEN, "        bytes_received = %lld\n", (long long int) m_connection_manager->bytes_received());
+  ACE_DEBUG((LM_INFO, buff));
+  ACE_OS::snprintf(buff, BUFF_LEN, "        bytes_sent = %lld\n", (long long int) m_connection_manager->bytes_sent());
+  ACE_DEBUG((LM_INFO, buff));
+}
+
+void MyBaseAcceptor::dump_info()
+{
+  ACE_DEBUG((LM_INFO, "      +++ acceptor dump: %s start\n", name()));
+  do_dump_info();
+  ACE_DEBUG((LM_INFO, "      +++ acceptor dump: %s end\n", name()));
+}
+
+const char * MyBaseAcceptor::name() const
+{
+  return "MyBaseAcceptor";
+}
+
 
 //////////////
 //MyBaseAcceptor//
 
-MyBaseConnector::MyBaseConnector(MyBaseModule * _module, MyBaseConnectionManager * _manager):
-    m_module(_module), m_connection_manager(_manager)
+MyBaseConnector::MyBaseConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
+        m_dispatcher(_dispatcher), m_connection_manager(_manager)
 {
   m_tcp_port = 0;
   m_num_connection = 1;
@@ -888,6 +946,7 @@ MyBaseConnector::MyBaseConnector(MyBaseModule * _module, MyBaseConnectionManager
   m_reconnect_interval = 0;
   m_reconnect_retry_count = 3;
   m_reconnect_timer_id = -1;
+  m_module = m_dispatcher->module_x();
 }
 
 MyBaseConnector::~MyBaseConnector()
@@ -904,6 +963,11 @@ MyBaseModule * MyBaseConnector::module_x() const
 MyBaseConnectionManager * MyBaseConnector::connection_manager() const
 {
   return m_connection_manager;
+}
+
+MyBaseDispatcher * MyBaseConnector::dispatcher() const
+{
+  return m_dispatcher;
 }
 
 MyBaseHandler * MyBaseConnector::unique_handler() const
@@ -940,9 +1004,9 @@ int MyBaseConnector::handle_timeout(const ACE_Time_Value &current_time, const vo
 
 int MyBaseConnector::start()
 {
-  if (open(m_module->dispatcher()->reactor(), ACE_NONBLOCK) == -1)
+  if (open(m_dispatcher->reactor(), ACE_NONBLOCK) == -1)
     return -1;
-  reactor(m_module->dispatcher()->reactor());
+  reactor(m_dispatcher->reactor());
   m_reconnect_retry_count = 1;
 
   if (m_tcp_port <= 0)
@@ -966,6 +1030,30 @@ int MyBaseConnector::start()
       MY_ERROR(ACE_TEXT("MyBaseConnector setup reconnect timer failed, %s"), (const char*)MyErrno());
   }
   return 0; //
+}
+
+void MyBaseConnector::do_dump_info()
+{
+  const int BUFF_LEN = 1024;
+  char buff[BUFF_LEN];
+  ACE_OS::snprintf(buff, BUFF_LEN, "        connection number = %d\n", m_connection_manager->num_connections());
+  ACE_DEBUG((LM_INFO, buff));
+  ACE_OS::snprintf(buff, BUFF_LEN, "        bytes_received = %lld\n", (long long int) m_connection_manager->bytes_received());
+  ACE_DEBUG((LM_INFO, buff));
+  ACE_OS::snprintf(buff, BUFF_LEN, "        bytes_sent = %lld\n", (long long int) m_connection_manager->bytes_sent());
+  ACE_DEBUG((LM_INFO, buff));
+}
+
+void MyBaseConnector::dump_info()
+{
+  ACE_DEBUG((LM_INFO, "      +++ connector dump: %s start\n", name()));
+  do_dump_info();
+  ACE_DEBUG((LM_INFO, "      +++ connector dump: %s end\n", name()));
+}
+
+const char * MyBaseConnector::name() const
+{
+  return "MyBaseConnector";
 }
 
 int MyBaseConnector::stop()
@@ -1051,6 +1139,16 @@ void MyBaseService::dump_info()
 
 }
 
+void MyBaseService::do_dump_info()
+{
+
+}
+
+const char * MyBaseService::name() const
+{
+  return "MyBaseService";
+}
+
 
 //MyBaseDispatcher//
 
@@ -1086,9 +1184,29 @@ int MyBaseDispatcher::open (void *)
   return 0;
 }
 
-int MyBaseDispatcher::on_start()
+void MyBaseDispatcher::add_connector(MyBaseConnector * _connector)
 {
-  return 0;
+  if (!_connector)
+  {
+    MY_FATAL("MyBaseDispatcher::add_connector NULL _connector\n");
+    return;
+  }
+  m_connectors.push_back(_connector);
+}
+
+void MyBaseDispatcher::add_acceptor(MyBaseAcceptor * _acceptor)
+{
+  if (!_acceptor)
+  {
+    MY_FATAL("MyBaseDispatcher::add_acceptor NULL _acceptor\n");
+    return;
+  }
+  m_acceptors.push_back(_acceptor);
+}
+
+bool MyBaseDispatcher::on_start()
+{
+  return true;
 }
 
 int MyBaseDispatcher::start()
@@ -1107,28 +1225,74 @@ int MyBaseDispatcher::stop()
   return 0;
 }
 
+const char * MyBaseDispatcher::name() const
+{
+  return "MyBaseDispatcher";
+}
 
 void MyBaseDispatcher::dump_info()
 {
+  ACE_DEBUG((LM_INFO, "    --- dispatcher dump: %s start\n", name()));
+  do_dump_info();
+  std::for_each(m_connectors.begin(), m_connectors.end(), std::mem_fun(&MyBaseConnector::dump_info));
+  std::for_each(m_acceptors.begin(), m_acceptors.end(), std::mem_fun(&MyBaseAcceptor::dump_info));
+  ACE_DEBUG((LM_INFO, "    --- dispatcher dump: %s end\n", name()));
+}
 
+void MyBaseDispatcher::do_dump_info()
+{
+
+}
+
+MyBaseModule * MyBaseDispatcher::module_x() const
+{
+  return m_module;
+}
+
+bool MyBaseDispatcher::do_start_i()
+{
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, 0);
+  if (!m_init_done)
+  {
+    m_init_done = true;
+    if (open(NULL) == -1)
+      return false;
+    msg_queue()->flush();
+    if (!on_start())
+      return false;
+    std::for_each(m_connectors.begin(), m_connectors.end(), std::mem_fun(&MyBaseConnector::start));
+    std::for_each(m_acceptors.begin(), m_acceptors.end(), std::mem_fun(&MyBaseAcceptor::start));
+  }
+  return true;
+}
+
+void MyBaseDispatcher::do_stop_i()
+{
+  ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
+  if (!m_reactor) //reuse m_reactor as cleanup flag
+    return;
+  msg_queue()->flush();
+  if (m_reactor && m_clock_interval > 0)
+    m_reactor->cancel_timer(this);
+  if (m_reactor)
+    m_reactor->close();
+  std::for_each(m_connectors.begin(), m_connectors.end(), std::mem_fun(&MyBaseConnector::stop));
+  std::for_each(m_acceptors.begin(), m_acceptors.end(), std::mem_fun(&MyBaseAcceptor::stop));
+  std::for_each(m_connectors.begin(), m_connectors.end(), MyObjectDeletor());
+  std::for_each(m_acceptors.begin(), m_acceptors.end(), MyObjectDeletor());
+  m_connectors.clear();
+  m_acceptors.clear();
+  on_stop();
+  delete m_reactor;
+  m_reactor = NULL;
 }
 
 int MyBaseDispatcher::svc()
 {
   MY_DEBUG(ACE_TEXT ("entering MyBaseDispatcher::svc()\n"));
 
-  {
-    ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, 0);
-    if (!m_init_done)
-    {
-      m_init_done = true;
-      if (open(NULL) == -1)
-        return -1;
-      msg_queue()->flush();
-      if (on_start() < 0)
-        return -1;
-    }
-  }
+  if (!do_start_i())
+    return -1;
 
   while (m_module->running_with_app())
   {
@@ -1143,22 +1307,9 @@ int MyBaseDispatcher::svc()
     }
     //MY_DEBUG("    returning from reactor()->handle_events()\n");
   }
+
   MY_DEBUG(ACE_TEXT ("exiting MyBaseDispatcher::svc()\n"));
-
-  {
-    ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, 0);
-    if (!m_reactor) //reuse m_reactor as cleanup flag
-      return 0;
-    msg_queue()->flush();
-    if (m_reactor && m_clock_interval > 0)
-      m_reactor->cancel_timer(this);
-    if (m_reactor)
-      m_reactor->close();
-    on_stop();
-    delete m_reactor;
-    m_reactor = NULL;
-  }
-
+  do_stop_i();
   return 0;
 }
 
@@ -1188,7 +1339,7 @@ int MyBaseDispatcher::handle_timeout (const ACE_Time_Value &tv,
 
 //MyBaseModule//
 
-MyBaseModule::MyBaseModule(MyBaseApp * app): m_app(app), m_service(NULL), m_dispatcher(NULL), m_running(false)
+MyBaseModule::MyBaseModule(MyBaseApp * app): m_app(app), m_running(false)
 {
 
 }
@@ -1196,10 +1347,8 @@ MyBaseModule::MyBaseModule(MyBaseApp * app): m_app(app), m_service(NULL), m_disp
 MyBaseModule::~MyBaseModule()
 {
   stop();
-  if (m_service)
-    delete m_service;
-  if (m_dispatcher)
-    delete m_dispatcher;
+  std::for_each(m_services.begin(), m_services.end(), MyObjectDeletor());
+  std::for_each(m_dispatchers.begin(), m_dispatchers.end(), MyObjectDeletor());
 }
 
 bool MyBaseModule::running() const
@@ -1217,40 +1366,27 @@ bool MyBaseModule::running_with_app() const
   return (m_running && m_app->running());
 }
 
-MyBaseDispatcher * MyBaseModule::dispatcher() const
+bool MyBaseModule::on_start()
 {
-  return m_dispatcher;
+  return true;
 }
 
-MyBaseService * MyBaseModule::service() const
+void MyBaseModule::on_stop()
 {
-  return m_service;
+
 }
+
 
 int MyBaseModule::start()
 {
   if (m_running)
     return 0;
 
+  if (!on_start())
+    return -1;
   m_running = true;
-  if (m_service)
-  {
-    if (m_service->start() == -1)
-    {
-      m_running = false;
-      return -1;
-    }
-  }
-
-  if (m_dispatcher)
-  {
-    if (m_dispatcher->start() == -1)
-    {
-      m_running = false;
-      m_service->stop();
-      return -1;
-    }
-  }
+  std::for_each(m_services.begin(), m_services.end(), std::mem_fun(&MyBaseService::start));
+  std::for_each(m_dispatchers.begin(), m_dispatchers.end(), std::mem_fun(&MyBaseDispatcher::start));
   return 0;
 }
 
@@ -1259,13 +1395,51 @@ int MyBaseModule::stop()
   if (!m_running)
     return 0;
   m_running = false;
-  m_service->stop();
-  if (m_dispatcher)
-    m_dispatcher->stop();
+  std::for_each(m_services.begin(), m_services.end(), std::mem_fun(&MyBaseService::stop));
+  std::for_each(m_dispatchers.begin(), m_dispatchers.end(), std::mem_fun(&MyBaseDispatcher::stop));
+  std::for_each(m_services.begin(), m_services.end(), MyObjectDeletor());
+  std::for_each(m_dispatchers.begin(), m_dispatchers.end(), MyObjectDeletor());
+  m_services.clear();
+  m_dispatchers.clear();
+  on_stop();
   return 0;
+}
+
+const char * MyBaseModule::name() const
+{
+  return "MyBaseModule";
 }
 
 void MyBaseModule::dump_info()
 {
+  ACE_DEBUG((LM_INFO, "  *** module dump: %s start\n", name()));
+  do_dump_info();
+  std::for_each(m_dispatchers.begin(), m_dispatchers.end(), std::mem_fun(&MyBaseDispatcher::dump_info));
+  std::for_each(m_services.begin(), m_services.end(), std::mem_fun(&MyBaseService::dump_info));
+  ACE_DEBUG((LM_INFO, "  *** module dump: %s end\n", name()));
+}
 
+void MyBaseModule::do_dump_info()
+{
+
+}
+
+void MyBaseModule::add_service(MyBaseService * _service)
+{
+  if (!_service)
+  {
+    MY_FATAL("MyBaseModule::add_service() NULL _service\n");
+    return;
+  }
+  m_services.push_back(_service);
+}
+
+void MyBaseModule::add_dispatcher(MyBaseDispatcher * _dispatcher)
+{
+  if (!_dispatcher)
+  {
+    MY_FATAL("MyBaseModule::add_dispatcher() NULL _dispatcher\n");
+    return;
+  }
+  m_dispatchers.push_back(_dispatcher);
 }

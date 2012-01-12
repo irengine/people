@@ -202,8 +202,8 @@ int MyLocationService::svc()
 
 //MyLocationAcceptor//
 
-MyLocationAcceptor::MyLocationAcceptor(MyLocationModule * _module, MyBaseConnectionManager * _manager):
-    MyBaseAcceptor(_module, _manager)
+MyLocationAcceptor::MyLocationAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
+    MyBaseAcceptor(_dispatcher, _manager)
 {
   m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
 }
@@ -218,27 +218,23 @@ int MyLocationAcceptor::make_svc_handler(MyBaseHandler *& sh)
 
 //MyLocationDispatcher//
 
-MyLocationDispatcher::MyLocationDispatcher(MyBaseModule * pModule, int numThreads):
-    MyBaseDispatcher(pModule, numThreads)
+MyLocationDispatcher::MyLocationDispatcher(MyBaseModule * _module, int numThreads):
+    MyBaseDispatcher(_module, numThreads)
 {
   m_acceptor = NULL;
 }
 
-int MyLocationDispatcher::on_start()
+bool MyLocationDispatcher::on_start()
 {
   if (!m_acceptor)
-    m_acceptor = new MyLocationAcceptor((MyLocationModule *)m_module, new MyBaseConnectionManager());
-  return m_acceptor->start();
+    m_acceptor = new MyLocationAcceptor(this, new MyBaseConnectionManager());
+  add_acceptor(m_acceptor);
+  return true;
 }
 
 void MyLocationDispatcher::on_stop()
 {
-  if (m_acceptor)
-  {
-    m_acceptor->stop();
-    delete m_acceptor;
-    m_acceptor = NULL;
-  }
+  m_acceptor = NULL;
 }
 
 
@@ -246,14 +242,27 @@ void MyLocationDispatcher::on_stop()
 
 MyLocationModule::MyLocationModule(MyBaseApp * app): MyBaseModule(app)
 {
-  m_service = new MyLocationService(this, 1);
-  m_dispatcher = new MyLocationDispatcher(this);
+  m_service = NULL;
+  m_dispatcher = NULL;
   MyLocationProcessor::m_dist_loads = &m_dist_loads;
 }
 
 MyLocationModule::~MyLocationModule()
 {
 
+}
+
+bool MyLocationModule::on_start()
+{
+  add_service(m_service = new MyLocationService(this, 1));
+  add_dispatcher(m_dispatcher = new MyLocationDispatcher(this));
+  return true;
+}
+
+void MyLocationModule::on_stop()
+{
+  m_service = NULL;
+  m_dispatcher = NULL;
 }
 
 
@@ -365,8 +374,8 @@ int MyHttpService::svc()
 
 //MyHttpAcceptor//
 
-MyHttpAcceptor::MyHttpAcceptor(MyHttpModule * _module, MyBaseConnectionManager * _manager):
-    MyBaseAcceptor(_module, _manager)
+MyHttpAcceptor::MyHttpAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
+    MyBaseAcceptor(_dispatcher, _manager)
 {
   m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
 }
@@ -384,35 +393,45 @@ int MyHttpAcceptor::make_svc_handler(MyBaseHandler *& sh)
 MyHttpDispatcher::MyHttpDispatcher(MyBaseModule * pModule, int numThreads):
     MyBaseDispatcher(pModule, numThreads)
 {
-
-}
-
-int MyHttpDispatcher::open(void * p)
-{
-  if (MyBaseDispatcher::open(p) == -1)
-    return -1;
-  m_acceptor = new MyHttpAcceptor((MyHttpModule *)m_module, new MyBaseConnectionManager());
-  return 0;
-}
-
-void MyHttpDispatcher::on_stop()
-{
-  m_acceptor->stop();
-  delete m_acceptor;
   m_acceptor = NULL;
 }
 
+
+void MyHttpDispatcher::on_stop()
+{
+  m_acceptor = NULL;
+}
+
+bool MyHttpDispatcher::on_start()
+{
+  if (!m_acceptor)
+    m_acceptor = new MyHttpAcceptor(this, new MyBaseConnectionManager());
+  add_acceptor(m_acceptor);
+  return true;
+}
 
 //MyHttpModule//
 
 MyHttpModule::MyHttpModule(MyBaseApp * app): MyBaseModule(app)
 {
-  m_service = new MyHttpService(this, 1);
-  m_dispatcher = new MyHttpDispatcher(this);
-//  MyHttpProcessor::m_sumbitter = &m_ping_sumbitter;
+  m_service = NULL;
+  m_dispatcher = NULL;
 }
 
 MyHttpModule::~MyHttpModule()
 {
 
+}
+
+bool MyHttpModule::on_start()
+{
+  add_service(m_service = new MyHttpService(this, 1));
+  add_dispatcher(m_dispatcher = new MyHttpDispatcher(this));
+  return true;
+}
+
+void MyHttpModule::on_stop()
+{
+  m_service = NULL;
+  m_dispatcher = NULL;
 }
