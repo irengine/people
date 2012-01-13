@@ -91,9 +91,6 @@ class MyClientIDTable
 public:
   MyClientIDTable();
   bool contains(const MyClientID & id);
-//  bool contains(const char* id) const;
-//  MyBaseHandler * find_handler(long id);
-//  void set_handler(const MyClientID & id, MyBaseHandler * handler);
   void add(const MyClientID & id);
   void add(const char * str_id);
   void add_batch(char * idlist); //in the format of "12334434;33222334;34343111;..."
@@ -216,6 +213,11 @@ private:
 class MyBaseConnectionManager
 {
 public:
+  enum Connection_State
+  {
+    CS_Pending = 1,
+    CS_Connected = 2
+  };
   MyBaseConnectionManager();
   virtual ~MyBaseConnectionManager();
   int  num_connections() const;
@@ -224,16 +226,23 @@ public:
 
   void on_data_received(int data_size);
   void on_data_send(int data_size);
-  virtual void on_new_connection(MyBaseHandler *);
-  virtual void on_close_connection(MyBaseHandler *);
-  MyActiveConnectionPointer end();
+//  virtual void on_new_connection(MyBaseHandler *);
+//  virtual void on_close_connection(MyBaseHandler *);
+  void add_connection(MyBaseHandler * handler, Connection_State state);
+  void set_connection_state(MyBaseHandler * handler, Connection_State state);
+  void remove_connection(MyBaseHandler * handler);
   void detect_dead_connections();
 
 private:
+  typedef std::map<MyBaseHandler *, long> MyConnections;
+  typedef MyConnections::iterator MyConnectionsPtr;
+
+  MyConnectionsPtr find(MyBaseHandler * handler);
+
   int  m_num_connections;
   long long int m_bytes_received;
   long long int m_bytes_sent;
-  MyActiveConnections m_active_connections;
+  MyConnections m_active_connections;
 };
 
 
@@ -250,8 +259,6 @@ public:
   virtual ~MyBaseHandler();
 
   MyBaseConnectionManager * connection_manager();
-  void active_pointer(MyActiveConnectionPointer ptr);
-  MyActiveConnectionPointer active_pointer();
   MyBaseProcessor * processor() const;
   int send_data(ACE_Message_Block * mb);
 
@@ -261,9 +268,6 @@ protected:
 
   MyBaseConnectionManager * m_connection_manager;
   MyBaseProcessor * m_processor;
-
-private:
-  MyActiveConnectionPointer m_active_pointer;
 };
 
 class MyBaseAcceptor: public ACE_Acceptor<MyBaseHandler, ACE_SOCK_ACCEPTOR>
@@ -303,6 +307,7 @@ public:
   virtual ~MyBaseConnector();
 
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
+  virtual int handle_output(ACE_HANDLE fd = ACE_INVALID_HANDLE);
   MyBaseModule * module_x() const;
   MyBaseConnectionManager * connection_manager() const;
   MyBaseDispatcher * dispatcher() const;
@@ -330,7 +335,6 @@ protected:
   int m_tcp_port;
   std::string m_tcp_addr;
   int m_num_connection;
-  MyBaseHandler * m_unique_handler;
   int m_reconnect_interval;
   int m_reconnect_retry_count;
   long m_reconnect_timer_id;

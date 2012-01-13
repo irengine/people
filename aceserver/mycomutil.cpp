@@ -14,9 +14,10 @@ int mycomutil_translate_tcp_result(ssize_t transfer_return_value)
 {
   if (transfer_return_value == 0)
     return -1;
+  int err = ACE_OS::last_error();
   if (transfer_return_value < 0)
   {
-    if (errno == EWOULDBLOCK || errno == EAGAIN || errno == ENOBUFS) //see POSIX.1-2001
+    if (err == EWOULDBLOCK || err == EAGAIN || err == ENOBUFS) //see POSIX.1-2001
       return 0;
     return -1;
   }
@@ -41,6 +42,7 @@ int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH
 int mycomutil_send_message_block_queue(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler,
     ACE_Message_Block *mb, bool discard)
 {
+/*************
   if (!mb)
     return -1;
   int ret;
@@ -89,6 +91,46 @@ _exit_:
   if (discard)
     mb->release();
   return ret;
+*******/
+
+//the above implementation is error prone, rewrite to a simpler one
+  if (!mb)
+    return -1;
+  if (!handler)
+  {
+    MY_FATAL("null handler @mycomutil_send_message_block_queue.\n");
+    return -1;
+  }
+
+  MyMessageBlockGuard guard(discard ? mb: NULL);
+
+  if (!handler->msg_queue()->is_empty()) //sticky avoiding
+  {
+    ACE_Time_Value nowait(ACE_Time_Value::zero);
+    if (handler->putq(mb, &nowait) < 0)
+      return -1;
+    else
+    {
+      guard.detach();
+      return 1;
+    }
+  }
+
+  if (mycomutil_send_message_block(handler, mb) < 0)
+    return -1;
+
+  if (mb->length() == 0)
+    return 0;
+  else
+  {
+    ACE_Time_Value nowait(ACE_Time_Value::zero);
+    if (handler->putq(mb, &nowait) < 0)
+      return -1;
+    else
+      guard.detach();
+    handler->reactor()->register_handler(handler, ACE_Event_Handler::WRITE_MASK);
+    return 1;
+  }
 }
 
 int mycomutil_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb)

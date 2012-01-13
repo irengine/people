@@ -52,14 +52,14 @@ void MyClientApp::do_dump_info()
 void MyClientApp::dump_mem_pool_info()
 {
   ACE_DEBUG((LM_INFO, "  !!! Memory Dump start !!!\n"));
-  long nAlloc = 0, nFree = 0, nMaxUse = 0;
+  long nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
   if (!MyClientToDistHandler::mem_pool())
   {
     ACE_DEBUG((LM_INFO, "    Memory Pool Disabled\n"));
     goto _exit_;
   }
-  MyClientToDistHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse);
-  MyBaseApp::mem_pool_dump_one("MyClientToDistHandler", nAlloc, nFree, nMaxUse, sizeof(MyClientToDistHandler));
+  MyClientToDistHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+  MyBaseApp::mem_pool_dump_one("MyClientToDistHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToDistHandler));
   MyMemPoolFactoryX::instance()->dump_info();
 
 _exit_:

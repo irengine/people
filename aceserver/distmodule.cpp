@@ -175,7 +175,12 @@ MyHeartBeatAcceptor::MyHeartBeatAcceptor(MyBaseDispatcher * _dispatcher, MyBaseC
 
 int MyHeartBeatAcceptor::make_svc_handler(MyBaseHandler *& sh)
 {
-  ACE_NEW_RETURN(sh, MyHeartBeatHandler(m_connection_manager), -1);
+  sh = new MyHeartBeatHandler(m_connection_manager);
+  if (!sh)
+  {
+    MY_ERROR("can not alloc MyHeartBeatHandler from %s\n", name());
+    return -1;
+  }
   sh->reactor(reactor());
   return 0;
 }

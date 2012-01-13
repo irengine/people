@@ -732,12 +732,12 @@ void MyBaseApp::do_dump_info()
 
 }
 
-void MyBaseApp::mem_pool_dump_one(const char * poolname, long nAlloc, long nFree, long nMaxUse, int block_size)
+void MyBaseApp::mem_pool_dump_one(const char * poolname, long nAlloc, long nFree, long nMaxUse, long nAllocFull, int block_size)
 {
   long nInUse = nAlloc - nFree;
-  ACE_DEBUG((LM_INFO, ACE_TEXT("    mem pool[%s], inUse=%d, alloc=%d, "
-      "free=%d, peek=%d, block_size=%d\n"),
-      poolname, nInUse, nAlloc, nFree, nMaxUse, block_size));
+  ACE_DEBUG((LM_INFO, ACE_TEXT("    mem pool[%s], InUse=%d, Alloc=%d, "
+      "Free=%d, Peek=%d, AllocFail=%d, BlockSize=%d\n"),
+      poolname, nInUse, nAlloc, nFree, nMaxUse, nAllocFull, block_size));
 }
 
 void MyBaseApp::dump_info()

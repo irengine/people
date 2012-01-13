@@ -48,14 +48,14 @@ void MyServerApp::on_stop()
 void MyServerApp::dump_mem_pool_info()
 {
   ACE_DEBUG((LM_INFO, "  !!! Memory Dump start !!!\n"));
-  long nAlloc = 0, nFree = 0, nMaxUse = 0;
+  long nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
   if (!MyHeartBeatHandler::mem_pool())
   {
     ACE_DEBUG((LM_INFO, "    Memory Pool Disabled\n"));
     goto _exit_;
   }
-  MyHeartBeatHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse);
-  MyBaseApp::mem_pool_dump_one("MyHeartBeatHandler", nAlloc, nFree, nMaxUse, sizeof(MyHeartBeatHandler));
+  MyHeartBeatHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+  MyBaseApp::mem_pool_dump_one("MyHeartBeatHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatHandler));
   MyMemPoolFactoryX::instance()->dump_info();
 
 _exit_:
@@ -126,9 +126,6 @@ int main(int argc, const char * argv[])
     MyServerApp::app_init(argv[2], MyConfig::RM_UNKNOWN);
   else
     MyServerApp::app_init(NULL, MyConfig::RM_UNKNOWN);
-
-  ACE_DEBUG ((LM_DEBUG,
-              ACE_TEXT ("(%P|%t) 2\n")));
 
   MyServerAppX::instance()->start();
 #if 0

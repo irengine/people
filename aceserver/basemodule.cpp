@@ -5,8 +5,6 @@
 
 MyMemPoolFactory::MyMemPoolFactory()
 {
-//  m_header_pool = NULL;
-//  m_four_k_pool = NULL;
   m_message_block_pool = NULL;
   m_data_block_pool = NULL;
   m_use_mem_pool = false;
@@ -46,21 +44,34 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
 {
   if (capacity <= 0)
   {
-    MY_ERROR(ACE_TEXT("calling MyMemPoolFactory::get_message_block() with capacity <= 0 (= %d).\n"), capacity);
+    MY_ERROR(ACE_TEXT("calling MyMemPoolFactory::get_message_block() with capacity <= 0 (= %d)\n"), capacity);
     return NULL;
   }
   if (!m_use_mem_pool)
     return new ACE_Message_Block(capacity);
   int count = m_pools.size();
+  ACE_Message_Block * result;
+  bool bRetried = false;
+  void * p;
   for (int i = 0; i < count; ++i)
   {
-    MY_INFO("i = %d, capacity = %d, m_pools[i]->chunk_size() = %d\n", i, capacity, m_pools[i]->chunk_size());
     if (size_t(capacity) <= m_pools[i]->chunk_size())
     {
-      void * p = m_message_block_pool->malloc();
-      ACE_Message_Block * result = new (p) MyCached_Message_Block(capacity, m_pools[i], m_data_block_pool, m_message_block_pool);
-//      result->set_self_flags(ACE_Message_Block::USER_FLAGS);
-      return result;
+      p = m_message_block_pool->malloc();
+      if (!p) //no way to go on
+        return new ACE_Message_Block(capacity);
+      result = new (p) MyCached_Message_Block(capacity, m_pools[i], m_data_block_pool, m_message_block_pool);
+      if (!result->data_block())
+      {
+        result->release();
+        if (!bRetried)
+        {
+          bRetried = true;
+          continue;
+        } else
+          return new ACE_Message_Block(capacity);
+      } else
+        return result;
     }
   }
   return new ACE_Message_Block(capacity);
@@ -73,22 +84,22 @@ void MyMemPoolFactory::dump_info()
   if (!m_use_mem_pool)
     return;
 
-  long nAlloc = 0, nFree = 0, nMaxUse = 0;
-  m_message_block_pool->get_usage(nAlloc, nFree, nMaxUse);
-  MyBaseApp::mem_pool_dump_one("MessageBlockCtrlPool", nAlloc, nFree, nMaxUse, m_message_block_pool->chunk_size());
+  long nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
+  m_message_block_pool->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+  MyBaseApp::mem_pool_dump_one("MessageBlockCtrlPool", nAlloc, nFree, nMaxUse, nAllocFull, m_message_block_pool->chunk_size());
 
-  nAlloc = 0, nFree = 0, nMaxUse = 0;
-  m_data_block_pool->get_usage(nAlloc, nFree, nMaxUse);
-  MyBaseApp::mem_pool_dump_one("DataBlockCtrlPool", nAlloc, nFree, nMaxUse, m_data_block_pool->chunk_size());
+  nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
+  m_data_block_pool->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+  MyBaseApp::mem_pool_dump_one("DataBlockCtrlPool", nAlloc, nFree, nMaxUse, nAllocFull, m_data_block_pool->chunk_size());
 
   const int BUFF_LEN = 64;
   char buff[BUFF_LEN];
   for(int i = 0; i < (int)m_pools.size(); ++i)
   {
-    nAlloc = 0, nFree = 0, nMaxUse = 0;
-    m_pools[i]->get_usage(nAlloc, nFree, nMaxUse);
+    nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
+    m_pools[i]->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
     ACE_OS::snprintf(buff, BUFF_LEN, "DataPool.%d", i + 1);
-    MyBaseApp::mem_pool_dump_one(buff, nAlloc, nFree, nMaxUse, m_pools[i]->chunk_size());
+    MyBaseApp::mem_pool_dump_one(buff, nAlloc, nFree, nMaxUse, nAllocFull, m_pools[i]->chunk_size());
   }
 }
 
@@ -104,42 +115,6 @@ bool MyClientIDTable::contains(const MyClientID & id)
 {
   return (index_of(id) >= 0);
 }
-
-/*
-MyBaseHandler * MyClientIDTable::find_handler(long id)
-{
-  int index = index_of(id);
-  if (index < 0 || index > (int)m_table.size())
-    return NULL;
-  return m_table[index].handler;
-}
-
-void MyClientIDTable::set_handler(long id, MyBaseHandler * handler)
-{
-  int index = index_of(id);
-  if (!(index >= 0 && index <(int)m_table.size()))
-    return;
-  m_table[index].handler = handler;
-========================
-  ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_mutex);
-  ClientInfos_map::iterator it;
-  int index = index_of_i(id, &it);
-  bool bExisting = (index >= 0 && index <(int)m_infos.size());
-  bool bRemove = (handler == NULL);
-  if (bRemove)
-  {
-    if (!bExisting)
-      return;
-    m_infos[index].handler = handler;
-    m_map.
-  }else
-  {
-    m_infos[index].handler = handler;
-  }
-
-
-}
-*/
 
 void MyClientIDTable::add_i(const MyClientID & id)
 {
@@ -211,6 +186,7 @@ int MyClientIDTable::count()
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, -1);
   return m_table.size();
 }
+
 
 //MyBaseProcessor//
 
@@ -380,19 +356,15 @@ MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_header(const MyData
 
 MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_packet(ACE_Message_Block * mb)
 {
-  MyBaseProcessor::EVENT_RESULT result;
+  MyMessageBlockGuard guard(mb);
   if (mb->size() < sizeof(MyDataPacketHeader))
   {
     MY_ERROR(ACE_TEXT("message block size too little ( = %d)"), mb->size());
-    result = ER_ERROR;
-    goto _exit_;
+    return ER_ERROR;
   }
   mb->rd_ptr(mb->base());
 
-  result = on_recv_packet_i(mb);
-_exit_:
-  mb->release();
-  return result;
+  return on_recv_packet_i(mb);
 }
 
 
@@ -643,11 +615,6 @@ MyBaseConnectionManager::~MyBaseConnectionManager()
 
 }
 
-MyActiveConnectionPointer MyBaseConnectionManager::end()
-{
-  return m_active_connections.end();
-}
-
 int MyBaseConnectionManager::num_connections() const
 {
   return m_num_connections;
@@ -672,14 +639,14 @@ void MyBaseConnectionManager::on_data_send(int data_size)
 {
   m_bytes_sent += data_size;
 }
-
+/*
 void MyBaseConnectionManager::on_new_connection(MyBaseHandler * handler)
 {
   if (handler == NULL)
     return;
-  MyActiveConnectionPointer it = m_active_connections.insert(m_active_connections.end(), handler);
-  handler->active_pointer(it);
-  ++m_num_connections;
+//  MyActiveConnectionPointer it = m_active_connections.insert(m_active_connections.end(), handler);
+//  handler->active_pointer(it);
+//  ++m_num_connections;
 }
 
 void MyBaseConnectionManager::on_close_connection(MyBaseHandler * handler)
@@ -687,18 +654,16 @@ void MyBaseConnectionManager::on_close_connection(MyBaseHandler * handler)
   if (handler == NULL)
     return;
 
-  MyActiveConnectionPointer aPointer = handler->active_pointer();
-  if (aPointer == m_active_connections.end())
-    return;
-//  if (m_scan_pointer == aPointer)
-//    next_pointer();
-  m_active_connections.erase(aPointer);
-  --m_num_connections;
+//  MyActiveConnectionPointer aPointer = handler->active_pointer();
+//  if (aPointer == m_active_connections.end())
+    //return;
+//  m_active_connections.erase(aPointer);
+//  --m_num_connections;
 }
-
+*/
 
 void MyBaseConnectionManager::detect_dead_connections()
-{
+{/*
   MyActiveConnectionPointer aPointer, bPointer;
   for (aPointer = m_active_connections.begin(); aPointer != m_active_connections.end(); )
   {
@@ -708,16 +673,50 @@ void MyBaseConnectionManager::detect_dead_connections()
       ++aPointer;
       (*bPointer)->handle_close(ACE_INVALID_HANDLE, 0);
     }
+  }*/
+}
+
+void MyBaseConnectionManager::add_connection(MyBaseHandler * handler, Connection_State state)
+{
+  if (!handler)
+    return;
+  MyConnectionsPtr it = m_active_connections.lower_bound(handler);
+  if (it != m_active_connections.end() && ((*it).first == handler))
+  {
+    it->second = state;
+  } else
+  {
+    m_active_connections.insert(it, MyConnections::value_type(handler, state));
+    ++m_num_connections;
   }
 }
+
+void MyBaseConnectionManager::set_connection_state(MyBaseHandler * handler, Connection_State state)
+{
+  add_connection(handler, state);
+}
+
+void MyBaseConnectionManager::remove_connection(MyBaseHandler * handler)
+{
+  MyConnectionsPtr ptr = find(handler);
+  if (ptr != m_active_connections.end())
+  {
+    m_active_connections.erase(ptr);
+    --m_num_connections;
+  }
+}
+
+MyBaseConnectionManager::MyConnectionsPtr MyBaseConnectionManager::find(MyBaseHandler * handler)
+{
+  return m_active_connections.find(handler);
+}
+
 
 
 //MyBaseHandler//
 
 MyBaseHandler::MyBaseHandler(MyBaseConnectionManager * xptr)
 {
-  if (xptr)
-    m_active_pointer = xptr->end();
   m_connection_manager = xptr;
   m_processor = NULL;
 }
@@ -725,16 +724,6 @@ MyBaseHandler::MyBaseHandler(MyBaseConnectionManager * xptr)
 MyBaseConnectionManager * MyBaseHandler::connection_manager()
 {
   return m_connection_manager;
-}
-
-void MyBaseHandler::active_pointer(MyActiveConnectionPointer ptr)
-{
-  m_active_pointer = ptr;
-}
-
-MyActiveConnectionPointer MyBaseHandler::active_pointer()
-{
-  return m_active_pointer;
 }
 
 MyBaseProcessor * MyBaseHandler::processor() const
@@ -749,13 +738,16 @@ int MyBaseHandler::on_open()
 
 int MyBaseHandler::open(void * p)
 {
+  MY_DEBUG("MyBaseHandler::open(void * p = %X), this = %X\n", long(p), long(this));
   if (super::open(p) == -1)
     return -1;
-  if (m_connection_manager)
-    m_connection_manager->on_new_connection(this);
   if (on_open() < 0)
     return -1;
-  return m_processor->on_open();
+  if (m_processor->on_open() < 0)
+    return -1;
+  if (m_connection_manager)
+    m_connection_manager->set_connection_state(this, MyBaseConnectionManager::CS_Connected);
+  return 0;
 }
 
 int MyBaseHandler::send_data(ACE_Message_Block * mb)
@@ -797,12 +789,12 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
   }
   MY_DEBUG("handle_close.2 (handle = %d, mask=%x)\n", handle, close_mask);
   ACE_Message_Block *mb;
-  ACE_Time_Value nowait(ACE_OS::gettimeofday());
+  ACE_Time_Value nowait(ACE_Time_Value::zero);
   while (-1 != this->getq(mb, &nowait))
     mb->release();
   MY_DEBUG("handle_close.x (handle = %d, mask=%x)\n", handle, close_mask);
   if (m_connection_manager)
-    m_connection_manager->on_close_connection(this);
+    m_connection_manager->remove_connection(this);
   MY_DEBUG("handle_close.y (handle = %d, mask=%x)\n", handle, close_mask);
   on_close();
   //here comes the tricky part, parent class will NOT call delete as it normally does
@@ -823,7 +815,7 @@ int MyBaseHandler::handle_output (ACE_HANDLE fd)
 {
   ACE_UNUSED_ARG(fd);
   ACE_Message_Block *mb;
-  ACE_Time_Value nowait (ACE_OS::gettimeofday ());
+  ACE_Time_Value nowait (ACE_Time_Value::zero);
   while (-1 != this->getq(mb, &nowait))
   {
     if (mycomutil_send_message_block(this, mb) < 0)
@@ -942,7 +934,6 @@ MyBaseConnector::MyBaseConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectio
 {
   m_tcp_port = 0;
   m_num_connection = 1;
-  m_unique_handler = NULL;
   m_reconnect_interval = 0;
   m_reconnect_retry_count = 3;
   m_reconnect_timer_id = -1;
@@ -970,11 +961,6 @@ MyBaseDispatcher * MyBaseConnector::dispatcher() const
   return m_dispatcher;
 }
 
-MyBaseHandler * MyBaseConnector::unique_handler() const
-{
-  return m_unique_handler;
-}
-
 void MyBaseConnector::tcp_addr(const char * addr)
 {
   m_tcp_addr = (addr? addr:"");
@@ -1000,6 +986,14 @@ int MyBaseConnector::handle_timeout(const ACE_Time_Value &current_time, const vo
     }
   }
   return 0;
+}
+
+int MyBaseConnector::handle_output(ACE_HANDLE fd)
+{
+  MY_DEBUG("MyBaseConnector::handle_output(%X), this = %lX\n", fd, long(this));
+  int ret = super::handle_output(fd);
+  MY_DEBUG("MyBaseConnector::handle_output(%X), this = %lX, result = %d\n", fd, long(this), ret);
+  return ret;
 }
 
 int MyBaseConnector::start()
@@ -1083,22 +1077,24 @@ int MyBaseConnector::do_connect(int count)
   {
     handler = NULL;
     int ret_i = connect(handler, port_to_connect, synch_options);
+    MY_DEBUG("connect result = %d, handler = %X\n", ret_i, handler);
     if (ret_i == 0)
+    {
       ++ok_count;
+    }
     else if (ret_i == -1)
     {
       if (errno == EWOULDBLOCK)
+      {
         pending_count++;
+        m_connection_manager->add_connection(handler, MyBaseConnectionManager::CS_Pending);
+      }
     }
-
   }
-  MY_INFO(ACE_TEXT("connecting on %s:%d (total = %d, ok = %d, failed = %d, pending = %d)... \n"),
+
+  MY_INFO(ACE_TEXT("connecting on %s:%d (total=%d, ok=%d, failed=%d, pending=%d)... \n"),
       m_tcp_addr.c_str(), m_tcp_port, count, ok_count, count - ok_count- pending_count, pending_count);
 
-  if (m_num_connection == 1 && ok_count == 1)
-  {
-    m_unique_handler = handler;
-  }
   return ok_count + pending_count > 0;
 }
 
@@ -1321,7 +1317,7 @@ int MyBaseDispatcher::handle_timeout (const ACE_Time_Value &tv,
   ACE_UNUSED_ARG(act);
 
   ACE_Message_Block *mb;
-  ACE_Time_Value nowait(ACE_OS::gettimeofday ());
+  ACE_Time_Value nowait(ACE_Time_Value::zero);
   int i = 0;
   while (-1 != this->getq(mb, &nowait))
   {

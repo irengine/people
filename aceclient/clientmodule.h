@@ -62,7 +62,7 @@ public:
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
   void setup_timer();
 
-  DECLARE_MEMORY_POOL(MyClientToDistHandler, ACE_Thread_Mutex);
+  DECLARE_MEMORY_POOL__NOTHROW(MyClientToDistHandler, ACE_Thread_Mutex);
 
 protected:
   virtual void on_close();

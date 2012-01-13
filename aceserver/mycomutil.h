@@ -85,6 +85,24 @@ public:
   }
 };
 
+class MyMessageBlockGuard
+{
+public:
+  MyMessageBlockGuard(ACE_Message_Block * mb): m_mb(mb)
+  {}
+  ~MyMessageBlockGuard()
+  {
+    if (m_mb)
+      m_mb->release();
+  }
+  void detach()
+  {
+    m_mb = NULL;
+  }
+private:
+  ACE_Message_Block * m_mb;
+};
+
 template <class ACE_LOCK> class My_Cached_Allocator: public ACE_Dynamic_Cached_Allocator<ACE_LOCK>
 {
 public:
@@ -96,19 +114,26 @@ public:
     m_free_count = 0;
     m_max_in_use_count = 0;
     m_chunk_size = chunk_size;
+    m_alloc_on_full_count = 0;
   }
 
   virtual ~My_Cached_Allocator() {}
 
   virtual void *malloc (size_t nbytes = 0)
   {
-    {
-      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, 0));
-      ++m_alloc_count;
-      if (m_alloc_count - m_free_count > m_max_in_use_count)
-        m_max_in_use_count = m_alloc_count - m_free_count;
-    }
     void * result = super::malloc(nbytes);
+
+    {
+      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, result));
+      if (result)
+      {
+        ++m_alloc_count;
+        if (m_alloc_count - m_free_count > m_max_in_use_count)
+          m_max_in_use_count = m_alloc_count - m_free_count;
+      } else
+        ++m_alloc_on_full_count;
+    }
+
     MY_DEBUG(ACE_TEXT("call My_Cached_Allocator.malloc(%d) = %@ from chunk_size = %d\n"),
         nbytes, result, m_chunk_size);
     return result;
@@ -117,13 +142,18 @@ public:
   virtual void *calloc (size_t nbytes,
                           char initial_value = '\0')
   {
-    {
-      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, 0));
-      ++m_alloc_count;
-      if (m_alloc_count - m_free_count > m_max_in_use_count)
-        m_max_in_use_count = m_alloc_count - m_free_count;
-    }
     void * result = super::calloc(nbytes, initial_value);
+    {
+      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, result));
+      if (result)
+      {
+        ++m_alloc_count;
+        if (m_alloc_count - m_free_count > m_max_in_use_count)
+          m_max_in_use_count = m_alloc_count - m_free_count;
+      } else
+        ++m_alloc_on_full_count;
+    }
+
     MY_DEBUG(ACE_TEXT("call My_Cached_Allocator.calloc(%d) = %@ from chunk_size = %d\n"),
         nbytes, result, m_chunk_size);
     return result;
@@ -142,12 +172,13 @@ public:
     super::free(p);
   }
 
-  void get_usage(long & alloc_count, long &free_count, long & max_in_use_count)
+  void get_usage(long & alloc_count, long &free_count, long & max_in_use_count, long &alloc_on_full_count)
   {
     ACE_MT (ACE_GUARD(ACE_LOCK, ace_mon, this->m_mutex));
     alloc_count = m_alloc_count;
     free_count = m_free_count;
     max_in_use_count = m_max_in_use_count;
+    alloc_on_full_count = m_alloc_on_full_count;
   }
 
   size_t chunk_size() const
@@ -161,6 +192,7 @@ private:
   long m_alloc_count;
   long m_free_count;
   long m_max_in_use_count;
+  long m_alloc_on_full_count;
 };
 
 #define DECLARE_MEMORY_POOL(Cls, Mutex) \
@@ -223,7 +255,7 @@ private:
         return ::operator new(_size); \
       return m_mem_pool->malloc(); \
     } \
-    static void operator delete(void* _ptr, size_t size) \
+    static void operator delete(void* _ptr) \
     { \
       if (_ptr != NULL) \
       { \
@@ -247,6 +279,10 @@ private:
         delete m_mem_pool; \
         m_mem_pool = NULL; \
       } \
+    } \
+    static Mem_Pool * mem_pool() \
+    { \
+      return m_mem_pool; \
     } \
   private: \
     static Mem_Pool * m_mem_pool

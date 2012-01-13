@@ -305,8 +305,13 @@ const char * MyClientToDistConnector::name() const
 
 int MyClientToDistConnector::make_svc_handler(MyBaseHandler *& sh)
 {
-  ACE_NEW_RETURN(sh, MyClientToDistHandler(m_connection_manager), -1);
-  MY_DEBUG("setting MyClientToDistHandler's reactor()...\n");
+  sh = new MyClientToDistHandler(m_connection_manager);
+  if (!sh)
+  {
+    MY_ERROR("can not alloc MyClientToDistHandler from %s", name());
+    return -1;
+  }
+  MY_DEBUG("MyClientToDistConnector::make_svc_handler(%X)...\n", long(sh));
   sh->reactor(reactor());
   return 0;
 }

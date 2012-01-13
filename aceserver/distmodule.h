@@ -48,10 +48,7 @@ public:
 private:
   void do_submit();
   void reset();
-  enum
-  {
-    BLOCK_SIZE = 4096
-  };
+  enum { BLOCK_SIZE = 4096 };
   ACE_Message_Block * m_current_block;
   long m_last_add;
   char * m_current_ptr;
@@ -64,7 +61,7 @@ class MyHeartBeatHandler: public MyBaseHandler
 {
 public:
   MyHeartBeatHandler(MyBaseConnectionManager * xptr = NULL);
-  DECLARE_MEMORY_POOL(MyHeartBeatHandler, ACE_Thread_Mutex);
+  DECLARE_MEMORY_POOL__NOTHROW(MyHeartBeatHandler, ACE_Thread_Mutex);
 };
 
 class MyHeartBeatService: public MyBaseService
