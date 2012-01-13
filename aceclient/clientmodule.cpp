@@ -292,8 +292,10 @@ MyClientToDistConnector::MyClientToDistConnector(MyBaseDispatcher * _dispatcher,
     MyBaseConnector(_dispatcher, _manager)
 {
   m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
-  m_tcp_addr = "localhost"; //todo
+  //m_tcp_addr = "localhost"; //todo
+  m_reconnect_interval = 2;
 #ifdef MY_client_test
+  m_tcp_addr = MyConfigX::instance()->dist_server_addr;
   m_num_connection = MyConfigX::instance()->test_client_connection_number;
 #endif
 }

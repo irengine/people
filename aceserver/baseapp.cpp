@@ -79,6 +79,9 @@ const ACE_TCHAR * CONFIG_module_heart_beat_mem_pool_size = ACE_TEXT("module.hear
 
 //client specific
 const ACE_TCHAR * CONFIG_client_heart_beat_interval = ACE_TEXT("module.client_heart_beat_interval");
+#if defined(MY_client_test)
+  const ACE_TCHAR * CONFIG_dist_server_addr = ACE_TEXT("module.test_dist_server_addr");
+#endif
 
 
 MyConfig::MyConfig()
@@ -149,9 +152,9 @@ void MyConfig::init_path(const char * app_home_path)
     exe_path = app_path + "/bin";
   }
 
-  status_file_name = app_path + "/running/aceserver.pid";
-  log_file_name = app_path + "/log/aceserver.log";
-  config_file_name = app_path + "/config/aceserver.cfg";
+  status_file_name = app_path + "/running/app.pid";
+  log_file_name = app_path + "/log/app.log";
+  config_file_name = app_path + "/config/app.cfg";
 
 }
 
@@ -367,6 +370,17 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
     else
       client_heart_beat_interval = ival;
   }
+
+#ifdef MY_client_test
+  ACE_TString sval;
+  if (cfgHeap.get_string_value(section, CONFIG_dist_server_addr, sval) == 0)
+    dist_server_addr = sval.c_str();
+  else
+  {
+    MY_ERROR("can not read config value %s\n", CONFIG_dist_server_addr);
+    return false;
+  }
+#endif
 
   return true;
 }
@@ -652,7 +666,7 @@ void MyBaseApp::do_constructor()
                              0, interval, interval);
   }
 
-  ACE_Time_Value interval(10);
+  ACE_Time_Value interval(CLOCK_INTERVAL);
   ACE_Reactor::instance()->schedule_timer(&m_clock, 0, interval, interval);
 }
 

@@ -132,15 +132,12 @@ public:
   bool dead() const;
   void update_last_activity();
   long last_activity() const;
-  bool check_activity() const;
-  void check_activity(bool bCheck);
 
 protected:
   int handle_input_wait_for_close();
   MyBaseHandler * m_handler;
   long m_last_activity;
   bool m_wait_for_close;
-  bool m_check_activity;
 };
 
 class MyBasePacketProcessor: public MyBaseProcessor
@@ -221,17 +218,21 @@ public:
   MyBaseConnectionManager();
   virtual ~MyBaseConnectionManager();
   int  num_connections() const;
+  int  reaped_connections() const;
   long long int bytes_received() const;
   long long int bytes_sent() const;
 
   void on_data_received(int data_size);
   void on_data_send(int data_size);
-//  virtual void on_new_connection(MyBaseHandler *);
-//  virtual void on_close_connection(MyBaseHandler *);
+
   void add_connection(MyBaseHandler * handler, Connection_State state);
   void set_connection_state(MyBaseHandler * handler, Connection_State state);
   void remove_connection(MyBaseHandler * handler);
-  void detect_dead_connections();
+
+  void detect_dead_connections(int timeout);
+  void lock();
+  void unlock();
+  bool locked() const;
 
 private:
   typedef std::map<MyBaseHandler *, long> MyConnections;
@@ -240,11 +241,31 @@ private:
   MyConnectionsPtr find(MyBaseHandler * handler);
 
   int  m_num_connections;
+  int  m_reaped_connections;
   long long int m_bytes_received;
   long long int m_bytes_sent;
+  bool m_locked;
   MyConnections m_active_connections;
 };
 
+class MyConnectionManagerLockGuard
+{
+public:
+  MyConnectionManagerLockGuard(MyBaseConnectionManager * p): m_p(p)
+  {
+    if (m_p)
+      m_p->lock();
+  }
+
+  ~MyConnectionManagerLockGuard()
+  {
+    if (m_p)
+      m_p->unlock();
+  }
+
+private:
+  MyBaseConnectionManager * m_p;
+};
 
 class MyBaseHandler: public ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH>
 {
@@ -276,7 +297,7 @@ public:
   typedef ACE_Acceptor<MyBaseHandler, ACE_SOCK_ACCEPTOR>  super;
   MyBaseAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
   virtual ~MyBaseAcceptor();
-
+  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
   MyBaseModule * module_x() const;
   MyBaseConnectionManager * connection_manager() const;
   MyBaseDispatcher * dispatcher() const;
@@ -287,15 +308,23 @@ public:
   virtual const char * name() const;
 
 protected:
+  enum
+  {
+    TIMER_ID_check_dead_connection = 1,
+    TIMER_ID_reserved_1,
+    TIMER_ID_reserved_2,
+    TIMER_ID_reserved_3,
+  };
   virtual void do_dump_info();
+  virtual bool on_start();
+  virtual void on_stop();
 
-//  bool next_pointer();
-
-//  MyActiveConnectionPointer m_scan_pointer;
   MyBaseDispatcher * m_dispatcher;
   MyBaseModule * m_module;
   MyBaseConnectionManager * m_connection_manager;
   int m_tcp_port;
+  int m_idle_time_as_dead; //in minutes
+  int m_idle_connection_timer_id;
 };
 
 
@@ -321,11 +350,15 @@ public:
 protected:
   enum
   {
-    RECONNECT_TIMER = 1,
-    UNUSED_TIMER_1,
-    UNUSED_TIMER_2
+    TIMER_ID_check_dead_connection = 1,
+    TIMER_ID_reconnect = 2,
+    TIMER_ID_reserved_1,
+    TIMER_ID_reserved_2,
+    TIMER_ID_reserved_3,
   };
   int do_connect(int count = 1);
+  virtual bool on_start();
+  virtual void on_stop();
   virtual void do_dump_info();
   virtual bool before_reconnect();
 
@@ -335,9 +368,11 @@ protected:
   int m_tcp_port;
   std::string m_tcp_addr;
   int m_num_connection;
-  int m_reconnect_interval;
+  int m_reconnect_interval; //in minutes
   int m_reconnect_retry_count;
   long m_reconnect_timer_id;
+  int m_idle_time_as_dead; //in minutes
+  int m_idle_connection_timer_id;
 };
 
 

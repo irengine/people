@@ -72,6 +72,9 @@ public:
 
   //client only
   int client_heart_beat_interval;
+#if defined(MY_client_test)
+  std::string dist_server_addr;
+#endif
 
   //dist only
   int module_heart_beat_mem_pool_size;
@@ -141,6 +144,7 @@ private:
 class MyBaseApp
 {
 public:
+  enum { CLOCK_INTERVAL = 10 };
   MyBaseApp();
   virtual ~MyBaseApp();
 

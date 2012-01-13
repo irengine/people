@@ -171,6 +171,7 @@ MyHeartBeatAcceptor::MyHeartBeatAcceptor(MyBaseDispatcher * _dispatcher, MyBaseC
     MyBaseAcceptor(_dispatcher, _manager)
 {
   m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
+  m_idle_time_as_dead = 5; //todo: change default idle as dead time.
 }
 
 int MyHeartBeatAcceptor::make_svc_handler(MyBaseHandler *& sh)

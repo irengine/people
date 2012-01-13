@@ -195,7 +195,6 @@ MyBaseProcessor::MyBaseProcessor(MyBaseHandler * handler)
   m_handler = handler;
   m_wait_for_close = false;
   m_last_activity = g_clock_tick;
-  m_check_activity = true;
 }
 
 MyBaseProcessor::~MyBaseProcessor()
@@ -248,16 +247,6 @@ void MyBaseProcessor::update_last_activity()
 long MyBaseProcessor::last_activity() const
 {
   return m_last_activity;
-}
-
-bool MyBaseProcessor::check_activity() const
-{
-  return m_check_activity;
-}
-
-void MyBaseProcessor::check_activity(bool bCheck)
-{
-  m_check_activity = bCheck;
 }
 
 
@@ -608,16 +597,31 @@ MyBaseConnectionManager::MyBaseConnectionManager()
   m_num_connections = 0;
   m_bytes_received = 0;
   m_bytes_sent = 0;
+  m_reaped_connections = 0;
+  m_locked = false;
 }
 
 MyBaseConnectionManager::~MyBaseConnectionManager()
 {
-
+  MyConnectionsPtr it;
+  MyBaseHandler * handler;
+  MyConnectionManagerLockGuard guard(this);
+  for (it = m_active_connections.begin(); it != m_active_connections.end(); ++it)
+  {
+    handler = it->first;
+    if (handler)
+      handler->handle_close(handler->get_handle(), 0);
+  }
 }
 
 int MyBaseConnectionManager::num_connections() const
 {
   return m_num_connections;
+}
+
+int MyBaseConnectionManager::reaped_connections() const
+{
+  return m_reaped_connections;
 }
 
 long long int MyBaseConnectionManager::bytes_received() const
@@ -639,46 +643,54 @@ void MyBaseConnectionManager::on_data_send(int data_size)
 {
   m_bytes_sent += data_size;
 }
-/*
-void MyBaseConnectionManager::on_new_connection(MyBaseHandler * handler)
+
+void MyBaseConnectionManager::lock()
 {
-  if (handler == NULL)
-    return;
-//  MyActiveConnectionPointer it = m_active_connections.insert(m_active_connections.end(), handler);
-//  handler->active_pointer(it);
-//  ++m_num_connections;
+  m_locked = true;
 }
 
-void MyBaseConnectionManager::on_close_connection(MyBaseHandler * handler)
+void MyBaseConnectionManager::unlock()
 {
-  if (handler == NULL)
-    return;
-
-//  MyActiveConnectionPointer aPointer = handler->active_pointer();
-//  if (aPointer == m_active_connections.end())
-    //return;
-//  m_active_connections.erase(aPointer);
-//  --m_num_connections;
+  m_locked = false;
 }
-*/
 
-void MyBaseConnectionManager::detect_dead_connections()
-{/*
-  MyActiveConnectionPointer aPointer, bPointer;
-  for (aPointer = m_active_connections.begin(); aPointer != m_active_connections.end(); )
+bool MyBaseConnectionManager::locked() const
+{
+  return m_locked;
+}
+
+void MyBaseConnectionManager::detect_dead_connections(int timeout)
+{
+  MyConnectionsPtr it;
+  MyBaseHandler * handler;
+  MyConnectionManagerLockGuard guard(this);
+  long deadline = g_clock_tick - long(timeout * 60 / MyBaseApp::CLOCK_INTERVAL);
+  for (it = m_active_connections.begin(); it != m_active_connections.end();)
   {
-    if ((*aPointer)->processor()->dead())
+    handler = it->first;
+    if (!handler)
     {
-      bPointer = aPointer;
-      ++aPointer;
-      (*bPointer)->handle_close(ACE_INVALID_HANDLE, 0);
+      m_active_connections.erase(it++);
+      --m_num_connections;
+      ++m_reaped_connections;
+      continue;
     }
-  }*/
+
+    if (handler->processor()->last_activity() < deadline)
+    {
+      handler->handle_close(handler->get_handle(), 0);
+      m_active_connections.erase(it++);
+      --m_num_connections;
+      ++m_reaped_connections;
+    }
+    else
+      ++it;
+  }
 }
 
 void MyBaseConnectionManager::add_connection(MyBaseHandler * handler, Connection_State state)
 {
-  if (!handler)
+  if (!handler || m_locked)
     return;
   MyConnectionsPtr it = m_active_connections.lower_bound(handler);
   if (it != m_active_connections.end() && ((*it).first == handler))
@@ -698,6 +710,8 @@ void MyBaseConnectionManager::set_connection_state(MyBaseHandler * handler, Conn
 
 void MyBaseConnectionManager::remove_connection(MyBaseHandler * handler)
 {
+  if (m_locked)
+    return;
   MyConnectionsPtr ptr = find(handler);
   if (ptr != m_active_connections.end())
   {
@@ -838,9 +852,6 @@ int MyBaseHandler::handle_output (ACE_HANDLE fd)
 MyBaseHandler::~MyBaseHandler()
 {
   delete m_processor;
-//  ACE_DEBUG ((LM_DEBUG,
-//              ACE_TEXT ("(%P|%t) deleting MyBaseHandler objects %X\n"),
-//              (long)this));
 }
 
 
@@ -851,6 +862,7 @@ MyBaseAcceptor::MyBaseAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionM
 {
   m_tcp_port = 0;
   m_module = m_dispatcher->module_x();
+  m_idle_connection_timer_id = -1;
 }
 
 MyBaseAcceptor::~MyBaseAcceptor()
@@ -874,28 +886,65 @@ MyBaseConnectionManager * MyBaseAcceptor::connection_manager() const
   return m_connection_manager;
 }
 
+bool MyBaseAcceptor::on_start()
+{
+  return true;
+}
+
+void MyBaseAcceptor::on_stop()
+{
+
+}
+
+int MyBaseAcceptor::handle_timeout(const ACE_Time_Value &, const void *act)
+{
+  if (long(act) == TIMER_ID_check_dead_connection)
+    m_connection_manager->detect_dead_connections(m_idle_time_as_dead);
+  return 0;
+}
+
 int MyBaseAcceptor::start()
 {
-  reactor(m_dispatcher->reactor());
-
   if (m_tcp_port <= 0)
   {
     MY_FATAL(ACE_TEXT ("attempt to listen on invalid port %d\n"), m_tcp_port);
     return -1;
   }
   ACE_INET_Addr port_to_listen (m_tcp_port);
+  m_connection_manager->unlock();
 
   int ret = super::open (port_to_listen, m_dispatcher->reactor(), ACE_NONBLOCK);
-
   if (ret == 0)
     MY_INFO(ACE_TEXT ("listening on port %d... OK\n"), m_tcp_port);
-  else if (ret == -1)
+  else if (ret < 0)
+  {
     MY_ERROR(ACE_TEXT ("acceptor.open on port %d failed!\n"), m_tcp_port);
-  return ret;
+    return -1;
+  }
+
+  if (m_idle_time_as_dead > 0)
+  {
+    ACE_Time_Value tv( m_idle_time_as_dead * 60);
+    m_idle_connection_timer_id = reactor()->schedule_timer(this, (void*)TIMER_ID_check_dead_connection, tv, tv);
+    if (m_idle_connection_timer_id < 0)
+    {
+      MY_ERROR("can not setup dead connection timer @%s\n", name());
+      return -1;
+    }
+  }
+
+  if (!on_start())
+    return -1;
+
+  return 0;
 }
 
 int MyBaseAcceptor::stop()
 {
+  on_stop();
+  m_connection_manager->lock();
+  if (m_idle_connection_timer_id >= 0)
+    reactor()->cancel_timer(m_idle_connection_timer_id);
   close();
   return 0;
 }
@@ -906,6 +955,8 @@ void MyBaseAcceptor::do_dump_info()
   char buff[BUFF_LEN];
   //it seems that ACE's logging system can not handle 64bit formatting, let's do it ourself
   ACE_OS::snprintf(buff, BUFF_LEN, "        connection number = %d\n", m_connection_manager->num_connections());
+  ACE_DEBUG((LM_INFO, buff));
+  ACE_OS::snprintf(buff, BUFF_LEN, "        dead connection closed = %d\n", m_connection_manager->reaped_connections());
   ACE_DEBUG((LM_INFO, buff));
   ACE_OS::snprintf(buff, BUFF_LEN, "        bytes_received = %lld\n", (long long int) m_connection_manager->bytes_received());
   ACE_DEBUG((LM_INFO, buff));
@@ -938,6 +989,8 @@ MyBaseConnector::MyBaseConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectio
   m_reconnect_retry_count = 3;
   m_reconnect_timer_id = -1;
   m_module = m_dispatcher->module_x();
+  m_idle_time_as_dead = 0; //in minutes
+  m_idle_connection_timer_id = -1;
 }
 
 MyBaseConnector::~MyBaseConnector()
@@ -974,7 +1027,7 @@ bool MyBaseConnector::before_reconnect()
 int MyBaseConnector::handle_timeout(const ACE_Time_Value &current_time, const void *act)
 {
   ACE_UNUSED_ARG(current_time);
-  if (long(act) == RECONNECT_TIMER && m_reconnect_interval > 0)
+  if (long(act) == TIMER_ID_reconnect && m_reconnect_interval > 0)
   {
     if (m_connection_manager->num_connections() < m_num_connection)
     {
@@ -984,7 +1037,9 @@ int MyBaseConnector::handle_timeout(const ACE_Time_Value &current_time, const vo
         do_connect(m_num_connection - m_connection_manager->num_connections());
       }
     }
-  }
+  } else if (long(act) == TIMER_ID_check_dead_connection && m_idle_time_as_dead > 0)
+    m_connection_manager->detect_dead_connections(m_idle_time_as_dead);
+
   return 0;
 }
 
@@ -996,11 +1051,21 @@ int MyBaseConnector::handle_output(ACE_HANDLE fd)
   return ret;
 }
 
+bool MyBaseConnector::on_start()
+{
+  return true;
+}
+
+void MyBaseConnector::on_stop()
+{
+
+}
+
 int MyBaseConnector::start()
 {
+  m_connection_manager->unlock();
   if (open(m_dispatcher->reactor(), ACE_NONBLOCK) == -1)
     return -1;
-  reactor(m_dispatcher->reactor());
   m_reconnect_retry_count = 1;
 
   if (m_tcp_port <= 0)
@@ -1019,10 +1084,25 @@ int MyBaseConnector::start()
   if (m_reconnect_interval > 0)
   {
     ACE_Time_Value interval (m_reconnect_interval * 60);
-    m_reconnect_timer_id = reactor()->schedule_timer (this, (void*)RECONNECT_TIMER, interval, interval);
+    m_reconnect_timer_id = reactor()->schedule_timer (this, (void*)TIMER_ID_reconnect, interval, interval);
     if (m_reconnect_timer_id < 0)
       MY_ERROR(ACE_TEXT("MyBaseConnector setup reconnect timer failed, %s"), (const char*)MyErrno());
   }
+
+  if (m_idle_time_as_dead > 0)
+  {
+    ACE_Time_Value tv( m_idle_time_as_dead * 60);
+    m_idle_connection_timer_id = reactor()->schedule_timer(this, (void*)TIMER_ID_check_dead_connection, tv, tv);
+    if (m_idle_connection_timer_id < 0)
+    {
+      MY_ERROR("can not setup dead connection timer @%s\n", name());
+      return -1;
+    }
+  }
+
+  if (!on_start())
+    return -1;
+
   return 0; //
 }
 
@@ -1031,6 +1111,8 @@ void MyBaseConnector::do_dump_info()
   const int BUFF_LEN = 1024;
   char buff[BUFF_LEN];
   ACE_OS::snprintf(buff, BUFF_LEN, "        connection number = %d\n", m_connection_manager->num_connections());
+  ACE_DEBUG((LM_INFO, buff));
+  ACE_OS::snprintf(buff, BUFF_LEN, "        dead connection closed = %d\n", m_connection_manager->reaped_connections());
   ACE_DEBUG((LM_INFO, buff));
   ACE_OS::snprintf(buff, BUFF_LEN, "        bytes_received = %lld\n", (long long int) m_connection_manager->bytes_received());
   ACE_DEBUG((LM_INFO, buff));
@@ -1052,9 +1134,12 @@ const char * MyBaseConnector::name() const
 
 int MyBaseConnector::stop()
 {
+  on_stop();
   if (m_reconnect_timer_id >= 0)
     reactor()->cancel_timer(m_reconnect_timer_id);
-
+  if (m_idle_connection_timer_id >= 0)
+    reactor()->cancel_timer(m_idle_connection_timer_id);
+  m_connection_manager->lock();
   close();
   return 0;
 }
@@ -1270,12 +1355,12 @@ void MyBaseDispatcher::do_stop_i()
   msg_queue()->flush();
   if (m_reactor && m_clock_interval > 0)
     m_reactor->cancel_timer(this);
-  if (m_reactor)
-    m_reactor->close();
   std::for_each(m_connectors.begin(), m_connectors.end(), std::mem_fun(&MyBaseConnector::stop));
   std::for_each(m_acceptors.begin(), m_acceptors.end(), std::mem_fun(&MyBaseAcceptor::stop));
   std::for_each(m_connectors.begin(), m_connectors.end(), MyObjectDeletor());
   std::for_each(m_acceptors.begin(), m_acceptors.end(), MyObjectDeletor());
+  if (m_reactor)
+    m_reactor->close();
   m_connectors.clear();
   m_acceptors.clear();
   on_stop();
@@ -1325,9 +1410,6 @@ int MyBaseDispatcher::handle_timeout (const ACE_Time_Value &tv,
     if (i >= m_numBatchSend)
       return 0;
   }
-//  ACE_DEBUG ((LM_DEBUG,
-//             ACE_TEXT ("(%P|%t) connections:=%d, received_bytes=%d, processed=%d\n"),
-//             acceptor()->num_connections(), acceptor()->bytes_received(), acceptor()->bytes_sent()));
 
   return 0;
 }
@@ -1343,8 +1425,6 @@ MyBaseModule::MyBaseModule(MyBaseApp * app): m_app(app), m_running(false)
 MyBaseModule::~MyBaseModule()
 {
   stop();
-  std::for_each(m_services.begin(), m_services.end(), MyObjectDeletor());
-  std::for_each(m_dispatchers.begin(), m_dispatchers.end(), MyObjectDeletor());
 }
 
 bool MyBaseModule::running() const
