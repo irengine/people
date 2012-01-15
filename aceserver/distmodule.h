@@ -54,6 +54,10 @@ private:
   char * m_current_ptr;
   int  m_current_length;
 
+#ifdef MY_server_test
+  int m_fd;
+#endif
+
   //todo: add target
 };
 
@@ -69,6 +73,13 @@ class MyHeartBeatService: public MyBaseService
 public:
   MyHeartBeatService(MyBaseModule * module, int numThreads = 1);
   virtual int svc();
+
+protected:
+  enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
+
+  void calc_server_file_md5_list(ACE_Message_Block * mb);
+  void calc_server_file_md5_list_one(const char * client_id);
+  ACE_Message_Block * make_server_file_md5_list_mb(int list_len, int client_id_index);
 };
 
 class MyHeartBeatDispatcher: public MyBaseDispatcher
@@ -76,12 +87,15 @@ class MyHeartBeatDispatcher: public MyBaseDispatcher
 public:
   MyHeartBeatDispatcher(MyBaseModule * pModule, int numThreads = 1);
   virtual const char * name() const;
-
+  virtual int handle_timeout (const ACE_Time_Value &tv,
+                              const void *act);
 protected:
   virtual void on_stop();
   virtual bool on_start();
 
 private:
+  enum { CLOCK_INTERVAL = 3 }; //in seconds, the interval of picking send out packages
+  enum { MSG_QUEUE_MAX_SIZE = 20 * 1024 * 1024 };
   MyHeartBeatAcceptor * m_acceptor;
 };
 
@@ -99,7 +113,9 @@ class MyHeartBeatModule: public MyBaseModule
 public:
   MyHeartBeatModule(MyBaseApp * app);
   virtual ~MyHeartBeatModule();
+  MyHeartBeatDispatcher * dispatcher() const;
   virtual const char * name() const;
+  MyHeartBeatService * service() const;
 
 protected:
   virtual bool on_start();

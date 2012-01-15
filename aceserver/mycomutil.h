@@ -85,6 +85,15 @@ public:
   }
 };
 
+class MyPointerLess
+{
+public:
+  template <typename T> bool operator()(T t1, T t2) const
+  {
+    return *t1 < *t2;
+  }
+};
+
 class MyMessageBlockGuard
 {
 public:
@@ -338,7 +347,18 @@ private:
   MyClientIDList m_id_list;
 };
 
+class MyTestClientPathGenerator
+{
+public:
+  static void make_paths(const char * app_data_path, int64_t _start, int _count);
+  static bool make_path(char* path, int prefix_len, bool is_file);
+  static bool make_path(const char * path, const char * subpath, bool is_file);
+  static bool client_id_to_path(const char * id, char * result, int result_len);
+};
+
 #endif //MY_client_test
+
+void mycomutil_hex_dump(void * ptr, int len, char * result_buff, int buff_len);
 
 int mycomutil_translate_tcp_result(ssize_t transfer_return_value);
 int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);

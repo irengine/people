@@ -79,6 +79,13 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
 
 MyPingSubmitter::MyPingSubmitter()
 {
+#ifdef MY_server_test
+  std::string s = MyConfigX::instance()->app_test_data_path + "/heartbeat.log";
+  m_fd = open(s.c_str(), O_WRONLY | O_APPEND | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+  if (m_fd < 0)
+    MY_ERROR("can not open test heart beat logger file: %s %s\n", s.c_str(), (const char*)MyErrno());
+#endif
+
   reset();
 }
 
@@ -115,6 +122,10 @@ void MyPingSubmitter::do_submit()
 {
   m_current_block->wr_ptr(m_current_length);
   //todo: do sumbit now
+#ifdef MY_server_test
+  if (m_fd >= 0)
+    write(m_fd, m_current_block->base(), m_current_length);
+#endif
   m_current_block->release(); //just a test
   //
   reset();
@@ -128,6 +139,7 @@ void MyPingSubmitter::check_time_out()
     do_submit();
 }
 
+
 //MyHeartBeatHandler//
 
 MyHeartBeatHandler::MyHeartBeatHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
@@ -137,31 +149,99 @@ MyHeartBeatHandler::MyHeartBeatHandler(MyBaseConnectionManager * xptr): MyBaseHa
 
 PREPARE_MEMORY_POOL(MyHeartBeatHandler);
 
+
 //MyHeartBeatService//
 
 MyHeartBeatService::MyHeartBeatService(MyBaseModule * module, int numThreads):
     MyBaseService(module, numThreads)
 {
+  msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 
 }
 
 int MyHeartBeatService::svc()
 {
-  ACE_DEBUG ((LM_DEBUG,
-             ACE_TEXT ("(%P|%t) running svc()\n")));
+  MY_INFO("running MyHeartBeatService::svc()\n");
 
-  for (ACE_Message_Block *log_blk; getq (log_blk) != -1; )
+  for (ACE_Message_Block * mb; getq(mb) != -1; )
   {
-//    ACE_DEBUG ((LM_DEBUG,
-//               ACE_TEXT ("(%P|%t) svc data from queue, size = %d\n"),
-//               log_blk->size()));
-
-
-    log_blk->release ();
+    calc_server_file_md5_list(mb);
   }
-  ACE_DEBUG ((LM_DEBUG,
-               ACE_TEXT ("(%P|%t) quitting svc()\n")));
+
+  MY_INFO("exiting MyHeartBeatService::svc()\n");
+
   return 0;
+}
+
+void MyHeartBeatService::calc_server_file_md5_list(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+
+  if (mb->size() <= 0)
+    return;
+
+  const char *seperator = "% #,*";
+  char *str, *token, *saveptr;
+
+  for (str = mb->base(); ; str = NULL)
+  {
+    token = strtok_r(str, seperator, &saveptr);
+    if (token == NULL)
+      break;
+    if (!*token)
+      continue;
+    calc_server_file_md5_list_one(token);
+  }
+}
+
+void MyHeartBeatService::calc_server_file_md5_list_one(const char * client_id)
+{
+  MyClientID id(client_id);
+  int index = MyServerAppX::instance()->client_id_table().index_of(id);
+  if (index < 0)
+  {
+    MY_ERROR("invalid client id = %s\n", client_id);
+    return;
+  }
+
+  char client_path_by_id[PATH_MAX];
+  ACE_OS::strsncpy(client_path_by_id, MyConfigX::instance()->app_test_data_path.c_str(), PATH_MAX);
+  int len = ACE_OS::strlen(client_path_by_id);
+  if (unlikely(len + sizeof(MyClientID) + 10 > PATH_MAX))
+  {
+    MY_ERROR("name too long for client sub path\n");
+    return;
+  }
+  client_path_by_id[len++] = '/';
+  client_path_by_id[len] = '0';
+  MyTestClientPathGenerator::client_id_to_path(id.as_string(), client_path_by_id + len, PATH_MAX - 1 - len);
+
+  MyFileMD5s md5s_server;
+  md5s_server.scan_directory(client_path_by_id);
+  md5s_server.sort();
+  if (!module_x()->running_with_app())
+    return;
+  int buff_len = md5s_server.total_size(true);
+  ACE_Message_Block * mb = make_server_file_md5_list_mb(buff_len, index);
+  md5s_server.to_buffer(mb->base() + sizeof(MyServerFileMD5List), buff_len, true);
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (((MyHeartBeatModule*)module_x())->dispatcher()->putq(mb, &tv) == -1)
+  {
+    MY_ERROR("can not put file md5 list message to disatcher's queue\n");
+    mb->release();
+  }
+}
+
+ACE_Message_Block * MyHeartBeatService::make_server_file_md5_list_mb(int list_len, int client_id_index)
+{
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyServerFileMD5List) + list_len);
+  MyServerFileMD5ListProc vcr;
+  vcr.attach(mb->base());
+  vcr.init_header();
+  vcr.data()->length = sizeof(MyServerFileMD5List) + list_len;
+  vcr.data()->magic = client_id_index;
+  mb->wr_ptr(mb->capacity());
+  return mb;
 }
 
 
@@ -182,6 +262,7 @@ int MyHeartBeatAcceptor::make_svc_handler(MyBaseHandler *& sh)
     MY_ERROR("can not alloc MyHeartBeatHandler from %s\n", name());
     return -1;
   }
+  sh->parent((void*)this);
   sh->reactor(reactor());
   return 0;
 }
@@ -198,11 +279,47 @@ MyHeartBeatDispatcher::MyHeartBeatDispatcher(MyBaseModule * pModule, int numThre
     MyBaseDispatcher(pModule, numThreads)
 {
   m_acceptor = NULL;
+  m_clock_interval = CLOCK_INTERVAL;
+  msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE); //20 Megabytes
 }
 
 const char * MyHeartBeatDispatcher::name() const
 {
   return "MyHeartBeatDispatcher";
+}
+
+int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *act)
+{
+  ACE_UNUSED_ARG(tv);
+  ACE_UNUSED_ARG(act);
+
+  ACE_Message_Block *mb;
+  ACE_Time_Value nowait(ACE_Time_Value::zero);
+  while (-1 != this->getq(mb, &nowait))
+  {
+    if (mb->size() < sizeof(MyDataPacketHeader))
+    {
+      MY_ERROR("invalid message block size @ MyHeartBeatDispatcher::handle_timeout\n");
+      mb->release();
+      continue;
+    }
+    int index = ((MyDataPacketHeader*)mb->base())->magic;
+    MyBaseHandler * handler = m_acceptor->connection_manager()->find_handler_by_index(index);
+    if (!handler)
+    {
+      MY_WARNING("can not send data to client since connection is lost @ MyHeartBeatDispatcher::handle_timeout\n");
+      mb->release();
+      continue;
+    }
+
+    ((MyDataPacketHeader*)mb->base())->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
+
+    if (handler->send_data(mb) < 0)
+      handler->handle_close(handler->get_handle(), 0);
+  }
+
+  return 0;
+
 }
 
 void MyHeartBeatDispatcher::on_stop()
@@ -231,6 +348,16 @@ MyHeartBeatModule::MyHeartBeatModule(MyBaseApp * app): MyBaseModule(app)
 MyHeartBeatModule::~MyHeartBeatModule()
 {
 
+}
+
+MyHeartBeatDispatcher * MyHeartBeatModule::dispatcher() const
+{
+  return m_dispatcher;
+}
+
+MyHeartBeatService * MyHeartBeatModule::service() const
+{
+  return m_service;
 }
 
 const char * MyHeartBeatModule::name() const

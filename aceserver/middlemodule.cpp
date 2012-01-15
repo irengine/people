@@ -211,6 +211,7 @@ MyLocationAcceptor::MyLocationAcceptor(MyBaseDispatcher * _dispatcher, MyBaseCon
 int MyLocationAcceptor::make_svc_handler(MyBaseHandler *& sh)
 {
   ACE_NEW_RETURN(sh, MyLocationHandler(m_connection_manager), -1);
+  sh->parent((void*)this);
   sh->reactor(reactor());
   return 0;
 }
@@ -383,6 +384,7 @@ MyHttpAcceptor::MyHttpAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionM
 int MyHttpAcceptor::make_svc_handler(MyBaseHandler *& sh)
 {
   ACE_NEW_RETURN(sh, MyHttpHandler(m_connection_manager), -1);
+  sh->parent((void*)this);
   sh->reactor(reactor());
   return 0;
 }

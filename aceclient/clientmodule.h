@@ -61,6 +61,7 @@ public:
   MyClientToDistHandler(MyBaseConnectionManager * xptr = NULL);
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
   void setup_timer();
+  MyClientToDistModule * module_x() const;
 
   DECLARE_MEMORY_POOL__NOTHROW(MyClientToDistHandler, ACE_Thread_Mutex);
 
@@ -78,6 +79,10 @@ class MyClientToDistService: public MyBaseService
 public:
   MyClientToDistService(MyBaseModule * module, int numThreads = 1);
   virtual int svc();
+
+protected:
+  enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
+  void do_server_file_md5_list(ACE_Message_Block * mb);
 };
 
 class MyClientToDistDispatcher: public MyBaseDispatcher
@@ -112,6 +117,10 @@ public:
   MyClientToDistModule(MyBaseApp * app);
   virtual ~MyClientToDistModule();
   MyDistServerAddrList & server_addr_list();
+  MyClientToDistService * service() const
+  {
+    return m_service;
+  }
   virtual const char * name() const;
 
 protected:

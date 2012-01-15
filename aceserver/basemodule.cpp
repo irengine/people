@@ -40,6 +40,17 @@ void MyMemPoolFactory::init(MyConfig * config)
     (config->message_control_block_mem_pool_size, sizeof(ACE_Data_Block));
 }
 
+int MyMemPoolFactory::find_first_index(int capacity)
+{
+  int count = m_pools.size();
+  for (int i = 0; i < count; ++i)
+  {
+    if (size_t(capacity) <= m_pools[i]->chunk_size())
+      return i;
+  }
+  return INVALID_INDEX;
+}
+
 ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
 {
   if (capacity <= 0)
@@ -53,34 +64,60 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
   ACE_Message_Block * result;
   bool bRetried = false;
   void * p;
-  for (int i = 0; i < count; ++i)
+  int idx = find_first_index(capacity);
+  for (int i = idx; i < count; ++i)
   {
-    if (size_t(capacity) <= m_pools[i]->chunk_size())
+    p = m_message_block_pool->malloc();
+    if (!p) //no way to go on
+      return new ACE_Message_Block(capacity);
+    result = new (p) MyCached_Message_Block(capacity, m_pools[i], m_data_block_pool, m_message_block_pool);
+    if (!result->data_block())
     {
-      p = m_message_block_pool->malloc();
-      if (!p) //no way to go on
-        return new ACE_Message_Block(capacity);
-      result = new (p) MyCached_Message_Block(capacity, m_pools[i], m_data_block_pool, m_message_block_pool);
-      if (!result->data_block())
+      result->release();
+      if (!bRetried)
       {
-        result->release();
-        if (!bRetried)
-        {
-          bRetried = true;
-          continue;
-        } else
-          return new ACE_Message_Block(capacity);
+        bRetried = true;
+        continue;
       } else
-        return result;
-    }
+        return new ACE_Message_Block(capacity);
+    } else
+      return result;
   }
   return new ACE_Message_Block(capacity);
 }
 
+bool MyMemPoolFactory::get_mem(int size, MyPooledMemGuard * guard)
+{
+  if (!guard || size <= 0)
+    return false;
+  char * p;
+  int idx = m_use_mem_pool? find_first_index(size): INVALID_INDEX;
+  if (idx == INVALID_INDEX || (p = (char*)m_pools[idx]->malloc()) == NULL)
+  {
+    p = new char[size];
+    guard->data(p, INVALID_INDEX);
+    return true;
+  }
+  guard->data(p, idx);
+  return true;
+}
+
+void MyMemPoolFactory::free_mem(MyPooledMemGuard * guard)
+{
+  if (!guard || !guard->data())
+    return;
+  int idx = guard->index();
+  if (idx == INVALID_INDEX)
+    delete [] (char*)guard->data();
+  else if (idx < 0 || idx >= (int)m_pools.size())
+    MY_FATAL("attempt to release bad mem_pool data: index = %d, pool.size() = %d\n",
+        idx, (int)m_pools.size());
+  else
+    m_pools[idx]->free(guard->data());
+}
+
 void MyMemPoolFactory::dump_info()
 {
-//  typedef My_Cached_Allocator<ACE_Thread_Mutex> MyMemPool;
-//  typedef std::vector<MyMemPool *> MyMemPools;
   if (!m_use_mem_pool)
     return;
 
@@ -187,6 +224,285 @@ int MyClientIDTable::count()
   return m_table.size();
 }
 
+bool MyClientIDTable::value(int index, MyClientID * id)
+{
+  if (unlikely(index < 0) || !id)
+    return false;
+  ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
+  if (unlikely(index >= (int)m_table.size()))
+    return false;
+  *id = m_table[index];
+  return true;
+}
+
+
+//MyFileMD5//
+
+MyFileMD5::MyFileMD5(const char * _filename, const char * md5, int prefix_len)
+{
+  m_md5[0] = 0;
+  m_size = 0;
+  if (!_filename || ! *_filename)
+    return;
+
+  int len = strlen(_filename);
+  if (unlikely(len <= prefix_len))
+  {
+    MY_FATAL("invalid parameter in MyFileMD5::MyFileMD5(%s, %d)\n", _filename, prefix_len);
+    return;
+  }
+  m_size = len - prefix_len + 1;
+  if (unlikely(!MyMemPoolFactoryX::instance()->get_mem(m_size, &m_file_name)))
+  {
+     MY_ERROR("not enough memory for file name = %s @MyFileMD5\n", _filename);
+     return;
+  }
+  memcpy((void*)m_file_name.data(), (void*)(_filename + prefix_len), m_size);
+  if (!md5)
+  {
+    MD5_CTX mdContext;
+    if (!md5file(_filename, 0, &mdContext, m_md5, MD5_STRING_LENGTH))
+      MY_ERROR("failed not calculate md5 value of file %s\n", _filename);
+  } else
+    memcpy((void*)m_md5, (void*)md5, MD5_STRING_LENGTH);
+}
+
+
+//MyFileMD5s//
+
+MyFileMD5s::MyFileMD5s()
+{
+  m_base_dir_len = 0;
+}
+
+MyFileMD5s::~MyFileMD5s()
+{
+  std::for_each(m_file_md5_list.begin(), m_file_md5_list.end(), MyObjectDeletor());
+}
+
+bool MyFileMD5s::base_dir(const char * dir)
+{
+  if (unlikely(!dir || !*dir))
+  {
+    MY_FATAL("MyFileMD5s::base_dir(empty dir)\n");
+    return false;
+  }
+
+  int len = strlen(dir) + 1;
+  if (unlikely(!MyMemPoolFactoryX::instance()->get_mem(len, &m_base_dir)))
+  {
+     MY_ERROR("not enough memory for file name = %s @MyFileMD5s\n", dir);
+     return false;
+  }
+  m_base_dir_len = len;
+  ACE_OS::memcpy((void*)m_base_dir.data(), dir, len);
+  return true;
+}
+
+void MyFileMD5s::minus(MyFileMD5s & target)
+{
+  MyFileMD5List::iterator it1 = m_file_md5_list.begin(), it2 = target.m_file_md5_list.begin(), it;
+  //the below algorithm is based on STL's set_difference() function
+  char fn[PATH_MAX];
+  while (it1 != m_file_md5_list.end() && it2 != target.m_file_md5_list.end())
+  {
+    if (**it1 < **it2)
+      ++it1;
+    else if (**it2 < **it1)
+    {
+      ACE_OS::snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
+      MY_INFO("deleting file %s\n", fn);
+      //remove(fn);
+      ++it2;
+    }
+    else if ((**it1).same_md5(**it2))//==
+    {
+      it = it1;
+      it1 = m_file_md5_list.erase(it1);
+      ++it2;
+      delete *it;
+    } else
+    {
+      ++it1;
+      ++it2;
+    }
+  }
+
+  while (it2 != target.m_file_md5_list.end())
+  {
+    ACE_OS::snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
+    MY_INFO("deleting file %s\n", fn);
+    //remove(fn);
+    ++it2;
+  }
+}
+
+void MyFileMD5s::sort()
+{
+  std::sort(m_file_md5_list.begin(), m_file_md5_list.end(), MyPointerLess());
+}
+
+void MyFileMD5s::add_file(const char * filename, const char * md5)
+{
+  if (unlikely(!filename || !*filename))
+    return;
+  MyFileMD5 * fm = new MyFileMD5(filename, md5, 0);
+  if (fm->ok())
+    m_file_md5_list.push_back(fm);
+  else
+    delete fm;
+}
+
+void MyFileMD5s::add_file(const char * pathname, const char * filename, int prefix_len)
+{
+  if (unlikely(!pathname || !filename))
+    return;
+  int len = ACE_OS::strlen(pathname);
+  if (unlikely(len + 1 < prefix_len || len  + strlen(filename) + 2 > PATH_MAX))
+  {
+    MY_FATAL("invalid parameter @ MyFileMD5s::add_file(%s, %s, %d)\n", pathname, filename, prefix_len);
+    return;
+  }
+  MyFileMD5 * fm;
+//  if (len == prefix_len)
+//    fm = new MyFileMD5(filename, NULL, 0);
+//  else
+//  {
+    char buff[PATH_MAX];
+    ACE_OS::sprintf(buff, "%s/%s", pathname, filename);
+    fm = new MyFileMD5(buff, NULL, prefix_len);
+//  }
+
+  if (likely(fm->ok()))
+    m_file_md5_list.push_back(fm);
+  else
+    delete fm;
+
+}
+
+int MyFileMD5s::total_size(bool include_md5_value)
+{
+  int result = 0;
+  MyFileMD5List::iterator it;
+  for (it = m_file_md5_list.begin(); it != m_file_md5_list.end(); ++it)
+  {
+    MyFileMD5 & fm = **it;
+    if (!fm.ok())
+      continue;
+    result += fm.size(include_md5_value);
+  }
+  return result + 1;
+}
+
+bool MyFileMD5s::to_buffer(char * buff, int buff_len, bool include_md5_value)
+{
+  MyFileMD5List::iterator it;
+  if (unlikely(!buff || buff_len <= 0))
+  {
+    MY_ERROR("invalid parameter MyFileMD5s::to_buffer(%s, %d)\n", buff, buff_len);
+    return false;
+  }
+  int len = 0;
+  for (it = m_file_md5_list.begin(); it != m_file_md5_list.end(); ++it)
+  {
+    MyFileMD5 & fm = **it;
+    if (!fm.ok())
+      continue;
+    if (unlikely(buff_len <= len + fm.size(include_md5_value)))
+    {
+      MY_ERROR("buffer is too small @MyFileMD5s::to_buffer(buff_len=%d, need_length=%d)\n",
+          buff_len, len + fm.size(include_md5_value) + 1);
+      return false;
+    }
+    int fm_file_length = fm.size(false);
+    ACE_OS::memcpy(buff + len, fm.filename(), fm_file_length);
+    buff[len + fm_file_length - 1] = include_md5_value? SEPARATOR_MIDDLE: SEPARATOR_END;
+    len += fm_file_length;
+    if (include_md5_value)
+    {
+      ACE_OS::memcpy(buff + len, fm.md5(), MyFileMD5::MD5_STRING_LENGTH);
+      len += MyFileMD5::MD5_STRING_LENGTH;
+      buff[len++] = SEPARATOR_END;
+    }
+  }
+  buff[len] = 0;
+  return true;
+}
+
+bool MyFileMD5s::from_buffer(char * buff)
+{
+  if (!buff || !*buff)
+    return true;
+
+  char seperator[2] = {SEPARATOR_END, 0};
+  char *str, *token, *saveptr, *md5;
+
+//  ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
+  for (str = buff; ; str = NULL)
+  {
+    token = strtok_r(str, seperator, &saveptr);
+    if (token == NULL)
+      break;
+    if (!*token)
+      continue;
+    md5 = ACE_OS::strchr(token, SEPARATOR_MIDDLE);
+    if (unlikely(md5 == token || !md5))
+    {
+      MY_ERROR("bad file/md5 list item @MyFileMD5s::from_buffer: %s\n", token);
+      return false;
+    }
+    *md5++ = 0;
+    if (unlikely(ACE_OS::strlen(md5) != MyFileMD5::MD5_STRING_LENGTH))
+    {
+      MY_ERROR("empty md5 in file/md5 list @MyFileMD5s::from_buffer: %s\n", token);
+      return false;
+    }
+    MyFileMD5 * fm = new MyFileMD5(token, md5, 0);
+    m_file_md5_list.push_back(fm);
+  }
+
+  return true;
+}
+
+void MyFileMD5s::scan_directory(const char * dirname)
+{
+  if (!dirname || !*dirname)
+    return;
+  base_dir(dirname);
+  do_scan_directory(dirname, strlen(dirname) + 1);
+}
+
+void MyFileMD5s::do_scan_directory(const char * dirname, int start_len)
+{
+  DIR * dir = opendir(dirname);
+  if (!dir)
+  {
+    MY_ERROR("can not open directory: %s %s\n", dirname, (const char*)MyErrno());
+    return;
+  }
+
+  struct dirent *entry;
+  char buff[PATH_MAX];
+  while ((entry = readdir(dir)) != NULL)
+  {
+    if (!entry->d_name)
+      continue;
+    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+      continue;
+
+    if (entry->d_type == DT_REG)
+      add_file(dirname, entry->d_name, start_len);
+    else if(entry->d_type == DT_DIR)
+    {
+      ACE_OS::snprintf(buff, PATH_MAX - 1, "%s/%s", dirname, entry->d_name);
+      do_scan_directory(buff, start_len);
+    } else
+      MY_WARNING("unknown file type (= %d) for file @MyFileMD5s::do_scan_directory file = %s/%s\n",
+           entry->d_type, dirname, entry->d_name);
+  };
+
+  closedir(dir);
+}
 
 //MyBaseProcessor//
 
@@ -195,6 +511,8 @@ MyBaseProcessor::MyBaseProcessor(MyBaseHandler * handler)
   m_handler = handler;
   m_wait_for_close = false;
   m_last_activity = g_clock_tick;
+  m_client_id_index = -1;
+  m_client_id_length = 0;
 }
 
 MyBaseProcessor::~MyBaseProcessor()
@@ -249,12 +567,31 @@ long MyBaseProcessor::last_activity() const
   return m_last_activity;
 }
 
+const MyClientID & MyBaseProcessor::client_id() const
+{
+  return m_client_id;
+}
+
+void MyBaseProcessor::client_id(const char *id)
+{
+  m_client_id = id;
+}
+
+bool MyBaseProcessor::client_id_verified() const
+{
+  return false;
+}
+
+int32_t MyBaseProcessor::client_id_index() const
+{
+  return m_client_id_index;
+}
+
 
 //MyBasePacketProcessor//
 
 MyBasePacketProcessor::MyBasePacketProcessor(MyBaseHandler * handler): MyBaseProcessor(handler)
 {
-  m_client_id_index = -1;
   m_peer_addr[0] = 0;
   m_read_next_offset = 0;
   m_current_block = NULL;
@@ -345,10 +682,10 @@ MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_header(const MyData
 
 MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_packet(ACE_Message_Block * mb)
 {
-  MyMessageBlockGuard guard(mb);
   if (mb->size() < sizeof(MyDataPacketHeader))
   {
     MY_ERROR(ACE_TEXT("message block size too little ( = %d)"), mb->size());
+    mb->release();
     return ER_ERROR;
   }
   mb->rd_ptr(mb->base());
@@ -362,21 +699,6 @@ MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_packet_i(ACE_Messag
   MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
   header->magic = m_client_id_index;
   return ER_OK;
-}
-
-bool MyBasePacketProcessor::client_id_verified() const
-{
-  return false;
-}
-
-const MyClientID & MyBasePacketProcessor::client_id() const
-{
-  return m_client_id;
-}
-
-void MyBasePacketProcessor::client_id(const char *id)
-{
-  m_client_id = id;
 }
 
 ACE_Message_Block * MyBasePacketProcessor::make_version_check_request_mb()
@@ -536,6 +858,7 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE
   m_client_id_index = client_id_index;
   m_client_id = vcr.data()->client_id;
   m_client_id_length = strlen(m_client_id.as_string());
+  m_handler->connection_manager()->set_connection_client_id_index(m_handler, client_id_index);
   return ER_CONTINUE;
 }
 
@@ -688,12 +1011,34 @@ void MyBaseConnectionManager::detect_dead_connections(int timeout)
   }
 }
 
+void MyBaseConnectionManager::set_connection_client_id_index(MyBaseHandler * handler, int index)
+{
+  if (!handler || m_locked || index < 0)
+    return;
+  MyIndexHandlerMapPtr it = m_index_handler_map.lower_bound(index);
+  if (it != m_index_handler_map.end() && (it->first == index))
+  {
+    it->second = handler;
+  } else
+    m_index_handler_map.insert(it, MyIndexHandlerMap::value_type(index, handler));
+
+}
+
+MyBaseHandler * MyBaseConnectionManager::find_handler_by_index(int index)
+{
+  MyIndexHandlerMapPtr it = find_handler_by_index_i(index);
+  if (it == m_index_handler_map.end())
+    return NULL;
+  else
+    return it->second;
+}
+
 void MyBaseConnectionManager::add_connection(MyBaseHandler * handler, Connection_State state)
 {
   if (!handler || m_locked)
     return;
   MyConnectionsPtr it = m_active_connections.lower_bound(handler);
-  if (it != m_active_connections.end() && ((*it).first == handler))
+  if (it != m_active_connections.end() && (it->first == handler))
   {
     it->second = state;
   } else
@@ -718,6 +1063,15 @@ void MyBaseConnectionManager::remove_connection(MyBaseHandler * handler)
     m_active_connections.erase(ptr);
     --m_num_connections;
   }
+
+  int index = handler->processor()->client_id_index();
+  if (index < 0)
+    return;
+
+  MyIndexHandlerMapPtr ptr2 = find_handler_by_index_i(index);
+  if (ptr2 != m_index_handler_map.end())
+    m_index_handler_map.erase(ptr2);
+
 }
 
 MyBaseConnectionManager::MyConnectionsPtr MyBaseConnectionManager::find(MyBaseHandler * handler)
@@ -725,7 +1079,10 @@ MyBaseConnectionManager::MyConnectionsPtr MyBaseConnectionManager::find(MyBaseHa
   return m_active_connections.find(handler);
 }
 
-
+MyBaseConnectionManager::MyIndexHandlerMapPtr MyBaseConnectionManager::find_handler_by_index_i(int index)
+{
+  return m_index_handler_map.find(index);
+}
 
 //MyBaseHandler//
 
@@ -1391,26 +1748,6 @@ int MyBaseDispatcher::svc()
 
   MY_DEBUG(ACE_TEXT ("exiting MyBaseDispatcher::svc()\n"));
   do_stop_i();
-  return 0;
-}
-
-
-int MyBaseDispatcher::handle_timeout (const ACE_Time_Value &tv,
-                            const void *act)
-{
-  ACE_UNUSED_ARG(tv);
-  ACE_UNUSED_ARG(act);
-
-  ACE_Message_Block *mb;
-  ACE_Time_Value nowait(ACE_Time_Value::zero);
-  int i = 0;
-  while (-1 != this->getq(mb, &nowait))
-  {
-    ++i;
-    if (i >= m_numBatchSend)
-      return 0;
-  }
-
   return 0;
 }
 

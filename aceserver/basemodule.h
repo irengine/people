@@ -31,6 +31,7 @@
 #include "common.h"
 #include "mycomutil.h"
 #include "datapacket.h"
+#include "md5.h"
 
 class MyBaseModule;
 class MyBaseHandler;
@@ -38,6 +39,7 @@ class MyBaseAcceptor;
 class MyBaseConnectionManager;
 class MyBaseApp;
 class MyBaseDispatcher;
+class MyBaseConnector;
 
 class MyCached_Message_Block: public ACE_Message_Block
 {
@@ -64,6 +66,8 @@ public:
 };
 
 class MyConfig;
+class MyPooledMemGuard;
+
 class MyMemPoolFactory
 {
 public:
@@ -71,12 +75,16 @@ public:
   ~MyMemPoolFactory();
   void init(MyConfig * config);
   ACE_Message_Block * get_message_block(int capacity);
+  bool get_mem(int size, MyPooledMemGuard * guard);
+  void free_mem(MyPooledMemGuard * guard);
   void dump_info();
 
 private:
+  enum { INVALID_INDEX = 9999 };
   typedef My_Cached_Allocator<ACE_Thread_Mutex> MyMemPool;
   typedef std::vector<MyMemPool *> MyMemPools;
 
+  int find_first_index(int capacity);
   My_Cached_Allocator<ACE_Thread_Mutex> *m_message_block_pool;
   My_Cached_Allocator<ACE_Thread_Mutex> *m_data_block_pool;
   MyMemPools m_pools;
@@ -84,7 +92,43 @@ private:
 };
 typedef ACE_Unmanaged_Singleton<MyMemPoolFactory, ACE_Null_Mutex> MyMemPoolFactoryX;
 
+class MyPooledMemGuard
+{
+public:
+  MyPooledMemGuard(): m_buff(NULL), m_index(-1)
+  {}
 
+  ~MyPooledMemGuard()
+  {
+    if (m_buff)
+      MyMemPoolFactoryX::instance()->free_mem(this);
+  }
+  char * data() const
+  {
+    return (char*)m_buff;
+  }
+
+protected:
+  friend class MyMemPoolFactory;
+
+  void data(void * _buff, int index)
+  {
+    if (m_buff)
+      MY_ERROR("memory leak @MyPooledMemGuard, index = %d\n", m_index);
+    m_buff = (char*)_buff;
+    m_index = index;
+  }
+  int index() const
+  {
+    return m_index;
+  }
+
+private:
+  MyPooledMemGuard(const MyPooledMemGuard &);
+  MyPooledMemGuard & operator = (const MyPooledMemGuard &);
+  char * m_buff;
+  int m_index;
+};
 
 class MyClientIDTable
 {
@@ -96,6 +140,7 @@ public:
   void add_batch(char * idlist); //in the format of "12334434;33222334;34343111;..."
   int index_of(const MyClientID & id);
   int count();
+  bool value(int index, MyClientID * id);
 
 private:
   typedef std::vector<MyClientID> ClientIDTable_type;
@@ -103,13 +148,83 @@ private:
 
   int index_of_i(const MyClientID & id, ClientIDTable_map::iterator * pIt = NULL);
   void add_i(const MyClientID & id);
-  ClientIDTable_type m_table;
-  ClientIDTable_map  m_map;
+  ClientIDTable_type  m_table;
+  ClientIDTable_map   m_map;
   ACE_RW_Thread_Mutex m_mutex;
 };
 
-typedef std::list<MyBaseHandler *> MyActiveConnections;
-typedef MyActiveConnections::iterator MyActiveConnectionPointer;
+class MyFileMD5
+{
+public:
+  enum { MD5_STRING_LENGTH = 32 };
+  //  /root/mydir/a.txt  prefix=/root/mydir/
+  MyFileMD5(const char * _filename, const char * md5, int prefix_len);
+  bool ok() const
+  {
+    return (m_md5[0] != 0);
+  }
+  const char * filename() const
+  {
+    return m_file_name.data();
+  }
+  const char * md5() const
+  {
+    return m_md5;
+  }
+  int size(bool include_md5_value) const
+  {
+    return include_md5_value? (m_size + MD5_STRING_LENGTH + 1) : m_size;
+  }
+  bool operator == (const MyFileMD5 & rhs) const
+  {
+    return (strcmp(m_file_name.data(), rhs.m_file_name.data()) == 0);
+  }
+  bool operator < (const MyFileMD5 & rhs) const
+  {
+    return (strcmp(m_file_name.data(), rhs.m_file_name.data()) < 0);
+  }
+  bool same_md5(const MyFileMD5 & rhs) const
+  {
+    return memcmp(m_md5, rhs.m_md5, MD5_STRING_LENGTH) == 0;
+  }
+
+private:
+
+  MyPooledMemGuard m_file_name;
+  char m_md5[MD5_STRING_LENGTH];
+  int m_size;
+};
+
+class MyFileMD5s
+{
+public:
+  typedef std::vector<MyFileMD5 * > MyFileMD5List;
+  enum { SEPARATOR_END = '*', SEPARATOR_MIDDLE = '?' };
+
+  MyFileMD5s();
+  ~MyFileMD5s();
+  bool base_dir(const char *);
+  void minus(MyFileMD5s & );
+  void add_file(const char * filename, const char * md5);
+  void add_file(const char * pathname, const char * filename, int prefix_len);
+  void sort();
+  int count() const
+  {
+    return m_file_md5_list.size();
+  }
+  bool to_buffer(char * buff, int buff_len, bool include_md5_value);
+  bool from_buffer(char * buff);
+
+  int total_size(bool include_md5_value);
+  void scan_directory(const char * dirname);
+
+private:
+  void do_scan_directory(const char * dirname, int start_len);
+
+  MyFileMD5List m_file_md5_list;
+  MyPooledMemGuard m_base_dir;
+  int m_base_dir_len;
+};
 
 class MyBaseProcessor
 {
@@ -133,11 +248,21 @@ public:
   void update_last_activity();
   long last_activity() const;
 
+  const MyClientID & client_id() const;
+  void client_id(const char *id);
+  virtual bool client_id_verified() const;
+  int32_t client_id_index() const;
+
 protected:
   int handle_input_wait_for_close();
   MyBaseHandler * m_handler;
   long m_last_activity;
   bool m_wait_for_close;
+
+  MyClientID m_client_id;
+  int32_t    m_client_id_index;
+  int        m_client_id_length;
+
 };
 
 class MyBasePacketProcessor: public MyBaseProcessor
@@ -148,9 +273,6 @@ public:
   virtual ~MyBasePacketProcessor();
   virtual std::string info_string() const;
   virtual int on_open();
-  virtual bool client_id_verified() const;
-  const MyClientID & client_id() const;
-  void client_id(const char *id);
   virtual int handle_input();
 
 protected:
@@ -163,9 +285,6 @@ protected:
   int read_req_body();
   int handle_req();
 
-  MyClientID m_client_id;
-  int32_t    m_client_id_index;
-  int        m_client_id_length;
   enum
   {
     PEER_ADDR_LEN = 16 //"xxx.xxx.xxx.xxx"
@@ -226,6 +345,8 @@ public:
   void on_data_send(int data_size);
 
   void add_connection(MyBaseHandler * handler, Connection_State state);
+  void set_connection_client_id_index(MyBaseHandler * handler, int index);
+  MyBaseHandler * find_handler_by_index(int index);
   void set_connection_state(MyBaseHandler * handler, Connection_State state);
   void remove_connection(MyBaseHandler * handler);
 
@@ -238,7 +359,11 @@ private:
   typedef std::map<MyBaseHandler *, long> MyConnections;
   typedef MyConnections::iterator MyConnectionsPtr;
 
+  typedef std::map<int, MyBaseHandler *> MyIndexHandlerMap;
+  typedef std::map<int, MyBaseHandler *>::iterator MyIndexHandlerMapPtr;
+
   MyConnectionsPtr find(MyBaseHandler * handler);
+  MyIndexHandlerMapPtr find_handler_by_index_i(int index);
 
   int  m_num_connections;
   int  m_reaped_connections;
@@ -246,7 +371,9 @@ private:
   long long int m_bytes_sent;
   bool m_locked;
   MyConnections m_active_connections;
+  MyIndexHandlerMap m_index_handler_map;
 };
+
 
 class MyConnectionManagerLockGuard
 {
@@ -272,6 +399,12 @@ class MyBaseHandler: public ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH>
 public:
   typedef ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> super;
   MyBaseHandler(MyBaseConnectionManager * xptr = NULL);
+  void parent(void * p)
+    { m_parent = p; }
+  MyBaseAcceptor * acceptor() const
+    { return (MyBaseAcceptor *)m_parent; }
+  MyBaseConnector * connector() const
+    { return (MyBaseConnector *)m_parent; }
 
   virtual int open (void * p = 0);
   virtual int handle_input(ACE_HANDLE fd = ACE_INVALID_HANDLE);
@@ -289,6 +422,7 @@ protected:
 
   MyBaseConnectionManager * m_connection_manager;
   MyBaseProcessor * m_processor;
+  void * m_parent;
 };
 
 class MyBaseAcceptor: public ACE_Acceptor<MyBaseHandler, ACE_SOCK_ACCEPTOR>
@@ -403,8 +537,6 @@ public:
   virtual ~MyBaseDispatcher();
   virtual int open (void * p= 0);
   virtual int svc();
-  virtual int handle_timeout (const ACE_Time_Value &tv,
-                              const void *act);
   int start();
   int stop();
   MyBaseModule * module_x() const;

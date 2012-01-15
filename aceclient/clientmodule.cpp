@@ -7,6 +7,7 @@
 
 #include "clientmodule.h"
 #include "baseapp.h"
+#include "client.h"
 
 #ifdef MY_client_test
 
@@ -48,6 +49,13 @@ int MyClientToDistProcessor::on_open()
     return -1;
   }
   client_id(myid);
+  m_client_id_index = MyClientAppX::instance()->client_id_table().index_of(myid);
+  if (m_client_id_index < 0)
+  {
+    MY_ERROR("MyClientToDistProcessor::on_open() can not find client_id_index for id = %s\n", myid);
+    return -1;
+  }
+  m_handler->connection_manager()->set_connection_client_id_index(m_handler, m_client_id_index);
 #endif
 
   return send_version_check_req();
@@ -70,6 +78,9 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header(const MyDa
   if (bVersionCheckReply)
     return ER_OK;
 
+  if (header.command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
+    return ER_OK;
+
   MY_ERROR("unexpected packet header from dist server, header.command = %d\n", header.command);
   return ER_ERROR;
 }
@@ -85,7 +96,18 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
     MyBaseProcessor::EVENT_RESULT result = do_version_check_reply(mb);
     if (result == ER_OK)
       ((MyClientToDistHandler*)m_handler)->setup_timer();
-    return result;//do_version_check_reply(mb);
+    return result;
+  }
+
+  if (header->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
+  {
+    ACE_Time_Value tv(ACE_Time_Value::zero);
+    if (((MyClientToDistHandler*)m_handler)->module_x()->service()->putq(mb, &tv) == -1)
+    {
+      MY_ERROR("failed to put server file md5 list message block to service queue.\n");
+      mb->release();
+    }
+    return ER_OK;
   }
 
   MY_ERROR("unsupported command received @MyClientToDistProcessor::on_recv_packet_i(), command = %d\n",
@@ -109,6 +131,7 @@ int MyClientToDistProcessor::send_heart_beat()
 
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(ACE_Message_Block * mb)
 {
+  MyMessageBlockGuard guard(mb);
   m_version_check_reply_done = true;
 
   const char * prefix_msg = "dist server version check reply:";
@@ -223,6 +246,11 @@ void MyClientToDistHandler::setup_timer()
     MY_ERROR(ACE_TEXT("MyClientToDistHandler setup heart beat timer failed, %s"), (const char*)MyErrno());
 }
 
+MyClientToDistModule * MyClientToDistHandler::module_x() const
+{
+  return (MyClientToDistModule *)connector()->module_x();
+}
+
 int MyClientToDistHandler::on_open()
 {
 /*
@@ -254,6 +282,8 @@ void MyClientToDistHandler::on_close()
     reactor()->cancel_timer(m_heat_beat_ping_timer_id);
 
 #ifdef MY_client_test
+  if (m_connection_manager->locked())
+    return;
   ((MyTestClientToDistConnectionManager*)m_connection_manager)->id_generator().put
       (
         ((MyClientToDistProcessor*)m_processor)->client_id().as_string()
@@ -270,19 +300,77 @@ PREPARE_MEMORY_POOL(MyClientToDistHandler);
 MyClientToDistService::MyClientToDistService(MyBaseModule * module, int numThreads):
     MyBaseService(module, numThreads)
 {
-
+  msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
 int MyClientToDistService::svc()
 {
-
   MY_INFO("MyClientToDistService::svc() start\n");
-  for (ACE_Message_Block *log_blk; getq(log_blk) != -1; )
+  for (ACE_Message_Block *mb; getq(mb) != -1;)
   {
-    log_blk->release ();
+    MyDataPacketBaseProc proc;
+    proc.attach(mb->base());
+    if (proc.data()->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
+    {
+      do_server_file_md5_list(mb);
+      continue;
+    }
+
+    MY_ERROR("unexpected message block type @MyClientToDistService::svc()\n");
+    mb->release();
   }
   MY_INFO("MyClientToDistService::svc() end\n");
   return 0;
+}
+
+void MyClientToDistService::do_server_file_md5_list(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+
+  MyServerFileMD5ListProc proc;
+  proc.attach(mb->base());
+
+#ifdef MY_client_test
+  MyClientID client_id;
+
+  if (!MyClientAppX::instance()->client_id_table().value(proc.data()->magic, &client_id))
+  {
+    MY_ERROR("can not find client_id @MyClientToDistService::do_server_file_md5_list(), index = %d\n",
+        proc.data()->magic);
+    return;
+  }
+
+  char client_path_by_id[PATH_MAX];
+  ACE_OS::strsncpy(client_path_by_id, MyConfigX::instance()->app_test_data_path.c_str(), PATH_MAX);
+  int len = ACE_OS::strlen(client_path_by_id);
+  if (unlikely(len + sizeof(MyClientID) + 10 > PATH_MAX))
+  {
+    MY_ERROR("name too long for client sub path\n");
+    return;
+  }
+  client_path_by_id[len++] = '/';
+  client_path_by_id[len] = '0';
+  MyTestClientPathGenerator::client_id_to_path(client_id.as_string(), client_path_by_id + len, PATH_MAX - 1 - len);
+
+  MyFileMD5s md5s_server;
+  md5s_server.base_dir(client_path_by_id);
+  md5s_server.from_buffer(proc.data()->data);
+
+  MyFileMD5s md5s_client;
+  md5s_client.scan_directory(client_path_by_id);
+  md5s_client.sort();
+
+  md5s_server.minus(md5s_client);
+  char temp[4096];
+  if (md5s_server.to_buffer(temp, 4096, false))
+    MY_INFO("md5 minus for client_id: [%s] = %s\n", temp);
+
+#else
+  #error "client_id need to set globally"
+#endif
+
+  MyFileMD5s md5s;
+
 }
 
 
@@ -314,6 +402,7 @@ int MyClientToDistConnector::make_svc_handler(MyBaseHandler *& sh)
     return -1;
   }
   MY_DEBUG("MyClientToDistConnector::make_svc_handler(%X)...\n", long(sh));
+  sh->parent((void*)this);
   sh->reactor(reactor());
   return 0;
 }

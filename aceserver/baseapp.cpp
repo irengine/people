@@ -156,6 +156,9 @@ void MyConfig::init_path(const char * app_home_path)
   log_file_name = app_path + "/log/app.log";
   config_file_name = app_path + "/config/app.cfg";
 
+#if defined(MY_client_test) || defined(MY_server_test)
+  app_test_data_path = app_path + "/data";
+#endif
 }
 
 bool MyConfig::is_server() const
@@ -544,6 +547,10 @@ void MyConfig::dump_config_info()
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tconfig_file = %s\n"), config_file_name.c_str()));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tapp_path = %s\n"), app_path.c_str()));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\texe_path = %s\n"), exe_path.c_str()));
+#if defined(MY_client_test) || defined(MY_server_test)
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_data_path = %s\n"), app_test_data_path.c_str()));
+#endif
+
 }
 
 

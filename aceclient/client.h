@@ -21,6 +21,11 @@ public:
 
   MyClientToDistModule * client_to_dist_module() const;
 
+#ifdef MY_client_test
+  MyClientIDTable & client_id_table()
+    { return m_client_id_table; }
+#endif
+
   static void app_init(const char * app_home_path = NULL, MyConfig::RUNNING_MODE mode = MyConfig::RM_UNKNOWN);
   static void app_fini();
 
@@ -34,6 +39,10 @@ protected:
 
 private:
   MyClientToDistModule * m_client_to_dist_module;
+
+#ifdef MY_client_test
+  MyClientIDTable m_client_id_table;
+#endif
 };
 
 typedef ACE_Unmanaged_Singleton<MyClientApp, ACE_Null_Mutex> MyClientAppX;

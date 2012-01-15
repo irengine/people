@@ -8,6 +8,27 @@
 #include <algorithm>
 #include "mycomutil.h"
 
+void mycomutil_hex_dump(void * ptr, int len, char * result_buff, int buff_len)
+{
+  if (unlikely(!ptr || len <= 0 || buff_len < 2 * len))
+    return;
+  unsigned char v;
+  for (int i = 0; i < len; ++i)
+  {
+    v = ((unsigned char*)ptr)[i] >> 4;
+    if (v < 10)
+      result_buff[i * 2] = '0' + v;
+    else
+      result_buff[i * 2] = 'A' + (v - 10);
+
+    v = ((unsigned char*)ptr)[i] & 0x0F;
+    if (v < 10)
+      result_buff[i * 2 + 1] = '0' + v;
+    else
+      result_buff[i * 2 + 1] = 'A' + (v - 10);
+  }
+}
+
 int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
 
 int mycomutil_translate_tcp_result(ssize_t transfer_return_value)
@@ -146,3 +167,76 @@ int mycomutil_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH
   mb->wr_ptr(recv_cnt);
   return (mb->space() == 0 ? 0:1);
 }
+
+#if defined(MY_client_test) || defined(MY_server_test)
+
+void MyTestClientPathGenerator::make_paths(const char * app_data_path, int64_t _start, int _count)
+{
+  if (!app_data_path || !*app_data_path)
+    return;
+  char buff[PATH_MAX], str_client_id[64];
+  ACE_OS::snprintf(buff, PATH_MAX - 1, "%s/", app_data_path);
+  int prefix_len = strlen(buff);
+  for (long long id = _start; id < _start + _count; ++ id)
+  {
+    ACE_OS::snprintf(str_client_id, 64 - 1, "%lld", (long long)id);
+    client_id_to_path(str_client_id, buff + prefix_len, PATH_MAX - prefix_len - 1);
+    make_path(buff, prefix_len + 1, false);
+  }
+}
+
+bool MyTestClientPathGenerator::make_path(char * path, int prefix_len, bool is_file)
+{
+  if (!path || !*path)
+    return false;
+  if (prefix_len >= (int)strlen(path))
+    return false;
+  char * ptr = path + prefix_len;
+  while (*ptr == '/')
+    ++ptr;
+  char * end_ptr;
+  while ((end_ptr = strchr(ptr, '/')) != NULL)
+  {
+    *end_ptr = 0;
+    mkdir(path, S_IRWXU);
+    //MY_INFO("mkdir: %s\n", path);
+    *end_ptr = '/';
+    ptr = end_ptr + 1;
+  }
+
+  if (!is_file)
+    mkdir(path, S_IRWXU);
+    //MY_INFO("mkdir: %s\n", path);
+  return true;
+}
+
+bool MyTestClientPathGenerator::make_path(const char * path, const char * subpath, bool is_file)
+{
+  if (!path || !subpath)
+    return false;
+  char buff[PATH_MAX];
+  ACE_OS::snprintf(buff, PATH_MAX - 1, "%s/%s", path, subpath);
+  return make_path(buff, strlen(path) + 1, is_file);
+}
+
+bool MyTestClientPathGenerator::client_id_to_path(const char * id, char * result, int result_len)
+{
+  if (!id || !*id || !result)
+    return false;
+  int len = ACE_OS::strlen(id);
+  if (result_len < len + 4)
+  {
+    MY_ERROR("not enough result_len\n");
+    return false;
+  }
+
+  char prefix[3];
+  len = (len >= 2 ? len - 2: 0);
+  prefix[0] = id[len];
+  prefix[1] = id[len + 1];
+  prefix[2] = 0;
+  ACE_OS::sprintf(result, "%s/%s", prefix, id);
+  return true;
+}
+
+#endif

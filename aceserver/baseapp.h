@@ -87,6 +87,10 @@ public:
   std::string log_file_name;
   std::string config_file_name;
   std::string app_path;
+#if defined(MY_client_test) || defined(MY_server_test)
+  std::string app_test_data_path;
+#endif
+
 private:
   void init_path(const char * app_home_path);
   bool load_config_common(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);

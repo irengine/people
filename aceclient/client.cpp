@@ -40,6 +40,20 @@ void MyClientApp::on_stop()
 
 bool MyClientApp::on_construct()
 {
+  MyConfig * cfg = MyConfigX::instance();
+
+#ifdef MY_client_test
+  MyTestClientIDGenerator gen(cfg->test_client_start_client_id, cfg->test_client_connection_number);
+  const char * id;
+  while ((id = gen.get()) != NULL)
+    m_client_id_table.add(id);
+
+  char * _app_data_path = new char[cfg->app_test_data_path.length() + 1];
+  strcpy(_app_data_path, cfg->app_test_data_path.c_str());
+  MyTestClientPathGenerator::make_paths(_app_data_path, cfg->test_client_start_client_id, cfg->test_client_connection_number);
+  delete [] _app_data_path;
+#endif
+
   add_module(m_client_to_dist_module = new MyClientToDistModule(this));
   return true;
 }

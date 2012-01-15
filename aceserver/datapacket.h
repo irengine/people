@@ -125,6 +125,7 @@ public:
     CMD_CLIENT_VERSION_CHECK_REQ,
     CMD_CLIENT_VERSION_CHECK_REPLY,
     CMD_LOAD_BALANCE_REQ,
+    CMD_SERVER_FILE_MD5_LIST,
     CMD_END
   };
   int32_t length;
@@ -292,7 +293,34 @@ public:
 
 };
 
+class MyServerFileMD5List: public MyDataPacketHeader
+{
+public:
+  char data[0];
+};
 
+class MyServerFileMD5ListProc: public MyDataPacketBaseProc
+{
+public:
+  virtual void init_header()
+  {
+    MyDataPacketBaseProc::init_header();
+    m_data->command = MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST;
+  };
+
+  virtual bool validate_header() const
+  {
+    if (!MyDataPacketBaseProc::validate_header())
+      return false;
+    return (m_data->length > (int32_t)sizeof(MyDataPacketHeader) &&
+            m_data->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
+  }
+
+  virtual MyServerFileMD5List * data() const
+  {
+    return (MyServerFileMD5List *)m_data;
+  }
+};
 
 class MyLoadBalanceRequest: public MyDataPacketHeader
 {

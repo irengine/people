@@ -75,6 +75,11 @@ bool MyServerApp::on_construct()
   const char * id;
   while ((id = gen.get()) != NULL)
     m_client_id_table.add(id);
+
+  char * _app_data_path = new char[cfg->app_test_data_path.length() + 1];
+  strcpy(_app_data_path, cfg->app_test_data_path.c_str());
+  MyTestClientPathGenerator::make_paths(_app_data_path, cfg->test_client_start_client_id, cfg->test_client_connection_number);
+  delete [] _app_data_path;
 #endif
   if (cfg->is_dist_server())
     add_module(m_heart_beat_module = new MyHeartBeatModule(this));
@@ -115,7 +120,56 @@ void MyServerApp::app_fini()
 
 
 int main(int argc, const char * argv[])
-{
+{/*
+  MyConfig* cfg = MyConfigX::instance();
+  if (!MyConfigX::instance()->load_config("/root/distserver", MyConfig::RM_DIST_SERVER))
+  {
+    std::printf("error loading config file, quitting\n");
+    exit(5);
+  }
+  MyMemPoolFactoryX::instance()->init(cfg);
+  {
+#if 0
+    MyFileMD5s md5s;
+    md5s.scan_directory("/root/testdata");
+    int len = md5s.total_size(true);
+    char * buffer = new char[len];
+    md5s.to_buffer(buffer, len, true);
+    printf("to buffer include md5:%s\n", buffer);
+    MyFileMD5s md5s_2;
+    md5s_2.from_buffer(buffer);
+    delete []buffer;
+
+    char * buffer2 = new char [len];
+    md5s_2.to_buffer(buffer2, len, true);
+    printf("from buffer include md5:%s\n", buffer2);
+    delete []buffer2;
+
+    len = md5s.total_size(false);
+    buffer = new char[len];
+    md5s.to_buffer(buffer, len, false);
+    printf("to buffer no md5:%s\n", buffer);
+    delete []buffer;
+#endif
+    MyFileMD5s md5s_1;
+    md5s_1.scan_directory("/root/testdata");
+    md5s_1.sort();
+    MyFileMD5s md5s_2;
+    md5s_2.scan_directory("/root/testdata2");
+    md5s_2.sort();
+
+    md5s_1.minus(md5s_2);
+    int len = md5s_1.total_size(true);
+    char * buffer = new char[len];
+    md5s_1.to_buffer(buffer, len, true);
+    printf("to buffer diff md5:%s\n", buffer);
+    delete []buffer;
+  }
+  MyConfigX::close();
+  MyServerApp::dump_mem_pool_info(); //only mem pool info, other objects should gone by now
+  MyMemPoolFactoryX::close();
+  return 0;
+*/
   ACE_UNUSED_ARG(argc);
   ACE_UNUSED_ARG(argv);
   ACE_Sig_Action no_sigpipe ((ACE_SignalHandler) SIG_IGN);
