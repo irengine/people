@@ -143,8 +143,8 @@ public:
         ++m_alloc_on_full_count;
     }
 
-    MY_DEBUG(ACE_TEXT("call My_Cached_Allocator.malloc(%d) = %@ from chunk_size = %d\n"),
-        nbytes, result, m_chunk_size);
+//    MY_DEBUG(ACE_TEXT("call My_Cached_Allocator.malloc(%d) = %@ from chunk_size = %d\n"),
+//        nbytes, result, m_chunk_size);
     return result;
   }
 
@@ -163,8 +163,8 @@ public:
         ++m_alloc_on_full_count;
     }
 
-    MY_DEBUG(ACE_TEXT("call My_Cached_Allocator.calloc(%d) = %@ from chunk_size = %d\n"),
-        nbytes, result, m_chunk_size);
+//    MY_DEBUG(ACE_TEXT("call My_Cached_Allocator.calloc(%d) = %@ from chunk_size = %d\n"),
+//        nbytes, result, m_chunk_size);
     return result;
   }
 // NOT implemented
@@ -174,7 +174,7 @@ public:
   {
     {
       ACE_MT (ACE_GUARD(ACE_LOCK, ace_mon, this->m_mutex));
-      MY_DEBUG(ACE_TEXT("call My_Cached_Allocator.free(%@) from chunk_size = %d\n"), p, m_chunk_size);
+//      MY_DEBUG(ACE_TEXT("call My_Cached_Allocator.free(%@) from chunk_size = %d\n"), p, m_chunk_size);
       if (p != NULL)
         ++m_free_count;
     }

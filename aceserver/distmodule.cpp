@@ -47,6 +47,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
   if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
     return do_version_check(mb);
 
+  MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyHeartBeatProcessor::on_recv_packet_i, command = %d\n",
       header->command);
   return ER_ERROR;
@@ -54,12 +55,13 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
 
 void MyHeartBeatProcessor::do_ping()
 {
-  MY_DEBUG(ACE_TEXT("got a ping from %s\n"), info_string().c_str());
+//  MY_DEBUG(ACE_TEXT("got a ping from %s\n"), info_string().c_str());
   m_sumbitter->add_ping(m_client_id.as_string(), m_client_id_length + 1);
 }
 
 MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message_Block * mb)
 {
+  MyMessageBlockGuard guard(mb);
   MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, MyServerAppX::instance()->client_id_table());
   if (ret != ER_CONTINUE)
     return ret;
@@ -109,7 +111,8 @@ void MyPingSubmitter::add_ping(const char * client_id, const int len)
   {
     do_submit();
     m_last_add = g_clock_tick;
-  }
+  } else
+    check_time_out();
   if (!client_id || !*client_id || len <= 0)
     return;
   ACE_OS::memcpy(m_current_ptr, client_id, len);
@@ -145,6 +148,11 @@ void MyPingSubmitter::check_time_out()
 MyHeartBeatHandler::MyHeartBeatHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
 {
   m_processor = new MyHeartBeatProcessor(this);
+}
+
+bool MyHeartBeatHandler::is_parent_acceptor() const
+{
+  return true;
 }
 
 PREPARE_MEMORY_POOL(MyHeartBeatHandler);

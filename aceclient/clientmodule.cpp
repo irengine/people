@@ -113,6 +113,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
     return ER_OK;
   }
 
+  MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyClientToDistProcessor::on_recv_packet_i(), command = %d\n",
       header->command);
   return ER_ERROR;
@@ -128,7 +129,7 @@ int MyClientToDistProcessor::send_heart_beat()
   proc.init_header();
   mb->wr_ptr(sizeof(MyDataPacketHeader));
   int ret = (m_handler->send_data(mb) < 0? -1: 0);
-  MY_DEBUG("send_heart_beat = %d\n", ret);
+//  MY_DEBUG("send_heart_beat = %d\n", ret);
   return ret;
 }
 
@@ -143,7 +144,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
   switch (vcr.data()->reply_code)
   {
   case MyClientVersionCheckReply::VER_OK:
-    MY_INFO("%s OK\n", prefix_msg);
+ //   MY_INFO("%s OK\n", prefix_msg);
     return MyBaseProcessor::ER_OK;
 
   case MyClientVersionCheckReply::VER_OK_CAN_UPGRADE:
@@ -242,7 +243,7 @@ MyClientToDistHandler::MyClientToDistHandler(MyBaseConnectionManager * xptr): My
 
 void MyClientToDistHandler::setup_timer()
 {
-  MY_DEBUG("MyClientToDistHandler scheduling timer...\n");
+//  MY_DEBUG("MyClientToDistHandler scheduling timer...\n");
   ACE_Time_Value interval (MyConfigX::instance()->client_heart_beat_interval);
   m_heat_beat_ping_timer_id = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval, interval);
   if (m_heat_beat_ping_timer_id < 0)
@@ -262,7 +263,7 @@ int MyClientToDistHandler::on_open()
 int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, const void *act)
 {
   ACE_UNUSED_ARG(current_time);
-  MY_DEBUG("MyClientToDistHandler::handle_timeout()\n");
+//  MY_DEBUG("MyClientToDistHandler::handle_timeout()\n");
   if (long(act) == HEART_BEAT_PING_TIMER)
     return ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
   else
@@ -285,7 +286,7 @@ void MyClientToDistHandler::on_close()
         ((MyClientToDistProcessor*)m_processor)->client_id().as_string()
       );
 #endif
-
+  MY_INFO("MyClientToDistHandler::on_close. this = %d\n", long(this));
 }
 
 PREPARE_MEMORY_POOL(MyClientToDistHandler);
@@ -366,9 +367,6 @@ void MyClientToDistService::do_server_file_md5_list(ACE_Message_Block * mb)
 #else
   #error "client_id need to set globally"
 #endif
-
-  MyFileMD5s md5s;
-
 }
 
 
@@ -379,7 +377,7 @@ MyClientToDistConnector::MyClientToDistConnector(MyBaseDispatcher * _dispatcher,
 {
   m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
   //m_tcp_addr = "localhost"; //todo
-  m_reconnect_interval = 2;
+  m_reconnect_interval = 0;
 #ifdef MY_client_test
   m_tcp_addr = MyConfigX::instance()->dist_server_addr;
   m_num_connection = MyConfigX::instance()->test_client_connection_number;
@@ -396,10 +394,10 @@ int MyClientToDistConnector::make_svc_handler(MyBaseHandler *& sh)
   sh = new MyClientToDistHandler(m_connection_manager);
   if (!sh)
   {
-    MY_ERROR("can not alloc MyClientToDistHandler from %s", name());
+    MY_ERROR("can not alloc MyClientToDistHandler from %s\n", name());
     return -1;
   }
-  MY_DEBUG("MyClientToDistConnector::make_svc_handler(%X)...\n", long(sh));
+//  MY_DEBUG("MyClientToDistConnector::make_svc_handler(%X)...\n", long(sh));
   sh->parent((void*)this);
   sh->reactor(reactor());
   return 0;
@@ -407,6 +405,7 @@ int MyClientToDistConnector::make_svc_handler(MyBaseHandler *& sh)
 
 bool MyClientToDistConnector::before_reconnect()
 {
+#if 0
   if (m_reconnect_retry_count <= 3)
     return true;
 
@@ -419,6 +418,7 @@ bool MyClientToDistConnector::before_reconnect()
     m_tcp_addr = new_addr;
     m_reconnect_retry_count = 1;
   }
+#endif
   return true;
 }
 

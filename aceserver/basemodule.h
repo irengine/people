@@ -241,6 +241,7 @@ public:
 
   virtual std::string info_string() const;
   virtual int on_open();
+  virtual void on_close();
   virtual int handle_input();
   bool wait_for_close() const;
 
@@ -344,6 +345,8 @@ public:
   MyBaseClientProcessor(MyBaseHandler * handler);
   virtual ~MyBaseClientProcessor();
   virtual bool client_id_verified() const;
+  virtual int on_open();
+  virtual void on_close();
 
 protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
@@ -366,6 +369,7 @@ public:
   virtual ~MyBaseConnectionManager();
   int  num_connections() const;
   int  reaped_connections() const;
+  int  pending_count() const;
   long long int bytes_received() const;
   long long int bytes_sent() const;
 
@@ -394,6 +398,7 @@ private:
   MyIndexHandlerMapPtr find_handler_by_index_i(int index);
 
   int  m_num_connections;
+  int  m_pending;
   int  m_reaped_connections;
   long long int m_bytes_received;
   long long int m_bytes_sent;
@@ -433,7 +438,6 @@ public:
     { return (MyBaseAcceptor *)m_parent; }
   MyBaseConnector * connector() const
     { return (MyBaseConnector *)m_parent; }
-
   virtual int open (void * p = 0);
   virtual int handle_input(ACE_HANDLE fd = ACE_INVALID_HANDLE);
   virtual int handle_output(ACE_HANDLE fd = ACE_INVALID_HANDLE);
@@ -494,11 +498,13 @@ class MyBaseConnector: public ACE_Connector<MyBaseHandler, ACE_SOCK_CONNECTOR>
 {
 public:
   typedef ACE_Connector<MyBaseHandler, ACE_SOCK_CONNECTOR> super;
+  enum { BATCH_CONNECT_NUM = 100 };
+
   MyBaseConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
   virtual ~MyBaseConnector();
 
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
-  virtual int handle_output(ACE_HANDLE fd = ACE_INVALID_HANDLE);
+
   MyBaseModule * module_x() const;
   MyBaseConnectionManager * connection_manager() const;
   MyBaseDispatcher * dispatcher() const;
@@ -509,11 +515,16 @@ public:
   void dump_info();
   virtual const char * name() const;
 
+#ifdef MY_client_test
+  int connect_ready();
+#endif
+
 protected:
   enum
   {
     TIMER_ID_check_dead_connection = 1,
     TIMER_ID_reconnect = 2,
+    TIMER_ID_multi_connect,
     TIMER_ID_reserved_1,
     TIMER_ID_reserved_2,
     TIMER_ID_reserved_3,
@@ -535,6 +546,9 @@ protected:
   long m_reconnect_timer_id;
   int m_idle_time_as_dead; //in minutes
   int m_idle_connection_timer_id;
+#ifdef MY_client_test
+  int m_remain_to_connect;
+#endif
 };
 
 

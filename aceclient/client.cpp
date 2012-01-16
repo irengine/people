@@ -91,7 +91,11 @@ void MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
   }
   if (cfg->run_as_demon)
     MyBaseApp::app_demonize();
-  MyClientToDistHandler::init_mem_pool(1000);
+#ifdef MY_client_test
+  MyClientToDistHandler::init_mem_pool(cfg->test_client_connection_number * 1.2);
+#else
+  MyClientToDistHandler::init_mem_pool(50);
+#endif
   MyMemPoolFactoryX::instance()->init(cfg);
   app->do_constructor();
 }
@@ -109,18 +113,6 @@ void MyClientApp::app_fini()
 
 int main(int argc, const char * argv[])
 {
-/*
-  MyConfigX::instance()->use_mem_pool = true;
-  MyMemPoolFactoryX::instance()->init(MyConfigX::instance());
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(32);
-  mb->clr_self_flags(ACE_Message_Block::DONT_DELETE);
-  mb->release();
-  //delete mb;
-
-  MyMemPoolFactoryX::close();
-  MyConfigX::close();
-  return 0;
-*/
   ACE_UNUSED_ARG(argc);
   ACE_UNUSED_ARG(argv);
   ACE_Sig_Action no_sigpipe ((ACE_SignalHandler) SIG_IGN);
@@ -136,43 +128,6 @@ int main(int argc, const char * argv[])
               ACE_TEXT ("(%P|%t) 2\n")));
 
   MyClientAppX::instance()->start();
-#if 0
-  ACE_OS::sleep(10);
-  ACE_DEBUG ((LM_DEBUG,
-              ACE_TEXT ("(%P|%t) stopping module ...\n")));
-  MyBaseApp::dump_memory_pool_info();
-
-  MyClientAppX::instance()->stop();
-  ACE_DEBUG ((LM_DEBUG,
-              ACE_TEXT ("(%P|%t) stopping module done\n")));
-  //while (1)
-  {
-    ACE_OS::sleep(2);
-    ACE_DEBUG ((LM_DEBUG,
-               ACE_TEXT ("(%P|%t) MyHeartBeatModule->isRunning() = %d\n"), MyClientAppX::instance()->running()));
-
-  }
-  MyBaseApp::dump_memory_pool_info();
-  ACE_DEBUG ((LM_DEBUG,
-              ACE_TEXT ("(%P|%t) starting module ...\n")));
-  MyClientAppX::instance()->start();
-  ACE_DEBUG ((LM_DEBUG,
-              ACE_TEXT ("(%P|%t) starting module done\n")));
-
-  ACE_OS::sleep(10);
-
-  ACE_DEBUG ((LM_DEBUG,
-             ACE_TEXT ("(%P|%t) deleting module ...\n")));
-#else
-/*
-  int i = 0;
-  while (++i <= 30)
-  {
-    ACE_Time_Value timeout(2);
-    ACE_Reactor::instance()->handle_events (&timeout);
-  }
-*/
-#endif
   MyClientApp::app_fini();
   return 0;
 }

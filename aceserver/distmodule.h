@@ -65,6 +65,7 @@ class MyHeartBeatHandler: public MyBaseHandler
 {
 public:
   MyHeartBeatHandler(MyBaseConnectionManager * xptr = NULL);
+  virtual bool is_parent_acceptor() const;
   DECLARE_MEMORY_POOL__NOTHROW(MyHeartBeatHandler, ACE_Thread_Mutex);
 };
 

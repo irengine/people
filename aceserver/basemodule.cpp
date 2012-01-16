@@ -529,6 +529,11 @@ int MyBaseProcessor::on_open()
   return 0;
 }
 
+void MyBaseProcessor::on_close()
+{
+
+}
+
 bool MyBaseProcessor::wait_for_close() const
 {
   return m_wait_for_close;
@@ -1024,6 +1029,30 @@ void MyBaseClientProcessor::client_id_verified(bool _verified)
   m_client_id_verified = _verified;
 }
 
+int MyBaseClientProcessor::on_open()
+{
+
+  if (super::on_open() < 0)
+    return -1;
+
+#ifdef MY_client_test
+  int pending_count = m_handler->connection_manager()->pending_count();
+  if (pending_count > 0 &&  pending_count <= MyBaseConnector::BATCH_CONNECT_NUM / 2)
+    m_handler->connector()->connect_ready();
+  return 0;
+#endif
+}
+
+void MyBaseClientProcessor::on_close()
+{
+
+#ifdef MY_client_test
+  int pending_count = m_handler->connection_manager()->pending_count();
+  if (pending_count > 0 &&  pending_count <= MyBaseConnector::BATCH_CONNECT_NUM / 2)
+    m_handler->connector()->connect_ready();
+#endif
+}
+
 MyBaseProcessor::EVENT_RESULT MyBaseClientProcessor::on_recv_header(const MyDataPacketHeader & header)
 {
   MyBaseProcessor::EVENT_RESULT result = super::on_recv_header(header);
@@ -1052,6 +1081,7 @@ MyBaseConnectionManager::MyBaseConnectionManager()
   m_bytes_sent = 0;
   m_reaped_connections = 0;
   m_locked = false;
+  m_pending = 0;
 }
 
 MyBaseConnectionManager::~MyBaseConnectionManager()
@@ -1075,6 +1105,11 @@ int MyBaseConnectionManager::num_connections() const
 int MyBaseConnectionManager::reaped_connections() const
 {
   return m_reaped_connections;
+}
+
+int MyBaseConnectionManager::pending_count() const
+{
+  return m_pending;
 }
 
 long long int MyBaseConnectionManager::bytes_received() const
@@ -1170,9 +1205,13 @@ void MyBaseConnectionManager::add_connection(MyBaseHandler * handler, Connection
   MyConnectionsPtr it = m_active_connections.lower_bound(handler);
   if (it != m_active_connections.end() && (it->first == handler))
   {
+    if (it->second != state)
+      m_pending += (state == CS_Pending ? 1:-1);
     it->second = state;
   } else
   {
+    if (state == CS_Pending)
+      ++ m_pending;
     m_active_connections.insert(it, MyConnections::value_type(handler, state));
     ++m_num_connections;
   }
@@ -1190,6 +1229,8 @@ void MyBaseConnectionManager::remove_connection(MyBaseHandler * handler)
   MyConnectionsPtr ptr = find(handler);
   if (ptr != m_active_connections.end())
   {
+    if (ptr->second == CS_Pending)
+      -- m_pending;
     m_active_connections.erase(ptr);
     --m_num_connections;
   }
@@ -1201,7 +1242,6 @@ void MyBaseConnectionManager::remove_connection(MyBaseHandler * handler)
   MyIndexHandlerMapPtr ptr2 = find_handler_by_index_i(index);
   if (ptr2 != m_index_handler_map.end())
     m_index_handler_map.erase(ptr2);
-
 }
 
 MyBaseConnectionManager::MyConnectionsPtr MyBaseConnectionManager::find(MyBaseHandler * handler)
@@ -1239,7 +1279,7 @@ int MyBaseHandler::on_open()
 
 int MyBaseHandler::open(void * p)
 {
-  MY_DEBUG("MyBaseHandler::open(void * p = %X), this = %X\n", long(p), long(this));
+//  MY_DEBUG("MyBaseHandler::open(void * p = %X), this = %X\n", long(p), long(this));
   if (super::open(p) == -1)
     return -1;
   if (on_open() < 0)
@@ -1266,7 +1306,8 @@ int MyBaseHandler::send_data(ACE_Message_Block * mb)
 
 int MyBaseHandler::handle_input(ACE_HANDLE h)
 {
-  MY_DEBUG("handle_input (handle = %d)\n", h);
+  ACE_UNUSED_ARG(h);
+//  MY_DEBUG("handle_input (handle = %d)\n", h);
   return m_processor->handle_input();
 }
 
@@ -1279,7 +1320,7 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
                           ACE_Reactor_Mask close_mask)
 {
   ACE_UNUSED_ARG(handle);
-  MY_DEBUG("handle_close.1 (handle = %d, mask=%x)\n", handle, close_mask);
+  //  MY_DEBUG("handle_close.y (handle = %d, mask=%x)\n", handle, close_mask);
   if (close_mask == ACE_Event_Handler::WRITE_MASK)
   {
     if (!m_processor->wait_for_close())
@@ -1288,16 +1329,14 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
   {
     //m_processor->handle_input();
   }
-  MY_DEBUG("handle_close.2 (handle = %d, mask=%x)\n", handle, close_mask);
   ACE_Message_Block *mb;
   ACE_Time_Value nowait(ACE_Time_Value::zero);
   while (-1 != this->getq(mb, &nowait))
     mb->release();
-  MY_DEBUG("handle_close.x (handle = %d, mask=%x)\n", handle, close_mask);
   if (m_connection_manager)
     m_connection_manager->remove_connection(this);
-  MY_DEBUG("handle_close.y (handle = %d, mask=%x)\n", handle, close_mask);
   on_close();
+  m_processor->on_close();
   //here comes the tricky part, parent class will NOT call delete as it normally does
   //since we override the operator new/delete pair, the same thing parent class does
   //see ACE_Svc_Handler @ Svc_Handler.cpp
@@ -1306,7 +1345,7 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
   //             delete this;
   //so do NOT use the normal method: return super::handle_close(handle, close_mask);
   //for it will cause memory leaks
-  MY_DEBUG("handle_close.3 deleting object (handle = %d, mask=%x)\n", handle, close_mask);
+//  MY_DEBUG("handle_close.3 deleting object (handle = %d, mask=%x)\n", handle, close_mask);
   delete this;
   return 0;
   //return super::handle_close (handle, close_mask); //do NOT use
@@ -1518,6 +1557,10 @@ int MyBaseConnector::handle_timeout(const ACE_Time_Value &current_time, const vo
   {
     if (m_connection_manager->num_connections() < m_num_connection)
     {
+#ifdef MY_client_test
+      if (m_remain_to_connect > 0)
+        return 0;
+#endif
       if (before_reconnect())
       {
         m_reconnect_retry_count++;
@@ -1528,14 +1571,6 @@ int MyBaseConnector::handle_timeout(const ACE_Time_Value &current_time, const vo
     m_connection_manager->detect_dead_connections(m_idle_time_as_dead);
 
   return 0;
-}
-
-int MyBaseConnector::handle_output(ACE_HANDLE fd)
-{
-  MY_DEBUG("MyBaseConnector::handle_output(%X), this = %lX\n", fd, long(this));
-  int ret = super::handle_output(fd);
-  MY_DEBUG("MyBaseConnector::handle_output(%X), this = %lX, result = %d\n", fd, long(this), ret);
-  return ret;
 }
 
 bool MyBaseConnector::on_start()
@@ -1551,6 +1586,7 @@ void MyBaseConnector::on_stop()
 int MyBaseConnector::start()
 {
   m_connection_manager->unlock();
+  m_remain_to_connect = 0;
   if (open(m_dispatcher->reactor(), ACE_NONBLOCK) == -1)
     return -1;
   m_reconnect_retry_count = 1;
@@ -1631,13 +1667,34 @@ int MyBaseConnector::stop()
   return 0;
 }
 
+#ifdef MY_client_test
+int MyBaseConnector::connect_ready()
+{
+  return do_connect(0);
+}
+#endif
+
 int MyBaseConnector::do_connect(int count)
 {
-  if (count <= 0 || count > m_num_connection)
+#ifdef MY_client_test
+  if (unlikely(count <= 0 && m_remain_to_connect == 0))
+    return 0;
+
+  if (unlikely(count > m_num_connection))
   {
     MY_FATAL(ACE_TEXT("invalid connect count = %d, maximum allowed connections = %d"), count, m_num_connection);
     return -1;
   }
+
+  if (m_connection_manager->pending_count() >= BATCH_CONNECT_NUM / 2)
+    return 0;
+
+  bool b_remain_connect = m_remain_to_connect > 0;
+  int true_count;
+  if (b_remain_connect)
+    true_count = std::min(m_remain_to_connect, (BATCH_CONNECT_NUM - m_connection_manager->pending_count()));
+  else
+    true_count = std::min(count, (int)BATCH_CONNECT_NUM);
 
   ACE_INET_Addr port_to_connect(m_tcp_port, m_tcp_addr.c_str());
   MyBaseHandler * handler = NULL;
@@ -1645,11 +1702,12 @@ int MyBaseConnector::do_connect(int count)
 
   ACE_Time_Value timeout(30);
   ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
-  for (int i = 1; i <= count; ++i)
+
+  for (int i = 1; i <= true_count; ++i)
   {
     handler = NULL;
     int ret_i = connect(handler, port_to_connect, synch_options);
-    MY_DEBUG("connect result = %d, handler = %X\n", ret_i, handler);
+//    MY_DEBUG("connect result = %d, handler = %X\n", ret_i, handler);
     if (ret_i == 0)
     {
       ++ok_count;
@@ -1664,10 +1722,28 @@ int MyBaseConnector::do_connect(int count)
     }
   }
 
+  if (b_remain_connect)
+    m_remain_to_connect -= true_count;
+  else
+    m_remain_to_connect = count - true_count;
+
   MY_INFO(ACE_TEXT("connecting on %s:%d (total=%d, ok=%d, failed=%d, pending=%d)... \n"),
-      m_tcp_addr.c_str(), m_tcp_port, count, ok_count, count - ok_count- pending_count, pending_count);
+      m_tcp_addr.c_str(), m_tcp_port, true_count, ok_count, true_count - ok_count- pending_count, pending_count);
 
   return ok_count + pending_count > 0;
+
+#else
+  ACE_INET_Addr port_to_connect(m_tcp_port, m_tcp_addr.c_str());
+  MyBaseHandler * handler = NULL;
+  ACE_Time_Value timeout(30);
+  ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
+  if (connect(handler, port_to_connect, synch_options) == -1)
+  {
+    if (errno == EWOULDBLOCK)
+      m_connection_manager->add_connection(handler, MyBaseConnectionManager::CS_Pending);
+  }
+  return 0;
+#endif
 }
 
 
