@@ -102,6 +102,7 @@ private:
 class MyHeartBeatAcceptor: public MyBaseAcceptor
 {
 public:
+  enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
   MyHeartBeatAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
   virtual int make_svc_handler(MyBaseHandler *& sh);
   virtual const char * name() const;
@@ -126,6 +127,65 @@ private:
   MyHeartBeatService * m_service;
   MyHeartBeatDispatcher * m_dispatcher;
 
+};
+
+/////////////////////////////////////
+//remote access module
+/////////////////////////////////////
+
+class MyDistRemoteAccessProcessor: public MyBaseRemoteAccessProcessor
+{
+public:
+  typedef MyBaseRemoteAccessProcessor super;
+
+  MyDistRemoteAccessProcessor(MyBaseHandler * handler);
+
+protected:
+  virtual int on_command(const char * cmd, char * parameter);
+  virtual int on_command_help();
+
+private:
+  int on_command_dist_file_md5(char * parameter);
+  int on_command_dist_batch_file_md5(char * parameter);
+};
+
+class MyDistRemoteAccessHandler: public MyBaseHandler
+{
+public:
+  MyDistRemoteAccessHandler(MyBaseConnectionManager * xptr = NULL);
+};
+
+class MyDistRemoteAccessAcceptor: public MyBaseAcceptor
+{
+public:
+  enum { IDLE_TIME_AS_DEAD = 10 }; //in minutes
+  MyDistRemoteAccessAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
+  virtual int make_svc_handler(MyBaseHandler *& sh);
+  virtual const char * name() const;
+};
+
+class MyDistRemoteAccessDispatcher: public MyBaseDispatcher
+{
+public:
+  MyDistRemoteAccessDispatcher(MyBaseModule * pModule);
+  virtual const char * name() const;
+
+protected:
+  virtual bool on_start();
+};
+
+class MyDistRemoteAccessModule: public MyBaseModule
+{
+public:
+  MyDistRemoteAccessModule(MyBaseApp * app);
+//  MyDistRemoteAccessDispatcher * dispatcher() const;
+  virtual const char * name() const;
+
+protected:
+  virtual bool on_start();
+
+//private:
+//  MyDistRemoteAccessDispatcher * m_dispatcher;
 };
 
 #endif /* HEARTBEATMODULE_H_ */

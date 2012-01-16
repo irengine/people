@@ -82,7 +82,11 @@ bool MyServerApp::on_construct()
   delete [] _app_data_path;
 #endif
   if (cfg->is_dist_server())
+  {
     add_module(m_heart_beat_module = new MyHeartBeatModule(this));
+    if (cfg->remote_access_port > 0)
+      add_module(new MyDistRemoteAccessModule(this));
+  }
   if (cfg->is_middle_server())
     add_module(m_location_module = new MyLocationModule(this));
   return true;

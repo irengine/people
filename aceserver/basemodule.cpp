@@ -317,10 +317,9 @@ void MyFileMD5s::minus(MyFileMD5s & target)
     }
     else if ((**it1).same_md5(**it2))//==
     {
-      it = it1;
+      delete *it1;
       it1 = m_file_md5_list.erase(it1);
       ++it2;
-      delete *it;
     } else
     {
       ++it1;
@@ -586,6 +585,132 @@ int32_t MyBaseProcessor::client_id_index() const
 {
   return m_client_id_index;
 }
+
+
+//MyBaseRemoteAccessProcessor//
+
+MyBaseRemoteAccessProcessor::MyBaseRemoteAccessProcessor(MyBaseHandler * handler):
+    MyBaseProcessor(handler)
+{
+  m_mb = NULL;
+}
+
+MyBaseRemoteAccessProcessor::~MyBaseRemoteAccessProcessor()
+{
+  if (m_mb)
+    m_mb->release();
+}
+
+int MyBaseRemoteAccessProcessor::handle_input()
+{
+  if (m_mb == NULL)
+    m_mb = MyMemPoolFactoryX::instance()->get_message_block(MAX_COMMAND_LINE_LENGTH);
+  if (mycomutil_recv_message_block(m_handler, m_mb) < 0)
+    return -1;
+  int i, len = m_mb->length();
+  char * ptr = m_mb->base();
+  for (i = 0; i < len; ++ i)
+    if (ptr[i] == '\r' || ptr[i] == '\n')
+      break;
+  if (i >= len)
+  {
+    if (len == MAX_COMMAND_LINE_LENGTH)
+    {
+      char buff[100];
+      ACE_OS::snprintf(buff, 100 - 1, "Error: command line too long, max line length = %d\n", MAX_COMMAND_LINE_LENGTH);
+      send_string(buff);
+      return 0;
+    }
+    return 0;
+  }
+
+  char last_cr_lf = ptr[i];
+
+  ptr[i] = 0;
+  if (process_command_line(m_mb->base()) < 0)
+    return -1;
+
+  ++i;
+  while (i < len && (ptr[i] == '\r' || ptr[i] == '\n') && (ptr[i] != last_cr_lf))
+    ++i;
+  if (i < len)
+    ACE_OS::memmove(ptr, ptr + i, len - i);
+  m_mb->wr_ptr(m_mb->base() + len - i);
+  m_mb->rd_ptr(m_mb->base());
+  return 0;
+}
+
+int MyBaseRemoteAccessProcessor::on_open()
+{
+  return say_hello();
+}
+
+int MyBaseRemoteAccessProcessor::send_string(const char * s)
+{
+  if (!s || !*s)
+    return 0;
+  int len = ACE_OS::strlen(s);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(len + 1);
+  ACE_OS::memcpy(mb->base(), s, len + 1);
+  mb->wr_ptr(mb->capacity());
+  return (m_handler->send_data(mb) < 0 ? -1:0);
+}
+
+int MyBaseRemoteAccessProcessor::process_command_line(char * cmd)
+{
+  if (!cmd || !*cmd)
+    return send_string(">");
+
+  char * ptr_start = cmd, * ptr_end;
+  while (*ptr_start == ' ' || *ptr_start == '\t')
+    ++ptr_start;
+  ptr_end = ptr_start;
+  while (*ptr_end && *ptr_end != ' ' && *ptr_end != '\t')
+    ++ptr_end;
+  if (*ptr_end)
+    *ptr_end++ = 0;
+  return do_command(ptr_start, ptr_end);
+}
+
+int MyBaseRemoteAccessProcessor::do_command(const char * cmd, char * parameter)
+{
+  if (!ACE_OS::strcmp(cmd, "help"))
+    return on_command_help();
+  if (!ACE_OS::strcmp(cmd, "quit") || !ACE_OS::strcmp(cmd, "exit"))
+    return on_command_quit();
+  return on_command(cmd, parameter);
+}
+
+int MyBaseRemoteAccessProcessor::on_command(const char * cmd, char * parameter)
+{
+  ACE_UNUSED_ARG(cmd);
+  ACE_UNUSED_ARG(parameter);
+  return 0;
+}
+
+int MyBaseRemoteAccessProcessor::on_unsupported_command(const char * cmd)
+{
+  char buff[4096];
+  ACE_OS::snprintf(buff, 4096 - 1, "Error: unknown command '%s', to see a list of supported commands, type 'help'\n>", cmd);
+  return send_string(buff);
+}
+
+int MyBaseRemoteAccessProcessor::on_command_help()
+{
+  return 0;
+}
+
+int MyBaseRemoteAccessProcessor::on_command_quit()
+{
+  send_string("bye!\n");
+  return -1;
+}
+
+int MyBaseRemoteAccessProcessor::say_hello()
+{
+  return send_string("welcome\n>");
+}
+
 
 
 //MyBasePacketProcessor//
@@ -894,6 +1019,11 @@ bool MyBaseClientProcessor::client_id_verified() const
   return m_client_id_verified;
 }
 
+void MyBaseClientProcessor::client_id_verified(bool _verified)
+{
+  m_client_id_verified = _verified;
+}
+
 MyBaseProcessor::EVENT_RESULT MyBaseClientProcessor::on_recv_header(const MyDataPacketHeader & header)
 {
   MyBaseProcessor::EVENT_RESULT result = super::on_recv_header(header);
@@ -904,7 +1034,7 @@ MyBaseProcessor::EVENT_RESULT MyBaseClientProcessor::on_recv_header(const MyData
   bool bVersionCheck = (header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY);
   if (bVerified == bVersionCheck)
   {
-    MY_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s, \n"),
+    MY_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s \n"),
         header.command, bVerified, bVersionCheck, info_string().c_str());
     return ER_ERROR;
   }
@@ -1272,10 +1402,10 @@ int MyBaseAcceptor::start()
 
   int ret = super::open (port_to_listen, m_dispatcher->reactor(), ACE_NONBLOCK);
   if (ret == 0)
-    MY_INFO(ACE_TEXT ("listening on port %d... OK\n"), m_tcp_port);
+    MY_INFO(ACE_TEXT ("%s listening on port %d... OK\n"), module_x()->name(), m_tcp_port);
   else if (ret < 0)
   {
-    MY_ERROR(ACE_TEXT ("acceptor.open on port %d failed!\n"), m_tcp_port);
+    MY_ERROR(ACE_TEXT ("%s acceptor.open on port %d failed!\n"), module_x()->name(), m_tcp_port);
     return -1;
   }
 

@@ -265,6 +265,33 @@ protected:
 
 };
 
+class MyBaseRemoteAccessProcessor: public MyBaseProcessor
+{
+public:
+  typedef MyBaseProcessor super;
+  enum { MAX_COMMAND_LINE_LENGTH = 4096 };
+
+  MyBaseRemoteAccessProcessor(MyBaseHandler * handler);
+  virtual ~MyBaseRemoteAccessProcessor();
+
+  virtual int handle_input();
+  virtual int on_open();
+
+protected:
+  virtual int say_hello();
+  virtual int on_command(const char * cmd, char * parameter);
+  virtual int on_command_help();
+  int send_string(const char * s);
+  int on_unsupported_command(const char * cmd);
+
+private:
+  int do_command(const char * cmd, char * parameter);
+  int process_command_line(char * cmdline);
+  int on_command_quit();
+
+  ACE_Message_Block * m_mb;
+};
+
 class MyBasePacketProcessor: public MyBaseProcessor
 {
 public:
@@ -320,6 +347,7 @@ public:
 
 protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
+  void client_id_verified(bool _verified);
 
 private:
   bool m_client_id_verified;

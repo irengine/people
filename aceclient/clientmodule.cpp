@@ -95,7 +95,10 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
   {
     MyBaseProcessor::EVENT_RESULT result = do_version_check_reply(mb);
     if (result == ER_OK)
+    {
       ((MyClientToDistHandler*)m_handler)->setup_timer();
+      client_id_verified(true);
+    }
     return result;
   }
 
@@ -253,13 +256,6 @@ MyClientToDistModule * MyClientToDistHandler::module_x() const
 
 int MyClientToDistHandler::on_open()
 {
-/*
-  MY_DEBUG("MyClientToDistHandler scheduling timer...\n");
-  ACE_Time_Value interval (MyConfigX::instance()->client_heart_beat_interval);
-  m_heat_beat_ping_timer_id = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval, interval);
-  if (m_heat_beat_ping_timer_id < 0)
-    MY_ERROR(ACE_TEXT("MyClientToDistHandler setup heart beat timer failed, %s"), (const char*)MyErrno());
-*/
   return 0;
 }
 
@@ -340,6 +336,8 @@ void MyClientToDistService::do_server_file_md5_list(ACE_Message_Block * mb)
     return;
   }
 
+  MY_DEBUG("do_server_file_md5_list: client_id =%s\n", client_id.as_string());
+
   char client_path_by_id[PATH_MAX];
   ACE_OS::strsncpy(client_path_by_id, MyConfigX::instance()->app_test_data_path.c_str(), PATH_MAX);
   int len = ACE_OS::strlen(client_path_by_id);
@@ -363,7 +361,7 @@ void MyClientToDistService::do_server_file_md5_list(ACE_Message_Block * mb)
   md5s_server.minus(md5s_client);
   char temp[4096];
   if (md5s_server.to_buffer(temp, 4096, false))
-    MY_INFO("md5 minus for client_id: [%s] = %s\n", temp);
+    MY_INFO("md5 minus for client_id: [%s] = %s\n", client_id.as_string(), temp);
 
 #else
   #error "client_id need to set globally"

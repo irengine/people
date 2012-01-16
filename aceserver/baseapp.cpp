@@ -33,6 +33,7 @@ const int  DEFAULT_MODULE_HEART_BEAT_MPOOL_SIZE = DEFAULT_max_clients * 4;
 
 const int  DEFAULT_middle_server_client_port = 2223;
 const int  DEFAULT_middle_server_dist_port = 2224;
+const int  DEFAULT_remote_access_port = 2225;
 const int  DEFAULT_client_heart_beat_interval = 60; //in seconds
 #ifdef MY_client_test
   const int  DEFAULT_test_client_connection_number = 1;
@@ -59,6 +60,7 @@ const ACE_TCHAR * CONFIG_log_file_size_in_MB = ACE_TEXT("log.file_size");
   const ACE_TCHAR * CONFIG_test_client_start_client_id = ACE_TEXT("module.test_client_start_client_id");
 #endif
 
+const ACE_TCHAR * CONFIG_remote_access_port = ACE_TEXT("remote_access_port");
 
 //dist and middle servers
 const ACE_TCHAR * CONFIG_max_clients = ACE_TEXT("max_clients");
@@ -98,6 +100,8 @@ MyConfig::MyConfig()
   log_file_number = DEFAULT_log_file_number;
   log_file_size_in_MB = DEFAULT_log_file_size_in_MB;
   log_to_stderr = DEFAULT_log_to_stderr;
+
+  remote_access_port = DEFAULT_remote_access_port;
 
   //dist and middle server
   max_clients = DEFAULT_max_clients;
@@ -326,6 +330,16 @@ bool MyConfig::load_config_common(ACE_Configuration_Heap & cfgHeap, ACE_Configur
   }
 #endif
 
+  if (cfgHeap.get_integer_value (section,  CONFIG_remote_access_port, ival) == 0)
+  {
+    if (ival == 0 || ival >= 65535)
+    {
+      MY_ERROR(ACE_TEXT("Invalid config value %s (= %d)\n"), CONFIG_remote_access_port, ival);
+      return false;
+    }
+    remote_access_port = ival;
+  }
+
   return true;
 }
 
@@ -506,6 +520,8 @@ void MyConfig::dump_config_info()
 #else
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_mode = 0\n")));
 #endif
+
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_remote_access_port, remote_access_port));
 
   //dist and middle server
   if (is_server())
