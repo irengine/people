@@ -502,7 +502,81 @@ int MyDistRemoteAccessProcessor::on_command_dist_file_md5(char * parameter)
 
 int MyDistRemoteAccessProcessor::on_command_dist_batch_file_md5(char * parameter)
 {
+  if (!*parameter)
+    return send_string("  usage: dist_batch start_client_id number_of_clients\n>");
 
+  const char * CONST_seperator = ",\t ";
+  char *str, *token, *saveptr;
+
+  std::string s_start_id, s_number;
+
+  for (str = parameter; ; str = NULL)
+  {
+    token = strtok_r(str, CONST_seperator, &saveptr);
+    if (token == NULL)
+      break;
+    if (!*token)
+      continue;
+    if (s_start_id.empty())
+      s_start_id = token;
+    else if (s_number.empty())
+      s_number = token;
+    else
+      return send_string("  usage: dist_batch start_client_id number_of_clients\n>");
+  }
+
+  if (s_number.empty())
+    return send_string("  usage: dist_batch start_client_id number_of_clients\n>");
+
+  long long int start_id = atoll(s_start_id.c_str());
+  int number = atoi(s_number.c_str());
+  if (number <= 0 || start_id <= 0)
+    return send_string("  usage: dist_batch start_client_id number_of_clients\n>");
+  long long int end_id = start_id + number - 1;
+  long long int valid_start_id = MyConfigX::instance()->test_client_start_client_id;
+  long long int valid_end_id = valid_start_id + MyConfigX::instance()->test_client_connection_number - 1;
+
+  valid_start_id = std::max(valid_start_id, start_id);
+  valid_end_id = std::min(valid_end_id, end_id);
+  if (valid_start_id > valid_end_id)
+    return send_string("  dist_batch: no valid client_ids found\n>");
+
+  if (send_string("  processing valid client_id(s):") < 0)
+    return -1;
+
+  const int BUFF_SIZE = 4096;
+  char buff[BUFF_SIZE];
+  int len = 0;
+  buff[0] = 0;
+  long long int i = valid_start_id;
+  while (true)
+  {
+    ACE_OS::snprintf(buff + len, BUFF_SIZE - 1 - len, " %lld", i);
+    len = strlen(buff);
+    if (len >= (int)(BUFF_SIZE - sizeof(MyClientID) - 3) || i >= valid_end_id)
+    {
+      ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(len + 1);
+      mb->copy(buff, len + 1);
+
+      ACE_Time_Value tv(ACE_Time_Value::zero);
+      if (MyServerAppX::instance()->heart_beat_module()->service()->putq(mb, &tv) == -1)
+      {
+        mb->release();
+        return send_string("  Error: can not place the request message to target.\n>");
+      }
+      buff[0] = 0;
+      len = 0;
+    }
+    if (i >= valid_end_id)
+      break;
+    ++i;
+  }
+
+  buff[0] = 0;
+  snprintf(buff, BUFF_SIZE - 1, " valid_start=%lld number=%d\n", valid_start_id, int(valid_end_id - valid_start_id + 1));
+  if (send_string(buff) < 0)
+    return -1;
+  return send_string("  OK: request placed into target for later processing\n>");
 }
 
 //MyDistRemoteAccessHandler//
