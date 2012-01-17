@@ -124,9 +124,6 @@ int main(int argc, const char * argv[])
   else
     MyClientApp::app_init(NULL, MyConfig::RM_CLIENT);
 
-  ACE_DEBUG ((LM_DEBUG,
-              ACE_TEXT ("(%P|%t) 2\n")));
-
   MyClientAppX::instance()->start();
   MyClientApp::app_fini();
   return 0;
