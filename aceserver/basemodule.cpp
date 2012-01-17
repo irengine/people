@@ -26,7 +26,7 @@ void MyMemPoolFactory::init(MyConfig * config)
   if (!m_use_mem_pool)
     return;
 
-  const int pool_size[] = {32, 64, 128, 256, 512, 1024, 2048, 4096};
+  const int pool_size[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096};
   //todo: change default pool size
   int count = sizeof(pool_size) / sizeof(int);
   m_pools.reserve(count);
@@ -614,6 +614,7 @@ int MyBaseRemoteAccessProcessor::handle_input()
     return -1;
   int i, len = m_mb->length();
   char * ptr = m_mb->base();
+  m_handler->connection_manager()->on_data_received(len);
   for (i = 0; i < len; ++ i)
     if (ptr[i] == '\r' || ptr[i] == '\n')
       break;
@@ -707,13 +708,13 @@ int MyBaseRemoteAccessProcessor::on_command_help()
 
 int MyBaseRemoteAccessProcessor::on_command_quit()
 {
-  send_string("bye!\n");
+  send_string("Bye!\n");
   return -1;
 }
 
 int MyBaseRemoteAccessProcessor::say_hello()
 {
-  return send_string("welcome\n>");
+  return send_string("Welcome\n>");
 }
 
 
@@ -739,7 +740,7 @@ std::string MyBasePacketProcessor::info_string() const
   const char * str_id = m_client_id.as_string();
   if (!*str_id)
     str_id = "NULL";
-  ACE_OS::snprintf(buff, 512, "(remote addr=%s, client_id=%s)", m_peer_addr, m_client_id.as_string());
+  ACE_OS::snprintf(buff, 512 - 1, "(remote addr=%s, client_id=%s)", m_peer_addr, m_client_id.as_string());
   std::string result(buff);
   return result;
 }
@@ -1082,6 +1083,7 @@ MyBaseConnectionManager::MyBaseConnectionManager()
   m_reaped_connections = 0;
   m_locked = false;
   m_pending = 0;
+  m_total_connections = 0;
 }
 
 MyBaseConnectionManager::~MyBaseConnectionManager()
@@ -1097,9 +1099,14 @@ MyBaseConnectionManager::~MyBaseConnectionManager()
   }
 }
 
-int MyBaseConnectionManager::num_connections() const
+int MyBaseConnectionManager::active_connections() const
 {
   return m_num_connections;
+}
+
+int MyBaseConnectionManager::total_connections() const
+{
+  return m_total_connections;
 }
 
 int MyBaseConnectionManager::reaped_connections() const
@@ -1147,6 +1154,29 @@ bool MyBaseConnectionManager::locked() const
   return m_locked;
 }
 
+void MyBaseConnectionManager::dump_info()
+{
+  do_dump_info();
+}
+
+void MyBaseConnectionManager::do_dump_info()
+{
+  const int BUFF_LEN = 1024;
+  char buff[BUFF_LEN];
+  //it seems that ACE's logging system can not handle 64bit formatting, let's do it ourself
+  ACE_OS::snprintf(buff, BUFF_LEN, "        active connections = %d\n", active_connections());
+  ACE_DEBUG((LM_INFO, buff));
+  ACE_OS::snprintf(buff, BUFF_LEN, "        total connections = %d\n", total_connections());
+  ACE_DEBUG((LM_INFO, buff));
+  ACE_OS::snprintf(buff, BUFF_LEN, "        dead connections closed = %d\n", reaped_connections());
+  ACE_DEBUG((LM_INFO, buff));
+  ACE_OS::snprintf(buff, BUFF_LEN, "        bytes_received = %lld\n", (long long int) bytes_received());
+  ACE_DEBUG((LM_INFO, buff));
+  ACE_OS::snprintf(buff, BUFF_LEN, "        bytes_sent = %lld\n", (long long int) bytes_sent());
+  ACE_DEBUG((LM_INFO, buff));
+}
+
+
 void MyBaseConnectionManager::detect_dead_connections(int timeout)
 {
   MyConnectionsPtr it;
@@ -1183,10 +1213,15 @@ void MyBaseConnectionManager::set_connection_client_id_index(MyBaseHandler * han
   MyIndexHandlerMapPtr it = m_index_handler_map.lower_bound(index);
   if (it != m_index_handler_map.end() && (it->first == index))
   {
+    MyBaseHandler * handler_old = it->second;
     it->second = handler;
+    if (handler_old)
+    {
+      MY_INFO("closing previous connection %s\n", handler_old->processor()->info_string().c_str());
+      handler_old->handle_close(ACE_INVALID_HANDLE, 0);
+    }
   } else
     m_index_handler_map.insert(it, MyIndexHandlerMap::value_type(index, handler));
-
 }
 
 MyBaseHandler * MyBaseConnectionManager::find_handler_by_index(int index)
@@ -1214,6 +1249,7 @@ void MyBaseConnectionManager::add_connection(MyBaseHandler * handler, Connection
       ++ m_pending;
     m_active_connections.insert(it, MyConnections::value_type(handler, state));
     ++m_num_connections;
+    ++m_total_connections;
   }
 }
 
@@ -1240,7 +1276,7 @@ void MyBaseConnectionManager::remove_connection(MyBaseHandler * handler)
     return;
 
   MyIndexHandlerMapPtr ptr2 = find_handler_by_index_i(index);
-  if (ptr2 != m_index_handler_map.end())
+  if (ptr2 != m_index_handler_map.end() && (ptr2->second == handler || ptr2->second == NULL))
     m_index_handler_map.erase(ptr2);
 }
 
@@ -1477,17 +1513,7 @@ int MyBaseAcceptor::stop()
 
 void MyBaseAcceptor::do_dump_info()
 {
-  const int BUFF_LEN = 1024;
-  char buff[BUFF_LEN];
-  //it seems that ACE's logging system can not handle 64bit formatting, let's do it ourself
-  ACE_OS::snprintf(buff, BUFF_LEN, "        connection number = %d\n", m_connection_manager->num_connections());
-  ACE_DEBUG((LM_INFO, buff));
-  ACE_OS::snprintf(buff, BUFF_LEN, "        dead connection closed = %d\n", m_connection_manager->reaped_connections());
-  ACE_DEBUG((LM_INFO, buff));
-  ACE_OS::snprintf(buff, BUFF_LEN, "        bytes_received = %lld\n", (long long int) m_connection_manager->bytes_received());
-  ACE_DEBUG((LM_INFO, buff));
-  ACE_OS::snprintf(buff, BUFF_LEN, "        bytes_sent = %lld\n", (long long int) m_connection_manager->bytes_sent());
-  ACE_DEBUG((LM_INFO, buff));
+  m_connection_manager->dump_info();
 }
 
 void MyBaseAcceptor::dump_info()
@@ -1555,7 +1581,7 @@ int MyBaseConnector::handle_timeout(const ACE_Time_Value &current_time, const vo
   ACE_UNUSED_ARG(current_time);
   if (long(act) == TIMER_ID_reconnect && m_reconnect_interval > 0)
   {
-    if (m_connection_manager->num_connections() < m_num_connection)
+    if (m_connection_manager->active_connections() < m_num_connection)
     {
 #ifdef MY_client_test
       if (m_remain_to_connect > 0)
@@ -1564,7 +1590,7 @@ int MyBaseConnector::handle_timeout(const ACE_Time_Value &current_time, const vo
       if (before_reconnect())
       {
         m_reconnect_retry_count++;
-        do_connect(m_num_connection - m_connection_manager->num_connections());
+        do_connect(m_num_connection - m_connection_manager->active_connections());
       }
     }
   } else if (long(act) == TIMER_ID_check_dead_connection && m_idle_time_as_dead > 0)
@@ -1631,16 +1657,7 @@ int MyBaseConnector::start()
 
 void MyBaseConnector::do_dump_info()
 {
-  const int BUFF_LEN = 1024;
-  char buff[BUFF_LEN];
-  ACE_OS::snprintf(buff, BUFF_LEN, "        connection number = %d\n", m_connection_manager->num_connections());
-  ACE_DEBUG((LM_INFO, buff));
-  ACE_OS::snprintf(buff, BUFF_LEN, "        dead connection closed = %d\n", m_connection_manager->reaped_connections());
-  ACE_DEBUG((LM_INFO, buff));
-  ACE_OS::snprintf(buff, BUFF_LEN, "        bytes_received = %lld\n", (long long int) m_connection_manager->bytes_received());
-  ACE_DEBUG((LM_INFO, buff));
-  ACE_OS::snprintf(buff, BUFF_LEN, "        bytes_sent = %lld\n", (long long int) m_connection_manager->bytes_sent());
-  ACE_DEBUG((LM_INFO, buff));
+  m_connection_manager->dump_info();
 }
 
 void MyBaseConnector::dump_info()
@@ -1933,7 +1950,7 @@ void MyBaseDispatcher::do_stop_i()
 
 int MyBaseDispatcher::svc()
 {
-  MY_DEBUG(ACE_TEXT ("entering MyBaseDispatcher::svc()\n"));
+  MY_INFO(ACE_TEXT ("running %s::svc()\n"), name());
 
   if (!do_start_i())
     return -1;
@@ -1941,18 +1958,18 @@ int MyBaseDispatcher::svc()
   while (m_module->running_with_app())
   {
     ACE_Time_Value timeout(2);
-    int ret = reactor()->handle_events (&timeout);
+    int ret = reactor()->handle_events(&timeout);
     if (ret == -1)
     {
       if (errno == EINTR)
         continue;
-      MY_INFO(ACE_TEXT ("exiting MyBaseDispatcher::svc() due to errno = %d\n"), errno);
+      MY_INFO(ACE_TEXT ("exiting %s::svc() due to %s\n"), name(), (const char*)MyErrno());
       break;
     }
     //MY_DEBUG("    returning from reactor()->handle_events()\n");
   }
 
-  MY_DEBUG(ACE_TEXT ("exiting MyBaseDispatcher::svc()\n"));
+  MY_INFO(ACE_TEXT ("exiting %s::svc()\n"), name());
   do_stop_i();
   return 0;
 }

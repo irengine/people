@@ -94,7 +94,7 @@ void MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
 #ifdef MY_client_test
   MyClientToDistHandler::init_mem_pool(cfg->test_client_connection_number * 1.2);
 #else
-  MyClientToDistHandler::init_mem_pool(50);
+  MyClientToDistHandler::init_mem_pool(100);
 #endif
   MyMemPoolFactoryX::instance()->init(cfg);
   app->do_constructor();
@@ -103,9 +103,9 @@ void MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
 void MyClientApp::app_fini()
 {
   MY_INFO(ACE_TEXT("shutdown client...\n"));
-  MyClientAppX::instance()->dump_info();
   MyClientAppX::close();  //this comes before the releasing of memory pool
   MyConfigX::close();
+  dump_mem_pool_info(); //only mem pool info, other objects should gone by now
   MyClientToDistHandler::fini_mem_pool();
   MyMemPoolFactoryX::close();
 }

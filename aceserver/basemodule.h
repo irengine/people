@@ -367,7 +367,8 @@ public:
   };
   MyBaseConnectionManager();
   virtual ~MyBaseConnectionManager();
-  int  num_connections() const;
+  int  active_connections() const;
+  int  total_connections() const;
   int  reaped_connections() const;
   int  pending_count() const;
   long long int bytes_received() const;
@@ -386,6 +387,10 @@ public:
   void lock();
   void unlock();
   bool locked() const;
+  void dump_info();
+
+protected:
+  virtual void do_dump_info();
 
 private:
   typedef std::map<MyBaseHandler *, long> MyConnections;
@@ -398,6 +403,7 @@ private:
   MyIndexHandlerMapPtr find_handler_by_index_i(int index);
 
   int  m_num_connections;
+  int  m_total_connections;
   int  m_pending;
   int  m_reaped_connections;
   long long int m_bytes_received;
@@ -457,10 +463,20 @@ protected:
   void * m_parent;
 };
 
-class MyBaseAcceptor: public ACE_Acceptor<MyBaseHandler, ACE_SOCK_ACCEPTOR>
+class MySockAcceptor: public ACE_SOCK_ACCEPTOR
 {
 public:
-  typedef ACE_Acceptor<MyBaseHandler, ACE_SOCK_ACCEPTOR>  super;
+  typedef ACE_SOCK_ACCEPTOR super;
+  int open (const ACE_Addr &local_sap, int reuse_addr=0, int protocol_family=PF_UNSPEC, int backlog= 128, int protocol=0)
+  {
+    return super::open(local_sap, reuse_addr, protocol_family, backlog, protocol);
+  }
+};
+
+class MyBaseAcceptor: public ACE_Acceptor<MyBaseHandler, MySockAcceptor>
+{
+public:
+  typedef ACE_Acceptor<MyBaseHandler, MySockAcceptor>  super;
   MyBaseAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
   virtual ~MyBaseAcceptor();
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);

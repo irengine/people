@@ -40,6 +40,7 @@ private:
 class MyPingSubmitter
 {
 public:
+  enum {ID_SEPERATOR = ';' };
   MyPingSubmitter();
   ~MyPingSubmitter();
   void add_ping(const char * client_id, const int len);
@@ -65,7 +66,7 @@ class MyHeartBeatHandler: public MyBaseHandler
 {
 public:
   MyHeartBeatHandler(MyBaseConnectionManager * xptr = NULL);
-  virtual bool is_parent_acceptor() const;
+
   DECLARE_MEMORY_POOL__NOTHROW(MyHeartBeatHandler, ACE_Thread_Mutex);
 };
 

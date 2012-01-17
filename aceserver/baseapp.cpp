@@ -426,9 +426,11 @@ bool MyConfig::load_config_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configurat
 
 bool MyConfig::load_config_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section)
 {
+  ACE_UNUSED_ARG(cfgHeap);
+  ACE_UNUSED_ARG(section);
+
   if (!is_middle_server())
     return true;
-
 
   return true;
 }
@@ -515,7 +517,9 @@ void MyConfig::dump_config_info()
 
 #if defined(MY_client_test) || defined(MY_server_test)
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_mode = 1\n")));
-  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_test_client_start_client_id, test_client_start_client_id));
+  char buff[100];
+  ACE_OS::sprintf(buff, "%lld", (long long int)test_client_start_client_id);
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_test_client_start_client_id, buff));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_test_client_connection_number, test_client_connection_number));
 #else
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_mode = 0\n")));
@@ -773,7 +777,7 @@ void MyBaseApp::mem_pool_dump_one(const char * poolname, long nAlloc, long nFree
 {
   long nInUse = nAlloc - nFree;
   ACE_DEBUG((LM_INFO, ACE_TEXT("    mem pool[%s], InUse=%d, Alloc=%d, "
-      "Free=%d, Peek=%d, AllocFail=%d, BlockSize=%d\n"),
+      "Free=%d, Peek=%d, Fail=%d, BlkSize=%d\n"),
       poolname, nInUse, nAlloc, nFree, nMaxUse, nAllocFull, block_size));
 }
 

@@ -16,7 +16,6 @@
 #include "basemodule.h"
 
 class MyClientToDistModule;
-//class MyPingSubmitter;
 class MyClientToDistConnector;
 
 const int16_t const_client_version = 1;
@@ -78,6 +77,7 @@ class MyClientToDistService: public MyBaseService
 public:
   MyClientToDistService(MyBaseModule * module, int numThreads = 1);
   virtual int svc();
+  virtual const char * name() const;
 
 protected:
   enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
@@ -107,6 +107,7 @@ public:
   virtual const char * name() const;
 
 protected:
+  enum { RECONNECT_INTERVAL = 3 }; //time in minutes
   virtual bool before_reconnect();
 };
 

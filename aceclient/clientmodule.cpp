@@ -286,7 +286,7 @@ void MyClientToDistHandler::on_close()
         ((MyClientToDistProcessor*)m_processor)->client_id().as_string()
       );
 #endif
-  MY_INFO("MyClientToDistHandler::on_close. this = %d\n", long(this));
+//  MY_INFO("MyClientToDistHandler::on_close. this = %d\n", long(this));
 }
 
 PREPARE_MEMORY_POOL(MyClientToDistHandler);
@@ -320,6 +320,11 @@ int MyClientToDistService::svc()
   return 0;
 }
 
+const char * MyClientToDistService::name() const
+{
+  return "MyClientToDistService";
+}
+
 void MyClientToDistService::do_server_file_md5_list(ACE_Message_Block * mb)
 {
   MyMessageBlockGuard guard(mb);
@@ -337,7 +342,7 @@ void MyClientToDistService::do_server_file_md5_list(ACE_Message_Block * mb)
     return;
   }
 
-  MY_DEBUG("do_server_file_md5_list: client_id =%s\n", client_id.as_string());
+//  MY_DEBUG("do_server_file_md5_list: client_id =%s\n", client_id.as_string());
 
   char client_path_by_id[PATH_MAX];
   ACE_OS::strsncpy(client_path_by_id, MyConfigX::instance()->app_test_data_path.c_str(), PATH_MAX);
@@ -360,9 +365,15 @@ void MyClientToDistService::do_server_file_md5_list(ACE_Message_Block * mb)
   md5s_client.sort();
 
   md5s_server.minus(md5s_client);
-  char temp[4096];
-  if (md5s_server.to_buffer(temp, 4096, false))
-    MY_INFO("md5 minus for client_id: [%s] = %s\n", client_id.as_string(), temp);
+  int buff_size = md5s_server.total_size(false);
+  MyPooledMemGuard mem_guard;
+  if (!MyMemPoolFactoryX::instance()->get_mem(buff_size, &mem_guard))
+  {
+    MY_ERROR("can not alloc output memory of size = %d @%s::do_server_file_md5_list()\n", buff_size, name());
+    return;
+  }
+  if (md5s_server.to_buffer(mem_guard.data(), buff_size, false))
+    MY_INFO("dist files by md5 for client_id: [%s] = %s\n", client_id.as_string(), mem_guard.data());
 
 #else
   #error "client_id need to set globally"
@@ -377,7 +388,7 @@ MyClientToDistConnector::MyClientToDistConnector(MyBaseDispatcher * _dispatcher,
 {
   m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
   //m_tcp_addr = "localhost"; //todo
-  m_reconnect_interval = 0;
+  m_reconnect_interval = RECONNECT_INTERVAL;
 #ifdef MY_client_test
   m_tcp_addr = MyConfigX::instance()->dist_server_addr;
   m_num_connection = MyConfigX::instance()->test_client_connection_number;

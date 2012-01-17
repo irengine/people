@@ -55,7 +55,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
 
 void MyHeartBeatProcessor::do_ping()
 {
-//  MY_DEBUG(ACE_TEXT("got a ping from %s\n"), info_string().c_str());
+//  MY_DEBUG(ACE_TEXT("got a heart beat from %s\n"), info_string().c_str());
   m_sumbitter->add_ping(m_client_id.as_string(), m_client_id_length + 1);
 }
 
@@ -95,6 +95,10 @@ MyPingSubmitter::~MyPingSubmitter()
 {
   if (m_current_block)
     m_current_block->release();
+#ifdef MY_server_test
+  if (m_fd >= 0)
+    close(m_fd);
+#endif
 }
 
 void MyPingSubmitter::reset()
@@ -118,7 +122,7 @@ void MyPingSubmitter::add_ping(const char * client_id, const int len)
   ACE_OS::memcpy(m_current_ptr, client_id, len);
   m_current_length += len;
   m_current_ptr += len;
-  *(m_current_ptr - 1) = ';';
+  *(m_current_ptr - 1) = ID_SEPERATOR;
 }
 
 void MyPingSubmitter::do_submit()
@@ -150,11 +154,6 @@ MyHeartBeatHandler::MyHeartBeatHandler(MyBaseConnectionManager * xptr): MyBaseHa
   m_processor = new MyHeartBeatProcessor(this);
 }
 
-bool MyHeartBeatHandler::is_parent_acceptor() const
-{
-  return true;
-}
-
 PREPARE_MEMORY_POOL(MyHeartBeatHandler);
 
 
@@ -169,15 +168,14 @@ MyHeartBeatService::MyHeartBeatService(MyBaseModule * module, int numThreads):
 
 int MyHeartBeatService::svc()
 {
-  MY_INFO("running MyHeartBeatService::svc()\n");
+  MY_INFO("running %s::svc()\n", name());
 
   for (ACE_Message_Block * mb; getq(mb) != -1; )
   {
     calc_server_file_md5_list(mb);
   }
 
-  MY_INFO("exiting MyHeartBeatService::svc()\n");
-
+  MY_INFO("exiting %s::svc()\n", name());
   return 0;
 }
 
@@ -307,7 +305,7 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
   {
     if (mb->size() < sizeof(MyDataPacketHeader))
     {
-      MY_ERROR("invalid message block size @ MyHeartBeatDispatcher::handle_timeout\n");
+      MY_ERROR("invalid message block size @ %s::handle_timeout\n", name());
       mb->release();
       continue;
     }
@@ -315,7 +313,7 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
     MyBaseHandler * handler = m_acceptor->connection_manager()->find_handler_by_index(index);
     if (!handler)
     {
-      MY_WARNING("can not send data to client since connection is lost @ MyHeartBeatDispatcher::handle_timeout\n");
+      MY_WARNING("can not send data to client since connection is lost @ %s::handle_timeout\n", name());
       mb->release();
       continue;
     }
@@ -447,7 +445,8 @@ int MyDistRemoteAccessProcessor::on_command_dist_file_md5(char * parameter)
   std::sort(vec.begin(), vec.end());
   vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
 
-  char buff[5000];
+  const int BUFF_SIZE = 5000;
+  char buff[BUFF_SIZE];
 
   if (send_string("  user requested client_id(s):") < 0)
     return -1;
@@ -456,9 +455,9 @@ int MyDistRemoteAccessProcessor::on_command_dist_file_md5(char * parameter)
   for (it = vec.begin(); it != vec.end(); ++it)
   {
     int len = strlen(buff);
-    ACE_OS::snprintf(buff + len, 5000 - 1 - len, " %s", it->client_id.as_string);
+    ACE_OS::snprintf(buff + len, BUFF_SIZE - 1 - len, " %s", it->client_id.as_string);
   }
-  ACE_OS::strncat(buff, "\n",  5000 - 1);
+  ACE_OS::strncat(buff, "\n",  BUFF_SIZE - 1);
   if (send_string(buff) < 0)
     return -1;
 
@@ -479,7 +478,7 @@ int MyDistRemoteAccessProcessor::on_command_dist_file_md5(char * parameter)
   for (it = vec.begin(); it != vec.end(); ++it)
   {
     int len = strlen(buff);
-    ACE_OS::snprintf(buff + len, 5000 - 1 - len, " %s", it->client_id.as_string);
+    ACE_OS::snprintf(buff + len, BUFF_SIZE - 1 - len, " %s", it->client_id.as_string);
   }
 
   int message_len = strlen(buff) + 1;
@@ -487,7 +486,7 @@ int MyDistRemoteAccessProcessor::on_command_dist_file_md5(char * parameter)
   mb->copy(buff, message_len);
 
 
-  ACE_OS::strncat(buff, "\n",  5000 - 1);
+  ACE_OS::strncat(buff, "\n",  BUFF_SIZE - 1);
   if (send_string(buff) < 0)
     return -1;
 
