@@ -97,6 +97,8 @@ public:
 class MyMessageBlockGuard
 {
 public:
+  MyMessageBlockGuard(): m_mb(NULL)
+  {}
   MyMessageBlockGuard(ACE_Message_Block * mb): m_mb(mb)
   {}
   ~MyMessageBlockGuard()
@@ -104,12 +106,63 @@ public:
     if (m_mb)
       m_mb->release();
   }
-  void detach()
+  void attach(ACE_Message_Block * mb)
   {
+    if (unlikely(m_mb == mb))
+      return;
+    if (m_mb)
+      m_mb->release();
+    m_mb = mb;
+  }
+  ACE_Message_Block * detach()
+  {
+    ACE_Message_Block * result = m_mb;
     m_mb = NULL;
+    return result;
+  }
+  ACE_Message_Block * data() const
+  {
+    return m_mb;
   }
 private:
   ACE_Message_Block * m_mb;
+};
+
+class MyUnixHandleGuard
+{
+public:
+  enum { INVALID_HANDLE = -1 };
+  MyUnixHandleGuard(): m_handle(INVALID_HANDLE)
+  {}
+  MyUnixHandleGuard(int _handle): m_handle(_handle)
+  {}
+  ~MyUnixHandleGuard()
+  {
+    if (m_handle >= 0)
+      close(m_handle);
+  }
+  int handle() const
+  {
+    return m_handle;
+  }
+  void attach(int _handle)
+  {
+    if (unlikely(m_handle == _handle))
+      return;
+    if (m_handle >= 0)
+      close(m_handle);
+    m_handle = _handle;
+  }
+  int detach()
+  {
+    int h = m_handle;
+    m_handle = INVALID_HANDLE;
+    return h;
+  }
+
+private:
+  int m_handle;
+
 };
 
 template <class ACE_LOCK> class My_Cached_Allocator: public ACE_Dynamic_Cached_Allocator<ACE_LOCK>

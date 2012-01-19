@@ -22,6 +22,8 @@
 #include <ace/Connector.h>
 #include <ace/SOCK_Connector.h>
 
+#include <bzlib.h>
+
 #include <vector>
 #include <map>
 #include <list>
@@ -100,12 +102,17 @@ public:
 
   ~MyPooledMemGuard()
   {
-    if (m_buff)
-      MyMemPoolFactoryX::instance()->free_mem(this);
+    free();
   }
   char * data() const
   {
     return (char*)m_buff;
+  }
+  void free()
+  {
+    if (m_buff)
+      MyMemPoolFactoryX::instance()->free_mem(this);
+    m_buff = NULL;
   }
 
 protected:
@@ -225,6 +232,50 @@ private:
   MyPooledMemGuard m_base_dir;
   int m_base_dir_len;
 };
+
+class MyBaseArchiveReader
+{
+public:
+  bool open(const char * filename);
+  int  read(char * buff, int buff_len);
+  void close();
+
+private:
+  MyUnixHandleGuard m_file;
+  MyPooledMemGuard m_file_name;
+};
+
+class MyBaseArchiveWriter
+{
+public:
+  bool open(const char * filename);
+  bool write(char * buff, int buff_len);
+  void close();
+
+private:
+  MyUnixHandleGuard m_file;
+  MyPooledMemGuard m_file_name;
+};
+
+class MyBZCompressor
+{
+public:
+  MyBZCompressor();
+  enum { COMPRESS_100k = 3 };
+  enum { BUFFER_LEN = 4096 };
+  bool compress(const char * filename, const char * destfn);
+  bool decompress(const char * filename, const char * destfn);
+
+private:
+  bool prepare_buffers();
+  bool do_compress(MyBaseArchiveReader * _reader, MyBaseArchiveWriter * _writer);
+  bool do_decompress(MyBaseArchiveReader * _reader, MyBaseArchiveWriter * _writer);
+
+  MyPooledMemGuard m_buff_in;
+  MyPooledMemGuard m_buff_out;
+  bz_stream m_bz_stream;
+};
+
 
 class MyBaseProcessor
 {

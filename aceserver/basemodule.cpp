@@ -88,8 +88,11 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
 
 bool MyMemPoolFactory::get_mem(int size, MyPooledMemGuard * guard)
 {
-  if (!guard || size <= 0)
+  if (unlikely(!guard || size <= 0))
     return false;
+  if (unlikely(guard->data() != NULL))
+    free_mem(guard);
+
   char * p;
   int idx = m_use_mem_pool? find_first_index(size): INVALID_INDEX;
   if (idx == INVALID_INDEX || (p = (char*)m_pools[idx]->malloc()) == NULL)
@@ -502,6 +505,265 @@ void MyFileMD5s::do_scan_directory(const char * dirname, int start_len)
 
   closedir(dir);
 }
+
+
+//MyBaseArchiveReader//
+
+bool MyBaseArchiveReader::open(const char * filename)
+{
+  if (unlikely(!filename || !*filename))
+  {
+    MY_ERROR("empty file name @MyBaseArchiveReader::open()\n");
+    return false;
+  }
+
+  int fd = ::open(filename, O_RDONLY);
+  if (fd < 0)
+  {
+    MY_ERROR("can not open file for read @MyBaseArchiveReader::open(), name = %s %s\n", filename, (const char*)MyErrno());
+    return false;
+  }
+  m_file.attach(fd);
+  return true;
+}
+
+int MyBaseArchiveReader::read(char * buff, int buff_len)
+{
+  int n = ::read(m_file.handle(), buff, buff_len);
+  if (unlikely(n < 0))
+    MY_ERROR("read file %s %s\n", m_file_name.data(), (const char*)MyErrno());
+  return n;
+}
+
+void MyBaseArchiveReader::close()
+{
+  m_file.attach(MyUnixHandleGuard::INVALID_HANDLE);
+  m_file_name.free();
+}
+
+
+
+//MyBaseArchiveWriter//
+
+bool MyBaseArchiveWriter::open(const char * filename)
+{
+  if (unlikely(!filename || !*filename))
+  {
+    MY_ERROR("empty file name @MyBaseArchiveWriter::open()\n");
+    return false;
+  }
+
+  int fd = ::open(filename, O_CREAT | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
+  if (fd < 0)
+  {
+    MY_ERROR("can not open file for write @MyBaseArchiveWriter::open(), name = %s %s\n", filename, (const char*)MyErrno());
+    return false;
+  }
+  m_file.attach(fd);
+  return true;
+
+}
+
+bool MyBaseArchiveWriter::write(char * buff, int buff_len)
+{
+  if (unlikely(!buff || buff_len <= 0))
+    return true;
+
+  int n = ::write(m_file.handle(), buff, buff_len);
+  if (unlikely(n != buff_len))
+  {
+    MY_ERROR("write file %s %s\n", m_file_name.data(), (const char*)MyErrno());
+    return false;
+  }
+  return true;
+}
+
+void MyBaseArchiveWriter::close()
+{
+  m_file.attach(MyUnixHandleGuard::INVALID_HANDLE);
+  m_file_name.free();
+}
+
+
+//MyBZCompressor//
+
+MyBZCompressor::MyBZCompressor()
+{
+  m_bz_stream.bzalloc = NULL;
+  m_bz_stream.bzfree = NULL;
+  m_bz_stream.opaque = 0;
+}
+
+bool MyBZCompressor::prepare_buffers()
+{
+  return (m_buff_in.data() || MyMemPoolFactoryX::instance()->get_mem(BUFFER_LEN, &m_buff_in)) &&
+         (m_buff_out.data() || MyMemPoolFactoryX::instance()->get_mem(BUFFER_LEN, &m_buff_out));
+}
+
+bool MyBZCompressor::do_compress(MyBaseArchiveReader * _reader, MyBaseArchiveWriter * _writer)
+{
+  int ret, n, n2;
+
+  while (true)
+  {
+    n = _reader->read(m_buff_in.data(), BUFFER_LEN);
+    if (n < 0)
+      return false;
+    else if (n == 0)
+      break;
+
+    m_bz_stream.avail_in = n;
+    m_bz_stream.next_in = m_buff_in.data();
+    while (true)
+    {
+      m_bz_stream.avail_out = BUFFER_LEN;
+      m_bz_stream.next_out = m_buff_out.data();
+      ret = BZ2_bzCompress(&m_bz_stream, BZ_RUN);
+      if (ret != BZ_RUN_OK)
+      {
+        MY_ERROR("BZ2_bzCompress(BZ_RUN) returns %d\n", ret);
+        return false;
+      };
+
+      if (m_bz_stream.avail_out < BUFFER_LEN)
+      {
+        n2 = BUFFER_LEN - m_bz_stream.avail_out;
+        if (!_writer->write(m_buff_out.data(), n2))
+         return false;
+      }
+
+     if (m_bz_stream.avail_in == 0)
+       break;
+   }
+
+   if (n < BUFFER_LEN)
+    break;
+  }
+
+  while (true)
+  {
+    m_bz_stream.avail_out = BUFFER_LEN;
+    m_bz_stream.next_out = m_buff_out.data();
+    ret = BZ2_bzCompress(&m_bz_stream, BZ_FINISH);
+    if (ret != BZ_FINISH_OK && ret != BZ_STREAM_END)
+    {
+      MY_ERROR("BZ2_bzCompress(BZ_FINISH) returns %d\n", ret);
+      return false;
+    };
+
+    if (m_bz_stream.avail_out < BUFFER_LEN)
+    {
+      n2 = BUFFER_LEN - m_bz_stream.avail_out;
+      if (!_writer->write(m_buff_out.data(), n2))
+        return false;
+    }
+
+    if (ret == BZ_STREAM_END)
+      return true;
+  }
+
+  ACE_NOTREACHED(return true);
+}
+
+bool MyBZCompressor::compress(const char * srcfn, const char * destfn)
+{
+  MyBaseArchiveReader reader;
+  if (!reader.open(srcfn))
+    return false;
+  MyBaseArchiveWriter writer;
+  if (!writer.open(destfn))
+    return false;
+
+  prepare_buffers();
+
+  int ret = BZ2_bzCompressInit(&m_bz_stream, COMPRESS_100k, 0, 30);
+  if (ret != BZ_OK)
+  {
+    printf("BZ2_bzCompressInit() return value = %d\n", ret);
+    return false;
+  }
+
+  bool result = do_compress(&reader, &writer);
+  if (!result)
+    MY_ERROR("failed to compress file: %s to %s\n", srcfn, destfn);
+  BZ2_bzCompressEnd(&m_bz_stream);
+  return result;
+}
+
+bool MyBZCompressor::do_decompress(MyBaseArchiveReader * _reader, MyBaseArchiveWriter * _writer)
+{
+  int n, n2, ret;
+
+  m_bz_stream.avail_out = BUFFER_LEN;
+  m_bz_stream.next_out = m_buff_out.data();
+  m_bz_stream.avail_in = 0;
+
+  while (true)
+  {
+    if (m_bz_stream.avail_in == 0)
+    {
+       n = _reader->read (m_buff_in.data(), BUFFER_LEN);
+       if (n < 0)
+         return false;
+       else if (n == 0)
+       {
+         MY_ERROR("error: unexpected eof\n");
+         return false;
+       }
+       m_bz_stream.avail_in = n;
+       m_bz_stream.next_in = m_buff_in.data();
+    }
+
+    ret = BZ2_bzDecompress(&m_bz_stream);
+
+    if (ret != BZ_OK && ret != BZ_STREAM_END)
+    {
+      MY_ERROR("BZ2_bzDecompress() returns %d\n", ret);
+      return false;
+    };
+
+    if (m_bz_stream.avail_out < BUFFER_LEN)
+    {
+      n2 = BUFFER_LEN - m_bz_stream.avail_out;
+      if (!_writer->write(m_buff_out.data(), n2))
+        return false;
+      m_bz_stream.avail_out = BUFFER_LEN;
+      m_bz_stream.next_out = m_buff_out.data();
+    }
+
+    if (ret == BZ_STREAM_END)
+      return true;
+  }
+
+  ACE_NOTREACHED(return true);
+}
+
+bool MyBZCompressor::decompress(const char * srcfn, const char * destfn)
+{
+  MyBaseArchiveReader reader;
+  if (!reader.open(srcfn))
+    return false;
+  MyBaseArchiveWriter writer;
+  if (!writer.open(destfn))
+    return false;
+
+  prepare_buffers();
+
+  int ret;
+  ret = BZ2_bzDecompressInit(&m_bz_stream, 0, 0);
+  if (ret != BZ_OK)
+  {
+    MY_ERROR("BZ2_bzCompressInit() return value = %d\n", ret);
+    return false;
+  }
+
+  bool result = do_decompress(&reader, &writer);
+  BZ2_bzDecompressEnd(&m_bz_stream);
+  if (!result)
+    MY_ERROR("failed to decompress file: %s to %s\n", srcfn, destfn);
+  return result;
+}
+
 
 //MyBaseProcessor//
 

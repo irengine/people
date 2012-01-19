@@ -124,7 +124,8 @@ void MyServerApp::app_fini()
 
 
 int main(int argc, const char * argv[])
-{/*
+{
+#if 0
   MyConfig* cfg = MyConfigX::instance();
   if (!MyConfigX::instance()->load_config("/root/distserver", MyConfig::RM_DIST_SERVER))
   {
@@ -134,6 +135,18 @@ int main(int argc, const char * argv[])
   MyMemPoolFactoryX::instance()->init(cfg);
   {
 #if 0
+    {
+    MyBZCompressor c;
+    std::printf("compress prj.ini = %d\n", c.compress("/root/prj.ini", "/root/prj.bz2"));
+    std::printf("decompress prj.bz2 = %d\n", c.decompress("/root/prj.bz2", "/root/prj.un"));
+
+    std::printf("compress prj.ini = %d\n", c.compress("/root/p7zip_9.20.1_src_all.tar", "/root/p7zip.bz2"));
+    std::printf("decompress prj.bz2 = %d\n", c.decompress("/root/p7zip.bz2", "/root/p7zip.un"));
+    }
+#endif
+
+#if 0
+    {
     MyFileMD5s md5s;
     md5s.scan_directory("/root/testdata");
     int len = md5s.total_size(true);
@@ -154,7 +167,10 @@ int main(int argc, const char * argv[])
     md5s.to_buffer(buffer, len, false);
     printf("to buffer no md5:%s\n", buffer);
     delete []buffer;
+    }
 #endif
+#if 0
+    {
     MyFileMD5s md5s_1;
     md5s_1.scan_directory("/root/testdata");
     md5s_1.sort();
@@ -168,12 +184,14 @@ int main(int argc, const char * argv[])
     md5s_1.to_buffer(buffer, len, true);
     printf("to buffer diff md5:%s\n", buffer);
     delete []buffer;
+    }
+#endif
   }
   MyConfigX::close();
   MyServerApp::dump_mem_pool_info(); //only mem pool info, other objects should gone by now
   MyMemPoolFactoryX::close();
   return 0;
-*/
+#endif
   ACE_UNUSED_ARG(argc);
   ACE_UNUSED_ARG(argv);
   ACE_Sig_Action no_sigpipe ((ACE_SignalHandler) SIG_IGN);

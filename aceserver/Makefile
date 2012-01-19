@@ -3,7 +3,7 @@ FILES=basemodule distmodule baseapp datapacket mycomutil middlemodule server md5
 SRC=$(addsuffix .cpp,$(FILES))
 OBJ=$(addsuffix .o,$(FILES))
 BUILD=$(VBIN)
-LIBS=-lACE
+LIBS=-lACE -lbz2
 CPPFLAGS=-O0 -g
 VLDLIBS=$(LDLIBS:%=%$(VAR))
 #---------------------------------------------------------

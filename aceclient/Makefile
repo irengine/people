@@ -3,7 +3,7 @@ FILES=../aceserver/basemodule ../aceserver/datapacket ../aceserver/mycomutil ../
 SRC=$(addsuffix .cpp,$(FILES))
 OBJ=$(addsuffix .o,$(FILES))
 BUILD=$(VBIN)
-LIBS=-lACE
+LIBS=-lACE -lbz2
 CPPFLAGS=-O0 -g -I../aceserver
 VLDLIBS=$(LDLIBS:%=%$(VAR))
 #---------------------------------------------------------
