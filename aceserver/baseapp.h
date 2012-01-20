@@ -54,7 +54,7 @@ public:
   bool log_debug_enabled;
   bool log_to_stderr;
 
-#if defined(MY_client_test) || defined(MY_server_test)
+#if defined(MY_client_test)
   int test_client_connection_number;
   int64_t test_client_start_client_id;
 #endif
@@ -63,6 +63,10 @@ public:
   //dist and middle server
   int  max_clients;
   int  middle_server_dist_port;
+  std::string db_server_addr;
+  int db_server_port;
+  std::string db_user_name;
+  std::string db_password;
 
   //client an dist
   int dist_server_heart_beat_port;

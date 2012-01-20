@@ -10,6 +10,7 @@
 
 #include "common.h"
 #include "baseapp.h"
+#include "dbmodule.h"
 
 class MyHeartBeatModule;
 class MyLocationModule;
@@ -23,6 +24,7 @@ public:
 
   MyClientIDTable & client_id_table();
   MyHeartBeatModule * heart_beat_module() const;
+  MyDB & db();
 
   static void app_init(const char * app_home_path = NULL, MyConfig::RUNNING_MODE mode = MyConfig::RM_UNKNOWN);
   static void app_fini();
@@ -38,6 +40,7 @@ private:
   MyHeartBeatModule * m_heart_beat_module;
   MyLocationModule * m_location_module;
   MyClientIDTable m_client_id_table;
+  MyDB  m_db;
 };
 
 typedef ACE_Unmanaged_Singleton<MyServerApp, ACE_Null_Mutex> MyServerAppX;

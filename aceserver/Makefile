@@ -1,10 +1,10 @@
 BIN=server
-FILES=basemodule distmodule baseapp datapacket mycomutil middlemodule server md5 
+FILES=basemodule distmodule baseapp datapacket mycomutil middlemodule server md5 dbmodule 
 SRC=$(addsuffix .cpp,$(FILES))
 OBJ=$(addsuffix .o,$(FILES))
 BUILD=$(VBIN)
-LIBS=-lACE -lbz2
-CPPFLAGS=-O0 -g
+LIBS=-L/usr/pgsql-9.1/lib -lACE -lbz2 -lpq
+CPPFLAGS=-O0 -g -I/usr/pgsql-9.1/include
 VLDLIBS=$(LDLIBS:%=%$(VAR))
 #---------------------------------------------------------
 # Include macros and targets

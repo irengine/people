@@ -407,9 +407,117 @@ public:
   static bool make_path(char* path, int prefix_len, bool is_file);
   static bool make_path(const char * path, const char * subpath, bool is_file);
   static bool client_id_to_path(const char * id, char * result, int result_len);
+  static void make_paths_from_id_table(const char * app_data_path, MyClientIDTable * id_table);
 };
 
 #endif //MY_client_test
+
+
+class MyCached_Message_Block: public ACE_Message_Block
+{
+public:
+  MyCached_Message_Block(size_t size,
+                ACE_Allocator * allocator_strategy,
+                ACE_Allocator * data_block_allocator,
+                ACE_Allocator * message_block_allocator,
+                ACE_Message_Type type = MB_DATA
+      ):
+      ACE_Message_Block(
+        size,
+        type,
+        0, //ACE_Message_Block * cont
+        0, //const char * data
+        allocator_strategy,
+        0, //ACE_Lock * locking_strategy
+        ACE_DEFAULT_MESSAGE_BLOCK_PRIORITY, //unsigned long priority
+        ACE_Time_Value::zero, //const ACE_Time_Value & execution_time
+        ACE_Time_Value::max_time, //const ACE_Time_Value & deadline_time
+        data_block_allocator,
+        message_block_allocator)
+  {}
+};
+
+class MyConfig;
+class MyPooledMemGuard;
+
+class MyMemPoolFactory
+{
+public:
+  MyMemPoolFactory();
+  ~MyMemPoolFactory();
+  void init(MyConfig * config);
+  ACE_Message_Block * get_message_block(int capacity);
+  bool get_mem(int size, MyPooledMemGuard * guard);
+  void free_mem(MyPooledMemGuard * guard);
+  void dump_info();
+
+private:
+  enum { INVALID_INDEX = 9999 };
+  typedef My_Cached_Allocator<ACE_Thread_Mutex> MyMemPool;
+  typedef std::vector<MyMemPool *> MyMemPools;
+
+  int find_first_index(int capacity);
+  My_Cached_Allocator<ACE_Thread_Mutex> *m_message_block_pool;
+  My_Cached_Allocator<ACE_Thread_Mutex> *m_data_block_pool;
+  MyMemPools m_pools;
+  bool m_use_mem_pool; //local copy
+};
+typedef ACE_Unmanaged_Singleton<MyMemPoolFactory, ACE_Null_Mutex> MyMemPoolFactoryX;
+
+class MyPooledMemGuard
+{
+public:
+  MyPooledMemGuard(): m_buff(NULL), m_index(-1)
+  {}
+
+  ~MyPooledMemGuard()
+  {
+    free();
+  }
+  char * data() const
+  {
+    return (char*)m_buff;
+  }
+  void free()
+  {
+    if (m_buff)
+      MyMemPoolFactoryX::instance()->free_mem(this);
+    m_buff = NULL;
+  }
+
+  static void init_from_string(MyPooledMemGuard * guard, const char * src)
+  {
+    if (unlikely(!guard))
+      return;
+    int len = src? ACE_OS::strlen(src) + 1: 1;
+    MyMemPoolFactoryX::instance()->get_mem(len, guard);
+    if (len == 1)
+      guard->data()[0] = 0;
+    else
+      ACE_OS::memcpy(guard->data(), src, len);
+  }
+
+protected:
+  friend class MyMemPoolFactory;
+
+  void data(void * _buff, int index)
+  {
+    if (m_buff)
+      MY_ERROR("memory leak @MyPooledMemGuard, index = %d\n", m_index);
+    m_buff = (char*)_buff;
+    m_index = index;
+  }
+  int index() const
+  {
+    return m_index;
+  }
+
+private:
+  MyPooledMemGuard(const MyPooledMemGuard &);
+  MyPooledMemGuard & operator = (const MyPooledMemGuard &);
+  char * m_buff;
+  int m_index;
+};
 
 void mycomutil_hex_dump(void * ptr, int len, char * result_buff, int buff_len);
 

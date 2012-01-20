@@ -45,7 +45,8 @@ public:
 
     if (!s || !*s)
       return;
-
+    while(*s == ' ')
+      ++s;
     ACE_OS::strsncpy(client_id_value_s, s, ID_LENGTH_AS_STRING);
   }
 
@@ -60,7 +61,8 @@ public:
 
     if (!s || !*s)
       return *this;
-
+    while(*s == ' ')
+      ++s;
     ACE_OS::strsncpy(client_id_value_s, s, ID_LENGTH_AS_STRING);
     return *this;
   }
@@ -109,6 +111,20 @@ public:
   bool operator != (const MyClientID & rhs) const
   {
     return ! operator == (rhs);
+  }
+
+  void trim_tail_space()
+  {
+    char * ptr = client_id_value_s;
+    for (int i = ID_LENGTH_AS_STRING - 1; i >= 0; --i)
+    {
+      if (ptr[i] == 0)
+        continue;
+      else if (ptr[i] == ' ')
+        ptr[i] = 0;
+      else
+        break;
+    }
   }
 
 };

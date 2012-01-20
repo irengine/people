@@ -34,6 +34,11 @@ MyHeartBeatModule * MyServerApp::heart_beat_module() const
   return m_heart_beat_module;
 }
 
+MyDB & MyServerApp::db()
+{
+  return m_db;
+}
+
 bool MyServerApp::on_start()
 {
 
@@ -70,17 +75,28 @@ void MyServerApp::do_dump_info()
 bool MyServerApp::on_construct()
 {
   MyConfig * cfg = MyConfigX::instance();
-#ifdef MY_server_test
-  MyTestClientIDGenerator gen(cfg->test_client_start_client_id, cfg->test_client_connection_number);
-  const char * id;
-  while ((id = gen.get()) != NULL)
-    m_client_id_table.add(id);
+  if (!m_db.connect())
+  {
+    MY_FATAL("can not connect to database. quiting...\n");
+    return false;
+  }
+  if (!m_db.get_client_ids(&m_client_id_table))
+  {
+    MY_FATAL("can not get client_ids database. quiting...\n");
+    return false;
+  }
 
-  char * _app_data_path = new char[cfg->app_test_data_path.length() + 1];
-  strcpy(_app_data_path, cfg->app_test_data_path.c_str());
-  MyTestClientPathGenerator::make_paths(_app_data_path, cfg->test_client_start_client_id, cfg->test_client_connection_number);
-  delete [] _app_data_path;
+#ifdef MY_server_test
+  if (cfg->is_dist_server())
+  {
+    char * _app_data_path = new char[cfg->app_test_data_path.length() + 1];
+    strcpy(_app_data_path, cfg->app_test_data_path.c_str());
+
+    MyTestClientPathGenerator::make_paths_from_id_table(_app_data_path, &m_client_id_table);
+    delete [] _app_data_path;
+  }
 #endif
+
   if (cfg->is_dist_server())
   {
     add_module(m_heart_beat_module = new MyHeartBeatModule(this));
@@ -125,73 +141,6 @@ void MyServerApp::app_fini()
 
 int main(int argc, const char * argv[])
 {
-#if 0
-  MyConfig* cfg = MyConfigX::instance();
-  if (!MyConfigX::instance()->load_config("/root/distserver", MyConfig::RM_DIST_SERVER))
-  {
-    std::printf("error loading config file, quitting\n");
-    exit(5);
-  }
-  MyMemPoolFactoryX::instance()->init(cfg);
-  {
-#if 0
-    {
-    MyBZCompressor c;
-    std::printf("compress prj.ini = %d\n", c.compress("/root/prj.ini", "/root/prj.bz2"));
-    std::printf("decompress prj.bz2 = %d\n", c.decompress("/root/prj.bz2", "/root/prj.un"));
-
-    std::printf("compress prj.ini = %d\n", c.compress("/root/p7zip_9.20.1_src_all.tar", "/root/p7zip.bz2"));
-    std::printf("decompress prj.bz2 = %d\n", c.decompress("/root/p7zip.bz2", "/root/p7zip.un"));
-    }
-#endif
-
-#if 0
-    {
-    MyFileMD5s md5s;
-    md5s.scan_directory("/root/testdata");
-    int len = md5s.total_size(true);
-    char * buffer = new char[len];
-    md5s.to_buffer(buffer, len, true);
-    printf("to buffer include md5:%s\n", buffer);
-    MyFileMD5s md5s_2;
-    md5s_2.from_buffer(buffer);
-    delete []buffer;
-
-    char * buffer2 = new char [len];
-    md5s_2.to_buffer(buffer2, len, true);
-    printf("from buffer include md5:%s\n", buffer2);
-    delete []buffer2;
-
-    len = md5s.total_size(false);
-    buffer = new char[len];
-    md5s.to_buffer(buffer, len, false);
-    printf("to buffer no md5:%s\n", buffer);
-    delete []buffer;
-    }
-#endif
-#if 0
-    {
-    MyFileMD5s md5s_1;
-    md5s_1.scan_directory("/root/testdata");
-    md5s_1.sort();
-    MyFileMD5s md5s_2;
-    md5s_2.scan_directory("/root/testdata2");
-    md5s_2.sort();
-
-    md5s_1.minus(md5s_2);
-    int len = md5s_1.total_size(true);
-    char * buffer = new char[len];
-    md5s_1.to_buffer(buffer, len, true);
-    printf("to buffer diff md5:%s\n", buffer);
-    delete []buffer;
-    }
-#endif
-  }
-  MyConfigX::close();
-  MyServerApp::dump_mem_pool_info(); //only mem pool info, other objects should gone by now
-  MyMemPoolFactoryX::close();
-  return 0;
-#endif
   ACE_UNUSED_ARG(argc);
   ACE_UNUSED_ARG(argv);
   ACE_Sig_Action no_sigpipe ((ACE_SignalHandler) SIG_IGN);

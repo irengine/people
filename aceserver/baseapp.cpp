@@ -55,7 +55,7 @@ const ACE_TCHAR * CONFIG_log_to_stderr = ACE_TEXT("log.to_stderr");
 const ACE_TCHAR * CONFIG_log_file_number = ACE_TEXT("log.file_number");
 const ACE_TCHAR * CONFIG_log_file_size_in_MB = ACE_TEXT("log.file_size");
 
-#if defined(MY_client_test) || defined(MY_server_test)
+#if defined(MY_client_test)
   const ACE_TCHAR * CONFIG_test_client_connection_number = ACE_TEXT("module.test_client_connection_number");
   const ACE_TCHAR * CONFIG_test_client_start_client_id = ACE_TEXT("module.test_client_start_client_id");
 #endif
@@ -65,6 +65,10 @@ const ACE_TCHAR * CONFIG_remote_access_port = ACE_TEXT("remote_access_port");
 //dist and middle servers
 const ACE_TCHAR * CONFIG_max_clients = ACE_TEXT("max_clients");
 const ACE_TCHAR * CONFIG_middle_server_dist_port = ACE_TEXT("middle_server.dist_port");
+const ACE_TCHAR * CONFIG_db_server_addr = ACE_TEXT("db_server_addr");
+const ACE_TCHAR * CONFIG_db_server_port = ACE_TEXT("db_server_port");
+const ACE_TCHAR * CONFIG_db_user_name = ACE_TEXT("db_user_name");
+const ACE_TCHAR * CONFIG_db_password = ACE_TEXT("db_password");
 
 //client and dist
 const ACE_TCHAR *  CONFIG_middle_server_addr = ACE_TEXT("middle_server.addr");
@@ -301,7 +305,7 @@ bool MyConfig::load_config_common(ACE_Configuration_Heap & cfgHeap, ACE_Configur
   else if (is_client())
     message_control_block_mem_pool_size = 1000;
 
-#if defined(MY_client_test) || defined(MY_server_test)
+#if defined(MY_client_test)
   if (cfgHeap.get_integer_value (section,  CONFIG_test_client_connection_number, ival) == 0)
   {
     if (ival == 0 || ival > 60000 )
@@ -365,6 +369,41 @@ bool MyConfig::load_config_dist_middle(ACE_Configuration_Heap & cfgHeap, ACE_Con
       return false;
     }
     middle_server_dist_port = ival;
+  }
+
+  ACE_TString sval;
+  if (cfgHeap.get_string_value(section, CONFIG_db_server_addr, sval) == 0)
+    db_server_addr = sval.c_str();
+  else
+  {
+    MY_ERROR("can not read config value %s\n", CONFIG_db_server_addr);
+    return false;
+  }
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_db_server_port, ival) == 0)
+  {
+    if (ival == 0 || ival >= 65535)
+    {
+      MY_ERROR(ACE_TEXT("Invalid config value %s (= %d)\n"), CONFIG_db_server_port, ival);
+      return false;
+    }
+    db_server_port = ival;
+  }
+
+  if (cfgHeap.get_string_value(section, CONFIG_db_user_name, sval) == 0)
+    db_user_name = sval.c_str();
+  else
+  {
+    MY_ERROR("can not read config value %s\n", CONFIG_db_user_name);
+    return false;
+  }
+
+  if (cfgHeap.get_string_value(section, CONFIG_db_password, sval) == 0)
+    db_password = sval.c_str();
+  else
+  {
+    MY_ERROR("can not read config value %s\n", CONFIG_db_password);
+    return false;
   }
 
   return true;
@@ -517,6 +556,8 @@ void MyConfig::dump_config_info()
 
 #if defined(MY_client_test) || defined(MY_server_test)
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_mode = 1\n")));
+#endif
+#if defined(MY_client_test)
   char buff[100];
   ACE_OS::sprintf(buff, "%lld", (long long int)test_client_start_client_id);
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_test_client_start_client_id, buff));
