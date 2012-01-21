@@ -400,6 +400,8 @@ private:
   MyClientIDList m_id_list;
 };
 
+class MyClientIDTable;
+
 class MyTestClientPathGenerator
 {
 public:
@@ -455,12 +457,14 @@ private:
   enum { INVALID_INDEX = 9999 };
   typedef My_Cached_Allocator<ACE_Thread_Mutex> MyMemPool;
   typedef std::vector<MyMemPool *> MyMemPools;
+  typedef ACE_Atomic_Op<ACE_Thread_Mutex, long> COUNTER;
 
   int find_first_index(int capacity);
   My_Cached_Allocator<ACE_Thread_Mutex> *m_message_block_pool;
   My_Cached_Allocator<ACE_Thread_Mutex> *m_data_block_pool;
   MyMemPools m_pools;
   bool m_use_mem_pool; //local copy
+  COUNTER m_global_alloc_count;
 };
 typedef ACE_Unmanaged_Singleton<MyMemPoolFactory, ACE_Null_Mutex> MyMemPoolFactoryX;
 

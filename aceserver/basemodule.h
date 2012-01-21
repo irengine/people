@@ -34,6 +34,7 @@
 #include "mycomutil.h"
 #include "datapacket.h"
 #include "md5.h"
+#include "aes.h"
 
 class MyBaseModule;
 class MyBaseHandler;
@@ -149,26 +150,96 @@ private:
 class MyBaseArchiveReader
 {
 public:
-  bool open(const char * filename);
-  int  read(char * buff, int buff_len);
+  MyBaseArchiveReader();
+  virtual ~MyBaseArchiveReader()
+  {}
+  virtual bool open(const char * filename);
+  virtual int read(char * buff, int buff_len);
   void close();
 
-private:
+protected:
+  int do_read(char * buff, int buff_len);
+
   MyUnixHandleGuard m_file;
   MyPooledMemGuard m_file_name;
+  int m_file_length;
 };
+
+#pragma pack(push, 1)
+
+class MyWrappedHeader
+{
+public:
+  enum { HEADER_MAGIC = 0x96809685 };
+  int32_t header_length;
+  u_int32_t magic;
+  int32_t data_length; //not including the header
+  int32_t encrypted_data_length;
+  char    file_name[0];
+};
+
+#pragma pack(pop)
+
+class MyWrappedArchiveReader: public MyBaseArchiveReader
+{
+public:
+  typedef MyBaseArchiveReader super;
+
+  virtual bool open(const char * filename);
+  virtual int read(char * buff, int buff_len);
+  const char * file_name() const;
+  bool next();
+  bool eof() const;
+  void set_key(const char * skey);
+
+private:
+  bool read_header();
+  MyPooledMemGuard m_wrapped_header;
+  int  m_remain_length;
+  int  m_remain_encrypted_length;
+  aes_context m_aes_context;
+};
+
 
 class MyBaseArchiveWriter
 {
 public:
+  virtual ~MyBaseArchiveWriter()
+  {}
   bool open(const char * filename);
-  bool write(char * buff, int buff_len);
+  virtual bool write(char * buff, int buff_len);
   void close();
 
-private:
+protected:
+  bool do_write(char * buff, int buff_len);
+
   MyUnixHandleGuard m_file;
   MyPooledMemGuard m_file_name;
 };
+
+class MyWrappedArchiveWriter: public MyBaseArchiveWriter
+{
+public:
+  enum { ENCRYPT_DATA_LENGTH = 4096 };
+  typedef MyBaseArchiveWriter super;
+
+  virtual bool write(char * buff, int buff_len);
+  bool start(const char * filename);
+  bool finish();
+
+  void set_key(const char * skey);
+
+private:
+  bool write_header(const char * filename);
+  bool encrypt_and_write();
+  MyWrappedHeader m_wrapped_header;
+  int  m_data_length;
+  int  m_encrypted_length;
+  aes_context m_aes_context;
+  int m_remain_encrypted_length;
+  MyPooledMemGuard m_encrypt_buffer;
+};
+
 
 class MyBZCompressor
 {
@@ -277,10 +348,7 @@ protected:
   int read_req_body();
   int handle_req();
 
-  enum
-  {
-    PEER_ADDR_LEN = 16 //"xxx.xxx.xxx.xxx"
-  };
+  enum { PEER_ADDR_LEN = INET_ADDRSTRLEN }; // in the format of xxx.xxx.xxx.xxx
   char m_peer_addr[PEER_ADDR_LEN];
   ACE_Message_Block * m_current_block;
   MyDataPacketHeader m_packet_header;

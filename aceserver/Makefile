@@ -1,5 +1,5 @@
 BIN=server
-FILES=basemodule distmodule baseapp datapacket mycomutil middlemodule server md5 dbmodule 
+FILES=basemodule distmodule baseapp datapacket mycomutil middlemodule server md5 dbmodule aes
 SRC=$(addsuffix .cpp,$(FILES))
 OBJ=$(addsuffix .o,$(FILES))
 BUILD=$(VBIN)

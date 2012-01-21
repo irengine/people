@@ -27,8 +27,9 @@ public:
 private:
   void disconnect();
   bool connected() const;
-  bool pre_sql();
-  bool post_sql();
+  bool begin_transaction();
+  bool commit();
+  bool rollback();
   bool exec_command(const char * sql_command);
 
   PGconn * m_connection;

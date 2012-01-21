@@ -38,7 +38,7 @@ const int  DEFAULT_client_heart_beat_interval = 60; //in seconds
 #ifdef MY_client_test
   const int  DEFAULT_test_client_connection_number = 1;
 #endif
-
+const int  DEFAULT_db_server_port = 5432;
 
 //common for all
 const ACE_TCHAR * CONFIG_Section_global = ACE_TEXT("global");
@@ -110,6 +110,7 @@ MyConfig::MyConfig()
   //dist and middle server
   max_clients = DEFAULT_max_clients;
   middle_server_dist_port = DEFAULT_middle_server_dist_port;
+  db_server_port = DEFAULT_db_server_port;
 
   //client and dist
   middle_server_client_port = DEFAULT_middle_server_client_port;
@@ -698,13 +699,14 @@ void MyBaseApp::add_module(MyBaseModule * module)
   m_modules.push_back(module);
 }
 
-void MyBaseApp::do_constructor()
+bool MyBaseApp::do_constructor()
 {
   init_log();
   MyConfigX::instance()->dump_config_info();
   MY_INFO(ACE_TEXT("loading modules...\n"));
 
-  on_construct();
+  if (!on_construct())
+    return false;
 
   MY_INFO(ACE_TEXT("loading modules done!\n"));
 
@@ -717,25 +719,32 @@ void MyBaseApp::do_constructor()
     {
       MY_WARNING(ACE_TEXT("status_file_check_interval enabled, but can not create/open file %s\n"),
           MyConfigX::instance()->status_file_name.c_str());
-      return;
+      return false;
     }
     close(fd);
     m_status_file_checking = true;
 
     ACE_Time_Value interval (MyConfigX::instance()->status_file_check_interval * 60);
-    ACE_Reactor::instance()->schedule_timer (&m_status_file_checker,
-                             0, interval, interval);
+    if (ACE_Reactor::instance()->schedule_timer (&m_status_file_checker,
+                             0, interval, interval) == -1)
+      MY_WARNING("can not setup status_file_check timer\n");
   }
 
   if (MyConfigX::instance()->mem_pool_dump_interval > 0)
   {
     ACE_Time_Value interval(60 * MyConfigX::instance()->mem_pool_dump_interval);
-    ACE_Reactor::instance()->schedule_timer (&m_info_dumper,
-                             0, interval, interval);
+    if (ACE_Reactor::instance()->schedule_timer (&m_info_dumper,
+                             0, interval, interval) == -1)
+      MY_WARNING("can not setup info dump timer\n");
   }
 
   ACE_Time_Value interval(CLOCK_INTERVAL);
-  ACE_Reactor::instance()->schedule_timer(&m_clock, 0, interval, interval);
+  if (ACE_Reactor::instance()->schedule_timer(&m_clock, 0, interval, interval) == -1)
+  {
+    MY_FATAL("can not setup clock timer\n");
+    return false;
+  }
+  return true;
 }
 
 MyBaseApp::~MyBaseApp()

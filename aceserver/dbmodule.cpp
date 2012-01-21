@@ -80,14 +80,19 @@ bool MyDB::connected() const
   return m_connection != NULL;
 }
 
-bool MyDB::pre_sql()
+bool MyDB::begin_transaction()
 {
   return exec_command("BEGIN");
 }
 
-bool MyDB::post_sql()
+bool MyDB::commit()
 {
   return exec_command("COMMIT");
+}
+
+bool MyDB::rollback()
+{
+  return exec_command("ROLLBACK");
 }
 
 bool MyDB::exec_command(const char * sql_command)
@@ -109,38 +114,27 @@ bool MyDB::get_client_ids(MyClientIDTable * id_table)
   if (unlikely(!id_table))
     return false;
 
-  if (!pre_sql())
-    return false;
-
-  const char * CONST_select_sql_template = "DECLARE mycursor CURSOR FOR select client_id, auto_seq "
+  const char * CONST_select_sql_template = "select client_id, auto_seq "
                                            "from tb_clients where auto_seq > %d order by auto_seq";
   char select_sql[1024];
   ACE_OS::snprintf(select_sql, 1024 - 1, CONST_select_sql_template, id_table->last_sequence());
-  if (!exec_command(select_sql))
-    return false;
 
-  PGresult * pres = PQexec(m_connection, "FETCH ALL in mycursor");
+  PGresult * pres = PQexec(m_connection, select_sql);
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
   {
-    MY_ERROR("MyDB::FETCH ALL failed: %s\n", PQerrorMessage(m_connection));
+    MY_ERROR("MyDB::sql (%s) failed: %s\n", select_sql, PQerrorMessage(m_connection));
     return false;
   }
   int count = PQntuples(pres);
-  id_table->prepare_space(count);
-  for (int i = 0; i < count; ++i)
-    id_table->add(PQgetvalue(pres, i, 0));
   if (count > 0)
   {
+    id_table->prepare_space(count);
+    for (int i = 0; i < count; ++i)
+      id_table->add(PQgetvalue(pres, i, 0));
     int last_seq = atoi(PQgetvalue(pres, count - 1, 1));
     id_table->last_sequence(last_seq);
   }
-
-  if (!exec_command("CLOSE mycursor"))
-    return false;
-
-  if (!post_sql())
-    return false;
 
   MY_INFO("MyDB::get %d client_IDs from database\n", count);
   return true;

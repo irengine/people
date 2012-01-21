@@ -268,6 +268,7 @@ MyMemPoolFactory::MyMemPoolFactory()
   m_message_block_pool = NULL;
   m_data_block_pool = NULL;
   m_use_mem_pool = false;
+  m_global_alloc_count = 0;
 }
 
 MyMemPoolFactory::~MyMemPoolFactory()
@@ -319,7 +320,10 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
     return NULL;
   }
   if (!m_use_mem_pool)
+  {
+    ++ m_global_alloc_count;
     return new ACE_Message_Block(capacity);
+  }
   int count = m_pools.size();
   ACE_Message_Block * result;
   bool bRetried = false;
@@ -329,7 +333,10 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
   {
     p = m_message_block_pool->malloc();
     if (!p) //no way to go on
+    {
+      ++ m_global_alloc_count;
       return new ACE_Message_Block(capacity);
+    }
     result = new (p) MyCached_Message_Block(capacity, m_pools[i], m_data_block_pool, m_message_block_pool);
     if (!result->data_block())
     {
@@ -339,10 +346,14 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
         bRetried = true;
         continue;
       } else
+      {
+        ++ m_global_alloc_count;
         return new ACE_Message_Block(capacity);
+      }
     } else
       return result;
   }
+  ++ m_global_alloc_count;
   return new ACE_Message_Block(capacity);
 }
 
@@ -357,6 +368,7 @@ bool MyMemPoolFactory::get_mem(int size, MyPooledMemGuard * guard)
   int idx = m_use_mem_pool? find_first_index(size): INVALID_INDEX;
   if (idx == INVALID_INDEX || (p = (char*)m_pools[idx]->malloc()) == NULL)
   {
+    ++ m_global_alloc_count;
     p = new char[size];
     guard->data(p, INVALID_INDEX);
     return true;
@@ -381,6 +393,7 @@ void MyMemPoolFactory::free_mem(MyPooledMemGuard * guard)
 
 void MyMemPoolFactory::dump_info()
 {
+  ACE_DEBUG((LM_INFO, ACE_TEXT("    Global mem pool: alloc outside of mem pool =%d\n"), m_global_alloc_count.value()));
   if (!m_use_mem_pool)
     return;
 

@@ -180,7 +180,7 @@ protected:
   void do_event_loop();
   bool do_sighup();
   void on_status_file_missing();
-  void do_constructor();
+  bool do_constructor();
   void add_module(MyBaseModule * module);
 
   virtual bool on_start();

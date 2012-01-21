@@ -26,7 +26,7 @@ public:
     { return m_client_id_table; }
 #endif
 
-  static void app_init(const char * app_home_path = NULL, MyConfig::RUNNING_MODE mode = MyConfig::RM_UNKNOWN);
+  static bool app_init(const char * app_home_path = NULL, MyConfig::RUNNING_MODE mode = MyConfig::RM_UNKNOWN);
   static void app_fini();
 
   static void dump_mem_pool_info();

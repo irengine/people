@@ -387,6 +387,11 @@ void MyFileMD5s::do_scan_directory(const char * dirname, int start_len)
 
 //MyBaseArchiveReader//
 
+MyBaseArchiveReader::MyBaseArchiveReader()
+{
+  m_file_length = 0;
+}
+
 bool MyBaseArchiveReader::open(const char * filename)
 {
   if (unlikely(!filename || !*filename))
@@ -402,10 +407,23 @@ bool MyBaseArchiveReader::open(const char * filename)
     return false;
   }
   m_file.attach(fd);
+
+  struct stat sbuf;
+  if (::fstat(fd, &sbuf) == -1)
+  {
+    MY_ERROR("can not get file info @MyBaseArchiveReader::open(), name = %s %s\n", filename, (const char*)MyErrno());
+    return false;
+  }
+  m_file_length = sbuf.st_size;
   return true;
 }
 
 int MyBaseArchiveReader::read(char * buff, int buff_len)
+{
+  return do_read(buff, buff_len);
+}
+
+int MyBaseArchiveReader::do_read(char * buff, int buff_len)
 {
   int n = ::read(m_file.handle(), buff, buff_len);
   if (unlikely(n < 0))
@@ -419,6 +437,103 @@ void MyBaseArchiveReader::close()
   m_file_name.free();
 }
 
+
+//MyWrappedArchiveReader//
+
+bool MyWrappedArchiveReader::open(const char * filename)
+{
+  if (!super::open(filename))
+    return false;
+  return read_header();
+}
+
+int MyWrappedArchiveReader::read(char * buff, int buff_len)
+{
+  int n = std::min(buff_len, m_remain_length);
+  if (n <= 0)
+    return 0;
+  int n2 = do_read(buff, n);
+  m_remain_length -= n2;
+
+  if (m_remain_encrypted_length > 0)
+  {
+    int buff_remain_len = buff_len;
+    u_int8_t output[16];
+    char * ptr = buff;
+    while (m_remain_encrypted_length > 0 && buff_remain_len >= 16)
+    {
+      aes_decrypt(&m_aes_context, (u_int8_t*)ptr, output);
+      memcpy(ptr, output, 16);
+      buff_remain_len -= 16;
+      ptr += 16;
+    }
+    if (m_remain_encrypted_length < 0)
+      n2 += m_remain_encrypted_length;
+  }
+
+  return n2;
+}
+
+const char * MyWrappedArchiveReader::file_name() const
+{
+  return ((MyWrappedHeader*)m_wrapped_header.data())->file_name;
+}
+
+
+bool MyWrappedArchiveReader::read_header()
+{
+  MyWrappedHeader header;
+  if (!do_read((char*)&header, sizeof(header)))
+    return false;
+  if (header.magic != MyWrappedHeader::HEADER_MAGIC)
+  {
+    MY_ERROR("corrupted compressed file %s\n", m_file_name.data());
+    return false;
+  }
+
+  int name_length = header.header_length - sizeof(header);
+  if (name_length <= 1 || name_length > PATH_MAX)
+  {
+    MY_ERROR("invalid compressed header file name length: %s\n", m_file_name.data());
+    return false;
+  }
+
+  if (header.encrypted_data_length < 0 || header.encrypted_data_length > header.header_length)
+  {
+    MY_ERROR("invalid encrypted data length value\n");
+    return false;
+  }
+
+  MyMemPoolFactoryX::instance()->get_mem(header.header_length, &m_wrapped_header);
+  ACE_OS::memcpy((void*)m_wrapped_header.data(), &header, sizeof(header));
+  char * name_ptr = m_wrapped_header.data() + sizeof(header);
+  if (!do_read(name_ptr, name_length))
+    return false;
+  name_ptr[name_length - 1] = 0;
+
+  m_remain_length = header.data_length;
+  m_remain_encrypted_length = header.encrypted_data_length;
+  return true;
+};
+
+bool MyWrappedArchiveReader::next()
+{
+  return read_header();
+}
+
+bool MyWrappedArchiveReader::eof() const
+{
+  return (m_file_length <= (int)::lseek(m_file.handle(), 0, SEEK_CUR));
+}
+
+void MyWrappedArchiveReader::set_key(const char * skey)
+{
+  u_int8_t aes_key[32];
+  memset((void*)aes_key, 0, sizeof(aes_key));
+  if (skey)
+    ACE_OS::strsncpy((char*)aes_key, skey, sizeof(aes_key));
+  aes_set_key(&m_aes_context, aes_key, 256);
+}
 
 
 //MyBaseArchiveWriter//
@@ -439,10 +554,14 @@ bool MyBaseArchiveWriter::open(const char * filename)
   }
   m_file.attach(fd);
   return true;
-
 }
 
 bool MyBaseArchiveWriter::write(char * buff, int buff_len)
+{
+  return do_write(buff, buff_len);
+}
+
+bool MyBaseArchiveWriter::do_write(char * buff, int buff_len)
 {
   if (unlikely(!buff || buff_len <= 0))
     return true;
@@ -460,6 +579,118 @@ void MyBaseArchiveWriter::close()
 {
   m_file.attach(MyUnixHandleGuard::INVALID_HANDLE);
   m_file_name.free();
+}
+
+
+//MyWrappedArchiveWriter//
+
+bool MyWrappedArchiveWriter::write(char * buff, int buff_len)
+{
+  if (unlikely(buff_len < 0))
+    return false;
+  if (unlikely(buff_len == 0))
+    return true;
+
+  m_data_length += buff_len;
+
+  if (m_remain_encrypted_length > 0)
+  {
+    int to_buffer_len = std::min(buff_len, m_remain_encrypted_length);
+    ACE_OS::memcpy(m_encrypt_buffer.data(), buff, to_buffer_len);
+    m_remain_encrypted_length -= to_buffer_len;
+    if (m_remain_encrypted_length > 0)
+      return true;
+    else if (!encrypt_and_write())
+      return false;
+
+    if (buff_len - to_buffer_len > 0)
+      return do_write(buff + to_buffer_len, buff_len - to_buffer_len);
+    else
+      return true;
+  }
+
+  return do_write(buff, buff_len);
+}
+
+bool MyWrappedArchiveWriter::start(const char * filename)
+{
+  m_data_length = 0;
+  m_encrypted_length = 0;
+  m_remain_encrypted_length = ENCRYPT_DATA_LENGTH;
+  MyMemPoolFactoryX::instance()->get_mem(ENCRYPT_DATA_LENGTH, &m_encrypt_buffer);
+  return write_header(filename);
+}
+
+bool MyWrappedArchiveWriter::finish()
+{
+  if (m_remain_encrypted_length > 0)
+  {
+    if (!encrypt_and_write())
+      return false;
+  }
+
+  m_wrapped_header.data_length = m_data_length;
+
+  if (!::lseek(m_file.handle(), 0, SEEK_SET))
+  {
+    MY_ERROR("fseek on file %s failed %s\n", m_file_name.data(), (const char*)MyErrno());
+    return false;
+  }
+
+  return do_write((char*)&m_wrapped_header, sizeof(m_wrapped_header));
+}
+
+void MyWrappedArchiveWriter::set_key(const char * skey)
+{
+  u_int8_t aes_key[32];
+  memset((void*)aes_key, 0, sizeof(aes_key));
+  if (skey)
+    ACE_OS::strsncpy((char*)aes_key, skey, sizeof(aes_key));
+  aes_set_key(&m_aes_context, aes_key, 256);
+}
+
+bool MyWrappedArchiveWriter::write_header(const char * filename)
+{
+  if (unlikely(!filename || !*filename))
+    return false;
+  int filename_len = ACE_OS::strlen(filename) + 1;
+  m_wrapped_header.magic = MyWrappedHeader::HEADER_MAGIC;
+  m_wrapped_header.header_length = sizeof(m_wrapped_header) + filename_len;
+  m_wrapped_header.data_length = -1;
+  m_wrapped_header.encrypted_data_length = -1;
+  if (!do_write((char*)&m_wrapped_header, sizeof(m_wrapped_header)))
+    return false;
+  if (!do_write((char*)filename, filename_len + 1))
+    return false;
+  return true;
+}
+
+bool MyWrappedArchiveWriter::encrypt_and_write()
+{
+  int bytes = ENCRYPT_DATA_LENGTH - m_remain_encrypted_length;
+  m_wrapped_header.encrypted_data_length = bytes;
+  if (bytes == 0)
+    return true;
+
+  int stuff_bytes = (16 - bytes % 16) % 16;
+  if (stuff_bytes > 0)
+  {
+    m_data_length += stuff_bytes;
+    memset(m_encrypt_buffer.data() + bytes, 0, stuff_bytes);
+  }
+  bytes += stuff_bytes;
+  u_int8_t output[16];
+  char * ptr = m_encrypt_buffer.data();
+  int count = bytes;
+  while (count >= 16)
+  {
+    aes_encrypt(&m_aes_context, (u_int8_t*)ptr, output);
+    memcpy(ptr, output, 16);
+    ptr += 16;
+    count -= 16;
+  }
+
+  return do_write(m_encrypt_buffer.data(), bytes);
 }
 
 

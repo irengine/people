@@ -108,7 +108,7 @@ bool MyServerApp::on_construct()
   return true;
 }
 
-void MyServerApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mode)
+bool MyServerApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mode)
 {
   MyServerApp * app = MyServerAppX::instance();
   MyConfig* cfg = MyConfigX::instance();
@@ -124,7 +124,7 @@ void MyServerApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
   if (cfg->is_middle_server())
     MyLocationHandler::init_mem_pool(1000);
   MyMemPoolFactoryX::instance()->init(cfg);
-  app->do_constructor();
+  return app->do_constructor();
 }
 
 void MyServerApp::app_fini()
@@ -146,13 +146,14 @@ int main(int argc, const char * argv[])
   ACE_Sig_Action no_sigpipe ((ACE_SignalHandler) SIG_IGN);
   ACE_Sig_Action original_action;
   no_sigpipe.register_action (SIGPIPE, &original_action);
-
+  bool ret;
   if (argc == 3 && strcmp(argv[1], "-home") == 0 && argv[2][0] == '/')
-    MyServerApp::app_init(argv[2], MyConfig::RM_UNKNOWN);
+    ret = MyServerApp::app_init(argv[2], MyConfig::RM_UNKNOWN);
   else
-    MyServerApp::app_init(NULL, MyConfig::RM_UNKNOWN);
+    ret = MyServerApp::app_init(NULL, MyConfig::RM_UNKNOWN);
 
-  MyServerAppX::instance()->start();
+  if (ret)
+    MyServerAppX::instance()->start();
   MyServerApp::app_fini();
   return 0;
 }

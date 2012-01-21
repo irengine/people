@@ -80,7 +80,7 @@ _exit_:
   ACE_DEBUG((LM_INFO, "  !!! Memory Dump End !!!\n"));
 }
 
-void MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mode)
+bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mode)
 {
   MyClientApp * app = MyClientAppX::instance();
   MyConfig * cfg = MyConfigX::instance();
@@ -97,7 +97,7 @@ void MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
   MyClientToDistHandler::init_mem_pool(100);
 #endif
   MyMemPoolFactoryX::instance()->init(cfg);
-  app->do_constructor();
+  return app->do_constructor();
 }
 
 void MyClientApp::app_fini()
@@ -118,13 +118,14 @@ int main(int argc, const char * argv[])
   ACE_Sig_Action no_sigpipe ((ACE_SignalHandler) SIG_IGN);
   ACE_Sig_Action original_action;
   no_sigpipe.register_action (SIGPIPE, &original_action);
-
+  bool ret;
   if (argc == 3 && strcmp(argv[1], "-home") == 0 && argv[2][0] == '/')
-    MyClientApp::app_init(argv[2], MyConfig::RM_CLIENT);
+    ret = MyClientApp::app_init(argv[2], MyConfig::RM_CLIENT);
   else
-    MyClientApp::app_init(NULL, MyConfig::RM_CLIENT);
+    ret = MyClientApp::app_init(NULL, MyConfig::RM_CLIENT);
 
-  MyClientAppX::instance()->start();
+  if (ret)
+    MyClientAppX::instance()->start();
   MyClientApp::app_fini();
   return 0;
 }

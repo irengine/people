@@ -1,5 +1,5 @@
 BIN=client
-FILES=../aceserver/basemodule ../aceserver/datapacket ../aceserver/mycomutil ../aceserver/baseapp ../aceserver/md5 clientmodule client
+FILES=../aceserver/basemodule ../aceserver/datapacket ../aceserver/mycomutil ../aceserver/baseapp ../aceserver/md5 ../aceserver/aes clientmodule client
 SRC=$(addsuffix .cpp,$(FILES))
 OBJ=$(addsuffix .o,$(FILES))
 BUILD=$(VBIN)
