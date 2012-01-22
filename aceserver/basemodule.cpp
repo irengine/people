@@ -545,11 +545,28 @@ bool MyBaseArchiveWriter::open(const char * filename)
     MY_ERROR("empty file name @MyBaseArchiveWriter::open()\n");
     return false;
   }
+  m_file_name.init_from_string(filename);
+  return do_open();
+}
 
-  int fd = ::open(filename, O_CREAT | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
+bool MyBaseArchiveWriter::open(const char * dir, const char * filename)
+{
+  if (unlikely(!filename || !*filename || !filename || !*filename))
+  {
+    MY_ERROR("empty dir/file name @MyBaseArchiveWriter::open(,)\n");
+    return false;
+  }
+  m_file_name.init_from_string(dir, filename);
+  return do_open();
+}
+
+bool MyBaseArchiveWriter::do_open()
+{
+  int fd = ::open(m_file_name.data(), O_CREAT | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
   if (fd < 0)
   {
-    MY_ERROR("can not open file for write @MyBaseArchiveWriter::open(), name = %s %s\n", filename, (const char*)MyErrno());
+    MY_ERROR("can not open file for write @MyBaseArchiveWriter::open(), name = %s %s\n",
+             m_file_name.data(), (const char*)MyErrno());
     return false;
   }
   m_file.attach(fd);
@@ -774,17 +791,19 @@ bool MyBZCompressor::do_compress(MyBaseArchiveReader * _reader, MyBaseArchiveWri
   ACE_NOTREACHED(return true);
 }
 
-bool MyBZCompressor::compress(const char * srcfn, const char * destfn)
+bool MyBZCompressor::compress(const char * srcfn, const char * destfn, const char * key)
 {
   MyBaseArchiveReader reader;
   if (!reader.open(srcfn))
     return false;
-  MyBaseArchiveWriter writer;
+  MyWrappedArchiveWriter writer;
   if (!writer.open(destfn))
+    return false;
+  writer.set_key(key);
+  if (!writer.start(srcfn))
     return false;
 
   prepare_buffers();
-
   int ret = BZ2_bzCompressInit(&m_bz_stream, COMPRESS_100k, 0, 30);
   if (ret != BZ_OK)
   {
@@ -796,6 +815,9 @@ bool MyBZCompressor::compress(const char * srcfn, const char * destfn)
   if (!result)
     MY_ERROR("failed to compress file: %s to %s\n", srcfn, destfn);
   BZ2_bzCompressEnd(&m_bz_stream);
+
+  if (!writer.finish())
+    return false;
   return result;
 }
 
@@ -847,30 +869,52 @@ bool MyBZCompressor::do_decompress(MyBaseArchiveReader * _reader, MyBaseArchiveW
   ACE_NOTREACHED(return true);
 }
 
-bool MyBZCompressor::decompress(const char * srcfn, const char * destfn)
+bool MyBZCompressor::decompress(const char * srcfn, const char * destdir, const char * key)
 {
-  MyBaseArchiveReader reader;
+  MyWrappedArchiveReader reader;
   if (!reader.open(srcfn))
     return false;
   MyBaseArchiveWriter writer;
-  if (!writer.open(destfn))
-    return false;
-
   prepare_buffers();
+  reader.set_key(key);
 
   int ret;
-  ret = BZ2_bzDecompressInit(&m_bz_stream, 0, 0);
-  if (ret != BZ_OK)
+  while (true)
   {
-    MY_ERROR("BZ2_bzCompressInit() return value = %d\n", ret);
-    return false;
-  }
+    const char * _file_name = reader.file_name();
+    if (!MyFilePaths::make_path(destdir, _file_name, true))
+    {
+      MY_ERROR("can not mkdir %s/%s %s\n", destdir, _file_name, (const char*)MyErrno());
+      return false;
+    }
+    MyPooledMemGuard dest_file_name;
+    dest_file_name.init_from_string(destdir, "/", _file_name);
 
-  bool result = do_decompress(&reader, &writer);
-  BZ2_bzDecompressEnd(&m_bz_stream);
-  if (!result)
-    MY_ERROR("failed to decompress file: %s to %s\n", srcfn, destfn);
-  return result;
+    if (!writer.open(dest_file_name.data()))
+      return false;
+
+    ret = BZ2_bzDecompressInit(&m_bz_stream, 0, 0);
+    if (ret != BZ_OK)
+    {
+      MY_ERROR("BZ2_bzCompressInit() return value = %d\n", ret);
+      return false;
+    }
+
+    bool result = do_decompress(&reader, &writer);
+    BZ2_bzDecompressEnd(&m_bz_stream);
+    if (!result)
+    {
+      MY_ERROR("failed to decompress file: %s to %s\n", srcfn, destdir);
+      return false;
+    }
+    if (reader.eof())
+      return true;
+    if (!reader.next())
+      return false;
+    writer.close();
+  };
+
+  ACE_NOTREACHED(return true);
 }
 
 

@@ -352,6 +352,13 @@ private:
 #define PREPARE_MEMORY_POOL(Cls) \
   Cls::Mem_Pool * Cls::m_mem_pool = NULL
 
+class MyFilePaths
+{
+public:
+  static bool make_path(char* path, int prefix_len, bool is_file);
+  static bool make_path(const char * path, const char * subpath, bool is_file);
+};
+
 #if defined(MY_client_test) || defined(MY_server_test)
 
 //simple implementation, not thread safe, multiple calls to put on the same id will generate duplicate
@@ -406,8 +413,6 @@ class MyTestClientPathGenerator
 {
 public:
   static void make_paths(const char * app_data_path, int64_t _start, int _count);
-  static bool make_path(char* path, int prefix_len, bool is_file);
-  static bool make_path(const char * path, const char * subpath, bool is_file);
   static bool client_id_to_path(const char * id, char * result, int result_len);
   static void make_paths_from_id_table(const char * app_data_path, MyClientIDTable * id_table);
 };
@@ -478,28 +483,24 @@ public:
   {
     free();
   }
+
   char * data() const
   {
     return (char*)m_buff;
   }
+
   void free()
   {
     if (m_buff)
+    {
       MyMemPoolFactoryX::instance()->free_mem(this);
-    m_buff = NULL;
+      m_buff = NULL;
+    }
   }
 
-  static void init_from_string(MyPooledMemGuard * guard, const char * src)
-  {
-    if (unlikely(!guard))
-      return;
-    int len = src? ACE_OS::strlen(src) + 1: 1;
-    MyMemPoolFactoryX::instance()->get_mem(len, guard);
-    if (len == 1)
-      guard->data()[0] = 0;
-    else
-      ACE_OS::memcpy(guard->data(), src, len);
-  }
+  void init_from_string(const char * src);
+  void init_from_string(const char * src1, const char * src2);
+  void init_from_string(const char * src1, const char * src2, const char * src3);
 
 protected:
   friend class MyMemPoolFactory;

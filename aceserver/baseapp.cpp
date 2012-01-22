@@ -39,6 +39,7 @@ const int  DEFAULT_client_heart_beat_interval = 60; //in seconds
   const int  DEFAULT_test_client_connection_number = 1;
 #endif
 const int  DEFAULT_db_server_port = 5432;
+const int  DEFAULT_http_port = 1921;
 
 //common for all
 const ACE_TCHAR * CONFIG_Section_global = ACE_TEXT("global");
@@ -65,10 +66,11 @@ const ACE_TCHAR * CONFIG_remote_access_port = ACE_TEXT("remote_access_port");
 //dist and middle servers
 const ACE_TCHAR * CONFIG_max_clients = ACE_TEXT("max_clients");
 const ACE_TCHAR * CONFIG_middle_server_dist_port = ACE_TEXT("middle_server.dist_port");
-const ACE_TCHAR * CONFIG_db_server_addr = ACE_TEXT("db_server_addr");
-const ACE_TCHAR * CONFIG_db_server_port = ACE_TEXT("db_server_port");
-const ACE_TCHAR * CONFIG_db_user_name = ACE_TEXT("db_user_name");
-const ACE_TCHAR * CONFIG_db_password = ACE_TEXT("db_password");
+const ACE_TCHAR * CONFIG_middle_server_key = ACE_TEXT("middle_server.key");
+const ACE_TCHAR * CONFIG_db_server_addr = ACE_TEXT("db_server.addr");
+const ACE_TCHAR * CONFIG_db_server_port = ACE_TEXT("db_server.port");
+const ACE_TCHAR * CONFIG_db_user_name = ACE_TEXT("db_server.user_name");
+const ACE_TCHAR * CONFIG_db_password = ACE_TEXT("db_server.password");
 
 //client and dist
 const ACE_TCHAR *  CONFIG_middle_server_addr = ACE_TEXT("middle_server.addr");
@@ -78,6 +80,7 @@ const ACE_TCHAR * CONFIG_dist_server_heart_beat_port = ACE_TEXT("module.heart_be
 const ACE_TCHAR *  CONFIG_middle_server_client_port = ACE_TEXT("middle_server.client_port");
 
 //middle specific
+const ACE_TCHAR *  CONFIG_http_port = ACE_TEXT("middle_server.http_port");
 
 
 //dist specific
@@ -121,6 +124,9 @@ MyConfig::MyConfig()
 
   //client only
   client_heart_beat_interval = DEFAULT_client_heart_beat_interval;
+
+  //middle only
+  http_port = DEFAULT_http_port;
 }
 
 void MyConfig::init_path(const char * app_home_path)
@@ -362,6 +368,15 @@ bool MyConfig::load_config_dist_middle(ACE_Configuration_Heap & cfgHeap, ACE_Con
     }
   }
 
+  ACE_TString sval;
+  if (cfgHeap.get_string_value(section, CONFIG_middle_server_key, sval) == 0)
+    db_server_addr = sval.c_str();
+  else
+  {
+    MY_ERROR("can not read config value %s\n", CONFIG_middle_server_key);
+    return false;
+  }
+
   if (cfgHeap.get_integer_value (section,  CONFIG_middle_server_dist_port, ival) == 0)
   {
     if (ival == 0 || ival >= 65535)
@@ -372,7 +387,6 @@ bool MyConfig::load_config_dist_middle(ACE_Configuration_Heap & cfgHeap, ACE_Con
     middle_server_dist_port = ival;
   }
 
-  ACE_TString sval;
   if (cfgHeap.get_string_value(section, CONFIG_db_server_addr, sval) == 0)
     db_server_addr = sval.c_str();
   else
@@ -466,11 +480,19 @@ bool MyConfig::load_config_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configurat
 
 bool MyConfig::load_config_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section)
 {
-  ACE_UNUSED_ARG(cfgHeap);
-  ACE_UNUSED_ARG(section);
-
   if (!is_middle_server())
     return true;
+
+  u_int ival;
+  if (cfgHeap.get_integer_value (section,  CONFIG_http_port, ival) == 0)
+  {
+    if (ival == 0 || ival >= 65535)
+    {
+      MY_ERROR(ACE_TEXT("Invalid config value %s (= %d)\n"), CONFIG_http_port, ival);
+      return false;
+    }
+    http_port = ival;
+  }
 
   return true;
 }
@@ -574,6 +596,7 @@ void MyConfig::dump_config_info()
   {
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_max_clients, max_clients));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_middle_server_dist_port, middle_server_dist_port));
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_middle_server_key, middle_server_key.c_str()));
   }
 
   //client an dist
@@ -602,6 +625,11 @@ void MyConfig::dump_config_info()
   }
 
   //middle only
+  if (is_middle_server())
+  {
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_http_port, http_port));
+  }
+
 
   //common: file/path locations printout
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tstatus_file = %s\n"), status_file_name.c_str()));

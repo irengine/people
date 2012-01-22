@@ -207,10 +207,12 @@ public:
   virtual ~MyBaseArchiveWriter()
   {}
   bool open(const char * filename);
+  bool open(const char * dir, const char * filename);
   virtual bool write(char * buff, int buff_len);
   void close();
 
 protected:
+  bool do_open();
   bool do_write(char * buff, int buff_len);
 
   MyUnixHandleGuard m_file;
@@ -247,8 +249,8 @@ public:
   MyBZCompressor();
   enum { COMPRESS_100k = 3 };
   enum { BUFFER_LEN = 4096 };
-  bool compress(const char * filename, const char * destfn);
-  bool decompress(const char * filename, const char * destfn);
+  bool compress(const char * filename, const char * destfn, const char * key);
+  bool decompress(const char * filename, const char * destdir, const char * key);
 
 private:
   bool prepare_buffers();

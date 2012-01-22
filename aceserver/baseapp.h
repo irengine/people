@@ -63,6 +63,7 @@ public:
   //dist and middle server
   int  max_clients;
   int  middle_server_dist_port;
+  std::string middle_server_key;
   std::string db_server_addr;
   int db_server_port;
   std::string db_user_name;
@@ -85,6 +86,7 @@ public:
   int module_heart_beat_mem_pool_size;
 
   //middle only
+  int http_port;
 
   //common paths
   std::string exe_path;

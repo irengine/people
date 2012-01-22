@@ -9,6 +9,64 @@
 #include "mycomutil.h"
 #include "baseapp.h"
 
+//MyPooledMemGuard//
+
+void MyPooledMemGuard::init_from_string(const char * src)
+{
+  int len = src? ACE_OS::strlen(src) + 1: 1;
+  MyMemPoolFactoryX::instance()->get_mem(len, this);
+  if (len == 1)
+    data()[0] = 0;
+  else
+    ACE_OS::memcpy(data(), src, len);
+}
+
+void MyPooledMemGuard::init_from_string(const char * src1, const char * src2)
+{
+  if (!src1 || !*src1)
+  {
+    init_from_string(src2);
+    return;
+  }
+  if (!src2 || !*src2)
+  {
+    init_from_string(src1);
+    return;
+  }
+  int len1 = ACE_OS::strlen(src1);
+  int len2 = ACE_OS::strlen(src2) + 1;
+  MyMemPoolFactoryX::instance()->get_mem(len1 + len2, this);
+  ACE_OS::memcpy(data(), src1, len1);
+  ACE_OS::memcpy(data() + len1, src2, len2);
+}
+
+void MyPooledMemGuard::init_from_string(const char * src1, const char * src2, const char * src3)
+{
+  if (!src1 || !*src1)
+  {
+    init_from_string(src2, src3);
+    return;
+  }
+  if (!src2 || !*src2)
+  {
+    init_from_string(src1, src3);
+    return;
+  }
+  if (!src3 || !*src3)
+  {
+    init_from_string(src1, src2);
+    return;
+  }
+
+  int len1 = ACE_OS::strlen(src1);
+  int len2 = ACE_OS::strlen(src2);
+  int len3 = ACE_OS::strlen(src3) + 1;
+  MyMemPoolFactoryX::instance()->get_mem(len1 + len2 + len3, this);
+  ACE_OS::memcpy(data(), src1, len1);
+  ACE_OS::memcpy(data() + len1, src2, len2);
+  ACE_OS::memcpy(data() + len1 + len2, src3, len3);
+}
+
 void mycomutil_hex_dump(void * ptr, int len, char * result_buff, int buff_len)
 {
   if (unlikely(!ptr || len <= 0 || buff_len < 2 * len))
@@ -169,43 +227,7 @@ int mycomutil_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH
   return (mb->space() == 0 ? 0:1);
 }
 
-#if defined(MY_client_test) || defined(MY_server_test)
-
-void MyTestClientPathGenerator::make_paths(const char * app_data_path, int64_t _start, int _count)
-{
-  if (!app_data_path || !*app_data_path)
-    return;
-  char buff[PATH_MAX], str_client_id[64];
-  ACE_OS::snprintf(buff, PATH_MAX - 1, "%s/", app_data_path);
-  int prefix_len = strlen(buff);
-  for (long long id = _start; id < _start + _count; ++ id)
-  {
-    ACE_OS::snprintf(str_client_id, 64 - 1, "%lld", (long long)id);
-    client_id_to_path(str_client_id, buff + prefix_len, PATH_MAX - prefix_len - 1);
-    make_path(buff, prefix_len + 1, false);
-  }
-}
-
-void MyTestClientPathGenerator::make_paths_from_id_table(const char * app_data_path, MyClientIDTable * id_table)
-{
-  if (!app_data_path || !*app_data_path || !id_table)
-    return;
-  char buff[PATH_MAX], str_client_id[64];
-  ACE_OS::snprintf(buff, PATH_MAX - 1, "%s/", app_data_path);
-  int prefix_len = strlen(buff);
-  int count = id_table->count();
-  MyClientID id;
-  for (int i = 0; i < count; ++ i)
-  {
-    id_table->value(i, &id);
-    ACE_OS::snprintf(str_client_id, 64 - 1, "%s", id.as_string());
-    client_id_to_path(str_client_id, buff + prefix_len, PATH_MAX - prefix_len - 1);
-    make_path(buff, prefix_len + 1, false);
-  }
-
-}
-
-bool MyTestClientPathGenerator::make_path(char * path, int prefix_len, bool is_file)
+bool MyFilePaths::make_path(char * path, int prefix_len, bool is_file)
 {
   if (!path || !*path)
     return false;
@@ -230,13 +252,49 @@ bool MyTestClientPathGenerator::make_path(char * path, int prefix_len, bool is_f
   return true;
 }
 
-bool MyTestClientPathGenerator::make_path(const char * path, const char * subpath, bool is_file)
+bool MyFilePaths::make_path(const char * path, const char * subpath, bool is_file)
 {
   if (!path || !subpath)
     return false;
   char buff[PATH_MAX];
   ACE_OS::snprintf(buff, PATH_MAX - 1, "%s/%s", path, subpath);
   return make_path(buff, strlen(path) + 1, is_file);
+}
+
+#if defined(MY_client_test) || defined(MY_server_test)
+
+void MyTestClientPathGenerator::make_paths(const char * app_data_path, int64_t _start, int _count)
+{
+  if (!app_data_path || !*app_data_path)
+    return;
+  char buff[PATH_MAX], str_client_id[64];
+  ACE_OS::snprintf(buff, PATH_MAX - 1, "%s/", app_data_path);
+  int prefix_len = strlen(buff);
+  for (long long id = _start; id < _start + _count; ++ id)
+  {
+    ACE_OS::snprintf(str_client_id, 64 - 1, "%lld", (long long)id);
+    client_id_to_path(str_client_id, buff + prefix_len, PATH_MAX - prefix_len - 1);
+    MyFilePaths::make_path(buff, prefix_len + 1, false);
+  }
+}
+
+void MyTestClientPathGenerator::make_paths_from_id_table(const char * app_data_path, MyClientIDTable * id_table)
+{
+  if (!app_data_path || !*app_data_path || !id_table)
+    return;
+  char buff[PATH_MAX], str_client_id[64];
+  ACE_OS::snprintf(buff, PATH_MAX - 1, "%s/", app_data_path);
+  int prefix_len = strlen(buff);
+  int count = id_table->count();
+  MyClientID id;
+  for (int i = 0; i < count; ++ i)
+  {
+    id_table->value(i, &id);
+    ACE_OS::snprintf(str_client_id, 64 - 1, "%s", id.as_string());
+    client_id_to_path(str_client_id, buff + prefix_len, PATH_MAX - prefix_len - 1);
+    MyFilePaths::make_path(buff, prefix_len + 1, false);
+  }
+
 }
 
 bool MyTestClientPathGenerator::client_id_to_path(const char * id, char * result, int result_len)

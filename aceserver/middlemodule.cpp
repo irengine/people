@@ -206,14 +206,25 @@ MyLocationAcceptor::MyLocationAcceptor(MyBaseDispatcher * _dispatcher, MyBaseCon
     MyBaseAcceptor(_dispatcher, _manager)
 {
   m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
+  m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 
 int MyLocationAcceptor::make_svc_handler(MyBaseHandler *& sh)
 {
-  ACE_NEW_RETURN(sh, MyLocationHandler(m_connection_manager), -1);
+  sh = new MyLocationHandler(m_connection_manager);
+  if (!sh)
+  {
+    MY_ERROR("can not alloc MyLocationHandler from %s\n", name());
+    return -1;
+  }
   sh->parent((void*)this);
   sh->reactor(reactor());
   return 0;
+}
+
+const char * MyLocationAcceptor::name() const
+{
+  return "MyLocationAcceptor";
 }
 
 
@@ -238,6 +249,10 @@ void MyLocationDispatcher::on_stop()
   m_acceptor = NULL;
 }
 
+const char * MyLocationDispatcher::name() const
+{
+  return "MyLocationDispatcher";
+}
 
 //MyLocationModule//
 
@@ -266,14 +281,16 @@ void MyLocationModule::on_stop()
   m_dispatcher = NULL;
 }
 
+const char * MyLocationModule::name() const
+{
+  return "MyLocationModule";
+}
 
 //============================//
 //http module stuff begins here
 //============================//
 
 //MyHttpProcessor//
-
-//MyPingSubmitter * MyHttpProcessor::m_sumbitter = NULL;
 
 MyHttpProcessor::MyHttpProcessor(MyBaseHandler * handler): MyBaseProcessor(handler)
 {
@@ -345,40 +362,14 @@ MyHttpHandler::MyHttpHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr
 
 PREPARE_MEMORY_POOL(MyHttpHandler);
 
-//MyHttpService//
-
-MyHttpService::MyHttpService(MyBaseModule * module, int numThreads):
-    MyBaseService(module, numThreads)
-{
-
-}
-
-int MyHttpService::svc()
-{
-  ACE_DEBUG ((LM_DEBUG,
-             ACE_TEXT ("(%P|%t) running svc()\n")));
-
-  for (ACE_Message_Block *log_blk; getq (log_blk) != -1; )
-  {
-//    ACE_DEBUG ((LM_DEBUG,
-//               ACE_TEXT ("(%P|%t) svc data from queue, size = %d\n"),
-//               log_blk->size()));
-
-
-    log_blk->release ();
-  }
-  ACE_DEBUG ((LM_DEBUG,
-               ACE_TEXT ("(%P|%t) quitting svc()\n")));
-  return 0;
-}
-
 
 //MyHttpAcceptor//
 
 MyHttpAcceptor::MyHttpAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
     MyBaseAcceptor(_dispatcher, _manager)
 {
-  m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
+  m_tcp_port = MyConfigX::instance()->http_port;
+  m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 
 int MyHttpAcceptor::make_svc_handler(MyBaseHandler *& sh)
@@ -389,6 +380,37 @@ int MyHttpAcceptor::make_svc_handler(MyBaseHandler *& sh)
   return 0;
 }
 
+const char * MyHttpAcceptor::name() const
+{
+  return "MyHttpAcceptor";
+}
+
+
+//MyHttpService//
+
+MyHttpService::MyHttpService(MyBaseModule * module, int numThreads)
+  : MyBaseService(module, numThreads)
+{
+
+}
+
+int MyHttpService::svc()
+{
+  MY_INFO("running %s::svc()\n", name());
+
+  for (ACE_Message_Block * mb; getq(mb) != -1; )
+  {
+
+  }
+
+  MY_INFO("exiting %s::svc()\n", name());
+  return 0;
+};
+
+const char * MyHttpService::name() const
+{
+  return "MyHttpService";
+}
 
 //MyHttpDispatcher//
 
@@ -398,6 +420,10 @@ MyHttpDispatcher::MyHttpDispatcher(MyBaseModule * pModule, int numThreads):
   m_acceptor = NULL;
 }
 
+const char * MyHttpDispatcher::name() const
+{
+  return "MyHttpDispatcher";
+}
 
 void MyHttpDispatcher::on_stop()
 {
@@ -412,17 +438,23 @@ bool MyHttpDispatcher::on_start()
   return true;
 }
 
+
 //MyHttpModule//
 
 MyHttpModule::MyHttpModule(MyBaseApp * app): MyBaseModule(app)
 {
-  m_service = NULL;
   m_dispatcher = NULL;
+  m_service = NULL;
 }
 
 MyHttpModule::~MyHttpModule()
 {
 
+}
+
+const char * MyHttpModule::name() const
+{
+  return "MyHttpModule";
 }
 
 bool MyHttpModule::on_start()
@@ -434,6 +466,179 @@ bool MyHttpModule::on_start()
 
 void MyHttpModule::on_stop()
 {
+  m_dispatcher = NULL;
   m_service = NULL;
+}
+
+
+//============================//
+//DistLoad module stuff begins here
+//============================//
+
+//MyDistLoadProcessor//
+
+MyDistLoadProcessor::MyDistLoadProcessor(MyBaseHandler * handler): MyBaseServerProcessor(handler)
+{
+  m_current_block = NULL;
+  m_client_id_verified = false;
+}
+
+MyDistLoadProcessor::~MyDistLoadProcessor()
+{
+  if (m_current_block)
+    m_current_block->release();
+}
+
+MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header(const MyDataPacketHeader & header)
+{
+  if (super::on_recv_header(header) == ER_ERROR)
+    return ER_ERROR;
+
+  if (header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
+  {
+    MyClientVersionCheckRequestProc proc;
+    proc.attach((const char*)&header);
+    bool result = proc.validate_data();
+    if (!result)
+    {
+      MY_ERROR("bad load_balance package received from %s\n", info_string().c_str());
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
+  if (header.command == MyDataPacketHeader::CMD_LOAD_BALANCE_REQ)
+    return ER_OK;
+
+  MY_ERROR(ACE_TEXT("unexpected packet header received @MyDistLoadProcessor.on_recv_header, cmd = %d\n"),
+      header.command);
+  return ER_ERROR;
+}
+
+MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+{
+  MyBaseServerProcessor::on_recv_packet_i(mb);
+
+  MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
+  if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
+    return do_version_check(mb);
+
+  if (header->command == MyDataPacketHeader::CMD_LOAD_BALANCE_REQ)
+    return do_load_balance(mb);
+
+  MyMessageBlockGuard guard(mb);
+  MY_ERROR("unsupported command received @MyDistLoadProcessor::on_recv_packet_i, command = %d\n",
+      header->command);
+  return ER_ERROR;
+}
+
+MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::do_version_check(ACE_Message_Block * mb)
+{
+  MyClientVersionCheckRequest * p = (MyClientVersionCheckRequest *) mb->base();
+  MyClientID id(""); //todo: add client id  here
+  bool result = (p->client_id == MyConfigX::instance()->middle_server_key.c_str());
+  if (!result)
+  {
+    MY_ERROR("bad load_balance version check (bad key) received from %s\n", info_string().c_str());
+    return ER_ERROR;
+  }
+  m_client_id_verified = true;
+  return ER_OK;
+}
+
+bool MyDistLoadProcessor::client_id_verified() const
+{
+  return m_client_id_verified;
+}
+
+MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::do_load_balance(ACE_Message_Block * mb)
+{
+
+}
+
+
+//MyDistLoadHandler//
+
+MyDistLoadHandler::MyDistLoadHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
+{
+  m_processor = new MyDistLoadProcessor(this);
+}
+
+PREPARE_MEMORY_POOL(MyDistLoadHandler);
+
+//MyDistLoadAcceptor//
+
+MyDistLoadAcceptor::MyDistLoadAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
+    MyBaseAcceptor(_dispatcher, _manager)
+{
+  m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
+}
+
+int MyDistLoadAcceptor::make_svc_handler(MyBaseHandler *& sh)
+{
+  ACE_NEW_RETURN(sh, MyDistLoadHandler(m_connection_manager), -1);
+  sh->parent((void*)this);
+  sh->reactor(reactor());
+  return 0;
+}
+
+const char * MyDistLoadAcceptor::name() const
+{
+  return "MyDistLoadAcceptor";
+}
+
+
+//MyDistLoadDispatcher//
+
+MyDistLoadDispatcher::MyDistLoadDispatcher(MyBaseModule * pModule, int numThreads):
+    MyBaseDispatcher(pModule, numThreads)
+{
+  m_acceptor = NULL;
+}
+
+const char * MyDistLoadDispatcher::name() const
+{
+  return "MyDistLoadDispatcher";
+}
+
+void MyDistLoadDispatcher::on_stop()
+{
+  m_acceptor = NULL;
+}
+
+bool MyDistLoadDispatcher::on_start()
+{
+  if (!m_acceptor)
+    m_acceptor = new MyDistLoadAcceptor(this, new MyBaseConnectionManager());
+  add_acceptor(m_acceptor);
+  return true;
+}
+
+
+//MyDistLoadModule//
+
+MyDistLoadModule::MyDistLoadModule(MyBaseApp * app): MyBaseModule(app)
+{
+  m_dispatcher = NULL;
+}
+
+MyDistLoadModule::~MyDistLoadModule()
+{
+
+}
+
+const char * MyDistLoadModule::name() const
+{
+  return "MyDistLoadModule";
+}
+
+bool MyDistLoadModule::on_start()
+{
+  add_dispatcher(m_dispatcher = new MyDistLoadDispatcher(this));
+  return true;
+}
+
+void MyDistLoadModule::on_stop()
+{
   m_dispatcher = NULL;
 }

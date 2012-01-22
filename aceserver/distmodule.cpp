@@ -24,7 +24,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header(const MyDataP
     return ER_ERROR;
 
   if (header.command == MyDataPacketHeader::CMD_HEARTBEAT_PING)
-  { //todo: handle heart beat
+  {
     //the thread context switching and synchronization cost outbeat the benefit of using another thread
     do_ping();
     return ER_OK_FINISHED;

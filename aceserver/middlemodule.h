@@ -113,6 +113,7 @@ public:
 protected:
   virtual bool on_start();
   virtual void on_stop();
+  virtual const char * name() const;
 
 private:
   MyLocationAcceptor * m_acceptor;
@@ -121,8 +122,10 @@ private:
 class MyLocationAcceptor: public MyBaseAcceptor
 {
 public:
+  enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
   MyLocationAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
   virtual int make_svc_handler(MyBaseHandler *& sh);
+  virtual const char * name() const;
 };
 
 
@@ -135,6 +138,7 @@ public:
 protected:
   virtual bool on_start();
   virtual void on_stop();
+  virtual const char * name() const;
 
 private:
   MyDistLoads m_dist_loads;
@@ -148,7 +152,6 @@ private:
 //============================//
 
 class MyHttpModule;
-//class MyPingSubmitter;
 class MyHttpAcceptor;
 
 class MyHttpProcessor: public MyBaseProcessor
@@ -159,12 +162,9 @@ public:
 
   virtual int handle_input();
 
-//  static MyPingSubmitter * m_sumbitter;
-
 private:
   bool do_process_input_data();
   ACE_Message_Block * m_current_block;
-
 };
 
 
@@ -172,6 +172,7 @@ class MyHttpHandler: public MyBaseHandler
 {
 public:
   MyHttpHandler(MyBaseConnectionManager * xptr = NULL);
+
   DECLARE_MEMORY_POOL(MyHttpHandler, ACE_Thread_Mutex);
 };
 
@@ -180,12 +181,14 @@ class MyHttpService: public MyBaseService
 public:
   MyHttpService(MyBaseModule * module, int numThreads = 1);
   virtual int svc();
+  virtual const char * name() const;
 };
 
 class MyHttpDispatcher: public MyBaseDispatcher
 {
 public:
   MyHttpDispatcher(MyBaseModule * pModule, int numThreads = 1);
+  virtual const char * name() const;
 
 protected:
   virtual void on_stop();
@@ -198,8 +201,11 @@ private:
 class MyHttpAcceptor: public MyBaseAcceptor
 {
 public:
+  enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
+
   MyHttpAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
   virtual int make_svc_handler(MyBaseHandler *& sh);
+  virtual const char * name() const;
 };
 
 
@@ -208,6 +214,7 @@ class MyHttpModule: public MyBaseModule
 public:
   MyHttpModule(MyBaseApp * app);
   virtual ~MyHttpModule();
+  virtual const char * name() const;
 
 protected:
   virtual bool on_start();
@@ -216,7 +223,81 @@ protected:
 private:
   MyHttpService *m_service;
   MyHttpDispatcher * m_dispatcher;
+};
 
+
+//============================//
+//DistLoad module stuff begins here
+//============================//
+
+class MyDistLoadModule;
+class MyDistLoadAcceptor;
+
+class MyDistLoadProcessor: public MyBaseServerProcessor
+{
+public:
+  typedef MyBaseServerProcessor super;
+
+  MyDistLoadProcessor(MyBaseHandler * handler);
+  virtual ~MyDistLoadProcessor();
+  virtual bool client_id_verified() const;
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
+
+protected:
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+
+private:
+  MyBaseProcessor::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_load_balance(ACE_Message_Block * mb);
+  ACE_Message_Block * m_current_block;
+  bool m_client_id_verified;
+};
+
+
+class MyDistLoadHandler: public MyBaseHandler
+{
+public:
+  MyDistLoadHandler(MyBaseConnectionManager * xptr = NULL);
+
+  DECLARE_MEMORY_POOL(MyDistLoadHandler, ACE_Thread_Mutex);
+};
+
+class MyDistLoadDispatcher: public MyBaseDispatcher
+{
+public:
+  MyDistLoadDispatcher(MyBaseModule * pModule, int numThreads = 1);
+  virtual const char * name() const;
+
+protected:
+  virtual void on_stop();
+  virtual bool on_start();
+
+private:
+  MyDistLoadAcceptor * m_acceptor;
+};
+
+class MyDistLoadAcceptor: public MyBaseAcceptor
+{
+public:
+  MyDistLoadAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
+  virtual int make_svc_handler(MyBaseHandler *& sh);
+  virtual const char * name() const;
+};
+
+
+class MyDistLoadModule: public MyBaseModule
+{
+public:
+  MyDistLoadModule(MyBaseApp * app);
+  virtual ~MyDistLoadModule();
+  virtual const char * name() const;
+
+protected:
+  virtual bool on_start();
+  virtual void on_stop();
+
+private:
+  MyDistLoadDispatcher * m_dispatcher;
 };
 
 
