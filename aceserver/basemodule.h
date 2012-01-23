@@ -49,6 +49,7 @@ class MyClientIDTable
 {
 public:
   MyClientIDTable();
+  ~MyClientIDTable();
   bool contains(const MyClientID & id);
   void add(const MyClientID & id);
   void add(const char * str_id);
@@ -63,9 +64,11 @@ public:
   void prepare_space(int _count);
 
 private:
-  typedef std::vector<MyClientID> ClientIDTable_type;
+  typedef std::vector<MyClientID > ClientIDTable_type;
   typedef std::map<MyClientID, int> ClientIDTable_map;
 
+//  typedef std::vector<MyClientID, MyAllocator<MyClientID> > ClientIDTable_type;
+//  typedef std::map<MyClientID, int, std::less<MyClientID>, MyAllocator<std::pair<const MyClientID,int> > > ClientIDTable_map;
   int index_of_i(const MyClientID & id, ClientIDTable_map::iterator * pIt = NULL);
   void add_i(const MyClientID & id);
   ClientIDTable_type  m_table;
@@ -226,7 +229,7 @@ public:
   typedef MyBaseArchiveWriter super;
 
   virtual bool write(char * buff, int buff_len);
-  bool start(const char * filename);
+  bool start(const char * filename, int prefix_len = 0);
   bool finish();
 
   void set_key(const char * skey);
@@ -242,6 +245,12 @@ private:
   MyPooledMemGuard m_encrypt_buffer;
 };
 
+class MyBZMemPoolAdaptor
+{
+public:
+  static void * my_alloc(void *,int, int );
+  static void my_free(void *, void *);
+};
 
 class MyBZCompressor
 {
@@ -249,7 +258,7 @@ public:
   MyBZCompressor();
   enum { COMPRESS_100k = 3 };
   enum { BUFFER_LEN = 4096 };
-  bool compress(const char * filename, const char * destfn, const char * key);
+  bool compress(const char * filename, int prefix_len, const char * destfn, const char * key);
   bool decompress(const char * filename, const char * destdir, const char * key);
 
 private:
@@ -427,10 +436,10 @@ protected:
   virtual void do_dump_info();
 
 private:
-  typedef std::map<MyBaseHandler *, long> MyConnections;
+  typedef std::map<MyBaseHandler *, long, std::less<MyBaseHandler *>, MyAllocator<std::pair<const MyBaseHandler *, long> > > MyConnections;
   typedef MyConnections::iterator MyConnectionsPtr;
 
-  typedef std::map<int, MyBaseHandler *> MyIndexHandlerMap;
+  typedef std::map<int, MyBaseHandler *, std::less<int>, MyAllocator<std::pair<const int, MyBaseHandler *> > > MyIndexHandlerMap;
   typedef std::map<int, MyBaseHandler *>::iterator MyIndexHandlerMapPtr;
 
   MyConnectionsPtr find(MyBaseHandler * handler);

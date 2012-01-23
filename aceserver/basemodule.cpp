@@ -8,6 +8,12 @@ MyClientIDTable::MyClientIDTable()
   m_last_sequence = 0;
 }
 
+MyClientIDTable::~MyClientIDTable()
+{
+  m_table.clear();
+  m_map.clear();
+}
+
 bool MyClientIDTable::contains(const MyClientID & id)
 {
   return (index_of(id) >= 0);
@@ -465,6 +471,7 @@ int MyWrappedArchiveReader::read(char * buff, int buff_len)
       aes_decrypt(&m_aes_context, (u_int8_t*)ptr, output);
       memcpy(ptr, output, 16);
       buff_remain_len -= 16;
+      m_remain_encrypted_length -= 16;
       ptr += 16;
     }
     if (m_remain_encrypted_length < 0)
@@ -498,7 +505,7 @@ bool MyWrappedArchiveReader::read_header()
     return false;
   }
 
-  if (header.encrypted_data_length < 0 || header.encrypted_data_length > header.header_length)
+  if (header.encrypted_data_length < 0 || header.encrypted_data_length > header.data_length)
   {
     MY_ERROR("invalid encrypted data length value\n");
     return false;
@@ -629,13 +636,24 @@ bool MyWrappedArchiveWriter::write(char * buff, int buff_len)
   return do_write(buff, buff_len);
 }
 
-bool MyWrappedArchiveWriter::start(const char * filename)
+bool MyWrappedArchiveWriter::start(const char * filename, int prefix_len)
 {
+  if (unlikely(prefix_len < 0 || prefix_len >= (int)ACE_OS::strlen(filename)))
+  {
+    MY_ERROR("invalid prefix_len @MyWrappedArchiveWriter::start(%s, %d)\n", filename, prefix_len);
+    return false;
+  }
+  if (unlikely(filename[prefix_len] != '/' || filename[prefix_len + 1] == '/'))
+  {
+    MY_ERROR("bad prefix_len split @MyWrappedArchiveWriter::start(%s, %d)\n", filename, prefix_len);
+    return false;
+  }
+
   m_data_length = 0;
   m_encrypted_length = 0;
   m_remain_encrypted_length = ENCRYPT_DATA_LENGTH;
   MyMemPoolFactoryX::instance()->get_mem(ENCRYPT_DATA_LENGTH, &m_encrypt_buffer);
-  return write_header(filename);
+  return write_header(filename + prefix_len + 1);
 }
 
 bool MyWrappedArchiveWriter::finish()
@@ -648,7 +666,7 @@ bool MyWrappedArchiveWriter::finish()
 
   m_wrapped_header.data_length = m_data_length;
 
-  if (!::lseek(m_file.handle(), 0, SEEK_SET))
+  if (::lseek(m_file.handle(), 0, SEEK_SET) == -1)
   {
     MY_ERROR("fseek on file %s failed %s\n", m_file_name.data(), (const char*)MyErrno());
     return false;
@@ -677,7 +695,7 @@ bool MyWrappedArchiveWriter::write_header(const char * filename)
   m_wrapped_header.encrypted_data_length = -1;
   if (!do_write((char*)&m_wrapped_header, sizeof(m_wrapped_header)))
     return false;
-  if (!do_write((char*)filename, filename_len + 1))
+  if (!do_write((char*)filename, filename_len))
     return false;
   return true;
 }
@@ -706,8 +724,18 @@ bool MyWrappedArchiveWriter::encrypt_and_write()
     ptr += 16;
     count -= 16;
   }
-
   return do_write(m_encrypt_buffer.data(), bytes);
+}
+
+
+void * MyBZMemPoolAdaptor::my_alloc(void *, int n, int m)
+{
+  return MyMemPoolFactoryX::instance()->get_mem_x(n * m);
+}
+
+void MyBZMemPoolAdaptor::my_free(void *, void * ptr)
+{
+  MyMemPoolFactoryX::instance()->free_mem_x(ptr);
 }
 
 
@@ -715,8 +743,8 @@ bool MyWrappedArchiveWriter::encrypt_and_write()
 
 MyBZCompressor::MyBZCompressor()
 {
-  m_bz_stream.bzalloc = NULL;
-  m_bz_stream.bzfree = NULL;
+  m_bz_stream.bzalloc = MyBZMemPoolAdaptor::my_alloc;
+  m_bz_stream.bzfree = MyBZMemPoolAdaptor::my_free;
   m_bz_stream.opaque = 0;
 }
 
@@ -791,7 +819,7 @@ bool MyBZCompressor::do_compress(MyBaseArchiveReader * _reader, MyBaseArchiveWri
   ACE_NOTREACHED(return true);
 }
 
-bool MyBZCompressor::compress(const char * srcfn, const char * destfn, const char * key)
+bool MyBZCompressor::compress(const char * srcfn, int prefix_len, const char * destfn, const char * key)
 {
   MyBaseArchiveReader reader;
   if (!reader.open(srcfn))
@@ -800,7 +828,7 @@ bool MyBZCompressor::compress(const char * srcfn, const char * destfn, const cha
   if (!writer.open(destfn))
     return false;
   writer.set_key(key);
-  if (!writer.start(srcfn))
+  if (!writer.start(srcfn + prefix_len))
     return false;
 
   prepare_buffers();
@@ -833,7 +861,7 @@ bool MyBZCompressor::do_decompress(MyBaseArchiveReader * _reader, MyBaseArchiveW
   {
     if (m_bz_stream.avail_in == 0)
     {
-       n = _reader->read (m_buff_in.data(), BUFFER_LEN);
+       n = _reader->read(m_buff_in.data(), BUFFER_LEN);
        if (n < 0)
          return false;
        else if (n == 0)

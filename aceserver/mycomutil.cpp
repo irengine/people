@@ -350,8 +350,12 @@ void MyMemPoolFactory::init(MyConfig * config)
   int count = sizeof(pool_size) / sizeof(int);
   m_pools.reserve(count);
   for (size_t i = 0; i < sizeof(pool_size) / sizeof(int); ++i)
+  {
     m_pools.push_back(new My_Cached_Allocator<ACE_Thread_Mutex>
-      (/*config->module_heart_beat_mem_pool_size*/ 3000, pool_size[i]));
+          (/*config->module_heart_beat_mem_pool_size*/ 3000, pool_size[i]));
+    m_pools[i]->setup();
+  }
+
 //todo: change default pool's chunk number
   m_message_block_pool = new My_Cached_Allocator<ACE_Thread_Mutex>
     (config->message_control_block_mem_pool_size, sizeof(ACE_Message_Block));
@@ -365,6 +369,17 @@ int MyMemPoolFactory::find_first_index(int capacity)
   for (int i = 0; i < count; ++i)
   {
     if (size_t(capacity) <= m_pools[i]->chunk_size())
+      return i;
+  }
+  return INVALID_INDEX;
+}
+
+int MyMemPoolFactory::find_pool(void * ptr)
+{
+  int count = m_pools.size();
+  for (int i = 0; i < count; ++i)
+  {
+    if (m_pools[i]->in_range(ptr))
       return i;
   }
   return INVALID_INDEX;
@@ -433,6 +448,33 @@ bool MyMemPoolFactory::get_mem(int size, MyPooledMemGuard * guard)
   }
   guard->data(p, idx);
   return true;
+}
+
+void * MyMemPoolFactory::get_mem_x(int size)
+{
+  void * p;
+  int idx = m_use_mem_pool? find_first_index(size): INVALID_INDEX;
+  if (idx == INVALID_INDEX || (p = m_pools[idx]->malloc()) == NULL)
+  {
+    ++ m_global_alloc_count;
+    p = (void*)new char[size];
+  }
+  return p;
+}
+
+void MyMemPoolFactory::free_mem_x(void * ptr)
+{
+  if (ptr == NULL)
+  {
+    ::delete [](char*)ptr;
+    return;
+  }
+
+  int idx = m_use_mem_pool? find_pool(ptr): INVALID_INDEX;
+  if (idx != INVALID_INDEX)
+    m_pools[idx]->free(ptr);
+  else
+    ::delete [](char*)ptr;
 }
 
 void MyMemPoolFactory::free_mem(MyPooledMemGuard * guard)

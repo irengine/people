@@ -177,6 +177,19 @@ public:
     m_max_in_use_count = 0;
     m_chunk_size = chunk_size;
     m_alloc_on_full_count = 0;
+    m_chunks = n_chunks;
+  }
+
+  void setup()
+  {
+    m_end = super::malloc();
+    super::free(m_end);
+    m_begin = (void*)((char*)m_end - m_chunk_size * (m_chunks - 1)); //close interval
+  }
+
+  bool in_range(void * ptr) const
+  {
+    return (ptr >= m_begin && ptr <= m_end);
   }
 
   virtual ~My_Cached_Allocator() {}
@@ -251,10 +264,13 @@ public:
 private:
   ACE_LOCK m_mutex;
   size_t m_chunk_size;
+  int  m_chunks;
   long m_alloc_count;
   long m_free_count;
   long m_max_in_use_count;
   long m_alloc_on_full_count;
+  void * m_begin;
+  void * m_end;
 };
 
 #define DECLARE_MEMORY_POOL(Cls, Mutex) \
@@ -455,6 +471,8 @@ public:
   void init(MyConfig * config);
   ACE_Message_Block * get_message_block(int capacity);
   bool get_mem(int size, MyPooledMemGuard * guard);
+  void * get_mem_x(int size);
+  void free_mem_x(void * ptr); //use _x to avoid ambiguous of NULL pointer as parameter
   void free_mem(MyPooledMemGuard * guard);
   void dump_info();
 
@@ -465,6 +483,7 @@ private:
   typedef ACE_Atomic_Op<ACE_Thread_Mutex, long> COUNTER;
 
   int find_first_index(int capacity);
+  int find_pool(void * ptr);
   My_Cached_Allocator<ACE_Thread_Mutex> *m_message_block_pool;
   My_Cached_Allocator<ACE_Thread_Mutex> *m_data_block_pool;
   MyMemPools m_pools;
@@ -523,6 +542,60 @@ private:
   char * m_buff;
   int m_index;
 };
+
+template<typename T> class MyAllocator
+{
+public:
+  typedef std::size_t size_type;
+  typedef std::ptrdiff_t difference_type;
+  typedef T *pointer;
+  typedef const T *const_pointer;
+  typedef T& reference;
+  typedef const T& const_reference;
+  typedef T value_type;
+
+  pointer address(reference val) const { return &val; }
+  const_pointer address(const_reference val) const { return &val; }
+
+  template<class Other> struct rebind
+  {
+    typedef MyAllocator<Other> other;
+  };
+
+  MyAllocator() throw() {}
+
+  template<class Other>
+  MyAllocator(const MyAllocator<Other>&) throw() {}
+
+  template<class Other>
+  MyAllocator& operator=(const MyAllocator<Other>&) { return *this; }
+
+  pointer allocate(size_type count, const void * = 0)
+  {
+    return static_cast<pointer> (MyMemPoolFactoryX::instance()->get_mem_x(count * sizeof(T)));
+  }
+
+  void deallocate(pointer ptr, size_type)
+  {
+    MyMemPoolFactoryX::instance()->free_mem_x(ptr);
+  }
+
+  void construct(pointer ptr, const T& val)
+  {
+    new ((void *)ptr) T(val);
+  }
+
+  void destroy(pointer ptr)
+  {
+    ptr->T::~T();
+  }
+
+  size_type max_size() const throw()
+  {
+    return UINT_MAX / sizeof(T);
+  }
+};
+
 
 void mycomutil_hex_dump(void * ptr, int len, char * result_buff, int buff_len);
 
