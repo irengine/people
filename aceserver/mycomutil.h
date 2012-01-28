@@ -373,6 +373,8 @@ class MyFilePaths
 public:
   static bool make_path(char* path, int prefix_len, bool is_file);
   static bool make_path(const char * path, const char * subpath, bool is_file);
+  static bool copy_path(const char * srcdir, const char * destdir);
+  static bool remove_path(const char * path);
 };
 
 #if defined(MY_client_test) || defined(MY_server_test)

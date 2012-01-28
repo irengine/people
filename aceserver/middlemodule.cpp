@@ -35,6 +35,7 @@ private:
 
 MyDistLoads::MyDistLoads()
 {
+  m_loads.reserve(4);
   m_server_list_length = 0;
   m_server_list[0] = 0;
 }
@@ -48,7 +49,10 @@ void MyDistLoads::update(const MyDistLoad & load)
   if (it == m_loads.end())
     m_loads.push_back(load);
   else
+  {
     it->clients_connected(load.m_clients_connected);
+    it->m_last_access = g_clock_tick;
+  }
 
   calc_server_list();
 }
@@ -104,6 +108,21 @@ int MyDistLoads::get_server_list(char * buffer, int buffer_len)
     return 0;
   ACE_OS::strsncpy(buffer, m_server_list, buffer_len);
   return m_server_list_length;
+}
+
+void MyDistLoads::scan_for_dead()
+{
+  ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_mutex));
+  MyDistLoadVecIt it;
+  for (it = m_loads.begin(); it != m_loads.end(); )
+  {
+    if (it->m_last_access + int(DEAD_TIME * 60 / MyBaseApp::CLOCK_INTERVAL) < g_clock_tick)
+      it = m_loads.erase(it);
+    else
+      ++it;
+  };
+
+  calc_server_list();
 }
 
 
@@ -268,6 +287,11 @@ MyLocationModule::~MyLocationModule()
 
 }
 
+MyDistLoads * MyLocationModule::dist_loads()
+{
+  return &m_dist_loads;
+}
+
 bool MyLocationModule::on_start()
 {
   add_service(m_service = new MyLocationService(this, 1));
@@ -374,7 +398,12 @@ MyHttpAcceptor::MyHttpAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionM
 
 int MyHttpAcceptor::make_svc_handler(MyBaseHandler *& sh)
 {
-  ACE_NEW_RETURN(sh, MyHttpHandler(m_connection_manager), -1);
+  sh = new MyHttpHandler(m_connection_manager);
+  if (!sh)
+  {
+    MY_ERROR("not enough memory to create MyHttpHandler object\n");
+    return -1;
+  }
   sh->parent((void*)this);
   sh->reactor(reactor());
   return 0;
@@ -479,14 +508,18 @@ void MyHttpModule::on_stop()
 
 MyDistLoadProcessor::MyDistLoadProcessor(MyBaseHandler * handler): MyBaseServerProcessor(handler)
 {
-  m_current_block = NULL;
   m_client_id_verified = false;
+  m_dist_loads = NULL;
 }
 
 MyDistLoadProcessor::~MyDistLoadProcessor()
 {
-  if (m_current_block)
-    m_current_block->release();
+
+}
+
+void MyDistLoadProcessor::dist_loads(MyDistLoads * dist_loads)
+{
+  m_dist_loads = dist_loads;
 }
 
 MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header(const MyDataPacketHeader & header)
@@ -518,6 +551,7 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header(const MyDataPa
 MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
   MyBaseServerProcessor::on_recv_packet_i(mb);
+  MyMessageBlockGuard guard(mb);
 
   MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
   if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
@@ -526,7 +560,6 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_packet_i(ACE_Message_
   if (header->command == MyDataPacketHeader::CMD_LOAD_BALANCE_REQ)
     return do_load_balance(mb);
 
-  MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyDistLoadProcessor::on_recv_packet_i, command = %d\n",
       header->command);
   return ER_ERROR;
@@ -535,7 +568,7 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_packet_i(ACE_Message_
 MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::do_version_check(ACE_Message_Block * mb)
 {
   MyClientVersionCheckRequest * p = (MyClientVersionCheckRequest *) mb->base();
-  MyClientID id(""); //todo: add client id  here
+  m_client_id = "DistServer";
   bool result = (p->client_id == MyConfigX::instance()->middle_server_key.c_str());
   if (!result)
   {
@@ -553,7 +586,12 @@ bool MyDistLoadProcessor::client_id_verified() const
 
 MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::do_load_balance(ACE_Message_Block * mb)
 {
-
+  MyLoadBalanceRequest * br = (MyLoadBalanceRequest *)mb->base();
+  MyDistLoad dl;
+  dl.clients_connected(br->clients_connected);
+  dl.ip_addr(br->ip_addr);
+  m_dist_loads->update(dl);
+  return ER_OK;
 }
 
 
@@ -564,6 +602,11 @@ MyDistLoadHandler::MyDistLoadHandler(MyBaseConnectionManager * xptr): MyBaseHand
   m_processor = new MyDistLoadProcessor(this);
 }
 
+void MyDistLoadHandler::dist_loads(MyDistLoads * dist_loads)
+{
+  ((MyDistLoadProcessor*)m_processor)->dist_loads(dist_loads);
+}
+
 PREPARE_MEMORY_POOL(MyDistLoadHandler);
 
 //MyDistLoadAcceptor//
@@ -572,13 +615,20 @@ MyDistLoadAcceptor::MyDistLoadAcceptor(MyBaseDispatcher * _dispatcher, MyBaseCon
     MyBaseAcceptor(_dispatcher, _manager)
 {
   m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
+  m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 
 int MyDistLoadAcceptor::make_svc_handler(MyBaseHandler *& sh)
 {
-  ACE_NEW_RETURN(sh, MyDistLoadHandler(m_connection_manager), -1);
+  sh = new MyDistLoadHandler(m_connection_manager);
+  if (!sh)
+  {
+    MY_ERROR("not enough memory to create MyDistLoadHandler object\n");
+    return -1;
+  }
   sh->parent((void*)this);
   sh->reactor(reactor());
+  ((MyDistLoadHandler*)sh)->dist_loads(MyServerAppX::instance()->location_module()->dist_loads());
   return 0;
 }
 
@@ -601,9 +651,16 @@ const char * MyDistLoadDispatcher::name() const
   return "MyDistLoadDispatcher";
 }
 
+int MyDistLoadDispatcher::handle_timeout(const ACE_Time_Value &, const void *)
+{
+  MyServerAppX::instance()->location_module()->dist_loads()->scan_for_dead();
+  return 0;
+}
+
 void MyDistLoadDispatcher::on_stop()
 {
   m_acceptor = NULL;
+  reactor()->cancel_timer(this);
 }
 
 bool MyDistLoadDispatcher::on_start()
@@ -611,6 +668,13 @@ bool MyDistLoadDispatcher::on_start()
   if (!m_acceptor)
     m_acceptor = new MyDistLoadAcceptor(this, new MyBaseConnectionManager());
   add_acceptor(m_acceptor);
+
+  ACE_Time_Value interval(int(MyDistLoads::DEAD_TIME * 60 / MyBaseApp::CLOCK_INTERVAL / 2));
+  if (reactor()->schedule_timer(this, 0, interval, interval) == -1)
+  {
+    MY_ERROR("can not setup dist load server scan timer\n");
+    return false;
+  }
   return true;
 }
 

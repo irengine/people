@@ -11,6 +11,7 @@
 #include "common.h"
 #include "baseapp.h"
 #include "dbmodule.h"
+#include "middlemodule.h"
 
 class MyHeartBeatModule;
 class MyLocationModule;
@@ -24,6 +25,9 @@ public:
 
   MyClientIDTable & client_id_table();
   MyHeartBeatModule * heart_beat_module() const;
+  MyDistLoadModule * dist_load_module() const;
+  MyHttpModule * http_module() const;
+  MyLocationModule * location_module() const;
   MyDB & db();
 
   static bool app_init(const char * app_home_path = NULL, MyConfig::RUNNING_MODE mode = MyConfig::RM_UNKNOWN);
@@ -39,6 +43,8 @@ protected:
 private:
   MyHeartBeatModule * m_heart_beat_module;
   MyLocationModule * m_location_module;
+  MyDistLoadModule * m_dist_load_module;
+  MyHttpModule     * m_http_module;
   MyClientIDTable m_client_id_table;
   MyDB  m_db;
 };

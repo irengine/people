@@ -21,6 +21,20 @@ class MyLocationModule;
 class MyDistLoad
 {
 public:
+  MyDistLoad()
+  {
+    m_ip_addr[0] = 0;
+    m_clients_connected = 0;
+    m_last_access = g_clock_tick;
+  }
+
+  MyDistLoad(const char * _addr, int m)
+  {
+    ip_addr(_addr);
+    clients_connected(m);
+    m_last_access = g_clock_tick;
+  }
+
   void ip_addr(const char * _addr)
   {
     if (_addr)
@@ -49,6 +63,7 @@ public:
 
   char    m_ip_addr[IP_ADDR_LEN];
   int32_t m_clients_connected;
+  long    m_last_access;
 };
 
 
@@ -58,13 +73,15 @@ class MyDistLoads
 public:
   typedef std::vector<MyDistLoad> MyDistLoadVec;
   typedef MyDistLoadVec::iterator MyDistLoadVecIt;
-  enum { SERVER_LIST_LENGTH = 1024};
+  enum { SERVER_LIST_LENGTH = 1024 };
+  enum { DEAD_TIME = 10 }; //in minutes
 
   MyDistLoads();
 
   void update(const MyDistLoad & load);
   void remove(const char * addr);
   int  get_server_list(char * buffer, int buffer_len);
+  void scan_for_dead();
 
 private:
   void calc_server_list();
@@ -95,7 +112,7 @@ class MyLocationHandler: public MyBaseHandler
 {
 public:
   MyLocationHandler(MyBaseConnectionManager * xptr = NULL);
-  DECLARE_MEMORY_POOL(MyLocationHandler, ACE_Thread_Mutex);
+  DECLARE_MEMORY_POOL__NOTHROW(MyLocationHandler, ACE_Thread_Mutex);
 };
 
 class MyLocationService: public MyBaseService
@@ -124,6 +141,7 @@ class MyLocationAcceptor: public MyBaseAcceptor
 public:
   enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
   MyLocationAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
+
   virtual int make_svc_handler(MyBaseHandler *& sh);
   virtual const char * name() const;
 };
@@ -134,6 +152,7 @@ class MyLocationModule: public MyBaseModule
 public:
   MyLocationModule(MyBaseApp * app);
   virtual ~MyLocationModule();
+  MyDistLoads * dist_loads();
 
 protected:
   virtual bool on_start();
@@ -173,7 +192,7 @@ class MyHttpHandler: public MyBaseHandler
 public:
   MyHttpHandler(MyBaseConnectionManager * xptr = NULL);
 
-  DECLARE_MEMORY_POOL(MyHttpHandler, ACE_Thread_Mutex);
+  DECLARE_MEMORY_POOL__NOTHROW(MyHttpHandler, ACE_Thread_Mutex);
 };
 
 class MyHttpService: public MyBaseService
@@ -242,6 +261,7 @@ public:
   virtual ~MyDistLoadProcessor();
   virtual bool client_id_verified() const;
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
+  void dist_loads(MyDistLoads * dist_loads);
 
 protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
@@ -249,8 +269,8 @@ protected:
 private:
   MyBaseProcessor::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_load_balance(ACE_Message_Block * mb);
-  ACE_Message_Block * m_current_block;
   bool m_client_id_verified;
+  MyDistLoads * m_dist_loads;
 };
 
 
@@ -258,8 +278,9 @@ class MyDistLoadHandler: public MyBaseHandler
 {
 public:
   MyDistLoadHandler(MyBaseConnectionManager * xptr = NULL);
+  void dist_loads(MyDistLoads * dist_loads);
 
-  DECLARE_MEMORY_POOL(MyDistLoadHandler, ACE_Thread_Mutex);
+  DECLARE_MEMORY_POOL__NOTHROW(MyDistLoadHandler, ACE_Thread_Mutex);
 };
 
 class MyDistLoadDispatcher: public MyBaseDispatcher
@@ -267,6 +288,7 @@ class MyDistLoadDispatcher: public MyBaseDispatcher
 public:
   MyDistLoadDispatcher(MyBaseModule * pModule, int numThreads = 1);
   virtual const char * name() const;
+  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
 
 protected:
   virtual void on_stop();
@@ -279,7 +301,9 @@ private:
 class MyDistLoadAcceptor: public MyBaseAcceptor
 {
 public:
+  enum { IDLE_TIME_AS_DEAD = 10 }; //in minutes
   MyDistLoadAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
+
   virtual int make_svc_handler(MyBaseHandler *& sh);
   virtual const char * name() const;
 };

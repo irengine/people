@@ -17,6 +17,8 @@ MyServerApp::MyServerApp()
 {
   m_heart_beat_module = NULL;
   m_location_module = NULL;
+  m_dist_load_module = NULL;
+  m_http_module = NULL;
 }
 
 MyServerApp::~MyServerApp()
@@ -32,6 +34,21 @@ MyClientIDTable & MyServerApp::client_id_table()
 MyHeartBeatModule * MyServerApp::heart_beat_module() const
 {
   return m_heart_beat_module;
+}
+
+MyDistLoadModule * MyServerApp::dist_load_module() const
+{
+  return m_dist_load_module;
+}
+
+MyHttpModule * MyServerApp::http_module() const
+{
+  return m_http_module;
+}
+
+MyLocationModule * MyServerApp::location_module() const
+{
+  return m_location_module;
 }
 
 MyDB & MyServerApp::db()
@@ -104,7 +121,11 @@ bool MyServerApp::on_construct()
       add_module(new MyDistRemoteAccessModule(this));
   }
   if (cfg->is_middle_server())
+  {
     add_module(m_location_module = new MyLocationModule(this));
+    add_module(m_dist_load_module = new MyDistLoadModule(this));
+    add_module(m_http_module = new MyHttpModule(this));
+  }
   return true;
 }
 
@@ -122,7 +143,11 @@ bool MyServerApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
   if (cfg->is_dist_server())
     MyHeartBeatHandler::init_mem_pool(cfg->max_clients);
   if (cfg->is_middle_server())
+  {
+    MyDistLoadHandler::init_mem_pool(50);
     MyLocationHandler::init_mem_pool(1000);
+    MyHttpHandler::init_mem_pool(50);
+  }
   MyMemPoolFactoryX::instance()->init(cfg);
   return app->do_constructor();
 }
@@ -135,6 +160,8 @@ void MyServerApp::app_fini()
   dump_mem_pool_info(); //only mem pool info, other objects should gone by now
   MyHeartBeatHandler::fini_mem_pool();
   MyLocationHandler::fini_mem_pool();
+  MyDistLoadHandler::fini_mem_pool();
+  MyHttpHandler::fini_mem_pool();
   MyMemPoolFactoryX::close();
 }
 
