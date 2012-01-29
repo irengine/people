@@ -23,6 +23,9 @@ public:
   bool connect();
   bool get_client_ids(MyClientIDTable * idtable);
   bool save_client_id(const char * s);
+  bool save_dist(const char * acode, const char *ftype, const char * fdir,
+       const char * findex, const char * adir, const char * aindex,
+       const char * ver, const char * type);
 
 private:
   void disconnect();
@@ -37,6 +40,7 @@ private:
   int m_server_port;
   MyPooledMemGuard m_user_name;
   MyPooledMemGuard m_password;
+  ACE_Thread_Mutex m_mutex;
 };
 
 #endif /* DBMODULE_H_ */

@@ -43,6 +43,7 @@ MyDB::~MyDB()
 
 bool MyDB::connect()
 {
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   if (connected())
     return true;
   MyConfig * cfg = MyConfigX::instance();
@@ -113,6 +114,7 @@ bool MyDB::get_client_ids(MyClientIDTable * id_table)
 {
   if (unlikely(!id_table))
     return false;
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
 
   const char * CONST_select_sql_template = "select client_id, auto_seq "
                                            "from tb_clients where auto_seq > %d order by auto_seq";
@@ -150,5 +152,21 @@ bool MyDB::save_client_id(const char * s)
   const char * insert_sql_template = "insert into tb_clients(client_id) values(%s)";
   char insert_sql[1024];
   ACE_OS::snprintf(insert_sql, 1024 - 1, insert_sql_template, id.as_string());
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  return exec_command(insert_sql);
+}
+
+bool MyDB::save_dist(const char * acode, const char *ftype, const char * fdir,
+     const char * findex, const char * adir, const char * aindex,
+     const char * ver, const char * type)
+{
+  const char * insert_sql_template = "insert into tb_dist_info("
+               "dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
+               "dist_ftype, dist_adir) values(%s, %s, %s, %s, %s, %s, %s)";
+  char insert_sql[4096];
+  ACE_OS::snprintf(insert_sql, 4096 - 1, insert_sql_template, ver, type, aindex, findex, fdir, ftype, adir);
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(insert_sql);
 }

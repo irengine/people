@@ -1894,7 +1894,7 @@ int MyBaseHandler::handle_output (ACE_HANDLE fd)
     }
     mb->release();
   }
-  return (this->msg_queue()->is_empty()) ? -1 : 0;
+  return this->msg_queue()->is_empty() ? -1:0;
 }
 
 MyBaseHandler::~MyBaseHandler()

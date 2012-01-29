@@ -720,6 +720,7 @@ MyBaseApp::MyBaseApp(): m_sig_handler(this), m_status_file_checker(this), m_info
   m_sigterm = false;
   m_status_file_ok = true;
   m_status_file_checking = false;
+  srandom(time(NULL));
 }
 
 bool MyBaseApp::on_construct()

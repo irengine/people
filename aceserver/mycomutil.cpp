@@ -122,6 +122,52 @@ void mycomutil_hex_dump(void * ptr, int len, char * result_buff, int buff_len)
   }
 }
 
+void mycomutil_generate_random_password(char * buff, const int password_len)
+{
+  if (unlikely(!buff || password_len <= 1))
+    return;
+
+  int i = password_len - 1;
+  buff[i] = 0;
+  const char schar[] = "~!@#$^&_-+=/\\";
+  //0-9 a-Z A-Z schar
+  const long total = 10 + 26 + 26 + sizeof(schar) / sizeof(char);
+  while ((--i) >= 0)
+  {
+    long val = random() % total;
+    if (val <= 9)
+      buff[i] = '0' + val;
+    else if (val <= 9 + 26)
+      buff[i] = 'a' + (val - 10);
+    else if (val <= 9 + 26 + 26)
+      buff[i] = 'A' + (val - 10 - 26);
+    else
+      buff[i] = schar[val - 10 - 26 - 26];
+  }
+}
+
+
+bool mycomutil_find_tag_value(char * & ptr, const char * tag, char * & value, char terminator)
+{
+  if (unlikely(!ptr || !*ptr || !tag))
+    return false;
+  int key_len = ACE_OS::strlen(tag);
+  if (ACE_OS::memcpy(ptr, tag, key_len) != 0)
+    return false;
+  ptr += key_len;
+  value = ptr;
+  if (terminator)
+  {
+    ptr = ACE_OS::strchr(ptr, terminator);
+    if (ptr)
+    {
+      *ptr ++ = 0;
+    }
+  } else
+    ptr += ACE_OS::strlen(ptr);
+  return true;
+}
+
 int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
 
 int mycomutil_translate_tcp_result(ssize_t transfer_return_value)

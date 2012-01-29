@@ -204,14 +204,10 @@ int MyLocationService::svc()
   ACE_DEBUG ((LM_DEBUG,
              ACE_TEXT ("(%P|%t) running svc()\n")));
 
-  for (ACE_Message_Block *log_blk; getq (log_blk) != -1; )
+  for (ACE_Message_Block *mb; getq (mb) != -1; )
   {
-//    ACE_DEBUG ((LM_DEBUG,
-//               ACE_TEXT ("(%P|%t) svc data from queue, size = %d\n"),
-//               log_blk->size()));
 
-
-    log_blk->release ();
+    mb->release ();
   }
   ACE_DEBUG ((LM_DEBUG,
                ACE_TEXT ("(%P|%t) quitting svc()\n")));
@@ -319,6 +315,7 @@ const char * MyLocationModule::name() const
 MyHttpProcessor::MyHttpProcessor(MyBaseHandler * handler): MyBaseProcessor(handler)
 {
   m_current_block = NULL;
+  m_read_next_offset = 0;
 }
 
 MyHttpProcessor::~MyHttpProcessor()
@@ -329,53 +326,74 @@ MyHttpProcessor::~MyHttpProcessor()
 
 int MyHttpProcessor::handle_input()
 {
-  const size_t BLOCK_SIZE = 4096;
   if (m_wait_for_close)
     return handle_input_wait_for_close();
 
+  if (m_read_next_offset < 4)
+  {
+    ssize_t recv_cnt = m_handler->peer().recv((char*)&m_packet_len + m_read_next_offset,
+        sizeof(m_packet_len) - m_read_next_offset);
+    int ret = mycomutil_translate_tcp_result(recv_cnt);
+    if (ret <= 0)
+      return ret;
+    m_read_next_offset += recv_cnt;
+    if (m_read_next_offset < (int)sizeof(m_packet_len))
+      return 0;
+  }
+
+  if (m_packet_len > 1024 * 1024 * 10 || m_packet_len <= 4)
+  {
+    MY_ERROR("got an invalid http packet with size = %d\n", m_packet_len);
+    return -1;
+  }
+
   if (!m_current_block)
   {
-    m_current_block = MyMemPoolFactoryX::instance()->get_message_block(BLOCK_SIZE);
+    m_current_block = MyMemPoolFactoryX::instance()->get_message_block(m_packet_len - 4);
     if (!m_current_block)
       return -1;
   }
+
   update_last_activity();
   if (mycomutil_recv_message_block(m_handler, m_current_block) < 0)
     return -1;
-  if (m_current_block->length() > 0)
-  {
-    if (*(m_current_block->wr_ptr() - 1) == 0x10)
-    {
-      if (do_process_input_data())
-      {
-        ACE_Message_Block * reply_mb = MyMemPoolFactoryX::instance()->get_message_block(32);
-        if (!reply_mb)
-        {
-          MY_ERROR(ACE_TEXT("failed to allocate 32 bytes sized memory block @MyHttpProcessor::handle_input().\n"));
-          return -1;
-        }
-        m_wait_for_close = true;
-        const char reply_str[] = "200 OK\r\n";
-        const int reply_len = sizeof(reply_str) / sizeof(char);
-        ACE_OS::strsncpy(reply_mb->base(), reply_str, reply_len);
-        reply_mb->wr_ptr(reply_len);
-        return (m_handler->send_data(reply_mb) <= 0 ? -1:0);
-      } else
-        return -1;
-    }
-  }
 
-  if (m_current_block->length() == BLOCK_SIZE) //too large to fit in one block
-    return -1; //todo: need to know the largest incoming data length
+  if (m_current_block->length() == m_packet_len - 4)
+  {
+    m_wait_for_close = true;
+    bool ok = do_process_input_data();
+    ACE_Message_Block * reply_mb = MyMemPoolFactoryX::instance()->get_message_block(8);
+    if (!reply_mb)
+    {
+      MY_ERROR(ACE_TEXT("failed to allocate 8 bytes sized memory block @MyHttpProcessor::handle_input().\n"));
+      return -1;
+    }
+    const char ok_reply_str[] = "1";
+    const char bad_reply_str[] = "0";
+    const int reply_len = sizeof(ok_reply_str) / sizeof(char);
+    ACE_OS::strsncpy(reply_mb->base(), (ok? ok_reply_str:bad_reply_str), reply_len);
+    reply_mb->wr_ptr(reply_len);
+    return (m_handler->send_data(reply_mb) <= 0 ? -1:0);
+  }
 
   return 0;
 }
 
 bool MyHttpProcessor::do_process_input_data()
 {
-  //todo: add logic here
-  return true;
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (MyServerAppX::instance()->http_module()->http_service()->putq(m_current_block, &tv) != -1)
+  {
+    m_current_block = NULL;
+    return true;
+  } else
+  {
+    m_current_block->release();
+    m_current_block = NULL;
+    return false;
+  }
 }
+
 
 //MyHttpHandler//
 
@@ -429,7 +447,8 @@ int MyHttpService::svc()
 
   for (ACE_Message_Block * mb; getq(mb) != -1; )
   {
-
+    handle_packet(mb);
+    mb->release();
   }
 
   MY_INFO("exiting %s::svc()\n", name());
@@ -439,6 +458,100 @@ int MyHttpService::svc()
 const char * MyHttpService::name() const
 {
   return "MyHttpService";
+}
+
+bool MyHttpService::handle_packet(ACE_Message_Block * mb)
+{
+  const char const_header[] = "http://127.0.0.1:10092/file?";
+  const int const_header_len = sizeof(const_header) / sizeof(char) - 1;
+  if (unlikely(mb->length() <= const_header_len))
+    return false;
+
+  char * packet = mb->base();
+  if (ACE_OS::memcmp(packet, const_header, const_header_len) != 0)
+  {
+    MY_ERROR("bad http packet, no match header found\n");
+    return false;
+  }
+
+  packet += const_header_len;
+  int key_len;
+  const char const_separator = '&';
+
+  const char * const_acode = "acode=";
+  char * acode;
+  if (!mycomutil_find_tag_value(packet, const_acode, acode, const_separator))
+  {
+    MY_ERROR("can not find tag %s at http packet\n", const_acode);
+    return false;
+  }
+
+  const char * const_ftype = "ftype=";
+  char * ftype;
+  if (!mycomutil_find_tag_value(packet, const_ftype, ftype, const_separator))
+  {
+    MY_ERROR("can not find tag %s at http packet\n", const_ftype);
+    return false;
+  }
+
+  const char * const_fdir = "fdir=";
+  char * fdir;
+  if (!mycomutil_find_tag_value(packet, const_fdir, fdir, const_separator))
+  {
+    MY_ERROR("can not find tag %s at http packet\n", const_fdir);
+    return false;
+  }
+
+  const char * const_findex = "findex=";
+  char * findex;
+  if (!mycomutil_find_tag_value(packet, const_findex, findex, const_separator))
+  {
+    MY_ERROR("can not find tag %s at http packet\n", const_findex);
+    return false;
+  }
+
+  const char * const_adir = "adir=";
+  char * adir;
+  if (!mycomutil_find_tag_value(packet, const_adir, adir, const_separator))
+  {
+    MY_ERROR("can not find tag %s at http packet\n", const_adir);
+    return false;
+  }
+
+  const char * const_aindex = "aindex=";
+  char * aindex;
+  if (!mycomutil_find_tag_value(packet, const_aindex, aindex, const_separator))
+  {
+    MY_ERROR("can not find tag %s at http packet\n", const_aindex);
+    return false;
+  }
+
+  const char * const_ver = "ver=";
+  char * ver;
+  if (!mycomutil_find_tag_value(packet, const_ver, ver, const_separator))
+  {
+    MY_ERROR("can not find tag %s at http packet\n", const_ver);
+    return false;
+  }
+
+  const char * const_type = "type=";
+  char * type;
+  if (!mycomutil_find_tag_value(packet, const_type, type, const_separator))
+  {
+    MY_ERROR("can not find tag %s at http packet\n", const_type);
+    return false;
+  }
+
+  if (!MyServerAppX::instance()->db().save_dist(acode, ftype, fdir, findex, adir, aindex, ver, type))
+  {
+    MY_ERROR("can not save_dist to db\n");
+    return false;
+  }
+
+
+
+  //todo: add logic here
+  return true;
 }
 
 const char * MyHttpService::composite_path()
@@ -588,6 +701,11 @@ MyHttpModule::~MyHttpModule()
 const char * MyHttpModule::name() const
 {
   return "MyHttpModule";
+}
+
+MyHttpService * MyHttpModule::http_service()
+{
+  return m_service;
 }
 
 bool MyHttpModule::on_start()

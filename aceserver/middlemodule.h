@@ -184,6 +184,8 @@ public:
 private:
   bool do_process_input_data();
   ACE_Message_Block * m_current_block;
+  int m_read_next_offset;
+  int m_packet_len;
 };
 
 
@@ -205,6 +207,7 @@ public:
   static const char * composite_path();
 
 private:
+  bool handle_packet(ACE_Message_Block * mb);
   bool generate_compressed_files(const char * src_path, const char * dist_id, const char * password);
   bool do_generate_compressed_files(const char * src_path, const char * dest_path, int prefix_len, const char * passwrod);
 
@@ -243,6 +246,7 @@ public:
   MyHttpModule(MyBaseApp * app);
   virtual ~MyHttpModule();
   virtual const char * name() const;
+  MyHttpService * http_service();
 
 protected:
   virtual bool on_start();
