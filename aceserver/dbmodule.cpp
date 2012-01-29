@@ -96,6 +96,14 @@ bool MyDB::rollback()
   return exec_command("ROLLBACK");
 }
 
+const char * MyDB::wrap_str(const char * s) const
+{
+  if (!s || !*s)
+    return "null";
+  else
+    return s;
+}
+
 bool MyDB::exec_command(const char * sql_command)
 {
   if (unlikely(!sql_command))
@@ -157,16 +165,72 @@ bool MyDB::save_client_id(const char * s)
   return exec_command(insert_sql);
 }
 
-bool MyDB::save_dist(const char * acode, const char *ftype, const char * fdir,
+bool MyDB::save_dist(const char *ftype, const char * fdir,
      const char * findex, const char * adir, const char * aindex,
-     const char * ver, const char * type)
+     const char * ver, const char * type, const char * password)
 {
   const char * insert_sql_template = "insert into tb_dist_info("
                "dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
-               "dist_ftype, dist_adir) values(%s, %s, %s, %s, %s, %s, %s)";
+               "dist_ftype, dist_adir, dist_password) values(%s, %s, %s, %s, %s, %s, %s. %s)";
   char insert_sql[4096];
-  ACE_OS::snprintf(insert_sql, 4096 - 1, insert_sql_template, ver, type, aindex, findex, fdir, ftype, adir);
+  ACE_OS::snprintf(insert_sql, 4096 - 1, insert_sql_template, ver, type, wrap_str(aindex), wrap_str(findex),
+      wrap_str(fdir), ftype, wrap_str(adir), password);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(insert_sql);
+}
+
+bool MyDB::save_dist_clients(char * idlist, const char * dist_id)
+{
+  const char * insert_sql_template = "insert into tb_dist_clients(dc_dist_id, dc_client_id) values(%s, %s)";
+  char insert_sql[1024];
+
+  char seperator[2] = {';', 0};
+  char *str, *token, *saveptr;
+  const int BATCH_COUNT = 20;
+  int i = 0, total = 0, ok = 0;
+  for (str = idlist; ; str = NULL)
+  {
+    token = strtok_r(str, seperator, &saveptr);
+    if (!token)
+      break;
+    if (!*token)
+      continue;
+    total ++;
+    if (i == 0)
+    {
+      if (!begin_transaction())
+      {
+        MY_ERROR("failed to begin transaction @MyDB::save_dist_clients\n");
+        return false;
+      }
+    }
+    ACE_OS::snprintf(insert_sql, 1024 - 1, insert_sql_template, dist_id, token);
+    exec_command(insert_sql);
+    ++i;
+    if (i == BATCH_COUNT)
+    {
+      if (!commit())
+      {
+        MY_ERROR("failed to commit transaction @MyDB::save_dist_clients\n");
+        rollback();
+      } else
+        ok += i;
+
+      i = 0;
+    }
+  }
+
+  if (i != 0)
+  {
+    if (!commit())
+    {
+      MY_ERROR("failed to commit transaction @MyDB::save_dist_clients\n");
+      rollback();
+    } else
+      ok += i;
+  }
+
+  MY_INFO("MyDB::save_dist_clients success/total = %d/%d\n", ok, total);
+  return true;
 }

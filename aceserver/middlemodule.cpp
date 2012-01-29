@@ -358,7 +358,7 @@ int MyHttpProcessor::handle_input()
   if (mycomutil_recv_message_block(m_handler, m_current_block) < 0)
     return -1;
 
-  if (m_current_block->length() == m_packet_len - 4)
+  if ((int)(m_current_block->length()) == m_packet_len - 4)
   {
     m_wait_for_close = true;
     bool ok = do_process_input_data();
@@ -464,7 +464,7 @@ bool MyHttpService::handle_packet(ACE_Message_Block * mb)
 {
   const char const_header[] = "http://127.0.0.1:10092/file?";
   const int const_header_len = sizeof(const_header) / sizeof(char) - 1;
-  if (unlikely(mb->length() <= const_header_len))
+  if (unlikely((int)(mb->length()) <= const_header_len))
     return false;
 
   char * packet = mb->base();
@@ -475,7 +475,6 @@ bool MyHttpService::handle_packet(ACE_Message_Block * mb)
   }
 
   packet += const_header_len;
-  int key_len;
   const char const_separator = '&';
 
   const char * const_acode = "acode=";
@@ -542,12 +541,26 @@ bool MyHttpService::handle_packet(ACE_Message_Block * mb)
     return false;
   }
 
-  if (!MyServerAppX::instance()->db().save_dist(acode, ftype, fdir, findex, adir, aindex, ver, type))
+  if (!*ftype || !*acode || !*fdir || !*ver || !*type)
+  {
+    MY_ERROR("can not find all non-null data at http packet\n");
+    return false;
+  }
+
+  char password[12];
+  mycomutil_generate_random_password(password, 12);
+
+  if (!MyServerAppX::instance()->db().save_dist(ftype, fdir, findex, adir, aindex, ver, type, password))
   {
     MY_ERROR("can not save_dist to db\n");
     return false;
   }
 
+  if (!MyServerAppX::instance()->db().save_dist_clients(acode, ver))
+  {
+    MY_ERROR("can not save_dist_clients to db\n");
+    return false;
+  }
 
 
   //todo: add logic here
