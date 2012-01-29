@@ -441,6 +441,110 @@ const char * MyHttpService::name() const
   return "MyHttpService";
 }
 
+const char * MyHttpService::composite_path()
+{
+  return "_x_cmp_x_";
+}
+
+bool MyHttpService::generate_compressed_files(const char * src_path, const char * dist_id, const char * password)
+{
+  MyPooledMemGuard destdir;
+  destdir.init_from_string(MyConfigX::instance()->compressed_store_path.c_str(), "/", dist_id);
+  if (mkdir(destdir.data(), S_IRWXU) == -1 && ACE_OS::last_error() != EEXIST)
+  {
+    MY_ERROR("can not create directory %s, %s\n", destdir.data(), (const char *)MyErrno());
+    return false;
+  }
+  MyPooledMemGuard composite_dir;
+  composite_dir.init_from_string(destdir.data(), "/", composite_path());
+  if (mkdir(composite_dir.data(), S_IRWXU) == -1 && ACE_OS::last_error() != EEXIST)
+  {
+    MY_ERROR("can not create directory %s, %s\n", composite_dir.data(), (const char *)MyErrno());
+    return false;
+  }
+
+  MyPooledMemGuard all_in_one;
+  all_in_one.init_from_string(composite_dir.data(), "/all_in_one.mbz");
+  if (!m_compositor.open(all_in_one.data()))
+    return false;
+  bool result = do_generate_compressed_files(src_path, destdir.data(), ACE_OS::strlen(src_path), password);
+  if (!result)
+    MY_ERROR("can not generate compressed files for %s from %s\n", dist_id, src_path);
+  m_compositor.close();
+  return result;
+}
+
+bool MyHttpService::do_generate_compressed_files(const char * src_path, const char * dest_path,
+     int prefix_len, const char * password)
+{
+  if (unlikely(!src_path || !*src_path || !dest_path || !*dest_path))
+    return false;
+
+  if (mkdir(dest_path, S_IRWXU) == -1 && ACE_OS::last_error() != EEXIST)
+  {
+    MY_ERROR("can not create directory %s, %s\n", dest_path, (const char *)MyErrno());
+    return false;
+  }
+
+  DIR * dir = opendir(src_path);
+  if (!dir)
+  {
+    MY_ERROR("can not open directory: %s, %s\n", src_path, (const char*)MyErrno());
+    return false;
+  }
+
+  int len1 = ACE_OS::strlen(src_path);
+  int len2 = ACE_OS::strlen(dest_path);
+
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != NULL)
+  {
+    if (!entry->d_name)
+      continue;
+    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+      continue;
+
+    MyPooledMemGuard msrc, mdest;
+    int len = ACE_OS::strlen(entry->d_name);
+    MyMemPoolFactoryX::instance()->get_mem(len1 + len + 2, &msrc);
+    ACE_OS::sprintf(msrc.data(), "%s/%s", src_path, entry->d_name);
+    MyMemPoolFactoryX::instance()->get_mem(len2 + len + 8, &mdest);
+
+
+    if (entry->d_type == DT_REG)
+    {
+      ACE_OS::sprintf(mdest.data(), "%s/%s.mbz", dest_path, entry->d_name);
+      if (!m_compressor.compress(msrc.data(), prefix_len, mdest.data(), password))
+      {
+        MY_ERROR("compress(%s, %s) failed\n", msrc.data(), mdest.data());
+        closedir(dir);
+        return false;
+      }
+      if (!m_compositor.add(mdest.data()))
+      {
+        closedir(dir);
+        return false;
+      }
+    }
+    else if(entry->d_type == DT_DIR)
+    {
+      ACE_OS::sprintf(mdest.data(), "%s/%s", dest_path, entry->d_name);
+      if (!do_generate_compressed_files(msrc.data(), mdest.data(), prefix_len, password))
+      {
+        closedir(dir);
+        return false;
+      }
+    } else
+      MY_WARNING("unknown file type (= %d) for file @MyHttpService::generate_compressed_files file = %s/%s\n",
+           entry->d_type, src_path, entry->d_name);
+  };
+
+  closedir(dir);
+  return true;
+}
+
+
+
 //MyHttpDispatcher//
 
 MyHttpDispatcher::MyHttpDispatcher(MyBaseModule * pModule, int numThreads):

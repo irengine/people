@@ -199,8 +199,17 @@ class MyHttpService: public MyBaseService
 {
 public:
   MyHttpService(MyBaseModule * module, int numThreads = 1);
+
   virtual int svc();
   virtual const char * name() const;
+  static const char * composite_path();
+
+private:
+  bool generate_compressed_files(const char * src_path, const char * dist_id, const char * password);
+  bool do_generate_compressed_files(const char * src_path, const char * dest_path, int prefix_len, const char * passwrod);
+
+  MyBZCompressor m_compressor;
+  MyBZCompositor m_compositor;
 };
 
 class MyHttpDispatcher: public MyBaseDispatcher

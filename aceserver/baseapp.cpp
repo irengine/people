@@ -71,6 +71,7 @@ const ACE_TCHAR * CONFIG_db_server_addr = ACE_TEXT("db_server.addr");
 const ACE_TCHAR * CONFIG_db_server_port = ACE_TEXT("db_server.port");
 const ACE_TCHAR * CONFIG_db_user_name = ACE_TEXT("db_server.user_name");
 const ACE_TCHAR * CONFIG_db_password = ACE_TEXT("db_server.password");
+const ACE_TCHAR * CONFIG_compressed_store_path = ACE_TEXT("compressed_store_path");
 
 //client and dist
 const ACE_TCHAR *  CONFIG_middle_server_addr = ACE_TEXT("middle_server.addr");
@@ -421,6 +422,14 @@ bool MyConfig::load_config_dist_middle(ACE_Configuration_Heap & cfgHeap, ACE_Con
     return false;
   }
 
+  if (cfgHeap.get_string_value(section, CONFIG_compressed_store_path, sval) == 0)
+    compressed_store_path = sval.c_str();
+  else
+  {
+    MY_ERROR("can not read config value %s\n", CONFIG_compressed_store_path);
+    return false;
+  }
+
   return true;
 }
 
@@ -597,6 +606,7 @@ void MyConfig::dump_config_info()
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_max_clients, max_clients));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_middle_server_dist_port, middle_server_dist_port));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_middle_server_key, middle_server_key.c_str()));
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_compressed_store_path, compressed_store_path.c_str()));
   }
 
   //client an dist

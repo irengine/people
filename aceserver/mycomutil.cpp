@@ -67,6 +67,40 @@ void MyPooledMemGuard::init_from_string(const char * src1, const char * src2, co
   ACE_OS::memcpy(data() + len1 + len2, src3, len3);
 }
 
+void MyPooledMemGuard::init_from_string(const char * src1, const char * src2, const char * src3, const char * src4)
+{
+  if (!src1 || !*src1)
+  {
+    init_from_string(src2, src3, src4);
+    return;
+  }
+  if (!src2 || !*src2)
+  {
+    init_from_string(src1, src3, src4);
+    return;
+  }
+  if (!src3 || !*src3)
+  {
+    init_from_string(src1, src2, src4);
+    return;
+  }
+  if (!src4 || !*src4)
+  {
+    init_from_string(src1, src2, src3);
+    return;
+  }
+
+  int len1 = ACE_OS::strlen(src1);
+  int len2 = ACE_OS::strlen(src2);
+  int len3 = ACE_OS::strlen(src3);
+  int len4 = ACE_OS::strlen(src4) + 1;
+  MyMemPoolFactoryX::instance()->get_mem(len1 + len2 + len3 + len4, this);
+  ACE_OS::memcpy(data(), src1, len1);
+  ACE_OS::memcpy(data() + len1, src2, len2);
+  ACE_OS::memcpy(data() + len1 + len2, src3, len3);
+  ACE_OS::memcpy(data() + len1 + len2 + len3, src4, len4);
+}
+
 void mycomutil_hex_dump(void * ptr, int len, char * result_buff, int buff_len)
 {
   if (unlikely(!ptr || len <= 0 || buff_len < 2 * len))
@@ -370,6 +404,38 @@ bool MyFilePaths::remove_path(const char * path)
   closedir(dir);
   return ret;
 }
+
+
+bool MyFilePaths::copy_file(int src_fd, int dest_fd)
+{
+  const int BLOCK_SIZE = 4096;
+  char buff[BLOCK_SIZE];
+  int n_read, n_write;
+  while (true)
+  {
+    n_read = ::read(src_fd, buff, BLOCK_SIZE);
+    if (n_read == 0)
+      return true;
+    else if (n_read < 0)
+    {
+      MY_ERROR("can not read from file %s\n", (const char*)MyErrno());
+      return false;
+    }
+
+    n_write = ::write(dest_fd, buff, n_read);
+    if (n_write != n_read)
+    {
+      MY_ERROR("can not write to file %s\n", (const char*)MyErrno());
+      return false;
+    }
+
+    if (n_read < BLOCK_SIZE)
+      return true;
+  }
+
+  ACE_NOTREACHED(return true);
+}
+
 
 #if defined(MY_client_test) || defined(MY_server_test)
 

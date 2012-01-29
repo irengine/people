@@ -406,16 +406,11 @@ bool MyBaseArchiveReader::open(const char * filename)
     return false;
   }
 
-  int fd = ::open(filename, O_RDONLY);
-  if (fd < 0)
-  {
-    MY_ERROR("can not open file for read @MyBaseArchiveReader::open(), name = %s %s\n", filename, (const char*)MyErrno());
+  if (!m_file.open_read(filename))
     return false;
-  }
-  m_file.attach(fd);
 
   struct stat sbuf;
-  if (::fstat(fd, &sbuf) == -1)
+  if (::fstat(m_file.handle(), &sbuf) == -1)
   {
     MY_ERROR("can not get file info @MyBaseArchiveReader::open(), name = %s %s\n", filename, (const char*)MyErrno());
     return false;
@@ -569,15 +564,7 @@ bool MyBaseArchiveWriter::open(const char * dir, const char * filename)
 
 bool MyBaseArchiveWriter::do_open()
 {
-  int fd = ::open(m_file_name.data(), O_CREAT | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
-  if (fd < 0)
-  {
-    MY_ERROR("can not open file for write @MyBaseArchiveWriter::open(), name = %s %s\n",
-             m_file_name.data(), (const char*)MyErrno());
-    return false;
-  }
-  m_file.attach(fd);
-  return true;
+  return m_file.open_write(m_file_name.data(), true, true, false);
 }
 
 bool MyBaseArchiveWriter::write(char * buff, int buff_len)
@@ -944,6 +931,61 @@ bool MyBZCompressor::decompress(const char * srcfn, const char * destdir, const 
 
   ACE_NOTREACHED(return true);
 }
+
+
+//MyBZCompositor//
+
+bool MyBZCompositor::open(const char * filename)
+{
+  return m_file.open_write(filename, true, true, true);
+}
+
+void MyBZCompositor::close()
+{
+  m_file.attach(MyUnixHandleGuard::INVALID_HANDLE);
+}
+
+bool MyBZCompositor::add(const char * filename)
+{
+  MyUnixHandleGuard src;
+  if (!src.open_read(filename))
+    return false;
+  bool result = MyFilePaths::copy_file(src.handle(), m_file.handle());
+  if (!result)
+    MY_ERROR("MyBZCompositor::add(%s) failed\n", filename);
+  return result;
+}
+
+bool MyBZCompositor::add_multi(char * filenames, const char * path, const char separator, const char * ext)
+{
+  char _seperators[2];
+  _seperators[0] = separator;
+  _seperators[1] = 0;
+  char *str, *token, *saveptr;
+
+  for (str = filenames; ; str = NULL)
+  {
+    token = strtok_r(str, _seperators, &saveptr);
+    if (!token)
+      break;
+    if (!*token)
+      continue;
+    if ((!path || !*path) && (!ext || !*ext))
+    {
+      if (!add(token))
+        return false;
+    } else
+    {
+      MyPooledMemGuard fn;
+      fn.init_from_string(path, "/", token, ext);
+      if (!add(fn.data()))
+        return false;
+    }
+  }
+
+  return true;
+}
+
 
 
 //MyBaseProcessor//
@@ -1733,6 +1775,7 @@ MyBaseConnectionManager::MyIndexHandlerMapPtr MyBaseConnectionManager::find_hand
   return m_index_handler_map.find(index);
 }
 
+
 //MyBaseHandler//
 
 MyBaseHandler::MyBaseHandler(MyBaseConnectionManager * xptr)
@@ -2033,7 +2076,7 @@ int MyBaseConnector::handle_timeout(const ACE_Time_Value &current_time, const vo
       if (before_reconnect())
       {
         m_reconnect_retry_count++;
-        do_connect(m_num_connection - m_connection_manager->active_connections());
+        do_connect(m_num_connection - m_connection_manager->active_connections(), true);
       }
     }
   } else if (long(act) == TIMER_ID_check_dead_connection && m_idle_time_as_dead > 0)
@@ -2072,7 +2115,7 @@ int MyBaseConnector::start()
     return -1;
   }
 
-  do_connect(m_num_connection);
+  do_connect(m_num_connection, true);
   if (m_reconnect_interval > 0)
   {
     ACE_Time_Value interval (m_reconnect_interval * 60);
@@ -2130,11 +2173,11 @@ int MyBaseConnector::stop()
 #ifdef MY_client_test
 int MyBaseConnector::connect_ready()
 {
-  return do_connect(0);
+  return do_connect(0, false);
 }
 #endif
 
-int MyBaseConnector::do_connect(int count)
+int MyBaseConnector::do_connect(int count, bool bNew)
 {
 #ifdef MY_client_test
   if (unlikely(count <= 0 && m_remain_to_connect == 0))
@@ -2150,11 +2193,16 @@ int MyBaseConnector::do_connect(int count)
     return 0;
 
   bool b_remain_connect = m_remain_to_connect > 0;
+  if (b_remain_connect && bNew)
+    return 0;
   int true_count;
   if (b_remain_connect)
     true_count = std::min(m_remain_to_connect, (BATCH_CONNECT_NUM - m_connection_manager->pending_count()));
   else
     true_count = std::min(count, (int)BATCH_CONNECT_NUM);
+
+  if (true_count <= 0)
+    return 0;
 
   ACE_INET_Addr port_to_connect(m_tcp_port, m_tcp_addr.c_str());
   MyBaseHandler * handler = NULL;
@@ -2184,7 +2232,7 @@ int MyBaseConnector::do_connect(int count)
 
   if (b_remain_connect)
     m_remain_to_connect -= true_count;
-  else
+  else if (bNew)
     m_remain_to_connect = count - true_count;
 
   MY_INFO(ACE_TEXT("connecting on %s:%d (total=%d, ok=%d, failed=%d, pending=%d)... \n"),

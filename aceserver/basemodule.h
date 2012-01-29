@@ -271,6 +271,17 @@ private:
   bz_stream m_bz_stream;
 };
 
+class MyBZCompositor
+{
+public:
+  bool open(const char * filename);
+  bool add(const char * filename);
+  bool add_multi(char * filenames, const char * path, const char seperator = '*', const char * ext = NULL);
+  void close();
+
+private:
+  MyUnixHandleGuard m_file;
+};
 
 class MyBaseProcessor
 {
@@ -588,7 +599,7 @@ protected:
     TIMER_ID_reserved_2,
     TIMER_ID_reserved_3,
   };
-  int do_connect(int count = 1);
+  int do_connect(int count = 1, bool bNew = false);
   virtual bool on_start();
   virtual void on_stop();
   virtual void do_dump_info();

@@ -141,6 +141,17 @@ public:
     if (m_handle >= 0)
       close(m_handle);
   }
+
+  bool open_read(const char * filename)
+  {
+    return do_open(filename, true, false, false, false);
+  }
+
+  bool open_write(const char * filename, bool create, bool truncate, bool append)
+  {
+    return do_open(filename, false, create, truncate, append);
+  }
+
   int handle() const
   {
     return m_handle;
@@ -161,6 +172,33 @@ public:
   }
 
 private:
+  bool do_open(const char * filename, bool readonly, bool create, bool truncate, bool append)
+  {
+    int fd;
+    if (unlikely(!filename || !*filename))
+      return false;
+    if (readonly)
+      fd = ::open(filename, O_RDONLY);//O_CREAT | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
+    else
+    {
+      int flag = O_RDWR;
+      if (create)
+        flag |= O_CREAT;
+      if (truncate)
+        flag |= O_TRUNC;
+      if (append)
+        flag |= O_APPEND;
+      fd = ::open(filename, flag, S_IRUSR | S_IWUSR);
+    }
+    if (fd < 0)
+    {
+      MY_ERROR("can not open file %s, %s\n", filename, (const char *)MyErrno());
+      return false;
+    }
+    attach(fd);
+    return true;
+  }
+
   int m_handle;
 
 };
@@ -375,6 +413,7 @@ public:
   static bool make_path(const char * path, const char * subpath, bool is_file);
   static bool copy_path(const char * srcdir, const char * destdir);
   static bool remove_path(const char * path);
+  static bool copy_file(int src_fd, int dest_fd);
 };
 
 #if defined(MY_client_test) || defined(MY_server_test)
@@ -522,6 +561,7 @@ public:
   void init_from_string(const char * src);
   void init_from_string(const char * src1, const char * src2);
   void init_from_string(const char * src1, const char * src2, const char * src3);
+  void init_from_string(const char * src1, const char * src2, const char * src3, const char * src4);
 
 protected:
   friend class MyMemPoolFactory;
