@@ -96,7 +96,7 @@ class MyLocationProcessor: public MyBaseServerProcessor
 {
 public:
   MyLocationProcessor(MyBaseHandler * handler);
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
 
   static MyDistLoads * m_dist_loads;
 
@@ -173,19 +173,21 @@ private:
 class MyHttpModule;
 class MyHttpAcceptor;
 
-class MyHttpProcessor: public MyBaseProcessor
+class MyHttpProcessor: public MyVeryBasePacketProcessor<int>
 {
 public:
+  typedef MyVeryBasePacketProcessor<int> super;
+
   MyHttpProcessor(MyBaseHandler * handler);
   virtual ~MyHttpProcessor();
 
-  virtual int handle_input();
+protected:
+  virtual int packet_length();
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
   bool do_process_input_data();
-  ACE_Message_Block * m_current_block;
-  int m_read_next_offset;
-  int m_packet_len;
 };
 
 
@@ -273,7 +275,7 @@ public:
   MyDistLoadProcessor(MyBaseHandler * handler);
   virtual ~MyDistLoadProcessor();
   virtual bool client_id_verified() const;
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
   void dist_loads(MyDistLoads * dist_loads);
 
 protected:

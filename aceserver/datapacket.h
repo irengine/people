@@ -346,6 +346,25 @@ public:
   int32_t clients_connected;
 };
 
+class MyBSBasePacket
+{
+public:
+  enum { LEN_SIZE = 8, MAGIC_SIZE = 4, CMD_SIZE = 2 };
+
+  void packet_len(int _len);
+  int  packet_len() const;
+  void packet_magic();
+  bool check_header() const;
+  void packet_cmd(const char * _cmd);
+  bool is_cmd(const char * _cmd);
+
+  char len[LEN_SIZE];
+  char magic[4];
+  char cmd[2];
+  char data[0];
+};
+
+
 
 #pragma pack(pop)
 

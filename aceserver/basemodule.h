@@ -43,7 +43,7 @@ class MyBaseConnectionManager;
 class MyBaseApp;
 class MyBaseDispatcher;
 class MyBaseConnector;
-
+class MyBaseProcessor;
 
 class MyClientIDTable
 {
@@ -283,133 +283,35 @@ private:
   MyUnixHandleGuard m_file;
 };
 
-class MyBaseProcessor
+class MyBaseHandler: public ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH>
 {
 public:
-  enum EVENT_RESULT
-  {
-    ER_ERROR = -1,
-    ER_OK = 0,
-    ER_CONTINUE,
-    ER_OK_FINISHED
-  };
-  MyBaseProcessor(MyBaseHandler * handler);
-  virtual ~MyBaseProcessor();
+  typedef ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> super;
+  MyBaseHandler(MyBaseConnectionManager * xptr = NULL);
+  void parent(void * p)
+    { m_parent = p; }
+  MyBaseAcceptor * acceptor() const
+    { return (MyBaseAcceptor *)m_parent; }
+  MyBaseConnector * connector() const
+    { return (MyBaseConnector *)m_parent; }
+  virtual int open (void * p = 0);
+  virtual int handle_input(ACE_HANDLE fd = ACE_INVALID_HANDLE);
+  virtual int handle_output(ACE_HANDLE fd = ACE_INVALID_HANDLE);
+  virtual int handle_close(ACE_HANDLE handle, ACE_Reactor_Mask close_mask);
+  virtual ~MyBaseHandler();
 
-  virtual std::string info_string() const;
-  virtual int on_open();
+  MyBaseConnectionManager * connection_manager();
+  MyBaseProcessor * processor() const;
+  int send_data(ACE_Message_Block * mb);
+
+protected:
   virtual void on_close();
-  virtual int handle_input();
-  bool wait_for_close() const;
+  virtual int  on_open();
 
-  bool dead() const;
-  void update_last_activity();
-  long last_activity() const;
-
-  const MyClientID & client_id() const;
-  void client_id(const char *id);
-  virtual bool client_id_verified() const;
-  int32_t client_id_index() const;
-
-protected:
-  int handle_input_wait_for_close();
-  MyBaseHandler * m_handler;
-  long m_last_activity;
-  bool m_wait_for_close;
-
-  MyClientID m_client_id;
-  int32_t    m_client_id_index;
-  int        m_client_id_length;
-
+  MyBaseConnectionManager * m_connection_manager;
+  MyBaseProcessor * m_processor;
+  void * m_parent;
 };
-
-class MyBaseRemoteAccessProcessor: public MyBaseProcessor
-{
-public:
-  typedef MyBaseProcessor super;
-  enum { MAX_COMMAND_LINE_LENGTH = 4096 };
-
-  MyBaseRemoteAccessProcessor(MyBaseHandler * handler);
-  virtual ~MyBaseRemoteAccessProcessor();
-
-  virtual int handle_input();
-  virtual int on_open();
-
-protected:
-  virtual int say_hello();
-  virtual int on_command(const char * cmd, char * parameter);
-  virtual int on_command_help();
-  int send_string(const char * s);
-  int on_unsupported_command(const char * cmd);
-
-private:
-  int do_command(const char * cmd, char * parameter);
-  int process_command_line(char * cmdline);
-  int on_command_quit();
-
-  ACE_Message_Block * m_mb;
-};
-
-class MyBasePacketProcessor: public MyBaseProcessor
-{
-public:
-  typedef MyBaseProcessor super;
-  MyBasePacketProcessor(MyBaseHandler * handler);
-  virtual ~MyBasePacketProcessor();
-  virtual std::string info_string() const;
-  virtual int on_open();
-  virtual int handle_input();
-
-protected:
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
-  MyBaseProcessor::EVENT_RESULT on_recv_packet(ACE_Message_Block * mb);
-  int copy_header_to_mb(ACE_Message_Block * mb, const MyDataPacketHeader & header);
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
-  ACE_Message_Block * make_version_check_request_mb();
-  int read_req_header();
-  int read_req_body();
-  int handle_req();
-
-  enum { PEER_ADDR_LEN = INET_ADDRSTRLEN }; // in the format of xxx.xxx.xxx.xxx
-  char m_peer_addr[PEER_ADDR_LEN];
-  ACE_Message_Block * m_current_block;
-  MyDataPacketHeader m_packet_header;
-  int m_read_next_offset;
-};
-
-class MyBaseServerProcessor: public MyBasePacketProcessor
-{
-public:
-  typedef MyBasePacketProcessor super;
-  MyBaseServerProcessor(MyBaseHandler * handler);
-  virtual ~MyBaseServerProcessor();
-  virtual bool client_id_verified() const;
-
-protected:
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
-  MyBaseProcessor::EVENT_RESULT do_version_check_common(ACE_Message_Block * mb, MyClientIDTable & client_id_table);
-  ACE_Message_Block * make_version_check_reply_mb(MyClientVersionCheckReply::REPLY_CODE code, int extra_len = 0);
-};
-
-class MyBaseClientProcessor: public MyBasePacketProcessor
-{
-public:
-  typedef MyBasePacketProcessor super;
-
-  MyBaseClientProcessor(MyBaseHandler * handler);
-  virtual ~MyBaseClientProcessor();
-  virtual bool client_id_verified() const;
-  virtual int on_open();
-  virtual void on_close();
-
-protected:
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
-  void client_id_verified(bool _verified);
-
-private:
-  bool m_client_id_verified;
-};
-
 
 class MyBaseConnectionManager
 {
@@ -487,34 +389,294 @@ private:
   MyBaseConnectionManager * m_p;
 };
 
-class MyBaseHandler: public ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH>
+class MyBaseProcessor
 {
 public:
-  typedef ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> super;
-  MyBaseHandler(MyBaseConnectionManager * xptr = NULL);
-  void parent(void * p)
-    { m_parent = p; }
-  MyBaseAcceptor * acceptor() const
-    { return (MyBaseAcceptor *)m_parent; }
-  MyBaseConnector * connector() const
-    { return (MyBaseConnector *)m_parent; }
-  virtual int open (void * p = 0);
-  virtual int handle_input(ACE_HANDLE fd = ACE_INVALID_HANDLE);
-  virtual int handle_output(ACE_HANDLE fd = ACE_INVALID_HANDLE);
-  virtual int handle_close(ACE_HANDLE handle, ACE_Reactor_Mask close_mask);
-  virtual ~MyBaseHandler();
+  enum EVENT_RESULT
+  {
+    ER_ERROR = -1,
+    ER_OK = 0,
+    ER_CONTINUE,
+    ER_OK_FINISHED
+  };
+  MyBaseProcessor(MyBaseHandler * handler);
+  virtual ~MyBaseProcessor();
 
-  MyBaseConnectionManager * connection_manager();
-  MyBaseProcessor * processor() const;
-  int send_data(ACE_Message_Block * mb);
+  virtual std::string info_string() const;
+  virtual int on_open();
+  virtual void on_close();
+  virtual int handle_input();
+  bool wait_for_close() const;
+
+  bool dead() const;
+  void update_last_activity();
+  long last_activity() const;
+
+  const MyClientID & client_id() const;
+  void client_id(const char *id);
+  virtual bool client_id_verified() const;
+  int32_t client_id_index() const;
 
 protected:
-  virtual void on_close();
-  virtual int  on_open();
+  int handle_input_wait_for_close();
+  MyBaseHandler * m_handler;
+  long m_last_activity;
+  bool m_wait_for_close;
 
-  MyBaseConnectionManager * m_connection_manager;
-  MyBaseProcessor * m_processor;
-  void * m_parent;
+  MyClientID m_client_id;
+  int32_t    m_client_id_index;
+  int        m_client_id_length;
+};
+
+class MyBaseRemoteAccessProcessor: public MyBaseProcessor
+{
+public:
+  typedef MyBaseProcessor super;
+  enum { MAX_COMMAND_LINE_LENGTH = 4096 };
+
+  MyBaseRemoteAccessProcessor(MyBaseHandler * handler);
+  virtual ~MyBaseRemoteAccessProcessor();
+
+  virtual int handle_input();
+  virtual int on_open();
+
+protected:
+  virtual int say_hello();
+  virtual int on_command(const char * cmd, char * parameter);
+  virtual int on_command_help();
+  int send_string(const char * s);
+  int on_unsupported_command(const char * cmd);
+
+private:
+  int do_command(const char * cmd, char * parameter);
+  int process_command_line(char * cmdline);
+  int on_command_quit();
+
+  ACE_Message_Block * m_mb;
+};
+
+template <typename T> class MyVeryBasePacketProcessor: public MyBaseProcessor
+{
+public:
+  typedef MyBaseProcessor super;
+
+  MyVeryBasePacketProcessor (MyBaseHandler * handler): MyBaseProcessor(handler)
+  {
+    m_read_next_offset = 0;
+    m_current_block = NULL;
+  }
+  virtual ~MyVeryBasePacketProcessor()
+  {
+    if (m_current_block)
+      m_current_block->release();
+  }
+
+  virtual int handle_input()
+  {
+    if (m_wait_for_close)
+      return handle_input_wait_for_close();
+
+    int loop_count = 0;
+  __loop:
+    ++loop_count;
+
+    if (loop_count >= 4) //do not bias too much toward this connection, this can starve other clients
+      return 0;          //just in case of the malicious/ill-behaved clients
+    if (m_read_next_offset < (int)sizeof(m_packet_header))
+    {
+      int ret = read_req_header();
+      if (ret < 0)
+        return -1;
+      else if (ret > 0)
+        return 0;
+    }
+
+    if (m_read_next_offset < (int)sizeof(m_packet_header))
+      return 0;
+
+    int ret = read_req_body();
+    if (ret < 0)
+      return -1;
+    else if (ret > 0)
+      return 0;
+
+    if (handle_req() < 0)
+      return -1;
+
+    goto __loop; //burst transfer, in the hope that more are ready in the buffer
+
+    return 0;
+  }
+
+protected:
+
+  int read_req_header()
+  {
+    update_last_activity();
+    ssize_t recv_cnt = m_handler->peer().recv((char*)&m_packet_header + m_read_next_offset,
+        sizeof(m_packet_header) - m_read_next_offset);
+  //      TEMP_FAILURE_RETRY(m_handler->peer().recv((char*)&m_packet_header + m_read_next_offset,
+  //      sizeof(m_packet_header) - m_read_next_offset));
+    int ret = mycomutil_translate_tcp_result(recv_cnt);
+    if (ret <= 0)
+      return ret;
+    m_read_next_offset += recv_cnt;
+
+    if (m_read_next_offset < (int)sizeof(m_packet_header))
+      return 0;
+
+    MyBaseProcessor::EVENT_RESULT er = on_recv_header();
+    switch(er)
+    {
+    case MyBaseProcessor::ER_ERROR:
+    case MyBaseProcessor::ER_CONTINUE:
+      return -1;
+    case MyBaseProcessor::ER_OK_FINISHED:
+      if (packet_length() != sizeof(m_packet_header))
+      {
+        MY_FATAL("got ER_OK_FINISHED for packet header with more data remain to process.\n");
+        return -1;
+      }
+      if (m_handler->connection_manager())
+        m_handler->connection_manager()->on_data_received(sizeof(m_packet_header));
+      m_read_next_offset = 0;
+      return 1;
+    case MyBaseProcessor::ER_OK:
+      return 0;
+    default:
+      MY_FATAL(ACE_TEXT("unexpected MyVeryBasePacketProcessor::EVENT_RESULT value = %d.\n"), er);
+      return -1;
+    }
+  }
+
+  int read_req_body()
+  {
+    if (!m_current_block)
+    {
+      m_current_block = MyMemPoolFactoryX::instance()->get_message_block(packet_length());
+      if (!m_current_block)
+        return -1;
+      if (copy_header_to_mb(m_current_block, m_packet_header) < 0)
+      {
+        MY_ERROR(ACE_TEXT("Message block copy header: m_current_block.copy() failed\n"));
+        return -1;
+      }
+    }
+    update_last_activity();
+    return mycomutil_recv_message_block(m_handler, m_current_block);
+  }
+
+  int handle_req()
+  {
+    if (m_handler->connection_manager())
+       m_handler->connection_manager()->on_data_received(m_current_block->size());
+
+    int ret = 0;
+    if (on_recv_packet(m_current_block) != MyBaseProcessor::ER_OK)
+      ret = -1;
+
+    m_current_block = 0;
+    m_read_next_offset = 0;
+    return ret;
+  }
+
+  int copy_header_to_mb(ACE_Message_Block * mb, const T & header)
+  {
+    return mb->copy((const char*)&header, sizeof(T));
+  }
+
+  virtual int packet_length() = 0;
+
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header()
+  {
+    return ER_CONTINUE;
+  }
+
+  MyBaseProcessor::EVENT_RESULT on_recv_packet(ACE_Message_Block * mb)
+  {
+    if (mb->size() < sizeof(T))
+    {
+      MY_ERROR(ACE_TEXT("message block size too little ( = %d)"), mb->size());
+      mb->release();
+      return ER_ERROR;
+    }
+    mb->rd_ptr(mb->base());
+
+    return on_recv_packet_i(mb);
+  }
+
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb)
+  {
+    ACE_UNUSED_ARG(mb);
+    return ER_OK;
+  }
+
+  T m_packet_header;
+  ACE_Message_Block * m_current_block;
+  int m_read_next_offset;
+};
+
+class MyBasePacketProcessor: public MyVeryBasePacketProcessor<MyDataPacketHeader>
+{
+public:
+  typedef MyVeryBasePacketProcessor<MyDataPacketHeader> super;
+
+  MyBasePacketProcessor(MyBaseHandler * handler);
+  virtual std::string info_string() const;
+  virtual int on_open();
+
+protected:
+  virtual int packet_length();
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  ACE_Message_Block * make_version_check_request_mb();
+
+  enum { PEER_ADDR_LEN = INET_ADDRSTRLEN }; // in the format of xxx.xxx.xxx.xxx
+  char m_peer_addr[PEER_ADDR_LEN];
+};
+
+class MyBSBasePacketProcessor: public MyVeryBasePacketProcessor<MyBSBasePacket>
+{
+public:
+  typedef MyVeryBasePacketProcessor<MyBSBasePacket> super;
+  MyBSBasePacketProcessor(MyBaseHandler * handler);
+
+protected:
+  virtual int header_length();
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
+};
+
+class MyBaseServerProcessor: public MyBasePacketProcessor
+{
+public:
+  typedef MyBasePacketProcessor super;
+  MyBaseServerProcessor(MyBaseHandler * handler);
+  virtual ~MyBaseServerProcessor();
+  virtual bool client_id_verified() const;
+
+protected:
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
+  MyBaseProcessor::EVENT_RESULT do_version_check_common(ACE_Message_Block * mb, MyClientIDTable & client_id_table);
+  ACE_Message_Block * make_version_check_reply_mb(MyClientVersionCheckReply::REPLY_CODE code, int extra_len = 0);
+};
+
+class MyBaseClientProcessor: public MyBasePacketProcessor
+{
+public:
+  typedef MyBasePacketProcessor super;
+
+  MyBaseClientProcessor(MyBaseHandler * handler);
+  virtual ~MyBaseClientProcessor();
+  virtual bool client_id_verified() const;
+  virtual int on_open();
+  virtual void on_close();
+
+protected:
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
+  void client_id_verified(bool _verified);
+
+private:
+  bool m_client_id_verified;
 };
 
 class MySockAcceptor: public ACE_SOCK_ACCEPTOR

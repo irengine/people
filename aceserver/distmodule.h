@@ -25,7 +25,7 @@ public:
   typedef MyBaseServerProcessor super;
 
   MyHeartBeatProcessor(MyBaseHandler * handler);
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
 
   static MyPingSubmitter * m_sumbitter;
 

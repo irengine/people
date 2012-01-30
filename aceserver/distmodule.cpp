@@ -18,23 +18,23 @@ MyHeartBeatProcessor::MyHeartBeatProcessor(MyBaseHandler * handler): MyBaseServe
 
 }
 
-MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header(const MyDataPacketHeader & header)
+MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 {
-  if (super::on_recv_header(header) == ER_ERROR)
+  if (super::on_recv_header() == ER_ERROR)
     return ER_ERROR;
 
-  if (header.command == MyDataPacketHeader::CMD_HEARTBEAT_PING)
+  if (m_packet_header.command == MyDataPacketHeader::CMD_HEARTBEAT_PING)
   {
     //the thread context switching and synchronization cost outbeat the benefit of using another thread
     do_ping();
     return ER_OK_FINISHED;
   }
 
-  if (header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
+  if (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
     return ER_OK;
 
   MY_ERROR(ACE_TEXT("unexpected packet header received @MyHeartBeatProcessor.on_recv_header, cmd = %d\n"),
-      header.command);
+      m_packet_header.command);
 
   return ER_ERROR;
 }
@@ -573,7 +573,7 @@ int MyDistRemoteAccessProcessor::on_command_dist_batch_file_md5(char * parameter
   }
 
   buff[0] = 0;
-  snprintf(buff, BUFF_SIZE - 1, " valid_start=%lld number=%d\n", valid_start_id, int(valid_end_id - valid_start_id + 1));
+  ACE_OS::snprintf(buff, BUFF_SIZE - 1, " valid_start=%lld number=%d\n", valid_start_id, int(valid_end_id - valid_start_id + 1));
   if (send_string(buff) < 0)
     return -1;
   return send_string("  OK: request placed into target for later processing\n>");

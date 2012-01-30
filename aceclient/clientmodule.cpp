@@ -61,13 +61,13 @@ int MyClientToDistProcessor::on_open()
   return send_version_check_req();
 }
 
-MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header(const MyDataPacketHeader & header)
+MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
 {
-  MyBaseProcessor::EVENT_RESULT result = super::on_recv_header(header);
+  MyBaseProcessor::EVENT_RESULT result = super::on_recv_header();
   if (result != ER_CONTINUE)
     return ER_ERROR;
 
-  bool bVersionCheckReply = header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY; //m_version_check_reply_done
+  bool bVersionCheckReply = m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY; //m_version_check_reply_done
   if (bVersionCheckReply == m_version_check_reply_done)
   {
     MY_ERROR(ACE_TEXT("unexpected packet header from dist server, version_check_reply_done = %d, "
@@ -78,10 +78,10 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header(const MyDa
   if (bVersionCheckReply)
     return ER_OK;
 
-  if (header.command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
+  if (m_packet_header.command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
     return ER_OK;
 
-  MY_ERROR("unexpected packet header from dist server, header.command = %d\n", header.command);
+  MY_ERROR("unexpected packet header from dist server, header.command = %d\n", m_packet_header.command);
   return ER_ERROR;
 }
 

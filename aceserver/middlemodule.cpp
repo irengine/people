@@ -135,12 +135,12 @@ MyLocationProcessor::MyLocationProcessor(MyBaseHandler * handler): MyBaseServerP
 
 }
 
-MyBaseProcessor::EVENT_RESULT MyLocationProcessor::on_recv_header(const MyDataPacketHeader & header)
+MyBaseProcessor::EVENT_RESULT MyLocationProcessor::on_recv_header()
 {
-  if (MyBaseServerProcessor::on_recv_header(header) == ER_ERROR)
+  if (MyBaseServerProcessor::on_recv_header() == ER_ERROR)
     return ER_ERROR;
 
-  if (header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
+  if (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
     return ER_OK;
 
   return ER_ERROR;
@@ -312,71 +312,49 @@ const char * MyLocationModule::name() const
 
 //MyHttpProcessor//
 
-MyHttpProcessor::MyHttpProcessor(MyBaseHandler * handler): MyBaseProcessor(handler)
+MyHttpProcessor::MyHttpProcessor(MyBaseHandler * handler): super(handler)
 {
-  m_current_block = NULL;
-  m_read_next_offset = 0;
+
 }
 
 MyHttpProcessor::~MyHttpProcessor()
 {
-  if (m_current_block)
-    m_current_block->release();
+
 }
 
-int MyHttpProcessor::handle_input()
+int MyHttpProcessor::packet_length()
 {
-  if (m_wait_for_close)
-    return handle_input_wait_for_close();
+  return m_packet_header;
+}
 
-  if (m_read_next_offset < 4)
+MyBaseProcessor::EVENT_RESULT MyHttpProcessor::on_recv_header()
+{
+  int len = packet_length();
+  if (len > 1024 * 1024 * 10 || len <= 4)
   {
-    ssize_t recv_cnt = m_handler->peer().recv((char*)&m_packet_len + m_read_next_offset,
-        sizeof(m_packet_len) - m_read_next_offset);
-    int ret = mycomutil_translate_tcp_result(recv_cnt);
-    if (ret <= 0)
-      return ret;
-    m_read_next_offset += recv_cnt;
-    if (m_read_next_offset < (int)sizeof(m_packet_len))
-      return 0;
+    MY_ERROR("got an invalid http packet with size = %d\n", len);
+    return ER_ERROR;
   }
+  return ER_OK;
+}
 
-  if (m_packet_len > 1024 * 1024 * 10 || m_packet_len <= 4)
+MyBaseProcessor::EVENT_RESULT MyHttpProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+{
+  ACE_UNUSED_ARG(mb);
+  m_wait_for_close = true;
+  bool ok = do_process_input_data();
+  ACE_Message_Block * reply_mb = MyMemPoolFactoryX::instance()->get_message_block(4);
+  if (!reply_mb)
   {
-    MY_ERROR("got an invalid http packet with size = %d\n", m_packet_len);
-    return -1;
+    MY_ERROR(ACE_TEXT("failed to allocate 4 bytes sized memory block @MyHttpProcessor::handle_input().\n"));
+    return ER_ERROR;
   }
-
-  if (!m_current_block)
-  {
-    m_current_block = MyMemPoolFactoryX::instance()->get_message_block(m_packet_len - 4);
-    if (!m_current_block)
-      return -1;
-  }
-
-  update_last_activity();
-  if (mycomutil_recv_message_block(m_handler, m_current_block) < 0)
-    return -1;
-
-  if ((int)(m_current_block->length()) == m_packet_len - 4)
-  {
-    m_wait_for_close = true;
-    bool ok = do_process_input_data();
-    ACE_Message_Block * reply_mb = MyMemPoolFactoryX::instance()->get_message_block(8);
-    if (!reply_mb)
-    {
-      MY_ERROR(ACE_TEXT("failed to allocate 8 bytes sized memory block @MyHttpProcessor::handle_input().\n"));
-      return -1;
-    }
-    const char ok_reply_str[] = "1";
-    const char bad_reply_str[] = "0";
-    const int reply_len = sizeof(ok_reply_str) / sizeof(char);
-    ACE_OS::strsncpy(reply_mb->base(), (ok? ok_reply_str:bad_reply_str), reply_len);
-    reply_mb->wr_ptr(reply_len);
-    return (m_handler->send_data(reply_mb) <= 0 ? -1:0);
-  }
-
-  return 0;
+  const char ok_reply_str[] = "1";
+  const char bad_reply_str[] = "0";
+  const int reply_len = sizeof(ok_reply_str) / sizeof(char);
+  ACE_OS::strsncpy(reply_mb->base(), (ok? ok_reply_str:bad_reply_str), reply_len);
+  reply_mb->wr_ptr(reply_len);
+  return (m_handler->send_data(reply_mb) <= 0 ? ER_ERROR:ER_OK);
 }
 
 bool MyHttpProcessor::do_process_input_data()
@@ -757,15 +735,15 @@ void MyDistLoadProcessor::dist_loads(MyDistLoads * dist_loads)
   m_dist_loads = dist_loads;
 }
 
-MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header(const MyDataPacketHeader & header)
+MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
 {
-  if (super::on_recv_header(header) == ER_ERROR)
+  if (super::on_recv_header() == ER_ERROR)
     return ER_ERROR;
 
-  if (header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
+  if (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
   {
     MyClientVersionCheckRequestProc proc;
-    proc.attach((const char*)&header);
+    proc.attach((const char*)&m_packet_header);
     bool result = proc.validate_data();
     if (!result)
     {
@@ -775,11 +753,11 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header(const MyDataPa
     return ER_OK;
   }
 
-  if (header.command == MyDataPacketHeader::CMD_LOAD_BALANCE_REQ)
+  if (m_packet_header.command == MyDataPacketHeader::CMD_LOAD_BALANCE_REQ)
     return ER_OK;
 
   MY_ERROR(ACE_TEXT("unexpected packet header received @MyDistLoadProcessor.on_recv_header, cmd = %d\n"),
-      header.command);
+      m_packet_header.command);
   return ER_ERROR;
 }
 

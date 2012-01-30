@@ -26,7 +26,7 @@ public:
   typedef MyBaseClientProcessor super;
 
   MyClientToDistProcessor(MyBaseHandler * handler);
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header(const MyDataPacketHeader & header);
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
   virtual int on_open();
   int send_heart_beat();
 

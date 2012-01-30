@@ -822,7 +822,7 @@ bool MyBZCompressor::compress(const char * srcfn, int prefix_len, const char * d
   int ret = BZ2_bzCompressInit(&m_bz_stream, COMPRESS_100k, 0, 30);
   if (ret != BZ_OK)
   {
-    printf("BZ2_bzCompressInit() return value = %d\n", ret);
+    MY_ERROR("BZ2_bzCompressInit() return value = %d\n", ret);
     return false;
   }
 
@@ -1206,18 +1206,11 @@ int MyBaseRemoteAccessProcessor::say_hello()
 
 //MyBasePacketProcessor//
 
-MyBasePacketProcessor::MyBasePacketProcessor(MyBaseHandler * handler): MyBaseProcessor(handler)
+MyBasePacketProcessor::MyBasePacketProcessor(MyBaseHandler * handler): super(handler)
 {
   m_peer_addr[0] = 0;
-  m_read_next_offset = 0;
-  m_current_block = NULL;
 }
 
-MyBasePacketProcessor::~MyBasePacketProcessor()
-{
-  if (m_current_block)
-    m_current_block->release();
-}
 
 std::string MyBasePacketProcessor::info_string() const
 {
@@ -1230,48 +1223,6 @@ std::string MyBasePacketProcessor::info_string() const
   return result;
 }
 
-int MyBasePacketProcessor::handle_input()
-{
-  if (m_wait_for_close)
-    return handle_input_wait_for_close();
-
-  int loop_count = 0;
-__loop:
-  ++loop_count;
-
-  if (loop_count >= 4) //do not bias too much toward this connection, this can starve other clients
-    return 0;          //just in case of the malicious/ill-behaved clients
-  if (m_read_next_offset < (int)sizeof(m_packet_header))
-  {
-    int ret = read_req_header();
-    if (ret < 0)
-      return -1;
-    else if (ret > 0)
-      return 0;
-  }
-
-  if (m_read_next_offset < (int)sizeof(m_packet_header))
-    return 0;
-
-  int ret = read_req_body();
-  if (ret < 0)
-    return -1;
-  else if (ret > 0)
-    return 0;
-
-  if (handle_req() < 0)
-    return -1;
-
-  goto __loop; //burst transfer, in the hope that more are ready in the buffer
-
-  return 0;
-}
-
-int MyBasePacketProcessor::copy_header_to_mb(ACE_Message_Block * mb, const MyDataPacketHeader & header)
-{
-  return mb->copy((const char*)&header, sizeof(MyDataPacketHeader));
-}
-
 int MyBasePacketProcessor::on_open()
 {
   ACE_INET_Addr peer_addr;
@@ -1282,10 +1233,15 @@ int MyBasePacketProcessor::on_open()
   return 0;
 }
 
-
-MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_header(const MyDataPacketHeader & header)
+int MyBasePacketProcessor::packet_length()
 {
-  MyDataPacketBaseProc proc((const char*)&header);
+  return m_packet_header.length;
+}
+
+
+MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_header()
+{
+  MyDataPacketBaseProc proc((const char*)&m_packet_header);
   if (!proc.validate_header())
   {
     MY_ERROR(ACE_TEXT("Bad request received (invalid header magic check) from %s, \n"),
@@ -1295,20 +1251,6 @@ MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_header(const MyData
 
   return ER_CONTINUE;
 }
-
-MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_packet(ACE_Message_Block * mb)
-{
-  if (mb->size() < sizeof(MyDataPacketHeader))
-  {
-    MY_ERROR(ACE_TEXT("message block size too little ( = %d)"), mb->size());
-    mb->release();
-    return ER_ERROR;
-  }
-  mb->rd_ptr(mb->base());
-
-  return on_recv_packet_i(mb);
-}
-
 
 MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
@@ -1328,80 +1270,22 @@ ACE_Message_Block * MyBasePacketProcessor::make_version_check_request_mb()
 }
 
 
-int MyBasePacketProcessor::read_req_header()
+
+//MyBSBasePacketProcessor//
+
+MyBSBasePacketProcessor::MyBSBasePacketProcessor(MyBaseHandler * handler): super(handler)
 {
-  update_last_activity();
-  ssize_t recv_cnt = m_handler->peer().recv((char*)&m_packet_header + m_read_next_offset,
-      sizeof(m_packet_header) - m_read_next_offset);
-//      TEMP_FAILURE_RETRY(m_handler->peer().recv((char*)&m_packet_header + m_read_next_offset,
-//      sizeof(m_packet_header) - m_read_next_offset));
-  int ret = mycomutil_translate_tcp_result(recv_cnt);
-  if (ret <= 0)
-    return ret;
-  m_read_next_offset += recv_cnt;
-  if (m_read_next_offset < (int)sizeof(m_packet_header))
-    return 0;
 
-  MyDataPacketBaseProc headerProc((char*)&m_packet_header);
-  if (!headerProc.validate_header())
-  {
-    MY_ERROR(ACE_TEXT("Invalid data packet header received %s\n"), info_string().c_str());
-    return -1;
-  }
-
-  MyBaseProcessor::EVENT_RESULT er = on_recv_header(m_packet_header);
-  switch(er)
-  {
-  case MyBaseProcessor::ER_ERROR:
-  case MyBaseProcessor::ER_CONTINUE:
-    return -1;
-  case MyBaseProcessor::ER_OK_FINISHED:
-    if (m_packet_header.length != sizeof(m_packet_header))
-    {
-      MY_FATAL("got ER_OK_FINISHED.\n");
-      return -1;
-    }
-    if (m_handler->connection_manager())
-      m_handler->connection_manager()->on_data_received(sizeof(m_packet_header));
-    m_read_next_offset = 0;
-    return 1;
-  case MyBaseProcessor::ER_OK:
-    return 0;
-  default:
-    MY_FATAL(ACE_TEXT("unexpected MyBaseProcessor::EVENT_RESULT value = %d.\n"), er);
-    return -1;
-  }
 }
 
-int MyBasePacketProcessor::read_req_body()
+MyBaseProcessor::EVENT_RESULT MyBSBasePacketProcessor::on_recv_header()
 {
-  if (!m_current_block)
-  {
-    m_current_block = MyMemPoolFactoryX::instance()->get_message_block(m_packet_header.length);
-    if (!m_current_block)
-      return -1;
-    if (copy_header_to_mb(m_current_block, m_packet_header) < 0)
-    {
-      MY_ERROR(ACE_TEXT("Message block copy header: m_current_block.copy() failed\n"));
-      return -1;
-    }
-  }
-  update_last_activity();
-  return mycomutil_recv_message_block(m_handler, m_current_block);
+  return (m_packet_header.check_header()? ER_OK : ER_ERROR);
 }
 
-int MyBasePacketProcessor::handle_req()
+int MyBSBasePacketProcessor::header_length()
 {
-  if (m_handler->connection_manager())
-     m_handler->connection_manager()->on_data_received(m_current_block->size());
-
-  int ret = 0;
-  if (on_recv_packet(m_current_block) != MyBaseProcessor::ER_OK)
-    ret = -1;
-
-  m_current_block = 0;
-  m_read_next_offset = 0;
-  return ret;
+  return m_packet_header.packet_len();
 }
 
 
@@ -1422,18 +1306,18 @@ bool MyBaseServerProcessor::client_id_verified() const
   return !m_client_id.is_null();
 }
 
-MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_header(const MyDataPacketHeader & header)
+MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_header()
 {
-  MyBaseProcessor::EVENT_RESULT result = super::on_recv_header(header);
+  MyBaseProcessor::EVENT_RESULT result = super::on_recv_header();
   if (result != ER_CONTINUE)
     return result;
 
   bool bVerified = client_id_verified();
-  bool bVersionCheck = (header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
+  bool bVersionCheck = (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
   if (bVerified == bVersionCheck)
   {
     MY_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s, \n"),
-        header.command, bVerified, bVersionCheck, info_string().c_str());
+        m_packet_header.command, bVerified, bVersionCheck, info_string().c_str());
     return ER_ERROR;
   }
 
@@ -1539,18 +1423,18 @@ void MyBaseClientProcessor::on_close()
 #endif
 }
 
-MyBaseProcessor::EVENT_RESULT MyBaseClientProcessor::on_recv_header(const MyDataPacketHeader & header)
+MyBaseProcessor::EVENT_RESULT MyBaseClientProcessor::on_recv_header()
 {
-  MyBaseProcessor::EVENT_RESULT result = super::on_recv_header(header);
+  MyBaseProcessor::EVENT_RESULT result = super::on_recv_header();
   if (result != ER_CONTINUE)
     return result;
 
   bool bVerified = client_id_verified();
-  bool bVersionCheck = (header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY);
+  bool bVersionCheck = (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY);
   if (bVerified == bVersionCheck)
   {
     MY_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s \n"),
-        header.command, bVerified, bVersionCheck, info_string().c_str());
+        m_packet_header.command, bVerified, bVersionCheck, info_string().c_str());
     return ER_ERROR;
   }
 

@@ -168,8 +168,6 @@ void MyServerApp::app_fini()
 
 int main(int argc, const char * argv[])
 {
-  ACE_UNUSED_ARG(argc);
-  ACE_UNUSED_ARG(argv);
   ACE_Sig_Action no_sigpipe ((ACE_SignalHandler) SIG_IGN);
   ACE_Sig_Action original_action;
   no_sigpipe.register_action (SIGPIPE, &original_action);
