@@ -91,6 +91,8 @@ public:
   virtual const char * name() const;
   virtual int handle_timeout (const ACE_Time_Value &tv,
                               const void *act);
+  MyHeartBeatAcceptor * acceptor() const;
+
 protected:
   virtual void on_stop();
   virtual bool on_start();
@@ -119,6 +121,7 @@ public:
   MyHeartBeatDispatcher * dispatcher() const;
   virtual const char * name() const;
   MyHeartBeatService * service() const;
+  int num_active_clients() const;
 
 protected:
   virtual bool on_start();
@@ -180,14 +183,141 @@ class MyDistRemoteAccessModule: public MyBaseModule
 {
 public:
   MyDistRemoteAccessModule(MyBaseApp * app);
-//  MyDistRemoteAccessDispatcher * dispatcher() const;
   virtual const char * name() const;
 
 protected:
   virtual bool on_start();
-
-//private:
-//  MyDistRemoteAccessDispatcher * m_dispatcher;
 };
+
+
+/////////////////////////////////////
+//dist to BS
+/////////////////////////////////////
+
+class MyDistToMiddleModule;
+
+class MyDistToBSProcessor: public MyBSBasePacketProcessor
+{
+public:
+  typedef MyBSBasePacketProcessor super;
+
+  MyDistToBSProcessor(MyBaseHandler * handler);
+};
+
+class MyDistToBSHandler: public MyBaseHandler
+{
+public:
+  MyDistToBSHandler(MyBaseConnectionManager * xptr = NULL);
+  MyDistToMiddleModule * module_x() const;
+  DECLARE_MEMORY_POOL__NOTHROW(MyDistToBSHandler, ACE_Thread_Mutex);
+
+protected:
+  virtual void on_close();
+  virtual int  on_open();
+};
+
+class MyDistToBSConnector: public MyBaseConnector
+{
+public:
+  MyDistToBSConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
+  virtual int make_svc_handler(MyBaseHandler *& sh);
+  virtual const char * name() const;
+
+protected:
+  enum { RECONNECT_INTERVAL = 3 }; //time in minutes
+};
+
+
+/////////////////////////////////////
+//dist to middle module
+/////////////////////////////////////
+
+class MyDistToMiddleModule;
+class MyDistToMiddleConnector;
+
+class MyDistToMiddleProcessor: public MyBaseClientProcessor
+{
+public:
+  typedef MyBaseClientProcessor super;
+
+  MyDistToMiddleProcessor(MyBaseHandler * handler);
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
+  virtual int on_open();
+  int send_server_load();
+
+protected:
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+
+private:
+  enum { IP_ADDR_LENGTH = INET_ADDRSTRLEN };
+
+  int send_version_check_req();
+  MyBaseProcessor::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
+
+  bool m_version_check_reply_done;
+  char m_local_addr[IP_ADDR_LENGTH];
+};
+
+class MyDistToMiddleHandler: public MyBaseHandler
+{
+public:
+  MyDistToMiddleHandler(MyBaseConnectionManager * xptr = NULL);
+  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
+  void setup_timer();
+  MyDistToMiddleModule * module_x() const;
+  DECLARE_MEMORY_POOL__NOTHROW(MyDistToMiddleHandler, ACE_Thread_Mutex);
+
+protected:
+  virtual void on_close();
+  virtual int  on_open();
+
+private:
+  enum { LOAD_BALANCE_REQ_TIMER = 1 };
+  enum { LOAD_BALANCE_REQ_INTERVAL = 3 }; //in minutes
+  long m_load_balance_req_timer_id;
+};
+
+class MyDistToMiddleDispatcher: public MyBaseDispatcher
+{
+public:
+  MyDistToMiddleDispatcher(MyBaseModule * pModule, int numThreads = 1);
+  virtual const char * name() const;
+
+protected:
+  virtual void on_stop();
+  virtual bool on_start();
+
+private:
+  MyDistToMiddleConnector * m_connector;
+  MyDistToBSConnector * m_bs_connector;
+};
+
+
+class MyDistToMiddleConnector: public MyBaseConnector
+{
+public:
+  MyDistToMiddleConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
+  virtual int make_svc_handler(MyBaseHandler *& sh);
+  virtual const char * name() const;
+
+protected:
+  enum { RECONNECT_INTERVAL = 3 }; //time in minutes
+};
+
+class MyDistToMiddleModule: public MyBaseModule
+{
+public:
+  MyDistToMiddleModule(MyBaseApp * app);
+  virtual ~MyDistToMiddleModule();
+  virtual const char * name() const;
+
+protected:
+  virtual bool on_start();
+  virtual void on_stop();
+
+private:
+  MyDistToMiddleDispatcher *m_dispatcher;
+};
+
 
 #endif /* HEARTBEATMODULE_H_ */

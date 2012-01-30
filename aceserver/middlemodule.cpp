@@ -141,7 +141,16 @@ MyBaseProcessor::EVENT_RESULT MyLocationProcessor::on_recv_header()
     return ER_ERROR;
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
+  {
+    MyClientVersionCheckRequestProc proc;
+    proc.attach((const char*)&m_packet_header);
+    if (!proc.validate_header())
+    {
+      MY_ERROR("failed to validate header for client version check req\n");
+      return ER_ERROR;
+    }
     return ER_OK;
+  }
 
   return ER_ERROR;
 }
@@ -201,16 +210,15 @@ MyLocationService::MyLocationService(MyBaseModule * module, int numThreads):
 
 int MyLocationService::svc()
 {
-  ACE_DEBUG ((LM_DEBUG,
-             ACE_TEXT ("(%P|%t) running svc()\n")));
+  MY_INFO("running %s::svc()\n", name());
 
-  for (ACE_Message_Block *mb; getq (mb) != -1; )
+  for (ACE_Message_Block * mb; getq(mb) != -1;)
   {
 
     mb->release ();
   }
-  ACE_DEBUG ((LM_DEBUG,
-               ACE_TEXT ("(%P|%t) quitting svc()\n")));
+
+  MY_INFO("exiting %s::svc()\n", name());
   return 0;
 }
 
@@ -220,7 +228,7 @@ int MyLocationService::svc()
 MyLocationAcceptor::MyLocationAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
     MyBaseAcceptor(_dispatcher, _manager)
 {
-  m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
+  m_tcp_port = MyConfigX::instance()->middle_server_client_port;
   m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 
@@ -747,14 +755,24 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
     bool result = proc.validate_data();
     if (!result)
     {
-      MY_ERROR("bad load_balance package received from %s\n", info_string().c_str());
+      MY_ERROR("bad client version check req packet received from %s\n", info_string().c_str());
       return ER_ERROR;
     }
     return ER_OK;
   }
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_LOAD_BALANCE_REQ)
+  {
+    MyLoadBalanceRequestProc proc;
+    proc.attach((const char*)&m_packet_header);
+    bool result = proc.validate_data();
+    if (!result)
+    {
+      MY_ERROR("bad load_balance packet received from %s\n", info_string().c_str());
+      return ER_ERROR;
+    }
     return ER_OK;
+  }
 
   MY_ERROR(ACE_TEXT("unexpected packet header received @MyDistLoadProcessor.on_recv_header, cmd = %d\n"),
       m_packet_header.command);
@@ -827,7 +845,7 @@ PREPARE_MEMORY_POOL(MyDistLoadHandler);
 MyDistLoadAcceptor::MyDistLoadAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
     MyBaseAcceptor(_dispatcher, _manager)
 {
-  m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
+  m_tcp_port = MyConfigX::instance()->middle_server_dist_port;
   m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 

@@ -76,10 +76,28 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
   }
 
   if (bVersionCheckReply)
+  {
+    MyClientVersionCheckReplyProc proc;
+    proc.attach((const char*)m_packet_header);
+    if (!proc.validate_header())
+    {
+      MY_ERROR("failed to validate header for version check\n");
+      return ER_ERROR;
+    }
     return ER_OK;
+  }
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
+  {
+    MyServerFileMD5ListProc proc;
+    proc.attach((const char*)m_packet_header);
+    if (!proc.validate_header())
+    {
+      MY_ERROR("failed to validate header for server file md5 list\n");
+      return ER_ERROR;
+    }
     return ER_OK;
+  }
 
   MY_ERROR("unexpected packet header from dist server, header.command = %d\n", m_packet_header.command);
   return ER_ERROR;

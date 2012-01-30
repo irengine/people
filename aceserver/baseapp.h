@@ -69,6 +69,8 @@ public:
   std::string db_user_name;
   std::string db_password;
   std::string compressed_store_path;
+  std::string bs_server_addr;
+  int bs_server_port;
 
   //client an dist
   int dist_server_heart_beat_port;

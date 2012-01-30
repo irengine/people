@@ -1241,14 +1241,6 @@ int MyBasePacketProcessor::packet_length()
 
 MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_header()
 {
-  MyDataPacketBaseProc proc((const char*)&m_packet_header);
-  if (!proc.validate_header())
-  {
-    MY_ERROR(ACE_TEXT("Bad request received (invalid header magic check) from %s, \n"),
-             info_string().c_str());
-    return ER_ERROR;
-  }
-
   return ER_CONTINUE;
 }
 
@@ -1283,11 +1275,11 @@ MyBaseProcessor::EVENT_RESULT MyBSBasePacketProcessor::on_recv_header()
   return (m_packet_header.check_header()? ER_OK : ER_ERROR);
 }
 
-int MyBSBasePacketProcessor::header_length()
+
+int MyBSBasePacketProcessor::packet_length()
 {
   return m_packet_header.packet_len();
 }
-
 
 //MyBaseServerProcessor//
 

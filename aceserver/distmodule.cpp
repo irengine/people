@@ -25,13 +25,32 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_HEARTBEAT_PING)
   {
+    MyHeartBeatPingProc proc;
+    proc.attach((const char*)&m_packet_header);
+    bool result = proc.validate_data();
+    if (!result)
+    {
+      MY_ERROR("bad heart beat packet received from %s\n", info_string().c_str());
+      return ER_ERROR;
+    }
+
     //the thread context switching and synchronization cost outbeat the benefit of using another thread
     do_ping();
     return ER_OK_FINISHED;
   }
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
+  {
+    MyClientVersionCheckRequestProc proc;
+    proc.attach((const char*)&m_packet_header);
+    bool result = proc.validate_data();
+    if (!result)
+    {
+      MY_ERROR("bad client version check req packet received from %s\n", info_string().c_str());
+      return ER_ERROR;
+    }
     return ER_OK;
+  }
 
   MY_ERROR(ACE_TEXT("unexpected packet header received @MyHeartBeatProcessor.on_recv_header, cmd = %d\n"),
       m_packet_header.command);
@@ -294,6 +313,11 @@ const char * MyHeartBeatDispatcher::name() const
   return "MyHeartBeatDispatcher";
 }
 
+MyHeartBeatAcceptor * MyHeartBeatDispatcher::acceptor() const
+{
+  return m_acceptor;
+}
+
 int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *act)
 {
   ACE_UNUSED_ARG(tv);
@@ -366,6 +390,13 @@ MyHeartBeatService * MyHeartBeatModule::service() const
   return m_service;
 }
 
+int MyHeartBeatModule::num_active_clients() const
+{
+  if (unlikely(!m_dispatcher || !m_dispatcher->acceptor() || !m_dispatcher->acceptor()->connection_manager()))
+    return 0xFFFFFF;
+  return m_dispatcher->acceptor()->connection_manager()->active_connections();
+}
+
 const char * MyHeartBeatModule::name() const
 {
   return "MyHeartBeatModule";
@@ -382,6 +413,73 @@ void MyHeartBeatModule::on_stop()
 {
   m_service = NULL;
   m_dispatcher = NULL;
+}
+
+
+/////////////////////////////////////
+//dist to BS
+/////////////////////////////////////
+
+//MyDistToBSProcessor//
+
+MyDistToBSProcessor::MyDistToBSProcessor(MyBaseHandler * handler): super(handler)
+{
+
+}
+
+
+//MyDistToBSHandler//
+
+MyDistToBSHandler::MyDistToBSHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
+{
+  m_processor = new MyDistToBSProcessor(this);
+}
+
+MyDistToMiddleModule * MyDistToBSHandler::module_x() const
+{
+  return (MyDistToMiddleModule *)connector()->module_x();
+}
+
+int MyDistToBSHandler::on_open()
+{
+  return 0;
+}
+
+
+void MyDistToBSHandler::on_close()
+{
+
+}
+
+PREPARE_MEMORY_POOL(MyDistToBSHandler);
+
+
+//MyDistToBSConnector//
+
+MyDistToBSConnector::MyDistToBSConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
+    MyBaseConnector(_dispatcher, _manager)
+{
+  m_tcp_port = MyConfigX::instance()->bs_server_port;
+  m_reconnect_interval = RECONNECT_INTERVAL;
+  m_tcp_addr = MyConfigX::instance()->bs_server_addr;
+}
+
+const char * MyDistToBSConnector::name() const
+{
+  return "MyDistToBSConnector";
+}
+
+int MyDistToBSConnector::make_svc_handler(MyBaseHandler *& sh)
+{
+  sh = new MyDistToBSHandler(m_connection_manager);
+  if (!sh)
+  {
+    MY_ERROR("can not alloc MyDistToBSHandler from %s\n", name());
+    return -1;
+  }
+  sh->parent((void*)this);
+  sh->reactor(reactor());
+  return 0;
 }
 
 
@@ -415,8 +513,7 @@ int MyDistRemoteAccessProcessor::on_command_help()
                           "  help\n"
                           "  exit (or quit)\n"
                           "  dist client_id1 [client_id2] [client_id3] ...\n"
-                          "  dist_batch start_client_id number_of_clients\n>"
-      ;
+                          "  dist_batch start_client_id number_of_clients\n>";
   return send_string(help_msg);
 }
 
@@ -653,4 +750,293 @@ bool MyDistRemoteAccessModule::on_start()
 {
   add_dispatcher(new MyDistRemoteAccessDispatcher(this));
   return true;
+}
+
+/////////////////////////////////////
+//dist to middle module
+/////////////////////////////////////
+
+//MyDistToMiddleProcessor//
+
+
+MyDistToMiddleProcessor::MyDistToMiddleProcessor(MyBaseHandler * handler): MyBaseClientProcessor(handler)
+{
+  m_version_check_reply_done = false;
+  m_local_addr[0] = 0;
+}
+
+int MyDistToMiddleProcessor::on_open()
+{
+  if (super::on_open() < 0)
+    return -1;
+
+  ACE_INET_Addr local_addr;
+  if (m_handler->peer().get_local_addr(local_addr) == 0)
+    local_addr.get_host_addr((char*)m_local_addr, IP_ADDR_LENGTH);
+
+  return send_version_check_req();
+}
+
+MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::on_recv_header()
+{
+  MyBaseProcessor::EVENT_RESULT result = super::on_recv_header();
+  if (result != ER_CONTINUE)
+    return ER_ERROR;
+
+  bool bVersionCheckReply = m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY; //m_version_check_reply_done
+  if (bVersionCheckReply == m_version_check_reply_done)
+  {
+    MY_ERROR(ACE_TEXT("unexpected packet header from dist server, version_check_reply_done = %d, "
+                      "packet is version_check_reply = %d.\n"), m_version_check_reply_done, bVersionCheckReply);
+    return ER_ERROR;
+  }
+
+  if (bVersionCheckReply)
+  {
+    MyClientVersionCheckReplyProc proc;
+    proc.attach((const char*)&m_packet_header);
+    if (!proc.validate_header())
+    {
+      MY_ERROR("failed to validate header for version check\n");
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
+  if (m_packet_header.command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
+  {
+    MyServerFileMD5ListProc proc;
+    proc.attach((const char*)&m_packet_header);
+    if (!proc.validate_header())
+    {
+      MY_ERROR("failed to validate header for server file md5 list\n");
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
+  MY_ERROR("unexpected packet header from dist server, header.command = %d\n", m_packet_header.command);
+  return ER_ERROR;
+}
+
+MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+{
+  MyBasePacketProcessor::on_recv_packet_i(mb);
+
+  MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
+
+  if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY)
+  {
+    MyBaseProcessor::EVENT_RESULT result = do_version_check_reply(mb);
+    if (result == ER_OK)
+    {
+      ((MyDistToMiddleHandler*)m_handler)->setup_timer();
+      client_id_verified(true);
+    }
+    return result;
+  }
+
+  MyMessageBlockGuard guard(mb);
+  MY_ERROR("unsupported command received @MyDistToMiddleProcessor::on_recv_packet_i(), command = %d\n",
+      header->command);
+  return ER_ERROR;
+}
+
+int MyDistToMiddleProcessor::send_server_load()
+{
+  if (!m_version_check_reply_done)
+    return 0;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyLoadBalanceRequest));
+  MyLoadBalanceRequestProc proc;
+  proc.attach(mb->base());
+  proc.init_header();
+  proc.ip_addr(m_local_addr);
+  proc.data()->clients_connected = MyServerAppX::instance()->heart_beat_module()->num_active_clients();
+  mb->wr_ptr(sizeof(MyLoadBalanceRequest));
+  return (m_handler->send_data(mb) < 0 ? -1: 0);
+}
+
+MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_version_check_reply(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  m_version_check_reply_done = true;
+
+  const char * prefix_msg = "dist server version check reply:";
+  MyClientVersionCheckReplyProc vcr;
+  vcr.attach(mb->base());
+  switch (vcr.data()->reply_code)
+  {
+  case MyClientVersionCheckReply::VER_OK:
+    return MyBaseProcessor::ER_OK;
+
+  case MyClientVersionCheckReply::VER_OK_CAN_UPGRADE:
+    MY_INFO("%s get version can upgrade response\n", prefix_msg);
+    return MyBaseProcessor::ER_OK;
+
+  case MyClientVersionCheckReply::VER_MISMATCH:
+    MY_ERROR("%s get version mismatch response\n", prefix_msg);
+    return MyBaseProcessor::ER_ERROR;
+
+  case MyClientVersionCheckReply::VER_ACCESS_DENIED:
+    MY_ERROR("%s get access denied response\n", prefix_msg);
+    return MyBaseProcessor::ER_ERROR;
+
+  case MyClientVersionCheckReply::VER_SERVER_BUSY:
+    MY_ERROR("%s get server busy response\n", prefix_msg);
+    return MyBaseProcessor::ER_ERROR;
+
+  default: //server_list
+    MY_ERROR("%s get unknown reply code = %d\n", prefix_msg, vcr.data()->reply_code);
+    return MyBaseProcessor::ER_ERROR;
+  }
+
+}
+
+int MyDistToMiddleProcessor::send_version_check_req()
+{
+  ACE_Message_Block * mb = make_version_check_request_mb();
+  MyClientVersionCheckRequestProc proc;
+  proc.attach(mb->base());
+  proc.data()->client_version = 1;
+  proc.data()->client_id = MyConfigX::instance()->middle_server_key.c_str();
+  return (m_handler->send_data(mb) < 0? -1: 0);
+}
+
+
+//MyDistToMiddleHandler//
+
+MyDistToMiddleHandler::MyDistToMiddleHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
+{
+  m_processor = new MyDistToMiddleProcessor(this);
+  m_load_balance_req_timer_id = -1;
+}
+
+void MyDistToMiddleHandler::setup_timer()
+{
+  ACE_Time_Value interval (LOAD_BALANCE_REQ_INTERVAL * 60);
+  m_load_balance_req_timer_id = reactor()->schedule_timer(this, (void*)LOAD_BALANCE_REQ_TIMER, interval, interval);
+  if (m_load_balance_req_timer_id < 0)
+    MY_ERROR(ACE_TEXT("MyDistToMiddleHandler setup load balance req timer failed, %s"), (const char*)MyErrno());
+}
+
+MyDistToMiddleModule * MyDistToMiddleHandler::module_x() const
+{
+  return (MyDistToMiddleModule *)connector()->module_x();
+}
+
+int MyDistToMiddleHandler::on_open()
+{
+  return 0;
+}
+
+int MyDistToMiddleHandler::handle_timeout(const ACE_Time_Value &current_time, const void *act)
+{
+  ACE_UNUSED_ARG(current_time);
+  if (long(act) == LOAD_BALANCE_REQ_TIMER)
+    return ((MyDistToMiddleProcessor*)m_processor)->send_server_load();
+  else
+  {
+    MY_ERROR("unexpected timer call @MyDistToMiddleHandler::handle_timeout, timer id = %d\n", long(act));
+    return 0;
+  }
+}
+
+void MyDistToMiddleHandler::on_close()
+{
+  if (m_load_balance_req_timer_id >= 0)
+    reactor()->cancel_timer(m_load_balance_req_timer_id);
+}
+
+PREPARE_MEMORY_POOL(MyDistToMiddleHandler);
+
+
+
+//MyDistToMiddleConnector//
+
+MyDistToMiddleConnector::MyDistToMiddleConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
+    MyBaseConnector(_dispatcher, _manager)
+{
+  m_tcp_port = MyConfigX::instance()->middle_server_dist_port;
+  m_reconnect_interval = RECONNECT_INTERVAL;
+  m_tcp_addr = MyConfigX::instance()->middle_server_addr;
+}
+
+const char * MyDistToMiddleConnector::name() const
+{
+  return "MyDistToMiddleConnector";
+}
+
+int MyDistToMiddleConnector::make_svc_handler(MyBaseHandler *& sh)
+{
+  sh = new MyDistToMiddleHandler(m_connection_manager);
+  if (!sh)
+  {
+    MY_ERROR("can not alloc MyDistToMiddleHandler from %s\n", name());
+    return -1;
+  }
+//  MY_DEBUG("MyDistToMiddleConnector::make_svc_handler(%X)...\n", long(sh));
+  sh->parent((void*)this);
+  sh->reactor(reactor());
+  return 0;
+}
+
+
+//MyDistToMiddleDispatcher//
+
+MyDistToMiddleDispatcher::MyDistToMiddleDispatcher(MyBaseModule * pModule, int numThreads):
+    MyBaseDispatcher(pModule, numThreads)
+{
+  m_connector = NULL;
+  m_bs_connector = NULL;
+}
+
+bool MyDistToMiddleDispatcher::on_start()
+{
+  if (!m_connector)
+    m_connector = new MyDistToMiddleConnector(this, new MyBaseConnectionManager());
+  add_connector(m_connector);
+  if (!m_bs_connector)
+    m_bs_connector = new MyDistToBSConnector(this, new MyBaseConnectionManager());
+  add_connector(m_bs_connector);
+  return true;
+}
+
+const char * MyDistToMiddleDispatcher::name() const
+{
+  return "MyDistToMiddleDispatcher";
+}
+
+void MyDistToMiddleDispatcher::on_stop()
+{
+  m_connector = NULL;
+  m_bs_connector = NULL;
+}
+
+
+//MyDistToMiddleModule//
+
+MyDistToMiddleModule::MyDistToMiddleModule(MyBaseApp * app): MyBaseModule(app)
+{
+  m_dispatcher = NULL;
+}
+
+MyDistToMiddleModule::~MyDistToMiddleModule()
+{
+
+}
+
+const char * MyDistToMiddleModule::name() const
+{
+  return "MyDistToMiddleModule";
+}
+
+bool MyDistToMiddleModule::on_start()
+{
+  add_dispatcher(m_dispatcher = new MyDistToMiddleDispatcher(this));
+  return true;
+}
+
+void MyDistToMiddleModule::on_stop()
+{
+  m_dispatcher = NULL;
 }

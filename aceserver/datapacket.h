@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <stddef.h>
 #include <ace/OS_NS_string.h>
+#include <ace/INET_Addr.h>
 
 #include "common.h"
 
@@ -153,12 +154,10 @@ public:
 class MyDataPacketBaseProc
 {
 public:
-  MyDataPacketBaseProc(const char * _data = NULL): m_data((MyDataPacketHeader *)_data), m_data_owner(m_data == NULL)
+  MyDataPacketBaseProc(const char * _data = NULL): m_data((MyDataPacketHeader *)_data)
   {}
   virtual ~MyDataPacketBaseProc()
   {
-    if (m_data_owner && m_data)
-      delete m_data;
   }
   virtual void init_header()
   {
@@ -172,23 +171,20 @@ public:
   {
     return true;
   }
-  void attach(const char * _data, bool own_data = false)
+  void attach(const char * _data)
   //renamed just because gcc 4.4 is not smart enough to distinguish this
   //from the sub-class override and overload version
-  //void data(char * _data, bool own_data = false)
+  //void data(char * _data)
   {
-    if (m_data_owner && m_data)
-      delete m_data;
     m_data = (MyDataPacketHeader *)_data;
-    m_data_owner = own_data;
   }
   virtual MyDataPacketHeader * data() const
   {
     return m_data;
   }
+
 protected:
   MyDataPacketHeader * m_data;
-  bool m_data_owner;
 };
 
 //Heart Beat Packet is just an alias to the Header packet
@@ -342,9 +338,44 @@ public:
 class MyLoadBalanceRequest: public MyDataPacketHeader
 {
 public:
-  char ip_addr[40];
+  enum { IP_ADDR_LENGTH = INET_ADDRSTRLEN };
+  char ip_addr[IP_ADDR_LENGTH];
   int32_t clients_connected;
 };
+
+class MyLoadBalanceRequestProc: public MyDataPacketBaseProc
+{
+public:
+  virtual void init_header()
+  {
+    MyDataPacketBaseProc::init_header();
+    m_data->command = MyDataPacketHeader::CMD_LOAD_BALANCE_REQ;
+  };
+
+  virtual bool validate_header() const
+  {
+    if (!MyDataPacketBaseProc::validate_header())
+      return false;
+    return (m_data->length == (int32_t)sizeof(MyLoadBalanceRequest) &&
+            m_data->command == MyDataPacketHeader::CMD_LOAD_BALANCE_REQ);
+  }
+
+  virtual MyLoadBalanceRequest * data() const
+  {
+    return (MyLoadBalanceRequest *)m_data;
+  }
+
+  void ip_addr(const char * s)
+  {
+    if (unlikely(!m_data))
+      return;
+    if (unlikely(!s || !*s))
+      data()->ip_addr[0] = 0;
+    else
+      ACE_OS::strsncpy(data()->ip_addr, s, MyLoadBalanceRequest::IP_ADDR_LENGTH);
+  }
+};
+
 
 class MyBSBasePacket
 {

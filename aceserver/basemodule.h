@@ -642,7 +642,8 @@ public:
   MyBSBasePacketProcessor(MyBaseHandler * handler);
 
 protected:
-  virtual int header_length();
+  virtual int packet_length();
+
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
 };
 
