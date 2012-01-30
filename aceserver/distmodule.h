@@ -282,14 +282,18 @@ class MyDistToMiddleDispatcher: public MyBaseDispatcher
 public:
   MyDistToMiddleDispatcher(MyBaseModule * pModule, int numThreads = 1);
   virtual const char * name() const;
+  void send_to_bs(ACE_Message_Block * mb);
+  void send_to_middle(ACE_Message_Block * mb);
 
 protected:
   virtual void on_stop();
   virtual bool on_start();
+  virtual bool on_event_loop();
 
 private:
   MyDistToMiddleConnector * m_connector;
   MyDistToBSConnector * m_bs_connector;
+  ACE_Message_Queue<ACE_MT_SYNCH> m_to_bs_queue;
 };
 
 
@@ -310,6 +314,8 @@ public:
   MyDistToMiddleModule(MyBaseApp * app);
   virtual ~MyDistToMiddleModule();
   virtual const char * name() const;
+  void send_to_bs(ACE_Message_Block * mb);
+  void send_to_middle(ACE_Message_Block * mb);
 
 protected:
   virtual bool on_start();

@@ -344,6 +344,7 @@ public:
   void unlock();
   bool locked() const;
   void dump_info();
+  void broadcast(ACE_Message_Block * mb);
 
 protected:
   virtual void do_dump_info();
@@ -824,13 +825,14 @@ protected:
 
   virtual void on_stop();
   virtual bool on_start();
+  virtual bool on_event_loop();
   void add_connector(MyBaseConnector * _connector);
   void add_acceptor(MyBaseAcceptor * _acceptor);
   virtual void do_dump_info();
 
   MyBaseModule * m_module;
   int m_clock_interval;
-  MyConnectors m_connectors;;
+  MyConnectors m_connectors;
   MyAcceptors m_acceptors;
 
 private:

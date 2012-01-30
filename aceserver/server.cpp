@@ -148,6 +148,7 @@ bool MyServerApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
     MyLocationHandler::init_mem_pool(1000);
     MyHttpHandler::init_mem_pool(20);
     MyDistToMiddleHandler::init_mem_pool(20);
+    MyDistToBSHandler::init_mem_pool(20);
   }
   MyMemPoolFactoryX::instance()->init(cfg);
   return app->do_constructor();
@@ -164,6 +165,7 @@ void MyServerApp::app_fini()
   MyDistLoadHandler::fini_mem_pool();
   MyHttpHandler::fini_mem_pool();
   MyDistToMiddleHandler::fini_mem_pool();
+  MyDistToBSHandler::fini_mem_pool();
   MyMemPoolFactoryX::close();
 }
 

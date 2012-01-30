@@ -1001,9 +1001,37 @@ bool MyDistToMiddleDispatcher::on_start()
   return true;
 }
 
+bool MyDistToMiddleDispatcher::on_event_loop()
+{
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  ACE_Message_Block * mb;
+  if (this->getq(mb, &tv) == 0)
+    m_connector->connection_manager()->broadcast(mb);
+
+  tv = ACE_Time_Value::zero;
+  if (m_to_bs_queue.dequeue(mb, &tv) == 0)
+    m_bs_connector->connection_manager()->broadcast(mb);
+
+  return true;
+}
+
 const char * MyDistToMiddleDispatcher::name() const
 {
   return "MyDistToMiddleDispatcher";
+}
+
+void MyDistToMiddleDispatcher::send_to_bs(ACE_Message_Block * mb)
+{
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (m_to_bs_queue.enqueue(mb, &tv) == -1)
+    mb->release();
+}
+
+void MyDistToMiddleDispatcher::send_to_middle(ACE_Message_Block * mb)
+{
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (this->putq(mb, &tv) == -1)
+    mb->release();
 }
 
 void MyDistToMiddleDispatcher::on_stop()
@@ -1028,6 +1056,16 @@ MyDistToMiddleModule::~MyDistToMiddleModule()
 const char * MyDistToMiddleModule::name() const
 {
   return "MyDistToMiddleModule";
+}
+
+void MyDistToMiddleModule::send_to_bs(ACE_Message_Block * mb)
+{
+  m_dispatcher->send_to_bs(mb);
+}
+
+void MyDistToMiddleModule::send_to_middle(ACE_Message_Block * mb)
+{
+  m_dispatcher->send_to_middle(mb);
 }
 
 bool MyDistToMiddleModule::on_start()

@@ -1520,6 +1520,24 @@ void MyBaseConnectionManager::dump_info()
   do_dump_info();
 }
 
+void MyBaseConnectionManager::broadcast(ACE_Message_Block * mb)
+{
+  typedef std::vector<MyBaseHandler *, MyAllocator<MyBaseHandler *> > pointers;
+  pointers ptrs;
+  MyMessageBlockGuard guard(mb);
+
+  MyConnectionsPtr it;
+  for (it = m_active_connections.begin(); it != m_active_connections.end(); ++it)
+  {
+    if (it->first->send_data(mb->duplicate()) < 0)
+      ptrs.push_back(it->first);
+  }
+
+  pointers::iterator it2;
+  for (it2 = ptrs.begin(); it2 != ptrs.end(); ++it2)
+    (*it2)->handle_close(ACE_INVALID_HANDLE, 0);
+}
+
 void MyBaseConnectionManager::do_dump_info()
 {
   const int BUFF_LEN = 1024;
@@ -2242,6 +2260,11 @@ int MyBaseDispatcher::start()
   return activate (THR_NEW_LWP, m_numThreads);
 }
 
+bool MyBaseDispatcher::on_event_loop()
+{
+  return true;
+}
+
 void MyBaseDispatcher::on_stop()
 {
 
@@ -2333,6 +2356,8 @@ int MyBaseDispatcher::svc()
       MY_INFO(ACE_TEXT ("exiting %s::svc() due to %s\n"), name(), (const char*)MyErrno());
       break;
     }
+    if (!on_event_loop())
+      break;
     //MY_DEBUG("    returning from reactor()->handle_events()\n");
   }
 
