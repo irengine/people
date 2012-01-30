@@ -875,6 +875,7 @@ MyDistLoadDispatcher::MyDistLoadDispatcher(MyBaseModule * pModule, int numThread
     MyBaseDispatcher(pModule, numThreads)
 {
   m_acceptor = NULL;
+  m_bs_connector = NULL;
 }
 
 const char * MyDistLoadDispatcher::name() const
@@ -891,6 +892,7 @@ int MyDistLoadDispatcher::handle_timeout(const ACE_Time_Value &, const void *)
 void MyDistLoadDispatcher::on_stop()
 {
   m_acceptor = NULL;
+  m_bs_connector = NULL;
   reactor()->cancel_timer(this);
 }
 
@@ -899,6 +901,9 @@ bool MyDistLoadDispatcher::on_start()
   if (!m_acceptor)
     m_acceptor = new MyDistLoadAcceptor(this, new MyBaseConnectionManager());
   add_acceptor(m_acceptor);
+  if (!m_bs_connector)
+    m_bs_connector = new MyMiddleToBSConnector(this, new MyBaseConnectionManager());
+  add_connector(m_bs_connector);
 
   ACE_Time_Value interval(int(MyDistLoads::DEAD_TIME * 60 / MyBaseApp::CLOCK_INTERVAL / 2));
   if (reactor()->schedule_timer(this, 0, interval, interval) == -1)
@@ -936,4 +941,71 @@ bool MyDistLoadModule::on_start()
 void MyDistLoadModule::on_stop()
 {
   m_dispatcher = NULL;
+}
+
+
+/////////////////////////////////////
+//middle to BS
+/////////////////////////////////////
+
+//MyMiddleToBSProcessor//
+
+MyMiddleToBSProcessor::MyMiddleToBSProcessor(MyBaseHandler * handler): super(handler)
+{
+
+}
+
+
+//MyMiddleToBSHandler//
+
+MyMiddleToBSHandler::MyMiddleToBSHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
+{
+  m_processor = new MyMiddleToBSProcessor(this);
+}
+
+MyDistLoadModule * MyMiddleToBSHandler::module_x() const
+{
+  return (MyDistLoadModule *)connector()->module_x();
+}
+
+int MyMiddleToBSHandler::on_open()
+{
+  return 0;
+}
+
+
+void MyMiddleToBSHandler::on_close()
+{
+
+}
+
+PREPARE_MEMORY_POOL(MyMiddleToBSHandler);
+
+
+//MyMiddleToBSConnector//
+
+MyMiddleToBSConnector::MyMiddleToBSConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
+    MyBaseConnector(_dispatcher, _manager)
+{
+  m_tcp_port = MyConfigX::instance()->bs_server_port;
+  m_reconnect_interval = RECONNECT_INTERVAL;
+  m_tcp_addr = MyConfigX::instance()->bs_server_addr;
+}
+
+const char * MyMiddleToBSConnector::name() const
+{
+  return "MyMiddleToBSConnector";
+}
+
+int MyMiddleToBSConnector::make_svc_handler(MyBaseHandler *& sh)
+{
+  sh = new MyMiddleToBSHandler(m_connection_manager);
+  if (!sh)
+  {
+    MY_ERROR("can not alloc MyMiddleToBSHandler from %s\n", name());
+    return -1;
+  }
+  sh->parent((void*)this);
+  sh->reactor(reactor());
+  return 0;
 }

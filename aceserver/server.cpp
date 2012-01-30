@@ -141,14 +141,17 @@ bool MyServerApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
   if (cfg->run_as_demon)
     MyBaseApp::app_demonize();
   if (cfg->is_dist_server())
+  {
     MyHeartBeatHandler::init_mem_pool(cfg->max_clients);
+    MyDistToMiddleHandler::init_mem_pool(20);
+    MyDistToBSHandler::init_mem_pool(20);
+  }
   if (cfg->is_middle_server())
   {
     MyDistLoadHandler::init_mem_pool(50);
     MyLocationHandler::init_mem_pool(1000);
     MyHttpHandler::init_mem_pool(20);
-    MyDistToMiddleHandler::init_mem_pool(20);
-    MyDistToBSHandler::init_mem_pool(20);
+    MyMiddleToBSHandler::init_mem_pool(20);
   }
   MyMemPoolFactoryX::instance()->init(cfg);
   return app->do_constructor();
@@ -166,6 +169,7 @@ void MyServerApp::app_fini()
   MyHttpHandler::fini_mem_pool();
   MyDistToMiddleHandler::fini_mem_pool();
   MyDistToBSHandler::fini_mem_pool();
+  MyMiddleToBSHandler::fini_mem_pool();
   MyMemPoolFactoryX::close();
 }
 

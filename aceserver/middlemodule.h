@@ -163,7 +163,6 @@ private:
   MyDistLoads m_dist_loads;
   MyLocationService * m_service;
   MyLocationDispatcher *m_dispatcher;
-
 };
 
 //============================//
@@ -266,6 +265,7 @@ private:
 
 class MyDistLoadModule;
 class MyDistLoadAcceptor;
+class MyMiddleToBSConnector;
 
 class MyDistLoadProcessor: public MyBaseServerProcessor
 {
@@ -311,6 +311,7 @@ protected:
 
 private:
   MyDistLoadAcceptor * m_acceptor;
+  MyMiddleToBSConnector * m_bs_connector;
 };
 
 class MyDistLoadAcceptor: public MyBaseAcceptor
@@ -338,6 +339,44 @@ protected:
 private:
   MyDistLoadDispatcher * m_dispatcher;
 };
+
+
+
+/////////////////////////////////////
+//middle to BS
+/////////////////////////////////////
+
+class MyMiddleToBSProcessor: public MyBSBasePacketProcessor
+{
+public:
+  typedef MyBSBasePacketProcessor super;
+
+  MyMiddleToBSProcessor(MyBaseHandler * handler);
+};
+
+class MyMiddleToBSHandler: public MyBaseHandler
+{
+public:
+  MyMiddleToBSHandler(MyBaseConnectionManager * xptr = NULL);
+  MyDistLoadModule * module_x() const;
+  DECLARE_MEMORY_POOL__NOTHROW(MyMiddleToBSHandler, ACE_Thread_Mutex);
+
+protected:
+  virtual void on_close();
+  virtual int  on_open();
+};
+
+class MyMiddleToBSConnector: public MyBaseConnector
+{
+public:
+  MyMiddleToBSConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
+  virtual int make_svc_handler(MyBaseHandler *& sh);
+  virtual const char * name() const;
+
+protected:
+  enum { RECONNECT_INTERVAL = 3 }; //time in minutes
+};
+
 
 
 #endif /* DISTMODULE_H_ */
