@@ -29,8 +29,6 @@ private:
 
 //MyClientToDistProcessor//
 
-//MyPingSubmitter * MyClientToDistProcessor::m_sumbitter = NULL;
-
 MyClientToDistProcessor::MyClientToDistProcessor(MyBaseHandler * handler): MyBaseClientProcessor(handler)
 {
   m_version_check_reply_done = false;
@@ -78,7 +76,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
   if (bVersionCheckReply)
   {
     MyClientVersionCheckReplyProc proc;
-    proc.attach((const char*)m_packet_header);
+    proc.attach((const char*)&m_packet_header);
     if (!proc.validate_header())
     {
       MY_ERROR("failed to validate header for version check\n");
@@ -90,7 +88,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
   if (m_packet_header.command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
   {
     MyServerFileMD5ListProc proc;
-    proc.attach((const char*)m_packet_header);
+    proc.attach((const char*)&m_packet_header);
     if (!proc.validate_header())
     {
       MY_ERROR("failed to validate header for server file md5 list\n");
@@ -201,30 +199,44 @@ int MyClientToDistProcessor::send_version_check_req()
 }
 
 
+//MyDistServerAddrList//
+
 MyDistServerAddrList::MyDistServerAddrList()
 {
   m_index = -1;
+  m_addr_list_len = 0;
 }
 
 void MyDistServerAddrList::addr_list(char *list)
 {
   m_index = -1;
   m_server_addrs.clear();
-  if (!list)
+  m_addr_list_len = 0;
+  m_addr_list.free();
+
+  if (!list || !*list)
     return;
+
+  m_addr_list_len = ACE_OS::strlen(list) + 1;
+  m_addr_list.init_from_string(list);
 
   char seperator[2] = {MyClientVersionCheckReply::SERVER_LIST_SEPERATOR, 0};
   char *str, *token, *saveptr;
 
-//  ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
-  for (str = list; ; str = NULL)
+  for (str = list; ;str = NULL)
   {
     token = strtok_r(str, seperator, &saveptr);
     if (token == NULL)
       break;
     if (!*token)
       continue;
-    m_server_addrs.push_back(token);
+    if (!valid_addr(token))
+      MY_WARNING("skipping invalid dist server addr: %s\n", token);
+    else
+    {
+      MY_INFO("adding dist server addr: %s\n", token);
+      m_server_addrs.push_back(token);
+    }
   }
 }
 
@@ -248,6 +260,47 @@ const char * MyDistServerAddrList::next()
 bool MyDistServerAddrList::empty() const
 {
   return m_server_addrs.empty();
+}
+
+void MyDistServerAddrList::save()
+{
+  if (m_addr_list_len <= 5)
+    return;
+  MyUnixHandleGuard f;
+  MyPooledMemGuard file_name;
+  get_file_name(file_name);
+  if (!f.open_write(file_name.data(), true, true, false))
+    return;
+  if (::write(f.handle(), m_addr_list.data(), m_addr_list_len) != m_addr_list_len)
+    MY_ERROR("write to file %s failed %s\n", file_name.data(), (const char*)MyErrno());
+}
+
+void MyDistServerAddrList::load()
+{
+  MyUnixHandleGuard f;
+  MyPooledMemGuard file_name;
+  get_file_name(file_name);
+  if (!f.open_read(file_name.data()))
+    return;
+  const int BUFF_SIZE = 2048;
+  char buff[BUFF_SIZE];
+  int n = ::read(f.handle(), buff, BUFF_SIZE);
+  if (n <= 0)
+    return;
+  buff[n - 1] = 0;
+  addr_list(buff);
+}
+
+void MyDistServerAddrList::get_file_name(MyPooledMemGuard & file_name)
+{
+  const char * const_file_name = "/config/servers.lst";
+  file_name.init_from_string(MyConfigX::instance()->app_path.c_str(), const_file_name);
+}
+
+bool MyDistServerAddrList::valid_addr(const char * addr) const
+{
+  struct in_addr ia;
+  return (::inet_pton(AF_INET, addr, &ia) == 1);
 }
 
 
@@ -304,7 +357,6 @@ void MyClientToDistHandler::on_close()
         ((MyClientToDistProcessor*)m_processor)->client_id().as_string()
       );
 #endif
-//  MY_INFO("MyClientToDistHandler::on_close. this = %d\n", long(this));
 }
 
 PREPARE_MEMORY_POOL(MyClientToDistHandler);
@@ -434,12 +486,13 @@ int MyClientToDistConnector::make_svc_handler(MyBaseHandler *& sh)
 
 bool MyClientToDistConnector::before_reconnect()
 {
-#if 0
   if (m_reconnect_retry_count <= 3)
     return true;
 
   MyDistServerAddrList & addr_list = ((MyClientToDistModule*)(m_module))->server_addr_list();
   const char * new_addr = addr_list.next();
+  if (!new_addr || !*new_addr)
+    new_addr = addr_list.begin();
   if (new_addr && *new_addr)
   {
     MY_INFO("maximum connect to %s:%d retry count reached , now trying next addr %s:%d...\n",
@@ -447,7 +500,6 @@ bool MyClientToDistConnector::before_reconnect()
     m_tcp_addr = new_addr;
     m_reconnect_retry_count = 1;
   }
-#endif
   return true;
 }
 
@@ -458,10 +510,33 @@ MyClientToDistDispatcher::MyClientToDistDispatcher(MyBaseModule * pModule, int n
     MyBaseDispatcher(pModule, numThreads)
 {
   m_connector = NULL;
+  m_middle_connector = NULL;
 }
 
 bool MyClientToDistDispatcher::on_start()
 {
+  m_middle_connector = new MyClientToMiddleConnector(this, new MyBaseConnectionManager());
+  add_connector(m_middle_connector);
+  return true;
+}
+
+const char * MyClientToDistDispatcher::name() const
+{
+  return "MyClientToDistDispatcher";
+}
+
+void MyClientToDistDispatcher::ask_for_server_addr_list_done(bool success)
+{
+  if (!success)
+    ((MyClientToDistModule*)m_module)->server_addr_list().load();
+
+  if (((MyClientToDistModule*)m_module)->server_addr_list().empty())
+  {
+    MY_ERROR("no dist server addresses exist @%s\n", name());
+    return;
+  }
+
+  MY_INFO("starting connection to dist server from addr list...\n");
   if (!m_connector)
     m_connector = new MyClientToDistConnector(this,
 #ifdef MY_client_test
@@ -472,17 +547,13 @@ bool MyClientToDistDispatcher::on_start()
          new MyBaseConnectionManager());
 #endif
   add_connector(m_connector);
-  return true;
-}
-
-const char * MyClientToDistDispatcher::name() const
-{
-  return "MyClientToDistDispatcher";
+  m_connector->start();
 }
 
 void MyClientToDistDispatcher::on_stop()
 {
   m_connector = NULL;
+  m_middle_connector = NULL;
 }
 
 
@@ -502,6 +573,12 @@ MyClientToDistModule::~MyClientToDistModule()
 const char * MyClientToDistModule::name() const
 {
   return "MyClientToDistModule";
+}
+
+void MyClientToDistModule::ask_for_server_addr_list_done(bool success)
+{
+  MY_INFO("get dist server list done: %s\n", (success? "OK": "Failed"));
+  m_dispatcher->ask_for_server_addr_list_done(success);
 }
 
 bool MyClientToDistModule::on_start()
@@ -524,3 +601,225 @@ MyDistServerAddrList & MyClientToDistModule::server_addr_list()
 }
 
 
+/////////////////////////////////////
+//client to middle
+/////////////////////////////////////
+
+//MyClientToMiddleProcessor//
+
+MyClientToMiddleProcessor::MyClientToMiddleProcessor(MyBaseHandler * handler): MyBaseClientProcessor(handler)
+{
+
+}
+
+int MyClientToMiddleProcessor::on_open()
+{
+  if (super::on_open() < 0)
+    return -1;
+
+#ifdef MY_client_test
+  const char * myid = ((MyTestClientToDistConnectionManager*)m_handler->connection_manager())->id_generator().get();
+  if (!myid)
+  {
+    MY_ERROR(ACE_TEXT("can not fetch a test client id @MyClientToDistHandler::open\n"));
+    return -1;
+  }
+  client_id(myid);
+  m_client_id_index = MyClientAppX::instance()->client_id_table().index_of(myid);
+  if (m_client_id_index < 0)
+  {
+    MY_ERROR("MyClientToDistProcessor::on_open() can not find client_id_index for id = %s\n", myid);
+    return -1;
+  }
+  m_handler->connection_manager()->set_connection_client_id_index(m_handler, m_client_id_index);
+  ((MyTestClientToDistConnectionManager*)m_handler->connection_manager())->id_generator().put(myid);
+#endif
+
+  return send_version_check_req();
+}
+
+MyBaseProcessor::EVENT_RESULT MyClientToMiddleProcessor::on_recv_header()
+{
+  MyBaseProcessor::EVENT_RESULT result = super::on_recv_header();
+  if (result != ER_CONTINUE)
+    return ER_ERROR;
+
+  bool bVersionCheckReply = m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY;
+
+  if (bVersionCheckReply)
+  {
+    MyClientVersionCheckReplyProc proc;
+    proc.attach((const char*)&m_packet_header);
+    if (!proc.validate_header())
+    {
+      MY_ERROR("failed to validate header for version check reply\n");
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
+  MY_ERROR("unexpected packet header from dist server, header.command = %d\n", m_packet_header.command);
+  return ER_ERROR;
+}
+
+MyBaseProcessor::EVENT_RESULT MyClientToMiddleProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+{
+  MyBasePacketProcessor::on_recv_packet_i(mb);
+  m_wait_for_close = true;
+  MyMessageBlockGuard guard(mb);
+
+  MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
+  if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY)
+    do_version_check_reply(mb);
+  else
+    MY_ERROR("unsupported command received @MyClientToDistProcessor::on_recv_packet_i(), command = %d\n",
+        header->command);
+  return ER_ERROR;
+}
+
+void MyClientToMiddleProcessor::do_version_check_reply(ACE_Message_Block * mb)
+{
+  const char * prefix_msg = "middle server version check reply:";
+  MyClientVersionCheckReplyProc vcr;
+  vcr.attach(mb->base());
+  switch (vcr.data()->reply_code)
+  {
+  case MyClientVersionCheckReply::VER_MISMATCH:
+    MY_ERROR("%s get version mismatch response\n", prefix_msg);
+    return;
+
+  case MyClientVersionCheckReply::VER_ACCESS_DENIED:
+    MY_ERROR("%s get access denied response\n", prefix_msg);
+    return;
+
+  case MyClientVersionCheckReply::VER_SERVER_BUSY:
+    MY_ERROR("%s get server busy response\n", prefix_msg);
+    return;
+
+  case MyClientVersionCheckReply::VER_SERVER_LIST:
+    do_handle_server_list(mb);
+    return;
+
+  default:
+    MY_ERROR("%s get unexpected reply code = %d\n", prefix_msg, vcr.data()->reply_code);
+    return;
+  }
+}
+
+void MyClientToMiddleProcessor::do_handle_server_list(ACE_Message_Block * mb)
+{
+  MyClientVersionCheckReply * vcr = (MyClientVersionCheckReply *)mb->base();
+  int len = mb->length();
+  if (unlikely(len <= (int)sizeof(MyClientVersionCheckReply)))
+    return;
+  ((char*)vcr)[len - 1] = 0;
+  MyClientToDistModule * module = MyClientAppX::instance()->client_to_dist_module();
+  module->server_addr_list().addr_list(vcr->data);
+  module->server_addr_list().save();
+  module->ask_for_server_addr_list_done(true);
+}
+
+int MyClientToMiddleProcessor::send_version_check_req()
+{
+  ACE_Message_Block * mb = make_version_check_request_mb();
+  MyClientVersionCheckRequestProc proc;
+  proc.attach(mb->base());
+  proc.data()->client_version = const_client_version;
+  proc.data()->client_id = m_client_id;
+  return (m_handler->send_data(mb) < 0? -1: 0);
+}
+
+
+//MyClientToMiddleHandler//
+
+MyClientToMiddleHandler::MyClientToMiddleHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
+{
+  m_processor = new MyClientToMiddleProcessor(this);
+  m_timer_out_timer_id = -1;
+}
+
+void MyClientToMiddleHandler::setup_timer()
+{
+  ACE_Time_Value interval (MyConfigX::instance()->client_heart_beat_interval);
+  m_timer_out_timer_id = reactor()->schedule_timer(this, (void*)TIMER_OUT_TIMER, interval, interval);
+  if (m_timer_out_timer_id < 0)
+    MY_ERROR(ACE_TEXT("MyClientToDistHandler setup heart beat timer failed, %s"), (const char*)MyErrno());
+}
+
+MyClientToDistModule * MyClientToMiddleHandler::module_x() const
+{
+  return (MyClientToDistModule *)connector()->module_x();
+}
+
+int MyClientToMiddleHandler::on_open()
+{
+  return 0;
+}
+
+int MyClientToMiddleHandler::handle_timeout(const ACE_Time_Value &current_time, const void *act)
+{
+  ACE_UNUSED_ARG(current_time);
+  if (long(act) != TIMER_OUT_TIMER)
+    MY_ERROR("unexpected timer call @MyClientToMiddleHandler::handle_timeout, timer id = %d\n", long(act));
+  return handle_close();
+}
+
+void MyClientToMiddleHandler::on_close()
+{
+
+}
+
+PREPARE_MEMORY_POOL(MyClientToMiddleHandler);
+
+
+//MyClientToMiddleConnector//
+
+MyClientToMiddleConnector::MyClientToMiddleConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
+    MyBaseConnector(_dispatcher, _manager)
+{
+  m_tcp_port = MyConfigX::instance()->middle_server_client_port;
+  m_tcp_addr = MyConfigX::instance()->middle_server_addr;
+  m_reconnect_interval = RECONNECT_INTERVAL;
+  m_retried_count = 0;
+}
+
+const char * MyClientToMiddleConnector::name() const
+{
+  return "MyClientToMiddleConnector";
+}
+
+int MyClientToMiddleConnector::make_svc_handler(MyBaseHandler *& sh)
+{
+  sh = new MyClientToMiddleHandler(m_connection_manager);
+  if (!sh)
+  {
+    MY_ERROR("can not alloc MyClientToMiddleHandler from %s\n", name());
+    return -1;
+  }
+  sh->parent((void*)this);
+  sh->reactor(reactor());
+  return 0;
+}
+
+bool MyClientToMiddleConnector::before_reconnect()
+{
+  ++m_retried_count;
+  if (m_retried_count <= MAX_CONNECT_RETRY_COUNT)
+    return true;
+
+  m_reconnect_interval = 0;
+  m_idle_time_as_dead = 0;
+  if (m_reconnect_timer_id >= 0)
+  {
+    reactor()->cancel_timer(m_reconnect_timer_id);
+    m_reconnect_timer_id = -1;
+  }
+  if (m_idle_connection_timer_id >= 0)
+  {
+    reactor()->cancel_timer(m_idle_connection_timer_id);
+    m_idle_connection_timer_id = -1;
+  }
+
+  MyClientAppX::instance()->client_to_dist_module()->ask_for_server_addr_list_done(false);
+  return false;
+}

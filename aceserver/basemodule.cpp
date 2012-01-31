@@ -1024,6 +1024,11 @@ bool MyBaseProcessor::wait_for_close() const
   return m_wait_for_close;
 }
 
+void MyBaseProcessor::prepare_to_close()
+{
+  m_wait_for_close = true;
+}
+
 int MyBaseProcessor::handle_input()
 {
   return 0;
@@ -1909,7 +1914,6 @@ const char * MyBaseAcceptor::name() const
 }
 
 
-//////////////
 //MyBaseAcceptor//
 
 MyBaseConnector::MyBaseConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
@@ -1918,7 +1922,7 @@ MyBaseConnector::MyBaseConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectio
   m_tcp_port = 0;
   m_num_connection = 1;
   m_reconnect_interval = 0;
-  m_reconnect_retry_count = 3;
+  m_reconnect_retry_count = 0;
   m_reconnect_timer_id = -1;
   m_module = m_dispatcher->module_x();
   m_idle_time_as_dead = 0; //in minutes
@@ -1992,10 +1996,12 @@ void MyBaseConnector::on_stop()
 int MyBaseConnector::start()
 {
   m_connection_manager->unlock();
+#ifdef MY_client_test
   m_remain_to_connect = 0;
+#endif
   if (open(m_dispatcher->reactor(), ACE_NONBLOCK) == -1)
     return -1;
-  m_reconnect_retry_count = 1;
+  m_reconnect_retry_count = 0;
 
   if (m_tcp_port <= 0)
   {

@@ -297,7 +297,7 @@ public:
   virtual int open (void * p = 0);
   virtual int handle_input(ACE_HANDLE fd = ACE_INVALID_HANDLE);
   virtual int handle_output(ACE_HANDLE fd = ACE_INVALID_HANDLE);
-  virtual int handle_close(ACE_HANDLE handle, ACE_Reactor_Mask close_mask);
+  virtual int handle_close(ACE_HANDLE = ACE_INVALID_HANDLE, ACE_Reactor_Mask = ACE_Event_Handler::ALL_EVENTS_MASK);
   virtual ~MyBaseHandler();
 
   MyBaseConnectionManager * connection_manager();
@@ -408,6 +408,7 @@ public:
   virtual void on_close();
   virtual int handle_input();
   bool wait_for_close() const;
+  void prepare_to_close();
 
   bool dead() const;
   void update_last_activity();
@@ -742,7 +743,6 @@ public:
   MyBaseModule * module_x() const;
   MyBaseConnectionManager * connection_manager() const;
   MyBaseDispatcher * dispatcher() const;
-  MyBaseHandler * unique_handler() const;
   void tcp_addr(const char * addr);
   int start();
   int stop();
