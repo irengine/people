@@ -4,8 +4,10 @@ SRC=$(addsuffix .cpp,$(FILES))
 OBJ=$(addsuffix .o,$(FILES))
 BUILD=$(VBIN)
 LIBS=-lACE -lbz2
-CPPFLAGS=-O0 -g -I../aceserver
+CPPFLAGS=-I../aceserver
 VLDLIBS=$(LDLIBS:%=%$(VAR))
+debug=1
+optimize=0
 #---------------------------------------------------------
 # Include macros and targets
 #---------------------------------------------------------

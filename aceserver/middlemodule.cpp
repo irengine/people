@@ -765,7 +765,7 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
   {
     MyLoadBalanceRequestProc proc;
     proc.attach((const char*)&m_packet_header);
-    bool result = proc.validate_data();
+    bool result = proc.validate_header();
     if (!result)
     {
       MY_ERROR("bad load_balance packet received from %s\n", info_string().c_str());
@@ -807,7 +807,9 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::do_version_check(ACE_Message_
     return ER_ERROR;
   }
   m_client_id_verified = true;
-  return ER_OK;
+
+  ACE_Message_Block * reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK);
+  return (m_handler->send_data(reply_mb) < 0 ? ER_ERROR: ER_OK);
 }
 
 bool MyDistLoadProcessor::client_id_verified() const

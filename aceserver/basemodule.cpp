@@ -2005,23 +2005,28 @@ int MyBaseConnector::start()
 
   if (m_tcp_port <= 0)
   {
-    MY_FATAL(ACE_TEXT ("attempt to connect to an invalid port %d\n"), m_tcp_port);
+    MY_FATAL(ACE_TEXT ("attempt to connect to an invalid port %d @%s\n"), m_tcp_port, name());
     return -1;
   }
 
   if (m_tcp_addr.length() == 0)
   {
-    MY_FATAL(ACE_TEXT ("attempt to connect to an NULL host\n"));
+    MY_FATAL(ACE_TEXT ("attempt to connect to an NULL host from @%s\n"), name());
     return -1;
   }
 
-  do_connect(m_num_connection, true);
+  if (before_reconnect())
+  {
+    m_reconnect_retry_count++;
+    do_connect(m_num_connection, true);
+  }
+
   if (m_reconnect_interval > 0)
   {
     ACE_Time_Value interval (m_reconnect_interval * 60);
     m_reconnect_timer_id = reactor()->schedule_timer (this, (void*)TIMER_ID_reconnect, interval, interval);
     if (m_reconnect_timer_id < 0)
-      MY_ERROR(ACE_TEXT("MyBaseConnector setup reconnect timer failed, %s"), (const char*)MyErrno());
+      MY_ERROR(ACE_TEXT("%s setup reconnect timer failed, %s\n"), name(), (const char*)MyErrno());
   }
 
   if (m_idle_time_as_dead > 0)
@@ -2135,7 +2140,7 @@ int MyBaseConnector::do_connect(int count, bool bNew)
   else if (bNew)
     m_remain_to_connect = count - true_count;
 
-  MY_INFO(ACE_TEXT("connecting on %s:%d (total=%d, ok=%d, failed=%d, pending=%d)... \n"),
+  MY_INFO(ACE_TEXT("connecting to %s:%d (total=%d, ok=%d, failed=%d, pending=%d)... \n"),
       m_tcp_addr.c_str(), m_tcp_port, true_count, ok_count, true_count - ok_count- pending_count, pending_count);
 
   return ok_count + pending_count > 0;
@@ -2145,6 +2150,7 @@ int MyBaseConnector::do_connect(int count, bool bNew)
   MyBaseHandler * handler = NULL;
   ACE_Time_Value timeout(30);
   ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
+  MY_INFO(ACE_TEXT("connecting to %s:%d ...\n"), m_tcp_addr.c_str(), m_tcp_port);
   if (connect(handler, port_to_connect, synch_options) == -1)
   {
     if (errno == EWOULDBLOCK)

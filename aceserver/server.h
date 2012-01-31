@@ -12,6 +12,7 @@
 #include "baseapp.h"
 #include "dbmodule.h"
 #include "middlemodule.h"
+#include "distmodule.h"
 
 class MyHeartBeatModule;
 class MyLocationModule;
@@ -28,6 +29,7 @@ public:
   MyDistLoadModule * dist_load_module() const;
   MyHttpModule * http_module() const;
   MyLocationModule * location_module() const;
+  MyDistToMiddleModule * dist_to_middle_module() const;
   MyDB & db();
 
   static bool app_init(const char * app_home_path = NULL, MyConfig::RUNNING_MODE mode = MyConfig::RM_UNKNOWN);
@@ -45,6 +47,7 @@ private:
   MyLocationModule * m_location_module;
   MyDistLoadModule * m_dist_load_module;
   MyHttpModule     * m_http_module;
+  MyDistToMiddleModule * m_dist_to_middle_module;
   MyClientIDTable m_client_id_table;
   MyDB  m_db;
 };

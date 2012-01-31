@@ -96,6 +96,7 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
 #else
   MyClientToDistHandler::init_mem_pool(100);
 #endif
+  MyClientToMiddleHandler::init_mem_pool(20);
   MyMemPoolFactoryX::instance()->init(cfg);
   return app->do_constructor();
 }
@@ -107,14 +108,15 @@ void MyClientApp::app_fini()
   MyConfigX::close();
   dump_mem_pool_info(); //only mem pool info, other objects should gone by now
   MyClientToDistHandler::fini_mem_pool();
+  MyClientToMiddleHandler::fini_mem_pool();
   MyMemPoolFactoryX::close();
 }
 
 
 int main(int argc, const char * argv[])
 {
-  ACE_UNUSED_ARG(argc);
-  ACE_UNUSED_ARG(argv);
+//  ACE_UNUSED_ARG(argc);
+//  ACE_UNUSED_ARG(argv);
   ACE_Sig_Action no_sigpipe ((ACE_SignalHandler) SIG_IGN);
   ACE_Sig_Action original_action;
   no_sigpipe.register_action (SIGPIPE, &original_action);

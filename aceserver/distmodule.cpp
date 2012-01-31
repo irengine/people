@@ -803,18 +803,6 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::on_recv_header()
     return ER_OK;
   }
 
-  if (m_packet_header.command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
-  {
-    MyServerFileMD5ListProc proc;
-    proc.attach((const char*)&m_packet_header);
-    if (!proc.validate_header())
-    {
-      MY_ERROR("failed to validate header for server file md5 list\n");
-      return ER_ERROR;
-    }
-    return ER_OK;
-  }
-
   MY_ERROR("unexpected packet header from dist server, header.command = %d\n", m_packet_header.command);
   return ER_ERROR;
 }
@@ -828,6 +816,7 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::on_recv_packet_i(ACE_Mess
   if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY)
   {
     MyBaseProcessor::EVENT_RESULT result = do_version_check_reply(mb);
+    MY_INFO("handshake response from middle server: %s\n", (result == ER_OK? "OK":"Failed"));
     if (result == ER_OK)
     {
       ((MyDistToMiddleHandler*)m_handler)->setup_timer();
@@ -853,6 +842,7 @@ int MyDistToMiddleProcessor::send_server_load()
   proc.ip_addr(m_local_addr);
   proc.data()->clients_connected = MyServerAppX::instance()->heart_beat_module()->num_active_clients();
   mb->wr_ptr(sizeof(MyLoadBalanceRequest));
+  MY_INFO("sending dist server load number [%d] to middle server...\n", proc.data()->clients_connected);
   return (m_handler->send_data(mb) < 0 ? -1: 0);
 }
 
@@ -899,6 +889,7 @@ int MyDistToMiddleProcessor::send_version_check_req()
   proc.attach(mb->base());
   proc.data()->client_version = 1;
   proc.data()->client_id = MyConfigX::instance()->middle_server_key.c_str();
+  MY_INFO("sending handshake request to middle server...\n");
   return (m_handler->send_data(mb) < 0? -1: 0);
 }
 
@@ -913,8 +904,9 @@ MyDistToMiddleHandler::MyDistToMiddleHandler(MyBaseConnectionManager * xptr): My
 
 void MyDistToMiddleHandler::setup_timer()
 {
-  ACE_Time_Value interval (LOAD_BALANCE_REQ_INTERVAL * 60);
-  m_load_balance_req_timer_id = reactor()->schedule_timer(this, (void*)LOAD_BALANCE_REQ_TIMER, interval, interval);
+  ACE_Time_Value tv_start(ACE_Time_Value::zero);
+  ACE_Time_Value interval(LOAD_BALANCE_REQ_INTERVAL * 60);
+  m_load_balance_req_timer_id = reactor()->schedule_timer(this, (void*)LOAD_BALANCE_REQ_TIMER, tv_start, interval);
   if (m_load_balance_req_timer_id < 0)
     MY_ERROR(ACE_TEXT("MyDistToMiddleHandler setup load balance req timer failed, %s"), (const char*)MyErrno());
 }

@@ -350,6 +350,7 @@ public:
   {
     MyDataPacketBaseProc::init_header();
     m_data->command = MyDataPacketHeader::CMD_LOAD_BALANCE_REQ;
+    m_data->length = (int32_t)sizeof(MyLoadBalanceRequest);
   };
 
   virtual bool validate_header() const

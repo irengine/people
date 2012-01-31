@@ -116,6 +116,7 @@ public:
   MyClientToDistConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
   virtual int make_svc_handler(MyBaseHandler *& sh);
   virtual const char * name() const;
+  void dist_server_addr(const char * addr);
 
 protected:
   enum { RECONNECT_INTERVAL = 3 }; //time in minutes
@@ -134,6 +135,12 @@ public:
   }
   virtual const char * name() const;
   void ask_for_server_addr_list_done(bool success);
+#ifdef MY_client_test
+  MyTestClientIDGenerator & id_generator()
+  {
+    return m_id_generator;
+  }
+#endif
 
 protected:
   virtual bool on_start();
@@ -143,6 +150,10 @@ private:
   MyDistServerAddrList m_server_addr_list;
   MyClientToDistService * m_service;
   MyClientToDistDispatcher *m_dispatcher;
+
+#ifdef MY_client_test
+  MyTestClientIDGenerator m_id_generator;
+#endif
 };
 
 /////////////////////////////////////
@@ -192,6 +203,7 @@ public:
   MyClientToMiddleConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
   virtual int make_svc_handler(MyBaseHandler *& sh);
   virtual const char * name() const;
+  void finish();
 
 protected:
   virtual bool before_reconnect();

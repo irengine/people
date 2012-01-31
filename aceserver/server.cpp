@@ -51,6 +51,11 @@ MyLocationModule * MyServerApp::location_module() const
   return m_location_module;
 }
 
+MyDistToMiddleModule * MyServerApp::dist_to_middle_module() const
+{
+  return m_dist_to_middle_module;
+}
+
 MyDB & MyServerApp::db()
 {
   return m_db;
@@ -119,6 +124,7 @@ bool MyServerApp::on_construct()
     add_module(m_heart_beat_module = new MyHeartBeatModule(this));
     if (cfg->remote_access_port > 0)
       add_module(new MyDistRemoteAccessModule(this));
+    add_module(m_dist_to_middle_module = new MyDistToMiddleModule(this));
   }
   if (cfg->is_middle_server())
   {

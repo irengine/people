@@ -9,24 +9,6 @@
 #include "baseapp.h"
 #include "client.h"
 
-#ifdef MY_client_test
-
-class MyTestClientToDistConnectionManager: public MyBaseConnectionManager
-{
-public:
-  MyTestClientToDistConnectionManager(int64_t start_id, int count):m_id_generator(start_id, count)
-  {}
-  MyTestClientIDGenerator & id_generator()
-  {
-    return m_id_generator;
-  }
-
-private:
-  MyTestClientIDGenerator m_id_generator;
-};
-
-#endif
-
 //MyClientToDistProcessor//
 
 MyClientToDistProcessor::MyClientToDistProcessor(MyBaseHandler * handler): MyBaseClientProcessor(handler)
@@ -40,7 +22,7 @@ int MyClientToDistProcessor::on_open()
     return -1;
 
 #ifdef MY_client_test
-  const char * myid = ((MyTestClientToDistConnectionManager*)m_handler->connection_manager())->id_generator().get();
+  const char * myid = MyClientAppX::instance()->client_to_dist_module()->id_generator().get();
   if (!myid)
   {
     MY_ERROR(ACE_TEXT("can not fetch a test client id @MyClientToDistHandler::open\n"));
@@ -352,7 +334,7 @@ void MyClientToDistHandler::on_close()
 #ifdef MY_client_test
   if (m_connection_manager->locked())
     return;
-  ((MyTestClientToDistConnectionManager*)m_connection_manager)->id_generator().put
+  MyClientAppX::instance()->client_to_dist_module()->id_generator().put
       (
         ((MyClientToDistProcessor*)m_processor)->client_id().as_string()
       );
@@ -457,10 +439,9 @@ MyClientToDistConnector::MyClientToDistConnector(MyBaseDispatcher * _dispatcher,
     MyBaseConnector(_dispatcher, _manager)
 {
   m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
-  //m_tcp_addr = "localhost"; //todo
   m_reconnect_interval = RECONNECT_INTERVAL;
 #ifdef MY_client_test
-  m_tcp_addr = MyConfigX::instance()->dist_server_addr;
+//  m_tcp_addr = MyConfigX::instance()->dist_server_addr;
   m_num_connection = MyConfigX::instance()->test_client_connection_number;
 #endif
 }
@@ -468,6 +449,12 @@ MyClientToDistConnector::MyClientToDistConnector(MyBaseDispatcher * _dispatcher,
 const char * MyClientToDistConnector::name() const
 {
   return "MyClientToDistConnector";
+}
+
+void MyClientToDistConnector::dist_server_addr(const char * addr)
+{
+  if (likely(addr != NULL))
+    m_tcp_addr = addr;
 }
 
 int MyClientToDistConnector::make_svc_handler(MyBaseHandler *& sh)
@@ -495,6 +482,8 @@ bool MyClientToDistConnector::before_reconnect()
     new_addr = addr_list.begin();
   if (new_addr && *new_addr)
   {
+    if (ACE_OS::strcmp("127.0.0.1", new_addr) == 0)
+      new_addr = MyConfigX::instance()->middle_server_addr.c_str();
     MY_INFO("maximum connect to %s:%d retry count reached , now trying next addr %s:%d...\n",
         m_tcp_addr.c_str(), m_tcp_port, new_addr, m_tcp_port);
     m_tcp_addr = new_addr;
@@ -527,10 +516,15 @@ const char * MyClientToDistDispatcher::name() const
 
 void MyClientToDistDispatcher::ask_for_server_addr_list_done(bool success)
 {
+  m_middle_connector->finish();
+  MyDistServerAddrList & addr_list = ((MyClientToDistModule*)m_module)->server_addr_list();
   if (!success)
-    ((MyClientToDistModule*)m_module)->server_addr_list().load();
+  {
+    MY_INFO("failed to get any dist server addr from middle server, trying local cache...\n");
+    addr_list.load();
+  }
 
-  if (((MyClientToDistModule*)m_module)->server_addr_list().empty())
+  if (addr_list.empty())
   {
     MY_ERROR("no dist server addresses exist @%s\n", name());
     return;
@@ -538,15 +532,12 @@ void MyClientToDistDispatcher::ask_for_server_addr_list_done(bool success)
 
   MY_INFO("starting connection to dist server from addr list...\n");
   if (!m_connector)
-    m_connector = new MyClientToDistConnector(this,
-#ifdef MY_client_test
-         new MyTestClientToDistConnectionManager(
-             MyConfigX::instance()->test_client_start_client_id,
-             MyConfigX::instance()->test_client_connection_number));
-#else
-         new MyBaseConnectionManager());
-#endif
+    m_connector = new MyClientToDistConnector(this, new MyBaseConnectionManager());
   add_connector(m_connector);
+  const char * addr = addr_list.begin();
+  if (ACE_OS::strcmp("127.0.0.1", addr) == 0)
+        addr = MyConfigX::instance()->middle_server_addr.c_str();
+  m_connector->dist_server_addr(addr);
   m_connector->start();
 }
 
@@ -560,6 +551,10 @@ void MyClientToDistDispatcher::on_stop()
 //MyClientToDistModule//
 
 MyClientToDistModule::MyClientToDistModule(MyBaseApp * app): MyBaseModule(app)
+#ifdef MY_client_test
+   , m_id_generator(MyConfigX::instance()->test_client_start_client_id,
+                    MyConfigX::instance()->test_client_connection_number)
+#endif
 {
   m_service = NULL;
   m_dispatcher = NULL;
@@ -577,7 +572,6 @@ const char * MyClientToDistModule::name() const
 
 void MyClientToDistModule::ask_for_server_addr_list_done(bool success)
 {
-  MY_INFO("get dist server list done: %s\n", (success? "OK": "Failed"));
   m_dispatcher->ask_for_server_addr_list_done(success);
 }
 
@@ -618,7 +612,8 @@ int MyClientToMiddleProcessor::on_open()
     return -1;
 
 #ifdef MY_client_test
-  const char * myid = ((MyTestClientToDistConnectionManager*)m_handler->connection_manager())->id_generator().get();
+  MyTestClientIDGenerator & id_generator = MyClientAppX::instance()->client_to_dist_module()->id_generator();
+  const char * myid = id_generator.get();
   if (!myid)
   {
     MY_ERROR(ACE_TEXT("can not fetch a test client id @MyClientToDistHandler::open\n"));
@@ -632,7 +627,7 @@ int MyClientToMiddleProcessor::on_open()
     return -1;
   }
   m_handler->connection_manager()->set_connection_client_id_index(m_handler, m_client_id_index);
-  ((MyTestClientToDistConnectionManager*)m_handler->connection_manager())->id_generator().put(myid);
+  id_generator.put(myid);
 #endif
 
   return send_version_check_req();
@@ -709,12 +704,18 @@ void MyClientToMiddleProcessor::do_version_check_reply(ACE_Message_Block * mb)
 void MyClientToMiddleProcessor::do_handle_server_list(ACE_Message_Block * mb)
 {
   MyClientVersionCheckReply * vcr = (MyClientVersionCheckReply *)mb->base();
-  int len = mb->length();
-  if (unlikely(len <= (int)sizeof(MyClientVersionCheckReply)))
-    return;
-  ((char*)vcr)[len - 1] = 0;
   MyClientToDistModule * module = MyClientAppX::instance()->client_to_dist_module();
+  int len = vcr->length;
+  if (len == (int)sizeof(MyClientVersionCheckReply))
+  {
+    MY_WARNING("middle server returns empty dist server addr list\n");
+    module->ask_for_server_addr_list_done(false);
+    return;
+  }
+  ((char*)vcr)[len - 1] = 0;
+
   module->server_addr_list().addr_list(vcr->data);
+  MY_INFO("middle server returns dist server addr list as: %s\n", vcr->data);
   module->server_addr_list().save();
   module->ask_for_server_addr_list_done(true);
 }
@@ -726,6 +727,7 @@ int MyClientToMiddleProcessor::send_version_check_req()
   proc.attach(mb->base());
   proc.data()->client_version = const_client_version;
   proc.data()->client_id = m_client_id;
+  MY_INFO("sending handshake request to middle server...\n");
   return (m_handler->send_data(mb) < 0? -1: 0);
 }
 
@@ -788,6 +790,22 @@ const char * MyClientToMiddleConnector::name() const
   return "MyClientToMiddleConnector";
 }
 
+void MyClientToMiddleConnector::finish()
+{
+  m_reconnect_interval = 0;
+  m_idle_time_as_dead = 0;
+  if (m_reconnect_timer_id >= 0)
+  {
+    reactor()->cancel_timer(m_reconnect_timer_id);
+    m_reconnect_timer_id = -1;
+  }
+  if (m_idle_connection_timer_id >= 0)
+  {
+    reactor()->cancel_timer(m_idle_connection_timer_id);
+    m_idle_connection_timer_id = -1;
+  }
+}
+
 int MyClientToMiddleConnector::make_svc_handler(MyBaseHandler *& sh)
 {
   sh = new MyClientToMiddleHandler(m_connection_manager);
@@ -807,19 +825,7 @@ bool MyClientToMiddleConnector::before_reconnect()
   if (m_retried_count <= MAX_CONNECT_RETRY_COUNT)
     return true;
 
-  m_reconnect_interval = 0;
-  m_idle_time_as_dead = 0;
-  if (m_reconnect_timer_id >= 0)
-  {
-    reactor()->cancel_timer(m_reconnect_timer_id);
-    m_reconnect_timer_id = -1;
-  }
-  if (m_idle_connection_timer_id >= 0)
-  {
-    reactor()->cancel_timer(m_idle_connection_timer_id);
-    m_idle_connection_timer_id = -1;
-  }
-
+  finish();
   MyClientAppX::instance()->client_to_dist_module()->ask_for_server_addr_list_done(false);
   return false;
 }
