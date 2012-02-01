@@ -193,6 +193,7 @@ void MyDistServerAddrList::addr_list(char *list)
 {
   m_index = -1;
   m_server_addrs.clear();
+  m_ftp_addrs.clear();
   m_addr_list_len = 0;
   m_addr_list.free();
 
@@ -223,6 +224,29 @@ void MyDistServerAddrList::addr_list(char *list)
       m_server_addrs.push_back(token);
     }
   }
+
+  if (!ftp_list || !*ftp_list)
+  {
+    MY_ERROR("not ftp server addr list found\n");
+    return;
+  }
+
+  for (str = ftp_list; ;str = NULL)
+  {
+    token = strtok_r(str, seperator, &saveptr);
+    if (token == NULL)
+      break;
+    if (!*token)
+      continue;
+    if (!valid_addr(token))
+      MY_WARNING("skipping invalid ftp server addr: %s\n", token);
+    else
+    {
+      MY_INFO("adding ftp server addr: %s\n", token);
+      m_ftp_addrs.push_back(token);
+    }
+  }
+
 }
 
 const char * MyDistServerAddrList::begin()
