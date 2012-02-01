@@ -87,7 +87,7 @@ const ACE_TCHAR *  CONFIG_middle_server_client_port = ACE_TEXT("middle_server.cl
 
 //middle specific
 const ACE_TCHAR *  CONFIG_http_port = ACE_TEXT("middle_server.http_port");
-
+const ACE_TCHAR *  CONFIG_ftp_addr_list = ACE_TEXT("ftp_addr_list");
 
 //dist specific
 const ACE_TCHAR * CONFIG_module_heart_beat_mem_pool_size = ACE_TEXT("module.heart_beat.mempool_size");
@@ -497,6 +497,15 @@ bool MyConfig::load_config_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configurat
     }
     else
       module_heart_beat_mem_pool_size = ival;
+  }
+
+  ACE_TString sval;
+  if (cfgHeap.get_string_value(section, CONFIG_ftp_addr_list, sval) == 0)
+    ftp_addr_list = sval.c_str();
+  else
+  {
+    MY_ERROR(ACE_TEXT("can not read config value %s\n"), CONFIG_ftp_addr_list);
+    return false;
   }
 
   return true;

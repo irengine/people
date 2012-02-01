@@ -90,6 +90,7 @@ public:
 
   //middle only
   int http_port;
+  std::string ftp_addr_list;
 
   //common paths
   std::string exe_path;

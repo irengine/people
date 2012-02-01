@@ -87,18 +87,30 @@ void MyDistLoads::calc_server_list()
     int len = strlen(it->m_ip_addr);
     if (len == 0)
       continue;
-    if (len > remain_len)
+    if (unlikely(len > remain_len))
+    {
+      MY_ERROR("dist server addr list is too long @MyDistLoads::calc_server_list()\n");
       break;
+    }
     ACE_OS::memcpy(ptr, it->m_ip_addr, len + 1);
     ptr += len;
+    remain_len -= (len + 1);
     *ptr = MyClientVersionCheckReply::SERVER_LIST_SEPERATOR;
     ++ptr;
   }
   *ptr = 0;
 
+  int ftp_list_len = MyConfigX::instance()->ftp_addr_list.length();
+  if (unlikely(ftp_list_len + 2 > remain_len))
+    MY_ERROR("ftp server addr list is too long @MyDistLoads::calc_server_list()\n");
+  else
+  {
+    *ptr++ = MyClientVersionCheckReply::SERVER_FTP_SEPERATOR;
+    ACE_OS::strsncpy(ptr, MyConfigX::instance()->ftp_addr_list.c_str(), remain_len + 1);
+  }
+
   m_server_list_length = ACE_OS::strlen(m_server_list);
-  if (m_server_list_length > 0)
-    ++m_server_list_length;
+  ++m_server_list_length;
 }
 
 int MyDistLoads::get_server_list(char * buffer, int buffer_len)

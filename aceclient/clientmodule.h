@@ -45,9 +45,15 @@ class MyDistServerAddrList
 public:
   MyDistServerAddrList();
   void addr_list(char *list);
+
   const char * begin();
   const char * next();
   bool empty() const;
+
+  const char * begin_ftp();
+  const char * next_ftp();
+  bool empty_ftp() const;
+
   void save();
   void load();
 
@@ -60,6 +66,7 @@ private:
   MyPooledMemGuard m_addr_list;
   int m_addr_list_len;
   int m_index;
+  int m_ftp_index;
 };
 
 class MyClientToDistHandler: public MyBaseHandler

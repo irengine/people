@@ -73,7 +73,7 @@ class MyDistLoads
 public:
   typedef std::vector<MyDistLoad> MyDistLoadVec;
   typedef MyDistLoadVec::iterator MyDistLoadVecIt;
-  enum { SERVER_LIST_LENGTH = 1024 };
+  enum { SERVER_LIST_LENGTH = 2048 };
   enum { DEAD_TIME = 10 }; //in minutes
 
   MyDistLoads();

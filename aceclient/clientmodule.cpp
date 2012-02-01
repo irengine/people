@@ -186,12 +186,14 @@ int MyClientToDistProcessor::send_version_check_req()
 MyDistServerAddrList::MyDistServerAddrList()
 {
   m_index = -1;
+  m_ftp_index = -1;
   m_addr_list_len = 0;
 }
 
 void MyDistServerAddrList::addr_list(char *list)
 {
   m_index = -1;
+  m_ftp_index = -1;
   m_server_addrs.clear();
   m_ftp_addrs.clear();
   m_addr_list_len = 0;
@@ -269,6 +271,28 @@ const char * MyDistServerAddrList::next()
 bool MyDistServerAddrList::empty() const
 {
   return m_server_addrs.empty();
+}
+
+const char * MyDistServerAddrList::begin_ftp()
+{
+  m_ftp_index = 0;
+  if (m_ftp_addrs.empty())
+    return NULL;
+  return m_ftp_addrs[0].c_str();
+}
+
+const char * MyDistServerAddrList::next_ftp()
+{
+  if (m_ftp_index <= int(m_ftp_addrs.size() + 1) && m_ftp_index >= 0)
+    ++m_ftp_index;
+  if (m_ftp_index >= int(m_ftp_addrs.size()) || m_ftp_index < 0)
+    return NULL;
+  return m_ftp_addrs[m_ftp_index].c_str();
+}
+
+bool MyDistServerAddrList::empty_ftp() const
+{
+  return m_ftp_addrs.empty();
 }
 
 void MyDistServerAddrList::save()
