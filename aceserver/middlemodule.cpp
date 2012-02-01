@@ -175,6 +175,7 @@ MyBaseProcessor::EVENT_RESULT MyLocationProcessor::on_recv_packet_i(ACE_Message_
   if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
     return do_version_check(mb);
 
+  MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received, command = %d\n", header->command);
   return ER_ERROR;
 }
@@ -182,6 +183,8 @@ MyBaseProcessor::EVENT_RESULT MyLocationProcessor::on_recv_packet_i(ACE_Message_
 
 MyBaseProcessor::EVENT_RESULT MyLocationProcessor::do_version_check(ACE_Message_Block * mb)
 {
+  MyMessageBlockGuard guard(mb);
+
   MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, MyServerAppX::instance()->client_id_table());
   if (ret != ER_CONTINUE)
     return ret;
@@ -190,12 +193,10 @@ MyBaseProcessor::EVENT_RESULT MyLocationProcessor::do_version_check(ACE_Message_
   int len = m_dist_loads->get_server_list(server_list, MyDistLoads::SERVER_LIST_LENGTH); //double copy
   ACE_Message_Block * reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_SERVER_LIST, len);
 
-  MyClientVersionCheckReplyProc proc;
-  proc.attach(reply_mb->base());
-  proc.init_header(len);
-  if (len > 0)
-    ACE_OS::memcpy(proc.data()->data, server_list, len);
-  reply_mb->wr_ptr(reply_mb->capacity());
+  MyClientVersionCheckReply *reply = (MyClientVersionCheckReply *)reply_mb->base();
+  if (likely(len > 0))
+    ACE_OS::memcpy(reply->data, server_list, len);
+
   if (m_handler->send_data(reply_mb) <= 0)
     return ER_ERROR; //no unsent data, force a close
   else
@@ -767,7 +768,9 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
     bool result = proc.validate_header();
     if (!result)
     {
-      MY_ERROR("bad client version check req packet received from %s\n", info_string().c_str());
+      MyPooledMemGuard info;
+      info_string(info);
+      MY_ERROR("bad client version check req packet received from %s\n", info.data());
       return ER_ERROR;
     }
     return ER_OK;
@@ -780,7 +783,9 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
     bool result = proc.validate_header();
     if (!result)
     {
-      MY_ERROR("bad load_balance packet received from %s\n", info_string().c_str());
+      MyPooledMemGuard info;
+      info_string(info);
+      MY_ERROR("bad load_balance packet received from %s\n", info.data());
       return ER_ERROR;
     }
     return ER_OK;
@@ -815,7 +820,9 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::do_version_check(ACE_Message_
   bool result = (p->client_id == MyConfigX::instance()->middle_server_key.c_str());
   if (!result)
   {
-    MY_ERROR("bad load_balance version check (bad key) received from %s\n", info_string().c_str());
+    MyPooledMemGuard info;
+    info_string(info);
+    MY_ERROR("bad load_balance version check (bad key) received from %s\n", info.data());
     return ER_ERROR;
   }
   m_client_id_verified = true;

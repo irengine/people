@@ -76,13 +76,55 @@ void MyServerApp::dump_mem_pool_info()
 {
   ACE_DEBUG((LM_INFO, "  !!! Memory Dump start !!!\n"));
   long nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
-  if (!MyHeartBeatHandler::mem_pool())
+  if (!g_use_mem_pool)
   {
     ACE_DEBUG((LM_INFO, "    Memory Pool Disabled\n"));
     goto _exit_;
   }
-  MyHeartBeatHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-  MyBaseApp::mem_pool_dump_one("MyHeartBeatHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatHandler));
+  //start of dist server stuff
+  if (MyHeartBeatHandler::mem_pool())
+  {
+    MyHeartBeatHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+    MyBaseApp::mem_pool_dump_one("MyHeartBeatHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatHandler));
+  }
+
+  if (MyDistToBSHandler::mem_pool())
+  {
+    MyDistToBSHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+    MyBaseApp::mem_pool_dump_one("MyDistToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToBSHandler));
+  }
+
+  if (MyDistToMiddleHandler::mem_pool())
+  {
+    MyDistToMiddleHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+    MyBaseApp::mem_pool_dump_one("MyDistToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToMiddleHandler));
+  }
+
+  //start of middle server stuff
+  if (MyLocationHandler::mem_pool())
+  {
+    MyLocationHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+    MyBaseApp::mem_pool_dump_one("MyLocationHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationHandler));
+  }
+
+  if (MyHttpHandler::mem_pool())
+  {
+    MyHttpHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+    MyBaseApp::mem_pool_dump_one("MyHttpHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpHandler));
+  }
+
+  if (MyDistLoadHandler::mem_pool())
+  {
+    MyDistLoadHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+    MyBaseApp::mem_pool_dump_one("MyDistLoadHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistLoadHandler));
+  }
+
+  if (MyMiddleToBSHandler::mem_pool())
+  {
+    MyMiddleToBSHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+    MyBaseApp::mem_pool_dump_one("MyMiddleToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyMiddleToBSHandler));
+  }
+
   MyMemPoolFactoryX::instance()->dump_info();
 
 _exit_:
@@ -99,12 +141,12 @@ bool MyServerApp::on_construct()
   MyConfig * cfg = MyConfigX::instance();
   if (!m_db.connect())
   {
-    MY_FATAL("can not connect to database. quiting...\n");
+    MY_FATAL("can not connect to database. quitting...\n");
     return false;
   }
   if (!m_db.get_client_ids(&m_client_id_table))
   {
-    MY_FATAL("can not get client_ids database. quiting...\n");
+    MY_FATAL("can not get client_ids database. quitting...\n");
     return false;
   }
 

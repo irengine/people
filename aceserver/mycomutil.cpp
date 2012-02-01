@@ -9,6 +9,8 @@
 #include "mycomutil.h"
 #include "baseapp.h"
 
+bool g_use_mem_pool = true;
+
 //MyCached_Message_Block//
 
 MyCached_Message_Block::MyCached_Message_Block(size_t size,
@@ -123,6 +125,29 @@ void MyPooledMemGuard::init_from_string(const char * src1, const char * src2, co
   ACE_OS::memcpy(data() + len1, src2, len2);
   ACE_OS::memcpy(data() + len1 + len2, src3, len3);
   ACE_OS::memcpy(data() + len1 + len2 + len3, src4, len4);
+}
+
+void MyPooledMemGuard::init_from_strings(const char * arr[], int len)
+{
+  if (unlikely(!arr || len <= 0))
+    return;
+  int total_len = 0;
+  int i;
+  for (i = 0; i < len; ++i)
+  {
+    if (likely(arr[i] != NULL))
+      total_len += ACE_OS::strlen(arr[i]);
+  }
+  total_len += 1;
+
+  MyMemPoolFactoryX::instance()->get_mem(total_len, this);
+
+  m_buff[0] = 0;
+  for (i = 0; i < len; ++i)
+  {
+    if (likely(arr[i] != NULL))
+      ACE_OS::strcat(m_buff, arr[i]);
+  }
 }
 
 void mycomutil_hex_dump(void * ptr, int len, char * result_buff, int buff_len)
@@ -571,7 +596,6 @@ MyMemPoolFactory::MyMemPoolFactory()
 {
   m_message_block_pool = NULL;
   m_data_block_pool = NULL;
-  m_use_mem_pool = false;
   m_global_alloc_count = 0;
 }
 
@@ -587,8 +611,7 @@ MyMemPoolFactory::~MyMemPoolFactory()
 
 void MyMemPoolFactory::init(MyConfig * config)
 {
-  m_use_mem_pool = config->use_mem_pool;
-  if (!m_use_mem_pool)
+  if (!g_use_mem_pool)
     return;
 
   const int pool_size[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096};
@@ -638,7 +661,7 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
     MY_ERROR(ACE_TEXT("calling MyMemPoolFactory::get_message_block() with invalid capacity = %d\n"), capacity);
     return NULL;
   }
-  if (!m_use_mem_pool)
+  if (!g_use_mem_pool)
   {
     ++ m_global_alloc_count;
     return new ACE_Message_Block(capacity);
@@ -684,7 +707,7 @@ bool MyMemPoolFactory::get_mem(int size, MyPooledMemGuard * guard)
     free_mem(guard);
 
   char * p;
-  int idx = m_use_mem_pool? find_first_index(size): INVALID_INDEX;
+  int idx = g_use_mem_pool? find_first_index(size): INVALID_INDEX;
   if (idx == INVALID_INDEX || (p = (char*)m_pools[idx]->malloc()) == NULL)
   {
     ++ m_global_alloc_count;
@@ -699,7 +722,7 @@ bool MyMemPoolFactory::get_mem(int size, MyPooledMemGuard * guard)
 void * MyMemPoolFactory::get_mem_x(int size)
 {
   void * p;
-  int idx = m_use_mem_pool? find_first_index(size): INVALID_INDEX;
+  int idx = g_use_mem_pool? find_first_index(size): INVALID_INDEX;
   if (idx == INVALID_INDEX || (p = m_pools[idx]->malloc()) == NULL)
   {
     ++ m_global_alloc_count;
@@ -716,7 +739,7 @@ void MyMemPoolFactory::free_mem_x(void * ptr)
     return;
   }
 
-  int idx = m_use_mem_pool? find_pool(ptr): INVALID_INDEX;
+  int idx = g_use_mem_pool? find_pool(ptr): INVALID_INDEX;
   if (idx != INVALID_INDEX)
     m_pools[idx]->free(ptr);
   else
@@ -739,8 +762,8 @@ void MyMemPoolFactory::free_mem(MyPooledMemGuard * guard)
 
 void MyMemPoolFactory::dump_info()
 {
-  ACE_DEBUG((LM_INFO, ACE_TEXT("    Global mem pool: alloc outside of mem pool =%d\n"), m_global_alloc_count.value()));
-  if (!m_use_mem_pool)
+  ACE_DEBUG((LM_INFO, ACE_TEXT("    Global mem pool: alloc outside of mem pool=%d\n"), m_global_alloc_count.value()));
+  if (!g_use_mem_pool)
     return;
 
   long nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
@@ -757,7 +780,7 @@ void MyMemPoolFactory::dump_info()
   {
     nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
     m_pools[i]->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    ACE_OS::snprintf(buff, BUFF_LEN, "DataPool.%d", i + 1);
+    ACE_OS::snprintf(buff, BUFF_LEN, "DataPool.%02d", i + 1);
     MyBaseApp::mem_pool_dump_one(buff, nAlloc, nFree, nMaxUse, nAllocFull, m_pools[i]->chunk_size());
   }
 }

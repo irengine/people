@@ -67,13 +67,24 @@ void MyClientApp::dump_mem_pool_info()
 {
   ACE_DEBUG((LM_INFO, "  !!! Memory Dump start !!!\n"));
   long nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
-  if (!MyClientToDistHandler::mem_pool())
+  if (!g_use_mem_pool)
   {
     ACE_DEBUG((LM_INFO, "    Memory Pool Disabled\n"));
     goto _exit_;
   }
-  MyClientToDistHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-  MyBaseApp::mem_pool_dump_one("MyClientToDistHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToDistHandler));
+
+  if (likely(MyClientToDistHandler::mem_pool() != NULL))
+  {
+    MyClientToDistHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+    MyBaseApp::mem_pool_dump_one("MyClientToDistHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToDistHandler));
+  }
+
+  if (likely(MyClientToMiddleHandler::mem_pool() != NULL))
+  {
+    MyClientToMiddleHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+    MyBaseApp::mem_pool_dump_one("MyClientToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToMiddleHandler));
+  }
+
   MyMemPoolFactoryX::instance()->dump_info();
 
 _exit_:
@@ -115,8 +126,6 @@ void MyClientApp::app_fini()
 
 int main(int argc, const char * argv[])
 {
-//  ACE_UNUSED_ARG(argc);
-//  ACE_UNUSED_ARG(argv);
   ACE_Sig_Action no_sigpipe ((ACE_SignalHandler) SIG_IGN);
   ACE_Sig_Action original_action;
   no_sigpipe.register_action (SIGPIPE, &original_action);

@@ -125,11 +125,11 @@ void MyClientIDTable::prepare_space(int _count)
 
 //MyFileMD5//
 
-MyFileMD5::MyFileMD5(const char * _filename, const char * md5, int prefix_len)
+MyFileMD5::MyFileMD5(const char * _filename, const char * md5, int prefix_len, const char * alias)
 {
   m_md5[0] = 0;
   m_size = 0;
-  if (!_filename || ! *_filename)
+  if (unlikely(!_filename || ! *_filename))
     return;
 
   int len = strlen(_filename);
@@ -138,13 +138,18 @@ MyFileMD5::MyFileMD5(const char * _filename, const char * md5, int prefix_len)
     MY_FATAL("invalid parameter in MyFileMD5::MyFileMD5(%s, %d)\n", _filename, prefix_len);
     return;
   }
-  m_size = len - prefix_len + 1;
-  if (unlikely(!MyMemPoolFactoryX::instance()->get_mem(m_size, &m_file_name)))
+  if (!alias || !*alias)
   {
-     MY_ERROR("not enough memory for file name = %s @MyFileMD5\n", _filename);
-     return;
+    m_size = len - prefix_len + 1;
+    MyMemPoolFactoryX::instance()->get_mem(m_size, &m_file_name);
+    memcpy((void*)m_file_name.data(), (void*)(_filename + prefix_len), m_size);
+  } else
+  {
+    m_size = ACE_OS::strlen(alias) + 1;
+    MyMemPoolFactoryX::instance()->get_mem(m_size, &m_file_name);
+    memcpy((void*)m_file_name.data(), (void*)alias, m_size);
   }
-  memcpy((void*)m_file_name.data(), (void*)(_filename + prefix_len), m_size);
+
   if (!md5)
   {
     MD5_CTX mdContext;
@@ -164,7 +169,7 @@ MyFileMD5s::MyFileMD5s()
 
 MyFileMD5s::~MyFileMD5s()
 {
-  std::for_each(m_file_md5_list.begin(), m_file_md5_list.end(), MyObjectDeletor());
+  std::for_each(m_file_md5_list.begin(), m_file_md5_list.end(), MyPooledObjectDeletor());
 }
 
 bool MyFileMD5s::base_dir(const char * dir)
@@ -232,14 +237,16 @@ void MyFileMD5s::add_file(const char * filename, const char * md5)
 {
   if (unlikely(!filename || !*filename))
     return;
-  MyFileMD5 * fm = new MyFileMD5(filename, md5, 0);
+
+  void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyFileMD5));
+  MyFileMD5 * fm = new (p) MyFileMD5(filename, md5, 0);
   if (fm->ok())
     m_file_md5_list.push_back(fm);
   else
     delete fm;
 }
 
-void MyFileMD5s::add_file(const char * pathname, const char * filename, int prefix_len)
+void MyFileMD5s::add_file(const char * pathname, const char * filename, int prefix_len, const char * alias)
 {
   if (unlikely(!pathname || !filename))
     return;
@@ -250,20 +257,15 @@ void MyFileMD5s::add_file(const char * pathname, const char * filename, int pref
     return;
   }
   MyFileMD5 * fm;
-//  if (len == prefix_len)
-//    fm = new MyFileMD5(filename, NULL, 0);
-//  else
-//  {
-    char buff[PATH_MAX];
-    ACE_OS::sprintf(buff, "%s/%s", pathname, filename);
-    fm = new MyFileMD5(buff, NULL, prefix_len);
-//  }
+  char buff[PATH_MAX];
+  ACE_OS::sprintf(buff, "%s/%s", pathname, filename);
+  void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyFileMD5));
+  fm = new(p) MyFileMD5(buff, NULL, prefix_len, alias);
 
   if (likely(fm->ok()))
     m_file_md5_list.push_back(fm);
   else
     delete fm;
-
 }
 
 int MyFileMD5s::total_size(bool include_md5_value)
@@ -343,7 +345,8 @@ bool MyFileMD5s::from_buffer(char * buff)
       MY_ERROR("empty md5 in file/md5 list @MyFileMD5s::from_buffer: %s\n", token);
       return false;
     }
-    MyFileMD5 * fm = new MyFileMD5(token, md5, 0);
+    void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyFileMD5));
+    MyFileMD5 * fm = new(p) MyFileMD5(token, md5, 0);
     m_file_md5_list.push_back(fm);
   }
 
@@ -1004,9 +1007,9 @@ MyBaseProcessor::~MyBaseProcessor()
 
 }
 
-std::string MyBaseProcessor::info_string() const
+void MyBaseProcessor::info_string(MyPooledMemGuard & info) const
 {
-  return "";
+  ACE_UNUSED_ARG(info);
 }
 
 int MyBaseProcessor::on_open()
@@ -1217,15 +1220,18 @@ MyBasePacketProcessor::MyBasePacketProcessor(MyBaseHandler * handler): super(han
 }
 
 
-std::string MyBasePacketProcessor::info_string() const
+void MyBasePacketProcessor::info_string(MyPooledMemGuard & info) const
 {
-  char buff[512];
   const char * str_id = m_client_id.as_string();
   if (!*str_id)
     str_id = "NULL";
-  ACE_OS::snprintf(buff, 512 - 1, "(remote addr=%s, client_id=%s)", m_peer_addr, m_client_id.as_string());
-  std::string result(buff);
-  return result;
+  const char * ss[5];
+  ss[0] = "(remote addr=";
+  ss[1] = m_peer_addr;
+  ss[2] = ", client_id=";
+  ss[3] = m_client_id.as_string();
+  ss[4] = ")";
+  info.init_from_strings(ss, 5);
 }
 
 int MyBasePacketProcessor::on_open()
@@ -1313,8 +1319,10 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_header()
   bool bVersionCheck = (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
   if (bVerified == bVersionCheck)
   {
+    MyPooledMemGuard info;
+    info_string(info);
     MY_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s, \n"),
-        m_packet_header.command, bVerified, bVersionCheck, info_string().c_str());
+        m_packet_header.command, bVerified, bVersionCheck, info.data());
     return ER_ERROR;
   }
 
@@ -1367,7 +1375,7 @@ ACE_Message_Block * MyBaseServerProcessor::make_version_check_reply_mb
 
   MyClientVersionCheckReplyProc vcr;
   vcr.attach(mb->base());
-  vcr.init_header();
+  vcr.init_header(extra_len);
   vcr.data()->reply_code = code;
   mb->wr_ptr(mb->capacity());
   return mb;
@@ -1430,8 +1438,10 @@ MyBaseProcessor::EVENT_RESULT MyBaseClientProcessor::on_recv_header()
   bool bVersionCheck = (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY);
   if (bVerified == bVersionCheck)
   {
+    MyPooledMemGuard info;
+    info_string(info);
     MY_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s \n"),
-        m_packet_header.command, bVerified, bVersionCheck, info_string().c_str());
+        m_packet_header.command, bVerified, bVersionCheck, info.data());
     return ER_ERROR;
   }
 
@@ -1618,7 +1628,9 @@ void MyBaseConnectionManager::set_connection_client_id_index(MyBaseHandler * han
     it->second = handler;
     if (handler_old)
     {
-      MY_INFO("closing previous connection %s\n", handler_old->processor()->info_string().c_str());
+      MyPooledMemGuard info;
+      handler_old->processor()->info_string(info);
+      MY_INFO("closing previous connection %s\n", info.data());
       handler_old->handle_close(ACE_INVALID_HANDLE, 0);
     }
   } else

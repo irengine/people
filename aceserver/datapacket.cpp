@@ -8,7 +8,7 @@
 #include "datapacket.h"
 #include "mycomutil.h"
 
-const char * const_bs_packet_magic = "x3$v";
+const char * const_bs_packet_magic = "vc5X";
 
 void MyBSBasePacket::packet_magic()
 {

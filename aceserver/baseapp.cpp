@@ -120,6 +120,7 @@ MyConfig::MyConfig()
   max_clients = DEFAULT_max_clients;
   middle_server_dist_port = DEFAULT_middle_server_dist_port;
   db_server_port = DEFAULT_db_server_port;
+  bs_server_port = DEFAULT_bs_server_port;
 
   //client and dist
   middle_server_client_port = DEFAULT_middle_server_client_port;
@@ -281,7 +282,10 @@ bool MyConfig::load_config_common(ACE_Configuration_Heap & cfgHeap, ACE_Configur
   }
 
   if (cfgHeap.get_integer_value (section,  CONFIG_use_mem_pool, ival) == 0)
+  {
     use_mem_pool = (ival != 0);
+    g_use_mem_pool = use_mem_pool;
+  }
 
   if (cfgHeap.get_integer_value (section,  CONFIG_run_as_demon, ival) == 0)
     run_as_demon = (ival != 0);
@@ -499,15 +503,6 @@ bool MyConfig::load_config_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configurat
       module_heart_beat_mem_pool_size = ival;
   }
 
-  ACE_TString sval;
-  if (cfgHeap.get_string_value(section, CONFIG_ftp_addr_list, sval) == 0)
-    ftp_addr_list = sval.c_str();
-  else
-  {
-    MY_ERROR(ACE_TEXT("can not read config value %s\n"), CONFIG_ftp_addr_list);
-    return false;
-  }
-
   return true;
 }
 
@@ -525,6 +520,15 @@ bool MyConfig::load_config_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configur
       return false;
     }
     http_port = ival;
+  }
+
+  ACE_TString sval;
+  if (cfgHeap.get_string_value(section, CONFIG_ftp_addr_list, sval) == 0)
+    ftp_addr_list = sval.c_str();
+  else
+  {
+    MY_ERROR(ACE_TEXT("can not read config value %s\n"), CONFIG_ftp_addr_list);
+    return false;
   }
 
   return true;
@@ -667,8 +671,8 @@ void MyConfig::dump_config_info()
   if (is_middle_server())
   {
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_http_port, http_port));
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_ftp_addr_list, ftp_addr_list.c_str()));
   }
-
 
   //common: file/path locations printout
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tstatus_file = %s\n"), status_file_name.c_str()));

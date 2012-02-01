@@ -82,7 +82,7 @@ class MyFileMD5
 public:
   enum { MD5_STRING_LENGTH = 32 };
   //  /root/mydir/a.txt  prefix=/root/mydir/
-  MyFileMD5(const char * _filename, const char * md5, int prefix_len);
+  MyFileMD5(const char * _filename, const char * md5, int prefix_len, const char * alias = NULL);
   bool ok() const
   {
     return (m_md5[0] != 0);
@@ -122,7 +122,7 @@ private:
 class MyFileMD5s
 {
 public:
-  typedef std::vector<MyFileMD5 * > MyFileMD5List;
+  typedef std::vector<MyFileMD5 *, MyAllocator<MyFileMD5 *> > MyFileMD5List;
   enum { SEPARATOR_END = '*', SEPARATOR_MIDDLE = '?' };
 
   MyFileMD5s();
@@ -130,7 +130,7 @@ public:
   bool base_dir(const char *);
   void minus(MyFileMD5s & );
   void add_file(const char * filename, const char * md5);
-  void add_file(const char * pathname, const char * filename, int prefix_len);
+  void add_file(const char * pathname, const char * filename, int prefix_len, const char * alias = NULL);
   void sort();
   int count() const
   {
@@ -405,7 +405,7 @@ public:
   MyBaseProcessor(MyBaseHandler * handler);
   virtual ~MyBaseProcessor();
 
-  virtual std::string info_string() const;
+  virtual void info_string(MyPooledMemGuard & info) const;
   virtual int on_open();
   virtual void on_close();
   virtual int handle_input();
@@ -626,7 +626,7 @@ public:
   typedef MyVeryBasePacketProcessor<MyDataPacketHeader> super;
 
   MyBasePacketProcessor(MyBaseHandler * handler);
-  virtual std::string info_string() const;
+  virtual void info_string(MyPooledMemGuard & info) const;
   virtual int on_open();
 
 protected:

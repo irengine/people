@@ -19,6 +19,8 @@
 
 #include "common.h"
 
+extern bool g_use_mem_pool;
+
 #define INFO_PREFIX       ACE_TEXT ("(%D %P|%t %N/%l)\n  INFO %I")
 #define MY_INFO(FMT, ...)     \
         ACE_DEBUG(( LM_INFO,  \
@@ -317,7 +319,7 @@ private:
     static void* operator new(size_t _size, std::new_handler p = 0) \
     { \
       ACE_UNUSED_ARG(p); \
-      if (_size != sizeof(Cls) || !MyConfigX::instance()->use_mem_pool) \
+      if (_size != sizeof(Cls) || !g_use_mem_pool) \
         return ::operator new(_size); \
       void* _ptr = m_mem_pool->malloc(); \
       if (_ptr) \
@@ -333,7 +335,7 @@ private:
     { \
       if (_ptr != NULL) \
       { \
-        if (!MyConfigX::instance()->use_mem_pool) \
+        if (!g_use_mem_pool) \
         { \
           ::operator delete(_ptr); \
           return; \
@@ -343,7 +345,7 @@ private:
     } \
     static void init_mem_pool(int pool_size) \
     { \
-      if (MyConfigX::instance()->use_mem_pool) \
+      if (g_use_mem_pool) \
         m_mem_pool = new Mem_Pool(pool_size, sizeof(Cls)); \
     } \
     static void fini_mem_pool() \
@@ -367,7 +369,7 @@ private:
     static void* operator new(size_t _size, std::new_handler p = 0) throw() \
     { \
       ACE_UNUSED_ARG(p); \
-      if (_size != sizeof(Cls) || !MyConfigX::instance()->use_mem_pool) \
+      if (_size != sizeof(Cls) || !g_use_mem_pool) \
         return ::operator new(_size); \
       return m_mem_pool->malloc(); \
     } \
@@ -375,7 +377,7 @@ private:
     { \
       if (_ptr != NULL) \
       { \
-        if (!MyConfigX::instance()->use_mem_pool) \
+        if (!g_use_mem_pool) \
         { \
           ::operator delete(_ptr); \
           return; \
@@ -385,7 +387,7 @@ private:
     } \
     static void init_mem_pool(int pool_size) \
     { \
-      if (MyConfigX::instance()->use_mem_pool) \
+      if (g_use_mem_pool) \
         m_mem_pool = new Mem_Pool(pool_size, sizeof(Cls)); \
     } \
     static void fini_mem_pool() \
@@ -514,7 +516,6 @@ private:
   My_Cached_Allocator<ACE_Thread_Mutex> *m_message_block_pool;
   My_Cached_Allocator<ACE_Thread_Mutex> *m_data_block_pool;
   MyMemPools m_pools;
-  bool m_use_mem_pool; //local copy
   COUNTER m_global_alloc_count;
 };
 typedef ACE_Unmanaged_Singleton<MyMemPoolFactory, ACE_Null_Mutex> MyMemPoolFactoryX;
@@ -548,6 +549,7 @@ public:
   void init_from_string(const char * src1, const char * src2);
   void init_from_string(const char * src1, const char * src2, const char * src3);
   void init_from_string(const char * src1, const char * src2, const char * src3, const char * src4);
+  void init_from_strings(const char * arr[], int len);
 
 protected:
   friend class MyMemPoolFactory;
@@ -621,6 +623,16 @@ public:
   size_type max_size() const throw()
   {
     return UINT_MAX / sizeof(T);
+  }
+};
+
+class MyPooledObjectDeletor
+{
+public:
+  template <typename T> void operator()(const T * ptr)
+  {
+    ptr->T::~T();
+    MyMemPoolFactoryX::instance()->free_mem_x((void*)ptr);
   }
 };
 

@@ -30,7 +30,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
     bool result = proc.validate_header();
     if (!result)
     {
-      MY_ERROR("bad heart beat packet received from %s\n", info_string().c_str());
+      MyPooledMemGuard info;
+      info_string(info);
+      MY_ERROR("bad heart beat packet received from %s\n", info.data());
       return ER_ERROR;
     }
 
@@ -46,7 +48,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
     bool result = proc.validate_header();
     if (!result)
     {
-      MY_ERROR("bad client version check req packet received from %s\n", info_string().c_str());
+      MyPooledMemGuard info;
+      info_string(info);
+      MY_ERROR("bad client version check req packet received from %s\n", info.data());
       return ER_ERROR;
     }
     return ER_OK;
@@ -59,7 +63,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
     bool result = proc.validate_header();
     if (!result)
     {
-      MY_ERROR("bad md5 file list packet received from %s\n", info_string().c_str());
+      MyPooledMemGuard info;
+      info_string(info);
+      MY_ERROR("bad md5 file list packet received from %s\n", info.data());
       return ER_ERROR;
     }
     return ER_OK;
@@ -102,7 +108,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
   if (ret != ER_CONTINUE)
     return ret;
 
-  MY_INFO(ACE_TEXT("client version check ok: %s\n"), info_string().c_str());
+  MyPooledMemGuard info;
+  info_string(info);
+  MY_INFO(ACE_TEXT("client version check ok: %s\n"), info.data());
 
   ACE_Message_Block * reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK);
 
@@ -119,7 +127,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_md5_file_list(ACE_Message
   int len = md5filelist->length;
   ((char*)md5filelist)[len - 1] = 0;
   //todo: process md5 file list reply from client
-  MY_INFO("got md5 file list reply from %s: %s\n", info_string().c_str(), md5filelist->data);
+  MyPooledMemGuard info;
+  info_string(info);
+  MY_INFO("got md5 file list reply from %s: %s\n", info.data(), md5filelist->data);
   return ER_OK;
 }
 
