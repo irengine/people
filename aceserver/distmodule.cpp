@@ -27,7 +27,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
   {
     MyHeartBeatPingProc proc;
     proc.attach((const char*)&m_packet_header);
-    bool result = proc.validate_data();
+    bool result = proc.validate_header();
     if (!result)
     {
       MY_ERROR("bad heart beat packet received from %s\n", info_string().c_str());
@@ -43,7 +43,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
   {
     MyClientVersionCheckRequestProc proc;
     proc.attach((const char*)&m_packet_header);
-    bool result = proc.validate_data();
+    bool result = proc.validate_header();
     if (!result)
     {
       MY_ERROR("bad client version check req packet received from %s\n", info_string().c_str());
@@ -51,6 +51,20 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
     }
     return ER_OK;
   }
+
+  if (m_packet_header.command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
+  {
+    MyServerFileMD5ListProc proc;
+    proc.attach((const char*)&m_packet_header);
+    bool result = proc.validate_header();
+    if (!result)
+    {
+      MY_ERROR("bad md5 file list packet received from %s\n", info_string().c_str());
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
 
   MY_ERROR(ACE_TEXT("unexpected packet header received @MyHeartBeatProcessor.on_recv_header, cmd = %d\n"),
       m_packet_header.command);
@@ -65,6 +79,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
   MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
   if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
     return do_version_check(mb);
+
+  if (header->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
+    return do_md5_file_list(mb);
 
   MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyHeartBeatProcessor::on_recv_packet_i, command = %d\n",
@@ -93,6 +110,17 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
     return ER_ERROR;
   else
     return ER_OK;
+}
+
+MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_md5_file_list(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  MyServerFileMD5List * md5filelist = (MyServerFileMD5List *)mb->base();
+  int len = md5filelist->length;
+  ((char*)md5filelist)[len - 1] = 0;
+  //todo: process md5 file list reply from client
+  MY_INFO("got md5 file list reply from %s: %s\n", info_string().c_str(), md5filelist->data);
+  return ER_OK;
 }
 
 
@@ -349,7 +377,6 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
   }
 
   return 0;
-
 }
 
 void MyHeartBeatDispatcher::on_stop()

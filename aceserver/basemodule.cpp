@@ -1527,6 +1527,19 @@ void MyBaseConnectionManager::dump_info()
 
 void MyBaseConnectionManager::broadcast(ACE_Message_Block * mb)
 {
+  do_send(mb, true);
+}
+
+void MyBaseConnectionManager::send_single(ACE_Message_Block * mb)
+{
+  do_send(mb, false);
+}
+
+void MyBaseConnectionManager::do_send(ACE_Message_Block * mb, bool broadcast)
+{
+  if (unlikely(!mb))
+    return;
+
   typedef std::vector<MyBaseHandler *, MyAllocator<MyBaseHandler *> > pointers;
   pointers ptrs;
   MyMessageBlockGuard guard(mb);
@@ -1534,13 +1547,17 @@ void MyBaseConnectionManager::broadcast(ACE_Message_Block * mb)
   MyConnectionsPtr it;
   for (it = m_active_connections.begin(); it != m_active_connections.end(); ++it)
   {
+    if (it->second == CS_Pending)
+      continue;
     if (it->first->send_data(mb->duplicate()) < 0)
       ptrs.push_back(it->first);
+    else if (!broadcast)
+      break;
   }
 
   pointers::iterator it2;
   for (it2 = ptrs.begin(); it2 != ptrs.end(); ++it2)
-    (*it2)->handle_close(ACE_INVALID_HANDLE, 0);
+    (*it2)->handle_close();
 }
 
 void MyBaseConnectionManager::do_dump_info()

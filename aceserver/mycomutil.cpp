@@ -9,6 +9,30 @@
 #include "mycomutil.h"
 #include "baseapp.h"
 
+//MyCached_Message_Block//
+
+MyCached_Message_Block::MyCached_Message_Block(size_t size,
+                ACE_Allocator * allocator_strategy,
+                ACE_Allocator * data_block_allocator,
+                ACE_Allocator * message_block_allocator,
+                ACE_Message_Type type)
+     :ACE_Message_Block(
+        size,
+        type,
+        0, //ACE_Message_Block * cont
+        0, //const char * data
+        allocator_strategy,
+        0, //ACE_Lock * locking_strategy
+        ACE_DEFAULT_MESSAGE_BLOCK_PRIORITY, //unsigned long priority
+        ACE_Time_Value::zero, //const ACE_Time_Value & execution_time
+        ACE_Time_Value::max_time, //const ACE_Time_Value & deadline_time
+        data_block_allocator,
+        message_block_allocator)
+{
+
+}
+
+
 //MyPooledMemGuard//
 
 void MyPooledMemGuard::init_from_string(const char * src)

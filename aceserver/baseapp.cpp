@@ -477,17 +477,6 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
       client_heart_beat_interval = ival;
   }
 
-#ifdef MY_client_test
-  ACE_TString sval;
-  if (cfgHeap.get_string_value(section, CONFIG_dist_server_addr, sval) == 0)
-    dist_server_addr = sval.c_str();
-  else
-  {
-    MY_ERROR("can not read config value %s\n", CONFIG_dist_server_addr);
-    return false;
-  }
-#endif
-
   return true;
 }
 

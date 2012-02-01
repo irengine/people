@@ -752,7 +752,7 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
   {
     MyClientVersionCheckRequestProc proc;
     proc.attach((const char*)&m_packet_header);
-    bool result = proc.validate_data();
+    bool result = proc.validate_header();
     if (!result)
     {
       MY_ERROR("bad client version check req packet received from %s\n", info_string().c_str());

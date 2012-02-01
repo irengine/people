@@ -35,6 +35,7 @@ protected:
 private:
   void do_ping();
   MyBaseProcessor::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_md5_file_list(ACE_Message_Block * mb);
 };
 
 class MyPingSubmitter

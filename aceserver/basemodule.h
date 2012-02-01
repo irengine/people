@@ -345,6 +345,7 @@ public:
   bool locked() const;
   void dump_info();
   void broadcast(ACE_Message_Block * mb);
+  void send_single(ACE_Message_Block * mb);
 
 protected:
   virtual void do_dump_info();
@@ -358,6 +359,7 @@ private:
 
   MyConnectionsPtr find(MyBaseHandler * handler);
   MyIndexHandlerMapPtr find_handler_by_index_i(int index);
+  void do_send(ACE_Message_Block * mb, bool broadcast);
 
   int  m_num_connections;
   int  m_total_connections;

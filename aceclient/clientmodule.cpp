@@ -201,6 +201,9 @@ void MyDistServerAddrList::addr_list(char *list)
 
   m_addr_list_len = ACE_OS::strlen(list) + 1;
   m_addr_list.init_from_string(list);
+  char * ftp_list = strchr(list, MyClientVersionCheckReply::SERVER_FTP_SEPERATOR);
+  if (ftp_list)
+    *ftp_list++ = 0;
 
   char seperator[2] = {MyClientVersionCheckReply::SERVER_LIST_SEPERATOR, 0};
   char *str, *token, *saveptr;
@@ -354,7 +357,8 @@ MyClientToDistService::MyClientToDistService(MyBaseModule * module, int numThrea
 
 int MyClientToDistService::svc()
 {
-  MY_INFO("MyClientToDistService::svc() start\n");
+  MY_INFO(ACE_TEXT ("running %s::svc()\n"), name());
+
   for (ACE_Message_Block *mb; getq(mb) != -1;)
   {
     MyDataPacketBaseProc proc;
@@ -368,7 +372,8 @@ int MyClientToDistService::svc()
     MY_ERROR("unexpected message block type @MyClientToDistService::svc()\n");
     mb->release();
   }
-  MY_INFO("MyClientToDistService::svc() end\n");
+
+  MY_INFO(ACE_TEXT ("exiting %s::svc()\n"), name());
   return 0;
 }
 
@@ -383,6 +388,7 @@ void MyClientToDistService::do_server_file_md5_list(ACE_Message_Block * mb)
 
   MyServerFileMD5ListProc proc;
   proc.attach(mb->base());
+  const char * client_path;
 
 #ifdef MY_client_test
   MyClientID client_id;
@@ -407,29 +413,53 @@ void MyClientToDistService::do_server_file_md5_list(ACE_Message_Block * mb)
   client_path_by_id[len++] = '/';
   client_path_by_id[len] = '0';
   MyTestClientPathGenerator::client_id_to_path(client_id.as_string(), client_path_by_id + len, PATH_MAX - 1 - len);
-
+  client_path = client_path_by_id;
+#else
+  //todo: calculate client path here
+#endif
   MyFileMD5s md5s_server;
-  md5s_server.base_dir(client_path_by_id);
+  md5s_server.base_dir(client_path);
   md5s_server.from_buffer(proc.data()->data);
 
   MyFileMD5s md5s_client;
-  md5s_client.scan_directory(client_path_by_id);
+  md5s_client.scan_directory(client_path);
   md5s_client.sort();
 
   md5s_server.minus(md5s_client);
   int buff_size = md5s_server.total_size(false);
-  MyPooledMemGuard mem_guard;
-  if (!MyMemPoolFactoryX::instance()->get_mem(buff_size, &mem_guard))
-  {
-    MY_ERROR("can not alloc output memory of size = %d @%s::do_server_file_md5_list()\n", buff_size, name());
-    return;
-  }
-  if (md5s_server.to_buffer(mem_guard.data(), buff_size, false))
-    MY_INFO("dist files by md5 for client_id: [%s] = %s\n", client_id.as_string(), mem_guard.data());
 
-#else
-  #error "client_id need to set globally"
+//  MyPooledMemGuard mem_guard;
+//  if (!MyMemPoolFactoryX::instance()->get_mem(buff_size, &mem_guard))
+//  {
+//    MY_ERROR("can not alloc output memory of size = %d @%s::do_server_file_md5_list()\n", buff_size, name());
+//    return;
+//  }
+//  if (md5s_server.to_buffer(mem_guard.data(), buff_size, false))
+//    MY_INFO("dist files by md5 for client_id: [%s] = %s\n", client_id.as_string(), mem_guard.data());
+
+  ACE_Message_Block * reply_mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyServerFileMD5List) + buff_size);
+  MyServerFileMD5ListProc vcr;
+  vcr.attach(reply_mb->base());
+  vcr.init_header();
+  vcr.data()->length = sizeof(MyServerFileMD5List) + buff_size;
+#ifdef MY_client_test
+  vcr.data()->magic = proc.data()->magic;
 #endif
+  reply_mb->wr_ptr(reply_mb->capacity());
+  if (!md5s_server.to_buffer(vcr.data()->data, buff_size, false))
+  {
+    MY_ERROR("md5 file list .to_buffer() failed\n");
+    reply_mb->release();
+  } else
+  {
+    MY_INFO("sending md5 file list to dist server for client_id [%s]: = %s\n", client_id.as_string(), vcr.data()->data);
+    ACE_Time_Value tv(ACE_Time_Value::zero);
+    if (((MyClientToDistModule*)module_x())->dispatcher()->putq(reply_mb, &tv) == -1)
+    {
+      MY_ERROR("failed to send md5 file list to dispatcher target queue\n");
+      reply_mb->release();
+    }
+  }
 }
 
 
@@ -441,7 +471,6 @@ MyClientToDistConnector::MyClientToDistConnector(MyBaseDispatcher * _dispatcher,
   m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
   m_reconnect_interval = RECONNECT_INTERVAL;
 #ifdef MY_client_test
-//  m_tcp_addr = MyConfigX::instance()->dist_server_addr;
   m_num_connection = MyConfigX::instance()->test_client_connection_number;
 #endif
 }
@@ -545,6 +574,37 @@ void MyClientToDistDispatcher::on_stop()
 {
   m_connector = NULL;
   m_middle_connector = NULL;
+}
+
+bool MyClientToDistDispatcher::on_event_loop()
+{
+  ACE_Message_Block * mb;
+  const int const_batch_count = 10;
+  for (int i = 0; i < const_batch_count; ++ i)
+  {
+    ACE_Time_Value tv(ACE_Time_Value::zero);
+    if (this->getq(mb, &tv) != -1)
+    {
+#ifdef MY_client_test
+      int index = ((MyDataPacketHeader*)mb->base())->magic;
+      MyBaseHandler * handler = m_connector->connection_manager()->find_handler_by_index(index);
+      if (!handler)
+      {
+        MY_WARNING("can not send data to client since connection is lost @ %s::on_event_loop\n", name());
+        mb->release();
+        continue;
+      }
+
+      ((MyDataPacketHeader*)mb->base())->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
+      if (handler->send_data(mb) < 0)
+        handler->handle_close();
+#else
+      m_connector->connection_manager()->send_single(mb);
+#endif
+    } else
+      break;
+  }
+  return true;
 }
 
 
@@ -713,9 +773,8 @@ void MyClientToMiddleProcessor::do_handle_server_list(ACE_Message_Block * mb)
     return;
   }
   ((char*)vcr)[len - 1] = 0;
-
-  module->server_addr_list().addr_list(vcr->data);
   MY_INFO("middle server returns dist server addr list as: %s\n", vcr->data);
+  module->server_addr_list().addr_list(vcr->data);
   module->server_addr_list().save();
   module->ask_for_server_addr_list_done(true);
 }

@@ -260,7 +260,7 @@ public:
     VER_SERVER_LIST
   };
   enum { MAX_REPLY_DATA_LENGTH = 4096 };
-  enum { SERVER_LIST_SEPERATOR = ';' };
+  enum { SERVER_LIST_SEPERATOR = ';', SERVER_FTP_SEPERATOR = '#' };
   int8_t reply_code;
   char data[0]; //placeholder
 };

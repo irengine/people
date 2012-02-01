@@ -56,6 +56,7 @@ private:
   bool valid_addr(const char * addr) const;
 
   std::vector<std::string> m_server_addrs;
+  std::vector<std::string> m_ftp_addrs;
   MyPooledMemGuard m_addr_list;
   int m_addr_list_len;
   int m_index;
@@ -103,6 +104,7 @@ public:
 protected:
   virtual void on_stop();
   virtual bool on_start();
+  virtual bool on_event_loop();
 
 private:
   MyClientToDistConnector * m_connector;
@@ -132,6 +134,10 @@ public:
   MyClientToDistService * service() const
   {
     return m_service;
+  }
+  MyClientToDistDispatcher * dispatcher() const
+  {
+    return m_dispatcher;
   }
   virtual const char * name() const;
   void ask_for_server_addr_list_done(bool success);
