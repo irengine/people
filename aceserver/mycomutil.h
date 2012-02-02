@@ -172,6 +172,10 @@ public:
     m_handle = INVALID_HANDLE;
     return h;
   }
+  bool valid() const
+  {
+    return m_handle >= 0;
+  }
 
 private:
   bool do_open(const char * filename, bool readonly, bool create, bool truncate, bool append)
@@ -408,16 +412,6 @@ private:
 #define PREPARE_MEMORY_POOL(Cls) \
   Cls::Mem_Pool * Cls::m_mem_pool = NULL
 
-class MyFilePaths
-{
-public:
-  static bool make_path(char* path, int prefix_len, bool is_file);
-  static bool make_path(const char * path, const char * subpath, bool is_file);
-  static bool copy_path(const char * srcdir, const char * destdir);
-  static bool remove_path(const char * path);
-  static bool copy_file(int src_fd, int dest_fd);
-};
-
 #if defined(MY_client_test) || defined(MY_server_test)
 
 //simple implementation, not thread safe, multiple calls to put on the same id will generate duplicate
@@ -636,6 +630,17 @@ public:
   }
 };
 
+class MyFilePaths
+{
+public:
+  static bool make_path(char* path, int prefix_len, bool is_file);
+  static bool make_path(const char * path, const char * subpath, bool is_file);
+  static bool copy_path(const char * srcdir, const char * destdir);
+  static bool remove_path(const char * path);
+  static bool copy_file(int src_fd, int dest_fd);
+  static int  cat_path(const char * path, const char * subpath, MyPooledMemGuard & result);
+  static bool get_correlate_path(MyPooledMemGuard & pathfile, int skip);
+};
 
 void mycomutil_hex_dump(void * ptr, int len, char * result_buff, int buff_len);
 void mycomutil_generate_random_password(char * buff, const int password_len);

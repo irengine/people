@@ -14,6 +14,7 @@
 #include "common.h"
 #include "baseapp.h"
 #include "basemodule.h"
+#include "servercommon.h"
 
 class MyLocationAcceptor;
 class MyLocationModule;
@@ -205,15 +206,12 @@ public:
 
   virtual int svc();
   virtual const char * name() const;
-  static const char * composite_path();
 
 private:
   bool handle_packet(ACE_Message_Block * mb);
-  bool generate_compressed_files(const char * src_path, const char * dist_id, const char * password);
-  bool do_generate_compressed_files(const char * src_path, const char * dest_path, int prefix_len, const char * passwrod);
-
-  MyBZCompressor m_compressor;
-  MyBZCompositor m_compositor;
+  bool parse_request(ACE_Message_Block * mb, MyHttpDistRequest &http_dist_request);
+  bool do_compress(MyHttpDistRequest & http_dist_request);
+  bool notify_dist_servers();
 };
 
 class MyHttpDispatcher: public MyBaseDispatcher
@@ -303,11 +301,12 @@ class MyDistLoadDispatcher: public MyBaseDispatcher
 public:
   MyDistLoadDispatcher(MyBaseModule * pModule, int numThreads = 1);
   virtual const char * name() const;
-  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
+  virtual int handle_timeout(const ACE_Time_Value &current_time, const void *act = 0);
 
 protected:
   virtual void on_stop();
   virtual bool on_start();
+  virtual bool on_event_loop();
 
 private:
   MyDistLoadAcceptor * m_acceptor;
@@ -331,6 +330,7 @@ public:
   MyDistLoadModule(MyBaseApp * app);
   virtual ~MyDistLoadModule();
   virtual const char * name() const;
+  MyDistLoadDispatcher * dispatcher() const;
 
 protected:
   virtual bool on_start();

@@ -129,8 +129,8 @@ public:
   ~MyFileMD5s();
   bool base_dir(const char *);
   void minus(MyFileMD5s & );
-  void add_file(const char * filename, const char * md5);
-  void add_file(const char * pathname, const char * filename, int prefix_len, const char * alias = NULL);
+  bool add_file(const char * filename, const char * md5, int prefix_len);
+  bool add_file(const char * pathname, const char * filename, int prefix_len, const char * alias);
   void sort();
   int count() const
   {
@@ -140,13 +140,13 @@ public:
   bool from_buffer(char * buff);
 
   int total_size(bool include_md5_value);
-  void scan_directory(const char * dirname);
+  bool calculate(const char * dirname, const char * mfile, bool single);
 
 private:
-  void do_scan_directory(const char * dirname, int start_len);
+  bool do_scan_directory(const char * dirname, int start_len);
 
   MyFileMD5List m_file_md5_list;
-  MyPooledMemGuard m_base_dir;
+  MyPooledMemGuard m_base_dir; //todo: remove m_base_dir
   int m_base_dir_len;
 };
 

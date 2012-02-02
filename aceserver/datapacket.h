@@ -143,6 +143,7 @@ public:
     CMD_CLIENT_VERSION_CHECK_REPLY,
     CMD_LOAD_BALANCE_REQ,
     CMD_SERVER_FILE_MD5_LIST,
+    CMD_HAVE_DIST_TASK,
     CMD_END
   };
   int32_t length;
@@ -308,6 +309,7 @@ public:
 class MyServerFileMD5List: public MyDataPacketHeader
 {
 public:
+  enum { LEAD_ITEM_SEPARATOR = '*' };
   char data[0];
 };
 
@@ -375,7 +377,7 @@ public:
     else
     {
 #if defined(MY_client_test) || defined(MY_server_test)
-      ACE_OS::memset(data()->ip_addr, 0, MyLoadBalanceRequest::IP_ADDR_LENGTH);
+      ACE_OS::memset(data()->ip_addr, 0, MyLoadBalanceRequest::IP_ADDR_LENGTH); //noise muffler
 #endif
       ACE_OS::strsncpy(data()->ip_addr, s, MyLoadBalanceRequest::IP_ADDR_LENGTH);
     }

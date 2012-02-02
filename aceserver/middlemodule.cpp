@@ -459,17 +459,20 @@ const char * MyHttpService::name() const
   return "MyHttpService";
 }
 
-bool MyHttpService::handle_packet(ACE_Message_Block * mb)
+bool MyHttpService::parse_request(ACE_Message_Block * mb, MyHttpDistRequest &http_dist_request)
 {
   const char const_header[] = "http://127.0.0.1:10092/file?";
   const int const_header_len = sizeof(const_header) / sizeof(char) - 1;
   if (unlikely((int)(mb->length()) <= const_header_len))
+  {
+    MY_ERROR("bad http request, packet too short\n", const_header);
     return false;
+  }
 
   char * packet = mb->base();
   if (ACE_OS::memcmp(packet, const_header, const_header_len) != 0)
   {
-    MY_ERROR("bad http packet, no match header found\n");
+    MY_ERROR("bad http packet, no match header of (%s) found\n", const_header);
     return false;
   }
 
@@ -477,198 +480,123 @@ bool MyHttpService::handle_packet(ACE_Message_Block * mb)
   const char const_separator = '&';
 
   const char * const_acode = "acode=";
-  char * acode;
-  if (!mycomutil_find_tag_value(packet, const_acode, acode, const_separator))
+  if (!mycomutil_find_tag_value(packet, const_acode, http_dist_request.acode, const_separator))
   {
     MY_ERROR("can not find tag %s at http packet\n", const_acode);
     return false;
   }
 
   const char * const_ftype = "ftype=";
-  char * ftype;
-  if (!mycomutil_find_tag_value(packet, const_ftype, ftype, const_separator))
+  if (!mycomutil_find_tag_value(packet, const_ftype, http_dist_request.ftype, const_separator))
   {
     MY_ERROR("can not find tag %s at http packet\n", const_ftype);
     return false;
   }
 
   const char * const_fdir = "fdir=";
-  char * fdir;
-  if (!mycomutil_find_tag_value(packet, const_fdir, fdir, const_separator))
+  if (!mycomutil_find_tag_value(packet, const_fdir, http_dist_request.fdir, const_separator))
   {
     MY_ERROR("can not find tag %s at http packet\n", const_fdir);
     return false;
   }
 
   const char * const_findex = "findex=";
-  char * findex;
-  if (!mycomutil_find_tag_value(packet, const_findex, findex, const_separator))
+  if (!mycomutil_find_tag_value(packet, const_findex, http_dist_request.findex, const_separator))
   {
     MY_ERROR("can not find tag %s at http packet\n", const_findex);
     return false;
   }
 
   const char * const_adir = "adir=";
-  char * adir;
-  if (!mycomutil_find_tag_value(packet, const_adir, adir, const_separator))
+  if (!mycomutil_find_tag_value(packet, const_adir, http_dist_request.adir, const_separator))
   {
     MY_ERROR("can not find tag %s at http packet\n", const_adir);
     return false;
   }
 
   const char * const_aindex = "aindex=";
-  char * aindex;
-  if (!mycomutil_find_tag_value(packet, const_aindex, aindex, const_separator))
+  if (!mycomutil_find_tag_value(packet, const_aindex, http_dist_request.aindex, const_separator))
   {
     MY_ERROR("can not find tag %s at http packet\n", const_aindex);
     return false;
   }
 
   const char * const_ver = "ver=";
-  char * ver;
-  if (!mycomutil_find_tag_value(packet, const_ver, ver, const_separator))
+  if (!mycomutil_find_tag_value(packet, const_ver, http_dist_request.ver, const_separator))
   {
     MY_ERROR("can not find tag %s at http packet\n", const_ver);
     return false;
   }
 
   const char * const_type = "type=";
-  char * type;
-  if (!mycomutil_find_tag_value(packet, const_type, type, const_separator))
+  if (!mycomutil_find_tag_value(packet, const_type, http_dist_request.type, const_separator))
   {
     MY_ERROR("can not find tag %s at http packet\n", const_type);
     return false;
   }
 
-  if (!*ftype || !*acode || !*fdir || !*ver || !*type)
-  {
-    MY_ERROR("can not find all non-null data at http packet\n");
+  return true;
+}
+
+bool MyHttpService::handle_packet(ACE_Message_Block * mb)
+{
+  MyHttpDistRequest http_dist_request;
+  if (!parse_request(mb, http_dist_request))
     return false;
-  }
+
+  if (!http_dist_request.check_valid(true))
+    return false;
 
   char password[12];
   mycomutil_generate_random_password(password, 12);
+  http_dist_request.password = password;
 
-  if (!MyServerAppX::instance()->db().save_dist(ftype, fdir, findex, adir, aindex, ver, type, password))
+  if (!MyServerAppX::instance()->db().save_dist(http_dist_request))
   {
     MY_ERROR("can not save_dist to db\n");
     return false;
   }
 
-  if (!MyServerAppX::instance()->db().save_dist_clients(acode, ver))
+  if (!MyServerAppX::instance()->db().save_dist_clients(http_dist_request.acode, http_dist_request.ver))
   {
     MY_ERROR("can not save_dist_clients to db\n");
     return false;
   }
 
+  if (unlikely(!module_x()->running_with_app()))
+    return false;
 
-  //todo: add logic here
+  do_compress(http_dist_request);
+  notify_dist_servers();
   return true;
 }
 
-const char * MyHttpService::composite_path()
+bool MyHttpService::do_compress(MyHttpDistRequest & http_dist_request)
 {
-  return "_x_cmp_x_";
+  MyDistCompressor compressor;
+  return compressor.compress(http_dist_request);
 }
 
-bool MyHttpService::generate_compressed_files(const char * src_path, const char * dist_id, const char * password)
+bool MyHttpService::notify_dist_servers()
 {
-  MyPooledMemGuard destdir;
-  destdir.init_from_string(MyConfigX::instance()->compressed_store_path.c_str(), "/", dist_id);
-  if (mkdir(destdir.data(), S_IRWXU) == -1 && ACE_OS::last_error() != EEXIST)
-  {
-    MY_ERROR("can not create directory %s, %s\n", destdir.data(), (const char *)MyErrno());
-    return false;
-  }
-  MyPooledMemGuard composite_dir;
-  composite_dir.init_from_string(destdir.data(), "/", composite_path());
-  if (mkdir(composite_dir.data(), S_IRWXU) == -1 && ACE_OS::last_error() != EEXIST)
-  {
-    MY_ERROR("can not create directory %s, %s\n", composite_dir.data(), (const char *)MyErrno());
-    return false;
-  }
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyDataPacketHeader));
+  MyDataPacketBaseProc vcr;
+  vcr.attach(mb->base());
+  vcr.init_header();
+  vcr.data()->length = sizeof(MyDataPacketHeader);
+  vcr.data()->command = MyDataPacketHeader::CMD_HAVE_DIST_TASK;
+  mb->wr_ptr(mb->capacity());
 
-  MyPooledMemGuard all_in_one;
-  all_in_one.init_from_string(composite_dir.data(), "/all_in_one.mbz");
-  if (!m_compositor.open(all_in_one.data()))
-    return false;
-  bool result = do_generate_compressed_files(src_path, destdir.data(), ACE_OS::strlen(src_path), password);
-  if (!result)
-    MY_ERROR("can not generate compressed files for %s from %s\n", dist_id, src_path);
-  m_compositor.close();
-  return result;
-}
-
-bool MyHttpService::do_generate_compressed_files(const char * src_path, const char * dest_path,
-     int prefix_len, const char * password)
-{
-  if (unlikely(!src_path || !*src_path || !dest_path || !*dest_path))
-    return false;
-
-  if (mkdir(dest_path, S_IRWXU) == -1 && ACE_OS::last_error() != EEXIST)
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (MyServerAppX::instance()->dist_load_module()->dispatcher()->putq(mb, &tv) == -1)
   {
-    MY_ERROR("can not create directory %s, %s\n", dest_path, (const char *)MyErrno());
+    MY_ERROR("can not place dist task notification to target queue\n");
+    mb->release();
     return false;
   }
 
-  DIR * dir = opendir(src_path);
-  if (!dir)
-  {
-    MY_ERROR("can not open directory: %s, %s\n", src_path, (const char*)MyErrno());
-    return false;
-  }
-
-  int len1 = ACE_OS::strlen(src_path);
-  int len2 = ACE_OS::strlen(dest_path);
-
-  struct dirent *entry;
-  while ((entry = readdir(dir)) != NULL)
-  {
-    if (!entry->d_name)
-      continue;
-    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
-      continue;
-
-    MyPooledMemGuard msrc, mdest;
-    int len = ACE_OS::strlen(entry->d_name);
-    MyMemPoolFactoryX::instance()->get_mem(len1 + len + 2, &msrc);
-    ACE_OS::sprintf(msrc.data(), "%s/%s", src_path, entry->d_name);
-    MyMemPoolFactoryX::instance()->get_mem(len2 + len + 8, &mdest);
-
-
-    if (entry->d_type == DT_REG)
-    {
-      ACE_OS::sprintf(mdest.data(), "%s/%s.mbz", dest_path, entry->d_name);
-      if (!m_compressor.compress(msrc.data(), prefix_len, mdest.data(), password))
-      {
-        MY_ERROR("compress(%s, %s) failed\n", msrc.data(), mdest.data());
-        closedir(dir);
-        return false;
-      }
-      if (!m_compositor.add(mdest.data()))
-      {
-        closedir(dir);
-        return false;
-      }
-    }
-    else if(entry->d_type == DT_DIR)
-    {
-      ACE_OS::sprintf(mdest.data(), "%s/%s", dest_path, entry->d_name);
-      if (!do_generate_compressed_files(msrc.data(), mdest.data(), prefix_len, password))
-      {
-        closedir(dir);
-        return false;
-      }
-    } else
-      MY_WARNING("unknown file type (= %d) for file @MyHttpService::generate_compressed_files file = %s/%s\n",
-           entry->d_type, src_path, entry->d_name);
-  };
-
-  closedir(dir);
   return true;
 }
-
-
 
 //MyHttpDispatcher//
 
@@ -935,6 +863,16 @@ bool MyDistLoadDispatcher::on_start()
   return true;
 }
 
+bool MyDistLoadDispatcher::on_event_loop()
+{
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  ACE_Message_Block * mb;
+  if (this->getq(mb, &tv) == 0)
+    m_acceptor->connection_manager()->broadcast(mb);
+
+  return true;
+}
+
 
 //MyDistLoadModule//
 
@@ -951,6 +889,11 @@ MyDistLoadModule::~MyDistLoadModule()
 const char * MyDistLoadModule::name() const
 {
   return "MyDistLoadModule";
+}
+
+MyDistLoadDispatcher * MyDistLoadModule::dispatcher() const
+{
+  return m_dispatcher;
 }
 
 bool MyDistLoadModule::on_start()

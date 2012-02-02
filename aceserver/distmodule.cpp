@@ -280,7 +280,7 @@ void MyHeartBeatService::calc_server_file_md5_list_one(const char * client_id)
   MyTestClientPathGenerator::client_id_to_path(id.as_string(), client_path_by_id + len, PATH_MAX - 1 - len);
 
   MyFileMD5s md5s_server;
-  md5s_server.scan_directory(client_path_by_id);
+  md5s_server.calculate(client_path_by_id, NULL, false);
   md5s_server.sort();
   if (!module_x()->running_with_app())
     return;

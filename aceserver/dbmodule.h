@@ -12,6 +12,7 @@
 
 #include "common.h"
 #include "mycomutil.h"
+#include "servercommon.h"
 
 class MyClientIDTable;
 
@@ -23,9 +24,7 @@ public:
   bool connect();
   bool get_client_ids(MyClientIDTable * idtable);
   bool save_client_id(const char * s);
-  bool save_dist(const char *ftype, const char * fdir,
-       const char * findex, const char * adir, const char * aindex,
-       const char * ver, const char * type, const char * password);
+  bool save_dist(MyHttpDistRequest & http_dist_request);
   bool save_dist_clients(char * idlist, const char * dist_id);
 
 private:

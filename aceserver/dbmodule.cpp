@@ -165,16 +165,16 @@ bool MyDB::save_client_id(const char * s)
   return exec_command(insert_sql);
 }
 
-bool MyDB::save_dist(const char *ftype, const char * fdir,
-     const char * findex, const char * adir, const char * aindex,
-     const char * ver, const char * type, const char * password)
+bool MyDB::save_dist(MyHttpDistRequest & http_dist_request)
 {
   const char * insert_sql_template = "insert into tb_dist_info("
                "dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
                "dist_ftype, dist_adir, dist_password) values(%s, %s, %s, %s, %s, %s, %s. %s)";
   char insert_sql[4096];
-  ACE_OS::snprintf(insert_sql, 4096 - 1, insert_sql_template, ver, type, wrap_str(aindex), wrap_str(findex),
-      wrap_str(fdir), ftype, wrap_str(adir), password);
+  ACE_OS::snprintf(insert_sql, 4096 - 1, insert_sql_template,
+      http_dist_request.ver, http_dist_request.type, wrap_str(http_dist_request.aindex),
+      wrap_str(http_dist_request.findex),  wrap_str(http_dist_request.fdir),
+      http_dist_request.ftype, wrap_str(http_dist_request.adir), http_dist_request.password);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(insert_sql);

@@ -531,6 +531,28 @@ bool MyFilePaths::copy_file(int src_fd, int dest_fd)
   ACE_NOTREACHED(return true);
 }
 
+int MyFilePaths::cat_path(const char * path, const char * subpath, MyPooledMemGuard & result)
+{
+  if (unlikely(!path || !*path || !subpath || !*subpath))
+    return -1;
+  int dir_len = ACE_OS::strlen(path);
+  bool separator_trailing = (path[dir_len -1] == '/');
+  result.init_from_string(path, (separator_trailing? NULL: "/"), subpath);
+  return (separator_trailing? dir_len: (dir_len + 1));
+}
+
+bool MyFilePaths::get_correlate_path(MyPooledMemGuard & pathfile, int skip)
+{
+  char * ptr = pathfile.data() + skip + 1;
+  char * ptr2 = ACE_OS::strrchr(ptr, '.');
+  if (unlikely(!ptr2 || ptr2 < ptr))
+    return false;
+  *ptr2 = 0;
+  if (unlikely(*(ptr2 - 1) == '/'))
+    return false;
+  return true;
+}
+
 
 #if defined(MY_client_test) || defined(MY_server_test)
 

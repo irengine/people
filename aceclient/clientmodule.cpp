@@ -470,7 +470,7 @@ void MyClientToDistService::do_server_file_md5_list(ACE_Message_Block * mb)
   md5s_server.from_buffer(proc.data()->data);
 
   MyFileMD5s md5s_client;
-  md5s_client.scan_directory(client_path);
+  md5s_client.calculate(client_path, NULL, false);
   md5s_client.sort();
 
   md5s_server.minus(md5s_client);

@@ -141,13 +141,11 @@ MyFileMD5::MyFileMD5(const char * _filename, const char * md5, int prefix_len, c
   if (!alias || !*alias)
   {
     m_size = len - prefix_len + 1;
-    MyMemPoolFactoryX::instance()->get_mem(m_size, &m_file_name);
-    memcpy((void*)m_file_name.data(), (void*)(_filename + prefix_len), m_size);
+    m_file_name.init_from_string(_filename + prefix_len);
   } else
   {
     m_size = ACE_OS::strlen(alias) + 1;
-    MyMemPoolFactoryX::instance()->get_mem(m_size, &m_file_name);
-    memcpy((void*)m_file_name.data(), (void*)alias, m_size);
+    m_file_name.init_from_string(alias);
   }
 
   if (!md5)
@@ -180,14 +178,8 @@ bool MyFileMD5s::base_dir(const char * dir)
     return false;
   }
 
-  int len = strlen(dir) + 1;
-  if (unlikely(!MyMemPoolFactoryX::instance()->get_mem(len, &m_base_dir)))
-  {
-     MY_ERROR("not enough memory for file name = %s @MyFileMD5s\n", dir);
-     return false;
-  }
-  m_base_dir_len = len;
-  ACE_OS::memcpy((void*)m_base_dir.data(), dir, len);
+  m_base_dir_len = strlen(dir) + 1;
+  m_base_dir.init_from_string(dir);
   return true;
 }
 
@@ -233,39 +225,47 @@ void MyFileMD5s::sort()
   std::sort(m_file_md5_list.begin(), m_file_md5_list.end(), MyPointerLess());
 }
 
-void MyFileMD5s::add_file(const char * filename, const char * md5)
+bool MyFileMD5s::add_file(const char * filename, const char * md5, int prefix_len)
 {
-  if (unlikely(!filename || !*filename))
-    return;
+  if (unlikely(!filename || !*filename || prefix_len < 0))
+    return false;
 
   void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyFileMD5));
-  MyFileMD5 * fm = new (p) MyFileMD5(filename, md5, 0);
+  MyFileMD5 * fm = new (p) MyFileMD5(filename, md5, prefix_len);
   if (fm->ok())
+  {
     m_file_md5_list.push_back(fm);
+    return true;
+  }
   else
+  {
     delete fm;
+    return false;
+  }
 }
 
-void MyFileMD5s::add_file(const char * pathname, const char * filename, int prefix_len, const char * alias)
+bool MyFileMD5s::add_file(const char * pathname, const char * filename, int prefix_len, const char * alias)
 {
   if (unlikely(!pathname || !filename))
-    return;
+    return false;
   int len = ACE_OS::strlen(pathname);
   if (unlikely(len + 1 < prefix_len || len  + strlen(filename) + 2 > PATH_MAX))
   {
     MY_FATAL("invalid parameter @ MyFileMD5s::add_file(%s, %s, %d)\n", pathname, filename, prefix_len);
-    return;
+    return false;
   }
   MyFileMD5 * fm;
   char buff[PATH_MAX];
-  ACE_OS::sprintf(buff, "%s/%s", pathname, filename);
+  ACE_OS::snprintf(buff, PATH_MAX, "%s/%s", pathname, filename);
   void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyFileMD5));
   fm = new(p) MyFileMD5(buff, NULL, prefix_len, alias);
 
-  if (likely(fm->ok()))
+  bool ret = fm->ok();
+  if (likely(ret))
     m_file_md5_list.push_back(fm);
   else
     delete fm;
+  return ret;
 }
 
 int MyFileMD5s::total_size(bool include_md5_value)
@@ -275,7 +275,7 @@ int MyFileMD5s::total_size(bool include_md5_value)
   for (it = m_file_md5_list.begin(); it != m_file_md5_list.end(); ++it)
   {
     MyFileMD5 & fm = **it;
-    if (!fm.ok())
+    if (unlikely(!fm.ok()))
       continue;
     result += fm.size(include_md5_value);
   }
@@ -294,7 +294,7 @@ bool MyFileMD5s::to_buffer(char * buff, int buff_len, bool include_md5_value)
   for (it = m_file_md5_list.begin(); it != m_file_md5_list.end(); ++it)
   {
     MyFileMD5 & fm = **it;
-    if (!fm.ok())
+    if (unlikely(!fm.ok()))
       continue;
     if (unlikely(buff_len <= len + fm.size(include_md5_value)))
     {
@@ -331,7 +331,7 @@ bool MyFileMD5s::from_buffer(char * buff)
     token = strtok_r(str, seperator, &saveptr);
     if (token == NULL)
       break;
-    if (!*token)
+    if (unlikely(!*token))
       continue;
     md5 = ACE_OS::strchr(token, SEPARATOR_MIDDLE);
     if (unlikely(md5 == token || !md5))
@@ -353,21 +353,41 @@ bool MyFileMD5s::from_buffer(char * buff)
   return true;
 }
 
-void MyFileMD5s::scan_directory(const char * dirname)
+bool MyFileMD5s::calculate(const char * dirname, const char * mfile, bool single)
 {
-  if (!dirname || !*dirname)
-    return;
+  if (unlikely(!dirname || !*dirname))
+    return false;
   base_dir(dirname);
-  do_scan_directory(dirname, strlen(dirname) + 1);
+
+  if (mfile && *mfile)
+  {
+    MyPooledMemGuard mfile_name;
+    int n = MyFilePaths::cat_path(dirname, mfile, mfile_name);
+    if (unlikely(!add_file(mfile_name.data(), NULL, n)))
+      return false;
+    if (single)
+      return true;
+    if (unlikely(!MyFilePaths::get_correlate_path(mfile_name, n)))
+      return false;
+    return do_scan_directory(mfile_name.data(), n);
+  } else
+  {
+    if (single)
+    {
+      MY_ERROR("unsupported operation @MyFileMD5s::calculate\n");
+      return false;
+    }
+    return do_scan_directory(dirname, ACE_OS::strlen(dirname) + 1);
+  }
 }
 
-void MyFileMD5s::do_scan_directory(const char * dirname, int start_len)
+bool MyFileMD5s::do_scan_directory(const char * dirname, int start_len)
 {
   DIR * dir = opendir(dirname);
   if (!dir)
   {
     MY_ERROR("can not open directory: %s %s\n", dirname, (const char*)MyErrno());
-    return;
+    return false;
   }
 
   struct dirent *entry;
@@ -380,17 +400,28 @@ void MyFileMD5s::do_scan_directory(const char * dirname, int start_len)
       continue;
 
     if (entry->d_type == DT_REG)
-      add_file(dirname, entry->d_name, start_len);
+    {
+      if (!add_file(dirname, entry->d_name, start_len))
+      {
+        closedir(dir);
+        return false;
+      }
+    }
     else if(entry->d_type == DT_DIR)
     {
       ACE_OS::snprintf(buff, PATH_MAX - 1, "%s/%s", dirname, entry->d_name);
-      do_scan_directory(buff, start_len);
+      if (!do_scan_directory(buff, start_len))
+      {
+        closedir(dir);
+        return false;
+      }
     } else
       MY_WARNING("unknown file type (= %d) for file @MyFileMD5s::do_scan_directory file = %s/%s\n",
            entry->d_type, dirname, entry->d_name);
   };
 
   closedir(dir);
+  return true;
 }
 
 
@@ -950,6 +981,8 @@ void MyBZCompositor::close()
 
 bool MyBZCompositor::add(const char * filename)
 {
+  if (!m_file.valid())
+    return true;
   MyUnixHandleGuard src;
   if (!src.open_read(filename))
     return false;
