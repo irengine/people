@@ -41,6 +41,27 @@ MyDB::~MyDB()
   disconnect();
 }
 
+time_t MyDB::get_time_from_string(const char * s)
+{
+  static time_t _current = time(NULL);
+  const time_t const_longevity = 60 * 24 * 365 * 12 * 10;
+
+  if (unlikely(!s || !*s))
+    return 0;
+  struct tm _tm;
+  int ret = sscanf(s, "%04d-%02d-%02d %02d:%02d:%02d", &_tm.tm_year, &_tm.tm_mon, &_tm.tm_mday,
+      &_tm.tm_hour, &_tm.tm_min, &_tm.tm_sec);
+  _tm.tm_year -= 1900;
+  if (ret != 6 || _tm.tm_year <= 0)
+    return 0;
+
+  time_t result = mktime(&_tm);
+  if (result + const_longevity < _current || _current + const_longevity < result)
+    return 0;
+
+  return result;
+}
+
 bool MyDB::connect()
 {
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
@@ -104,7 +125,7 @@ const char * MyDB::wrap_str(const char * s) const
     return s;
 }
 
-bool MyDB::exec_command(const char * sql_command)
+bool MyDB::exec_command(const char * sql_command, int * affected)
 {
   if (unlikely(!sql_command))
     return false;
@@ -115,7 +136,17 @@ bool MyDB::exec_command(const char * sql_command)
     MY_ERROR("MyDB::exec_command(%s) failed: %s\n", sql_command, PQerrorMessage(m_connection));
     return false;
   } else
+  {
+    if (affected)
+    {
+      const char * s = PQcmdTuples(pres);
+      if (!s || !*s)
+        *affected = 0;
+      else
+        *affected = atoi(PQcmdTuples(pres));
+    }
     return true;
+  }
 }
 
 bool MyDB::get_client_ids(MyClientIDTable * id_table)
@@ -249,74 +280,108 @@ bool MyDB::save_dist_cmp_done(const char *dist_id)
   return exec_command(insert_sql);
 }
 
-bool MyDB::load_dist_infos(MyHttpDistInfos & infos)
+int MyDB::load_dist_infos(MyHttpDistInfos & infos)
 {
-  const char * CONST_initial_ts = "19980406 00:00:00";
-  const char * CONST_select_sql_template = "select * "
-                                           "from tb_dist_info where dist_time > '%s' order by dist_time";
-  char select_sql[1024];
-  if (!infos.m_last_ts.data())
-    ACE_OS::snprintf(select_sql, 1024, CONST_select_sql_template, CONST_initial_ts);
-  else
-    ACE_OS::snprintf(select_sql, 1024, CONST_select_sql_template, infos.m_last_ts.data());
+  const char * CONST_select_sql =
+      "select *, ((('now'::text)::timestamp(0) without time zone - dist_cmp_time > interval '00:10:10') "
+      "or (dist_cmp_time is null)) and dist_cmp_done = '0' as expired from tb_dist_info order by dist_time";
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  PGresult * pres = PQexec(m_connection, select_sql);
+  PGresult * pres = PQexec(m_connection, CONST_select_sql);
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
   {
-    MY_ERROR("MyDB::sql (%s) failed: %s\n", select_sql, PQerrorMessage(m_connection));
-    return false;
+    MY_ERROR("MyDB::sql (%s) failed: %s\n", CONST_select_sql, PQerrorMessage(m_connection));
+    return -1;
   }
   int count = PQntuples(pres);
-  if (count > 0)
-    infos.m_dist_infos.reserve(infos.m_dist_infos.size() + count);
+//  if (count > 0)
+//    infos.m_dist_infos.reserve(infos.m_dist_infos.size() + count);
   int field_count = PQnfields(pres);
   if (unlikely(field_count < 10))
   {
     MY_ERROR("MyDB::load_dist_infos(), result field count too small = %d\n", field_count);
-    return false;
+    return -1;
   }
+
+  int fid_index = -1;
+  for (int j = 0; j < PQnfields(pres); ++j)
+  {
+    if (ACE_OS::strcmp(PQfname(pres, j), "dist_id") == 0)
+    {
+      fid_index = j;
+      break;
+    }
+  }
+  if (unlikely(fid_index < 0))
+  {
+    MY_ERROR("can not find field 'dist_id' @MyDB::load_dist_infos\n");
+    return -1;
+  }
+
   for (int i = 0; i < count; ++ i)
   {
-    void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyHttpDistInfo));
-    MyHttpDistInfo * info = new (p) MyHttpDistInfo;
+    MyHttpDistInfo * info = infos.find(PQgetvalue(pres, i, fid_index));
+    bool exist = (info != NULL);
+    if (!info)
+    {
+      void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyHttpDistInfo));
+      info = new (p) MyHttpDistInfo;
+    }
     for (int j = 0; j < PQnfields(pres); ++j)
     {
       const char * fvalue = PQgetvalue(pres, i, j);
       if (!fvalue || !*fvalue)
         continue;
-      if (ACE_OS::strcmp(PQfname(pres, j), "dist_id") == 0)
+      if (ACE_OS::strcmp(PQfname(pres, j), "dist_id") == 0 && !exist)
         info->ver.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_ftype") == 0)
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_ftype") == 0 && !exist)
         info->ftype.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_fdir") == 0)
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_fdir") == 0 && !exist)
         info->fdir.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_findex") == 0)
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_findex") == 0 && !exist)
         info->findex.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_type") == 0)
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_type") == 0 && !exist)
         info->type.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_password") == 0)
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_password") == 0 && !exist)
         info->password.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_time") == 0)
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_time") == 0 && !exist)
         info->dist_time.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_adir"))
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_adir") == 0  && !exist)
         info->adir.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_aindex"))
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_aindex") == 0  && !exist)
         info->aindex.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_time"))
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_time") == 0)
         info->cmp_time.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_owner"))
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_owner") == 0)
         info->cmp_owner.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_done"))
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_done") == 0)
         info->cmp_done.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "expiried") == 0)
+        info->cmp_needed = (*fvalue == 't' || *fvalue == 'T');
     }
-    infos.add(info);
-    if (i == count - 1)
-      infos.m_last_ts.init_from_string(info->dist_time.data());
+    if (!exist)
+      infos.add(info);
   }
 
   MY_INFO("MyDB::get %d dist infos from database\n", count);
-  return true;
+  return count;
+}
 
+bool MyDB::dist_take_cmp_ownership(MyHttpDistInfo * info)
+{
+  if (unlikely(!info))
+    return false;
+
+  const char * update_sql_template = "update tb_dist_info set "
+                                     "dist_cmp_time = ('now'::text)::timestamp(0) without time zone "
+                                     "where dist_id = '%s' and dist_cmp_time %s %s";
+  char sql[1024];
+  if (info->cmp_time.data())
+    ACE_OS::snprintf(sql, 1024, update_sql_template, info->ver.data(), "=", info->cmp_time.data());
+  else
+    ACE_OS::snprintf(sql, 1024, update_sql_template, info->ver.data(), "is", "null");
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  return exec_command(sql);
 }

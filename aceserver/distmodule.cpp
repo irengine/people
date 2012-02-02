@@ -9,6 +9,48 @@
 #include "baseapp.h"
 #include "server.h"
 
+//MyClientFileDistributor//
+
+bool MyClientFileDistributor::check_dist_info()
+{
+  m_dist_infos.prepare_update();
+  int m = MyServerAppX::instance()->db().load_dist_infos(m_dist_infos);
+  if (m <= 0)
+    return true;
+
+  int count = m_dist_infos.m_dist_infos.size();
+  if (unlikely(m > count))
+  {
+    MY_FATAL("dist info list corrupted, retrieved %d while total is %d\n", m, count);
+    m = count;
+  }
+
+  for (int i = count - m; i < count; ++ i)
+    check_dist_info_one(m_dist_infos.m_dist_infos[i]);
+
+  return true;
+}
+
+bool MyClientFileDistributor::check_dist_info_one(MyHttpDistInfo * info)
+{
+  if (unlikely(!info))
+    return false;
+  MyDB & db = MyServerAppX::instance()->db();
+  time_t info_time = MyDB::get_time_from_string(info->cmp_time.data());
+  bool expired = (time(NULL) - info_time > 60 * 15);
+  if (info->cmp_done.data()[0] == '0' && (!info->cmp_owner.data() || expired))
+  {
+
+  }
+}
+
+
+bool MyClientFileDistributor::check_dist_clients()
+{
+
+}
+
+
 //MyHeartBeatProcessor//
 
 MyPingSubmitter * MyHeartBeatProcessor::m_sumbitter = NULL;

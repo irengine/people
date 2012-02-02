@@ -14,10 +14,23 @@
 #include "common.h"
 #include "baseapp.h"
 #include "basemodule.h"
+#include "servercommon.h"
 
 class MyHeartBeatModule;
 class MyPingSubmitter;
 class MyHeartBeatAcceptor;
+
+class MyClientFileDistributor
+{
+public:
+  bool check_dist_info();
+  bool check_dist_clients();
+
+private:
+  bool check_dist_info_one(MyHttpDistInfo * info);
+
+  MyHttpDistInfos m_dist_infos;
+};
 
 class MyHeartBeatProcessor: public MyBaseServerProcessor
 {

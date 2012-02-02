@@ -9,6 +9,15 @@
 #include "baseapp.h"
 #include "server.h"
 
+//MyHttpDistInfo//
+
+MyHttpDistInfo::MyHttpDistInfo()
+{
+  exist = false;
+  cmp_needed = false;
+}
+
+
 //MyHttpDistRequest//
 
 MyHttpDistRequest::MyHttpDistRequest()
@@ -79,6 +88,42 @@ void MyHttpDistInfos::add(MyHttpDistInfo *p)
 {
   if (likely(p != NULL))
     m_dist_infos.push_back(p);
+}
+
+void MyHttpDistInfos::prepare_update()
+{
+  MyHttpDistInfoList::iterator it;
+  for (it = m_dist_infos.begin(); it != m_dist_infos.end(); )
+  {
+    if (unlikely(!(*it) || !((*it)->ver.data())))
+    {
+      MyPooledObjectDeletor deletor;
+      deletor(*it);
+      it = m_dist_infos.erase(it);
+    }
+    else
+    {
+      (*it)->exist = true;
+      (*it)->cmp_needed = false;
+      ++it;
+    }
+  }
+}
+
+MyHttpDistInfo * MyHttpDistInfos::find(const char * dist_id)
+{
+  if (unlikely(!dist_id || !*dist_id))
+    return NULL;
+
+  int count = m_dist_infos.size();
+  for (int i = 0; i < count; ++ i)
+  {
+    if (unlikely(!m_dist_infos[i] || !m_dist_infos[i]->ver.data()))
+      continue;
+    if (ACE_OS::strcmp(dist_id, m_dist_infos[i]->ver.data()) == 0)
+      return m_dist_infos[i];
+  }
+  return NULL;
 }
 
 

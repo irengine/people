@@ -35,6 +35,8 @@ private:
 class MyHttpDistInfo
 {
 public:
+  MyHttpDistInfo();
+
   MyPooledMemGuard acode;
   MyPooledMemGuard ftype;
   MyPooledMemGuard fdir;
@@ -50,6 +52,9 @@ public:
   MyPooledMemGuard cmp_owner;
   MyPooledMemGuard cmp_time;
   MyPooledMemGuard cmp_done;
+
+  bool exist;
+  bool cmp_needed;
 };
 
 class MyHttpDistInfos
@@ -59,9 +64,10 @@ public:
 
   typedef std::vector<MyHttpDistInfo *, MyAllocator<MyHttpDistInfo *> > MyHttpDistInfoList;
   void add(MyHttpDistInfo *);
+  void prepare_update();
+  MyHttpDistInfo * find(const char * dist_id);
 
   MyHttpDistInfoList m_dist_infos;
-  MyPooledMemGuard m_last_ts;
 };
 
 class MyDistCompressor

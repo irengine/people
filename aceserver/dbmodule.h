@@ -21,13 +21,17 @@ class MyDB
 public:
   MyDB();
   ~MyDB();
+  static time_t get_time_from_string(const char * s);
+
   bool connect();
   bool get_client_ids(MyClientIDTable * idtable);
   bool save_client_id(const char * s);
   bool save_dist(MyHttpDistRequest & http_dist_request);
   bool save_dist_clients(char * idlist, const char * dist_id);
   bool save_dist_cmp_done(const char *dist_id);
-  bool load_dist_infos(MyHttpDistInfos & infos);
+  int  load_dist_infos(MyHttpDistInfos & infos);
+  bool dist_take_cmp_ownership(MyHttpDistInfo * info);
+
 
 private:
   void disconnect();
@@ -35,7 +39,7 @@ private:
   bool begin_transaction();
   bool commit();
   bool rollback();
-  bool exec_command(const char * sql_command);
+  bool exec_command(const char * sql_command, int * affected = NULL);
   const char * wrap_str(const char * s) const;
 
   PGconn * m_connection;
