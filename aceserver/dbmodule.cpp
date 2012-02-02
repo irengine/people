@@ -122,13 +122,12 @@ bool MyDB::get_client_ids(MyClientIDTable * id_table)
 {
   if (unlikely(!id_table))
     return false;
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-
   const char * CONST_select_sql_template = "select client_id, auto_seq "
                                            "from tb_clients where auto_seq > %d order by auto_seq";
   char select_sql[1024];
   ACE_OS::snprintf(select_sql, 1024 - 1, CONST_select_sql_template, id_table->last_sequence());
 
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   PGresult * pres = PQexec(m_connection, select_sql);
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
@@ -185,6 +184,8 @@ bool MyDB::save_dist_clients(char * idlist, const char * dist_id)
   const char * insert_sql_template = "insert into tb_dist_clients(dc_dist_id, dc_client_id) values(%s, %s)";
   char insert_sql[1024];
 
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+
   char seperator[2] = {';', 0};
   char *str, *token, *saveptr;
   const int BATCH_COUNT = 20;
@@ -233,4 +234,89 @@ bool MyDB::save_dist_clients(char * idlist, const char * dist_id)
 
   MY_INFO("MyDB::save_dist_clients success/total = %d/%d\n", ok, total);
   return true;
+}
+
+bool MyDB::save_dist_cmp_done(const char *dist_id)
+{
+  if (unlikely(!dist_id || !*dist_id))
+    return false;
+
+  const char * update_sql_template = "update tb_dist_info set dist_cmp_done = 1 where dist_id='%s'";
+  char insert_sql[1024];
+  ACE_OS::snprintf(insert_sql, 1024, update_sql_template, dist_id);
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  return exec_command(insert_sql);
+}
+
+bool MyDB::load_dist_infos(MyHttpDistInfos & infos)
+{
+  const char * CONST_initial_ts = "19980406 00:00:00";
+  const char * CONST_select_sql_template = "select * "
+                                           "from tb_dist_info where dist_time > '%s' order by dist_time";
+  char select_sql[1024];
+  if (!infos.m_last_ts.data())
+    ACE_OS::snprintf(select_sql, 1024, CONST_select_sql_template, CONST_initial_ts);
+  else
+    ACE_OS::snprintf(select_sql, 1024, CONST_select_sql_template, infos.m_last_ts.data());
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  PGresult * pres = PQexec(m_connection, select_sql);
+  MyPGResultGuard guard(pres);
+  if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
+  {
+    MY_ERROR("MyDB::sql (%s) failed: %s\n", select_sql, PQerrorMessage(m_connection));
+    return false;
+  }
+  int count = PQntuples(pres);
+  if (count > 0)
+    infos.m_dist_infos.reserve(infos.m_dist_infos.size() + count);
+  int field_count = PQnfields(pres);
+  if (unlikely(field_count < 10))
+  {
+    MY_ERROR("MyDB::load_dist_infos(), result field count too small = %d\n", field_count);
+    return false;
+  }
+  for (int i = 0; i < count; ++ i)
+  {
+    void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyHttpDistInfo));
+    MyHttpDistInfo * info = new (p) MyHttpDistInfo;
+    for (int j = 0; j < PQnfields(pres); ++j)
+    {
+      const char * fvalue = PQgetvalue(pres, i, j);
+      if (!fvalue || !*fvalue)
+        continue;
+      if (ACE_OS::strcmp(PQfname(pres, j), "dist_id") == 0)
+        info->ver.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_ftype") == 0)
+        info->ftype.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_fdir") == 0)
+        info->fdir.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_findex") == 0)
+        info->findex.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_type") == 0)
+        info->type.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_password") == 0)
+        info->password.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_time") == 0)
+        info->dist_time.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_adir"))
+        info->adir.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_aindex"))
+        info->aindex.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_time"))
+        info->cmp_time.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_owner"))
+        info->cmp_owner.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_done"))
+        info->cmp_done.init_from_string(fvalue);
+    }
+    infos.add(info);
+    if (i == count - 1)
+      infos.m_last_ts.init_from_string(info->dist_time.data());
+  }
+
+  MY_INFO("MyDB::get %d dist infos from database\n", count);
+  return true;
+
 }

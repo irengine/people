@@ -26,6 +26,8 @@ public:
   bool save_client_id(const char * s);
   bool save_dist(MyHttpDistRequest & http_dist_request);
   bool save_dist_clients(char * idlist, const char * dist_id);
+  bool save_dist_cmp_done(const char *dist_id);
+  bool load_dist_infos(MyHttpDistInfos & infos);
 
 private:
   void disconnect();

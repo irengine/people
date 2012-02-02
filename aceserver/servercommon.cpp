@@ -68,6 +68,20 @@ bool MyHttpDistRequest::check_valid(const bool check_acode) const
 }
 
 
+//MyHttpDistInfos//
+
+MyHttpDistInfos::~MyHttpDistInfos()
+{
+  std::for_each(m_dist_infos.begin(), m_dist_infos.end(), MyPooledObjectDeletor());
+}
+
+void MyHttpDistInfos::add(MyHttpDistInfo *p)
+{
+  if (likely(p != NULL))
+    m_dist_infos.push_back(p);
+}
+
+
 //MyDistCompressor//
 
 const char * MyDistCompressor::composite_path()

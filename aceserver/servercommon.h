@@ -32,6 +32,38 @@ private:
   bool check_value(const char * value, const char * value_name) const;
 };
 
+class MyHttpDistInfo
+{
+public:
+  MyPooledMemGuard acode;
+  MyPooledMemGuard ftype;
+  MyPooledMemGuard fdir;
+  MyPooledMemGuard findex;
+  MyPooledMemGuard adir;
+  MyPooledMemGuard aindex;
+  MyPooledMemGuard ver;
+  MyPooledMemGuard type;
+  MyPooledMemGuard password;
+
+  MyPooledMemGuard dist_time;
+
+  MyPooledMemGuard cmp_owner;
+  MyPooledMemGuard cmp_time;
+  MyPooledMemGuard cmp_done;
+};
+
+class MyHttpDistInfos
+{
+public:
+  ~MyHttpDistInfos();
+
+  typedef std::vector<MyHttpDistInfo *, MyAllocator<MyHttpDistInfo *> > MyHttpDistInfoList;
+  void add(MyHttpDistInfo *);
+
+  MyHttpDistInfoList m_dist_infos;
+  MyPooledMemGuard m_last_ts;
+};
+
 class MyDistCompressor
 {
 public:
