@@ -391,14 +391,109 @@ bool MyDB::dist_take_cmp_ownership(MyHttpDistInfo * info)
 
 bool MyDB::mark_cmp_done(const char * dist_id)
 {
-  if (unlikely(!dist_id))
+  if (unlikely(!dist_id || !*dist_id))
     return false;
 
-  const char * update_sql_template = "update tb_dist_info set dist_cmp_done = 1"
+  const char * update_sql_template = "update tb_dist_info set dist_cmp_done = 1 "
                                      "where dist_id = '%s'";
   char sql[1024];
   ACE_OS::snprintf(sql, 1024, update_sql_template, dist_id);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql);
+}
+
+bool MyDB::save_dist_md5(const char * dist_id, const char * md5, int md5_len)
+{
+  if (unlikely(!dist_id || !*dist_id || !md5))
+    return false;
+
+  const char * update_sql_template = "update tb_dist_info set dist_md5 = '%s' "
+                                     "where dist_id = '%s'";
+  int len = md5_len + ACE_OS::strlen(update_sql_template) + ACE_OS::strlen(dist_id) + 20;
+  MyPooledMemGuard sql;
+  MyMemPoolFactoryX::instance()->get_mem(len, &sql);
+  ACE_OS::snprintf(sql.data(), len, update_sql_template, md5, dist_id);
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  return exec_command(sql.data());
+}
+
+bool MyDB::load_dist_clients(MyDistClients * dist_clients)
+{
+  if (unlikely(!dist_clients))
+    return false;
+
+  const char * CONST_select_sql = "select * from tb_dist_clients";
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  PGresult * pres = PQexec(m_connection, CONST_select_sql);
+  MyPGResultGuard guard(pres);
+  if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
+  {
+    MY_ERROR("MyDB::sql (%s) failed: %s\n", CONST_select_sql, PQerrorMessage(m_connection));
+    return -1;
+  }
+  int count = PQntuples(pres);
+  if (count > 0)
+    dist_clients->dist_clients.reserve(count);
+  int field_count = PQnfields(pres);
+  int fid_index = -1;
+  for (int j = 0; j < field_count; ++j)
+  {
+    if (ACE_OS::strcmp(PQfname(pres, j), "dc_dist_id") == 0)
+    {
+      fid_index = j;
+      break;
+    }
+  }
+  if (unlikely(fid_index < 0))
+  {
+    MY_ERROR("can not find field 'dc_dist_id' @MyDB::load_dist_infos\n");
+    return -1;
+  }
+
+  for (int i = 0; i < count; ++ i)
+  {
+    MyHttpDistInfo * info = dist_clients->find(PQgetvalue(pres, i, fid_index));
+    if (unlikely(!info))
+      continue;
+    void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyDistClients));
+    info = new (p) MyDistClients(info);
+    for (int j = 0; j < PQnfields(pres); ++j)
+    {
+      const char * fvalue = PQgetvalue(pres, i, j);
+      if (!fvalue || !*fvalue)
+        continue;
+      if (ACE_OS::strcmp(PQfname(pres, j), "dist_id") == 0 && !exist)
+        info->ver.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_ftype") == 0 && !exist)
+        info->ftype.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_fdir") == 0 && !exist)
+        info->fdir.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_findex") == 0 && !exist)
+        info->findex.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_type") == 0 && !exist)
+        info->type.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_password") == 0 && !exist)
+        info->password.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_time") == 0 && !exist)
+        info->dist_time.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_aindex") == 0  && !exist)
+        info->aindex.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_time") == 0)
+        info->cmp_time.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_owner") == 0)
+        info->cmp_owner.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_done") == 0)
+        info->cmp_done.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "expired") == 0)
+        info->cmp_needed = (*fvalue == 't' || *fvalue == 'T');
+    }
+    if (!exist)
+      infos.add(info);
+  }
+
+  MY_INFO("MyDB::get %d dist infos from database\n", count);
+  return count;
+
 }

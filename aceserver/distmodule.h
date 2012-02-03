@@ -20,6 +20,36 @@ class MyHeartBeatModule;
 class MyPingSubmitter;
 class MyHeartBeatAcceptor;
 
+class MyDistClient
+{
+public:
+  MyDistClient(MyHttpDistInfo * _dist_info);
+  bool check_valid() const;
+
+  MyHttpDistInfo * dist_info;
+  int status;
+  MyClientID client_id;
+  MyPooledMemGuard adir;
+  MyPooledMemGuard md5;
+  MyPooledMemGuard mbz_file;
+};
+
+class MyDistClients
+{
+public:
+  typedef std::vector<MyDistClient *, MyAllocator<MyDistClient *> > MyDistClientList;
+  MyDistClients(MyHttpDistInfos * dist_infos);
+  ~MyDistClients();
+
+  MyHttpDistInfo * find(const char * dist_id);
+  void clear();
+  void add(MyDistClient *);
+  MyDistClientList dist_clients;
+
+private:
+  MyHttpDistInfos * m_dist_infos;
+};
+
 class MyClientFileDistributor
 {
 public:

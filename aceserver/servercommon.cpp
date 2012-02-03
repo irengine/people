@@ -107,7 +107,15 @@ bool MyHttpDistRequest::need_md5() const
 
 MyHttpDistInfos::~MyHttpDistInfos()
 {
+  clear();
+}
+
+void MyHttpDistInfos::clear()
+{
   std::for_each(m_dist_infos.begin(), m_dist_infos.end(), MyPooledObjectDeletor());
+  m_dist_infos.clear();
+  MyHttpDistInfoList x;
+  x.swap(m_dist_infos);
 }
 
 void MyHttpDistInfos::add(MyHttpDistInfo *p)

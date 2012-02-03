@@ -9,6 +9,56 @@
 #include "baseapp.h"
 #include "server.h"
 
+//MyDistClient//
+
+MyDistClient::MyDistClient(MyHttpDistInfo * _dist_info)
+{
+  dist_info = _dist_info;
+  status = -1;
+}
+
+bool MyDistClient::check_valid() const
+{
+  return ((dist_info != NULL) && (status >= 0 && status <= 4) && (!client_id.is_null()));
+}
+
+
+//MyDistClients//
+
+void MyDistClients::add(MyDistClient * dc)
+{
+  if (unlikely(!dc || !dc->check_valid()))
+    return;
+
+  dist_clients.push_back(dc);
+}
+
+MyHttpDistInfo * MyDistClients::find(const char * dist_id)
+{
+  if (unlikely(!m_dist_infos))
+    return NULL;
+  return m_dist_infos->find(dist_id);
+}
+
+MyDistClients::MyDistClients(MyHttpDistInfos * dist_infos)
+{
+  m_dist_infos = dist_infos;
+}
+
+MyDistClients::~MyDistClients()
+{
+  clear();
+}
+
+void MyDistClients::clear()
+{
+  std::for_each(dist_clients.begin(), dist_clients.end(), MyPooledObjectDeletor());
+  dist_clients.clear();
+  MyDistClientList x;
+  x.swap(dist_clients);
+}
+
+
 //MyClientFileDistributor//
 
 bool MyClientFileDistributor::check_dist_info()

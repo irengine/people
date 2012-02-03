@@ -70,6 +70,7 @@ public:
   typedef std::vector<MyHttpDistInfo *, MyAllocator<MyHttpDistInfo *> > MyHttpDistInfoList;
   void add(MyHttpDistInfo *);
   void prepare_update();
+  void clear();
   MyHttpDistInfo * find(const char * dist_id);
 
   MyHttpDistInfoList m_dist_infos;

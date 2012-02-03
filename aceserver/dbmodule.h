@@ -13,6 +13,7 @@
 #include "common.h"
 #include "mycomutil.h"
 #include "servercommon.h"
+#include "distmodule.h"
 
 class MyClientIDTable;
 
@@ -32,7 +33,8 @@ public:
   int  load_dist_infos(MyHttpDistInfos & infos);
   bool dist_take_cmp_ownership(MyHttpDistInfo * info);
   bool mark_cmp_done(const char * dist_id);
-
+  bool save_dist_md5(const char * dist_id, const char * md5, int md5_len);
+  bool load_dist_clients(MyDistClients * dist_clients);
 
 private:
   void disconnect();
