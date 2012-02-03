@@ -383,5 +383,6 @@ bool MyDB::dist_take_cmp_ownership(MyHttpDistInfo * info)
     ACE_OS::snprintf(sql, 1024, update_sql_template, info->ver.data(), "is", "null");
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return exec_command(sql);
+  int m = 0;
+  return (exec_command(sql, &m) && m == 1);
 }

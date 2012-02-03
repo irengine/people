@@ -33,6 +33,19 @@ MyHttpDistRequest::MyHttpDistRequest()
   password = NULL;
 }
 
+MyHttpDistRequest::MyHttpDistRequest(const MyHttpDistInfo & info)
+{
+  acode = info.acode.data();
+  ftype = info.ftype.data();
+  fdir = info.fdir.data();
+  findex = info.findex.data();
+  adir = info.adir.data();
+  aindex = info.aindex.data();
+  ver = info.ver.data();
+  type = info.type.data();
+  password = info.password.data();
+}
+
 bool MyHttpDistRequest::check_value(const char * value, const char * value_name) const
 {
   if (!value || !*value)

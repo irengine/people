@@ -36,12 +36,18 @@ bool MyClientFileDistributor::check_dist_info_one(MyHttpDistInfo * info)
   if (unlikely(!info))
     return false;
   MyDB & db = MyServerAppX::instance()->db();
-  time_t info_time = MyDB::get_time_from_string(info->cmp_time.data());
-  bool expired = (time(NULL) - info_time > 60 * 15);
-  if (info->cmp_done.data()[0] == '0' && (!info->cmp_owner.data() || expired))
+  if (info->cmp_needed)
   {
-
+    if (db.dist_take_cmp_ownership(info))
+    {
+      MyHttpDistRequest http_dist_request(*info);
+      MyDistCompressor compressor;
+      if (!compressor.compress(http_dist_request))
+        return false;
+    }
   }
+
+
 }
 
 

@@ -12,10 +12,14 @@
 #include "mycomutil.h"
 #include "basemodule.h"
 
+class;
+
 class MyHttpDistRequest
 {
 public:
   MyHttpDistRequest();
+  MyHttpDistRequest(const MyHttpDistInfo & info);
+
   bool check_valid(const bool check_acode) const;
 
   char * acode;
