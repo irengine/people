@@ -12,7 +12,7 @@
 #include "mycomutil.h"
 #include "basemodule.h"
 
-class;
+class MyHttpDistInfo;
 
 class MyHttpDistRequest
 {
@@ -21,6 +21,7 @@ public:
   MyHttpDistRequest(const MyHttpDistInfo & info);
 
   bool check_valid(const bool check_acode) const;
+  bool need_md5() const;
 
   char * acode;
   char * ftype;
@@ -40,18 +41,18 @@ class MyHttpDistInfo
 {
 public:
   MyHttpDistInfo();
+  bool need_md5() const;
 
-  MyPooledMemGuard acode;
   MyPooledMemGuard ftype;
   MyPooledMemGuard fdir;
   MyPooledMemGuard findex;
-  MyPooledMemGuard adir;
   MyPooledMemGuard aindex;
   MyPooledMemGuard ver;
   MyPooledMemGuard type;
   MyPooledMemGuard password;
 
   MyPooledMemGuard dist_time;
+  MyPooledMemGuard md5;
 
   MyPooledMemGuard cmp_owner;
   MyPooledMemGuard cmp_time;

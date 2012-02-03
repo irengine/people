@@ -27,10 +27,11 @@ public:
   bool get_client_ids(MyClientIDTable * idtable);
   bool save_client_id(const char * s);
   bool save_dist(MyHttpDistRequest & http_dist_request);
-  bool save_dist_clients(char * idlist, const char * dist_id);
+  bool save_dist_clients(char * idlist, char * adirlist, const char * dist_id);
   bool save_dist_cmp_done(const char *dist_id);
   int  load_dist_infos(MyHttpDistInfos & infos);
   bool dist_take_cmp_ownership(MyHttpDistInfo * info);
+  bool mark_cmp_done(const char * dist_id);
 
 
 private:
@@ -40,7 +41,7 @@ private:
   bool commit();
   bool rollback();
   bool exec_command(const char * sql_command, int * affected = NULL);
-  const char * wrap_str(const char * s) const;
+  void wrap_str(const char * s, MyPooledMemGuard & wrapped) const;
 
   PGconn * m_connection;
   MyPooledMemGuard m_server_addr;

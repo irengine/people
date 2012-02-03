@@ -117,12 +117,12 @@ bool MyDB::rollback()
   return exec_command("ROLLBACK");
 }
 
-const char * MyDB::wrap_str(const char * s) const
+void MyDB::wrap_str(const char * s, MyPooledMemGuard & wrapped) const
 {
   if (!s || !*s)
-    return "null";
+    wrapped.init_from_string("null");
   else
-    return s;
+    wrapped.init_from_string("'", s, "'");
 }
 
 bool MyDB::exec_command(const char * sql_command, int * affected)
@@ -187,9 +187,9 @@ bool MyDB::save_client_id(const char * s)
   if (id.as_string()[0] == 0)
     return false;
 
-  const char * insert_sql_template = "insert into tb_clients(client_id) values(%s)";
+  const char * insert_sql_template = "insert into tb_clients(client_id) values('%s')";
   char insert_sql[1024];
-  ACE_OS::snprintf(insert_sql, 1024 - 1, insert_sql_template, id.as_string());
+  ACE_OS::snprintf(insert_sql, 1024, insert_sql_template, id.as_string());
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(insert_sql);
@@ -199,35 +199,36 @@ bool MyDB::save_dist(MyHttpDistRequest & http_dist_request)
 {
   const char * insert_sql_template = "insert into tb_dist_info("
                "dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
-               "dist_ftype, dist_adir, dist_password) values(%s, %s, %s, %s, %s, %s, %s. %s)";
+               "dist_ftype, dist_password) values('%s', '%s', %s, '%s', '%s', '%s', '%s', '%s')";
   char insert_sql[4096];
-  ACE_OS::snprintf(insert_sql, 4096 - 1, insert_sql_template,
-      http_dist_request.ver, http_dist_request.type, wrap_str(http_dist_request.aindex),
-      wrap_str(http_dist_request.findex),  wrap_str(http_dist_request.fdir),
-      http_dist_request.ftype, wrap_str(http_dist_request.adir), http_dist_request.password);
+  MyPooledMemGuard aindex;
+  wrap_str(http_dist_request.aindex, aindex);
+  ACE_OS::snprintf(insert_sql, 4096, insert_sql_template,
+      http_dist_request.ver, http_dist_request.type, aindex.data(),
+      http_dist_request.findex, http_dist_request.fdir,
+      http_dist_request.ftype, http_dist_request.password);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(insert_sql);
 }
 
-bool MyDB::save_dist_clients(char * idlist, const char * dist_id)
+bool MyDB::save_dist_clients(char * idlist, char * adirlist, const char * dist_id)
 {
-  const char * insert_sql_template = "insert into tb_dist_clients(dc_dist_id, dc_client_id) values(%s, %s)";
+  const char * insert_sql_template1 = "insert into tb_dist_clients(dc_dist_id, dc_client_id, dc_adir) values('%s', '%s', '%s')";
+  const char * insert_sql_template2 = "insert into tb_dist_clients(dc_dist_id, dc_client_id) values('%s', '%s')";
   char insert_sql[1024];
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
 
-  char seperator[2] = {';', 0};
-  char *str, *token, *saveptr;
+  char separator[2] = {';', 0};
   const int BATCH_COUNT = 20;
   int i = 0, total = 0, ok = 0;
-  for (str = idlist; ; str = NULL)
+  MyStringTokenizer client_ids(idlist, separator);
+  MyStringTokenizer adirs(adirlist, separator);
+  char * client_id, * adir;
+  while ((client_id = client_ids.get_token()) != NULL)
   {
-    token = strtok_r(str, seperator, &saveptr);
-    if (!token)
-      break;
-    if (!*token)
-      continue;
+    adir = adirs.get_token();
     total ++;
     if (i == 0)
     {
@@ -237,7 +238,10 @@ bool MyDB::save_dist_clients(char * idlist, const char * dist_id)
         return false;
       }
     }
-    ACE_OS::snprintf(insert_sql, 1024 - 1, insert_sql_template, dist_id, token);
+    if (adir)
+      ACE_OS::snprintf(insert_sql, 1024, insert_sql_template1, dist_id, client_id, adir);
+    else
+      ACE_OS::snprintf(insert_sql, 1024, insert_sql_template2, dist_id, client_id);
     exec_command(insert_sql);
     ++i;
     if (i == BATCH_COUNT)
@@ -347,8 +351,6 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
         info->password.init_from_string(fvalue);
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_time") == 0 && !exist)
         info->dist_time.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_adir") == 0  && !exist)
-        info->adir.init_from_string(fvalue);
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_aindex") == 0  && !exist)
         info->aindex.init_from_string(fvalue);
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_time") == 0)
@@ -357,7 +359,7 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
         info->cmp_owner.init_from_string(fvalue);
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_done") == 0)
         info->cmp_done.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "expiried") == 0)
+      else if (ACE_OS::strcmp(PQfname(pres, j), "expired") == 0)
         info->cmp_needed = (*fvalue == 't' || *fvalue == 'T');
     }
     if (!exist)
@@ -385,4 +387,18 @@ bool MyDB::dist_take_cmp_ownership(MyHttpDistInfo * info)
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   int m = 0;
   return (exec_command(sql, &m) && m == 1);
+}
+
+bool MyDB::mark_cmp_done(const char * dist_id)
+{
+  if (unlikely(!dist_id))
+    return false;
+
+  const char * update_sql_template = "update tb_dist_info set dist_cmp_done = 1"
+                                     "where dist_id = '%s'";
+  char sql[1024];
+  ACE_OS::snprintf(sql, 1024, update_sql_template, dist_id);
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  return exec_command(sql);
 }

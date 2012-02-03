@@ -550,14 +550,15 @@ bool MyHttpService::handle_packet(ACE_Message_Block * mb)
   char password[12];
   mycomutil_generate_random_password(password, 12);
   http_dist_request.password = password;
+  MyDB & db = MyServerAppX::instance()->db();
 
-  if (!MyServerAppX::instance()->db().save_dist(http_dist_request))
+  if (!db.save_dist(http_dist_request))
   {
     MY_ERROR("can not save_dist to db\n");
     return false;
   }
 
-  if (!MyServerAppX::instance()->db().save_dist_clients(http_dist_request.acode, http_dist_request.ver))
+  if (!db.save_dist_clients(http_dist_request.acode, http_dist_request.adir, http_dist_request.ver))
   {
     MY_ERROR("can not save_dist_clients to db\n");
     return false;
@@ -566,7 +567,9 @@ bool MyHttpService::handle_packet(ACE_Message_Block * mb)
   if (unlikely(!module_x()->running_with_app()))
     return false;
 
-  do_compress(http_dist_request);
+  if (do_compress(http_dist_request))
+    db.mark_cmp_done(http_dist_request.ver);
+
   notify_dist_servers();
   return true;
 }

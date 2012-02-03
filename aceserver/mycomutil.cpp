@@ -806,3 +806,33 @@ void MyMemPoolFactory::dump_info()
     MyBaseApp::mem_pool_dump_one(buff, nAlloc, nFree, nMaxUse, nAllocFull, m_pools[i]->chunk_size());
   }
 }
+
+//MyStringTokenizer//
+
+MyStringTokenizer::MyStringTokenizer(char * str, const char * separator)
+{
+  m_str = str;
+  m_savedptr = NULL;
+  m_separator = separator;
+}
+
+char * MyStringTokenizer::get_token()
+{
+  if (!m_str)
+    return NULL;
+  char * token;
+  while (true)
+  {
+    token = strtok_r(m_str, m_separator, &m_savedptr);
+    if (!token)
+    {
+      m_str = NULL;
+      return NULL;
+    }
+    if (unlikely(!*token))
+      continue;
+    return token;
+  }
+
+  ACE_NOTREACHED(return NULL);
+}

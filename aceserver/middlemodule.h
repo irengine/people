@@ -209,7 +209,7 @@ public:
 
 private:
   bool handle_packet(ACE_Message_Block * mb);
-  bool parse_request(ACE_Message_Block * mb, MyHttpDistRequest &http_dist_request);
+  bool parse_request(ACE_Message_Block * mb, MyHttpDistRequest & http_dist_request);
   bool do_compress(MyHttpDistRequest & http_dist_request);
   bool notify_dist_servers();
 };

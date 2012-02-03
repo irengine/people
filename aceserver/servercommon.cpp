@@ -17,6 +17,11 @@ MyHttpDistInfo::MyHttpDistInfo()
   cmp_needed = false;
 }
 
+bool MyHttpDistInfo::need_md5() const
+{
+  return (type.data() && type.data()[0] == '1');
+}
+
 
 //MyHttpDistRequest//
 
@@ -35,11 +40,11 @@ MyHttpDistRequest::MyHttpDistRequest()
 
 MyHttpDistRequest::MyHttpDistRequest(const MyHttpDistInfo & info)
 {
-  acode = info.acode.data();
+  acode = NULL;
   ftype = info.ftype.data();
   fdir = info.fdir.data();
   findex = info.findex.data();
-  adir = info.adir.data();
+  adir = NULL;
   aindex = info.aindex.data();
   ver = info.ver.data();
   type = info.type.data();
@@ -71,6 +76,9 @@ bool MyHttpDistRequest::check_valid(const bool check_acode) const
     return false;
   }
 
+  if (!check_value(findex, "findex"))
+    return false;
+
   if (!check_value(fdir, "fdir"))
     return false;
 
@@ -87,6 +95,11 @@ bool MyHttpDistRequest::check_valid(const bool check_acode) const
   }
 
   return true;
+}
+
+bool MyHttpDistRequest::need_md5() const
+{
+  return (type && *type == '1');
 }
 
 

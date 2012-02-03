@@ -642,6 +642,18 @@ public:
   static bool get_correlate_path(MyPooledMemGuard & pathfile, int skip);
 };
 
+class MyStringTokenizer
+{
+public:
+  MyStringTokenizer(char * str, const char * separator);
+  char * get_token();
+
+private:
+  char * m_str;
+  char * m_savedptr;
+  const char * m_separator;
+};
+
 void mycomutil_hex_dump(void * ptr, int len, char * result_buff, int buff_len);
 void mycomutil_generate_random_password(char * buff, const int password_len);
 bool mycomutil_find_tag_value(char * & ptr, const char * tag, char * & value, char terminator);

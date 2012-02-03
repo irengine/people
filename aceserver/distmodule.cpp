@@ -45,11 +45,23 @@ bool MyClientFileDistributor::check_dist_info_one(MyHttpDistInfo * info)
       if (!compressor.compress(http_dist_request))
         return false;
     }
+    info->cmp_done.data()[0] = '1';
+    db.mark_cmp_done(info->ver.data());
   }
+
+  if ((info->cmp_needed || !info->exist) && info->cmp_done.data()[0] == '1')
+  {
+    return do_clients_dist(info);
+  }
+}
+
+bool MyClientFileDistributor::do_clients_dist(MyHttpDistInfo * info)
+{
+  if (unlikely(!info))
+    return false;
 
 
 }
-
 
 bool MyClientFileDistributor::check_dist_clients()
 {

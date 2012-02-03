@@ -28,6 +28,7 @@ public:
 
 private:
   bool check_dist_info_one(MyHttpDistInfo * info);
+  bool do_clients_dist(MyHttpDistInfo * info);
 
   MyHttpDistInfos m_dist_infos;
 };
