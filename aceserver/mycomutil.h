@@ -51,6 +51,30 @@ extern bool g_use_mem_pool;
                     FATAL_PREFIX  FMT, \
                     ## __VA_ARGS__))
 
+#define ASSERT_PREFIX       ACE_TEXT("(%D %P|%t %N.%l)\n  ASSERT failed %I")
+#define __MY_ASSERT(FMT, ...)     \
+        ACE_DEBUG(( LM_ERROR,  \
+                    ASSERT_PREFIX  FMT, \
+                    ## __VA_ARGS__))
+
+
+#ifndef NO_MY_ASSERT
+
+  #define MY_ASSERT(condition, msg) \
+    if (unlikely(!(condition))) \
+      __MY_ASSERT(msg);
+
+  #define MY_ASSERT_RETURN(condition, msg, ret) \
+    if (unlikely(!(condition))) \
+    { \
+      __MY_ASSERT(msg); \
+      return (ret); \
+    }
+
+#else
+  #define MY_ASSERT(condition, msg) ((void) 0)
+  #define MY_ASSERT_RETURN (condition, msg, ret) ((void) 0)
+#endif
 
 class MyErrno
 {

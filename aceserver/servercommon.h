@@ -53,13 +53,14 @@ public:
 
   MyPooledMemGuard dist_time;
   MyPooledMemGuard md5;
+  MyPooledMemGuard md5_time;
 
-  MyPooledMemGuard cmp_owner;
   MyPooledMemGuard cmp_time;
   MyPooledMemGuard cmp_done;
 
   bool exist;
   bool cmp_needed;
+  bool md5_needed;
 };
 
 class MyHttpDistInfos
@@ -73,7 +74,7 @@ public:
   void clear();
   MyHttpDistInfo * find(const char * dist_id);
 
-  MyHttpDistInfoList m_dist_infos;
+  MyHttpDistInfoList dist_infos;
 };
 
 class MyDistCompressor
@@ -87,6 +88,12 @@ private:
 
   MyBZCompositor m_compositor;
   MyBZCompressor m_compressor;
+};
+
+class MyDistMd5Calculator
+{
+public:
+  bool calculate(MyHttpDistRequest & http_dist_request, MyPooledMemGuard &md5_result);
 };
 
 #endif /* SERVERCOMMON_H_ */

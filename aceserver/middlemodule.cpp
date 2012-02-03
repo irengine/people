@@ -568,7 +568,7 @@ bool MyHttpService::handle_packet(ACE_Message_Block * mb)
     return false;
 
   if (do_compress(http_dist_request))
-    db.mark_cmp_done(http_dist_request.ver);
+    db.dist_mark_cmp_done(http_dist_request.ver);
 
   do_calc_md5(http_dist_request);
 
@@ -584,28 +584,9 @@ bool MyHttpService::do_compress(MyHttpDistRequest & http_dist_request)
 
 bool MyHttpService::do_calc_md5(MyHttpDistRequest & http_dist_request)
 {
-  if (!http_dist_request.need_md5())
-    return true;
-
-  MyFileMD5s md5s_server;
-  if (unlikely(!md5s_server.calculate(http_dist_request.fdir, http_dist_request.findex, *http_dist_request.type == '0')))
-  {
-    MY_ERROR("failed to calculate md5 file list for dist %s\n", http_dist_request.ver);
-    return false;
-  }
-  md5s_server.sort();
-  if (!module_x()->running_with_app())
-    return false;
-  int buff_len = md5s_server.total_size(true);
+  MyDistMd5Calculator calc;
   MyPooledMemGuard md5_result;
-  MyMemPoolFactoryX::instance()->get_mem(buff_len, &md5_result);
-  if (unlikely(!md5s_server.to_buffer(md5_result.data(), buff_len, true)))
-  {
-    MY_ERROR("can not get md5 file list result for dist %s\n", http_dist_request.ver);
-    return false;
-  }
-
-  return MyServerAppX::instance()->db().save_dist_md5(http_dist_request.ver, md5_result.data(), buff_len);
+  return calc.calculate(http_dist_request, md5_result);
 }
 
 bool MyHttpService::notify_dist_servers()

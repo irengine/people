@@ -32,6 +32,7 @@ public:
   MyPooledMemGuard adir;
   MyPooledMemGuard md5;
   MyPooledMemGuard mbz_file;
+  time_t last_update;
 };
 
 class MyDistClients
@@ -45,6 +46,7 @@ public:
   void clear();
   void add(MyDistClient *);
   MyDistClientList dist_clients;
+  time_t db_time;
 
 private:
   MyHttpDistInfos * m_dist_infos;
@@ -53,14 +55,15 @@ private:
 class MyClientFileDistributor
 {
 public:
+  MyClientFileDistributor();
   bool check_dist_info();
   bool check_dist_clients();
 
 private:
   bool check_dist_info_one(MyHttpDistInfo * info);
-  bool do_clients_dist(MyHttpDistInfo * info);
 
   MyHttpDistInfos m_dist_infos;
+  MyDistClients m_dist_clients;
 };
 
 class MyHeartBeatProcessor: public MyBaseServerProcessor

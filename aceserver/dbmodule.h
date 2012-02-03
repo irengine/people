@@ -32,7 +32,9 @@ public:
   bool save_dist_cmp_done(const char *dist_id);
   int  load_dist_infos(MyHttpDistInfos & infos);
   bool dist_take_cmp_ownership(MyHttpDistInfo * info);
-  bool mark_cmp_done(const char * dist_id);
+  bool dist_take_md5_ownership(MyHttpDistInfo * info);
+  bool dist_mark_cmp_done(const char * dist_id);
+  bool dist_mark_md5_done(const char * dist_id);
   bool save_dist_md5(const char * dist_id, const char * md5, int md5_len);
   bool load_dist_clients(MyDistClients * dist_clients);
 
@@ -44,6 +46,8 @@ private:
   bool rollback();
   bool exec_command(const char * sql_command, int * affected = NULL);
   void wrap_str(const char * s, MyPooledMemGuard & wrapped) const;
+  time_t get_db_time_i();
+  bool take_owner_ship(const char * table, const char * field, const char * old_time, const char * where_clause);
 
   PGconn * m_connection;
   MyPooledMemGuard m_server_addr;

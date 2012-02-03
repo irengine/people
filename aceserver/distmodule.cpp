@@ -15,6 +15,7 @@ MyDistClient::MyDistClient(MyHttpDistInfo * _dist_info)
 {
   dist_info = _dist_info;
   status = -1;
+  last_update = 0;
 }
 
 bool MyDistClient::check_valid() const
@@ -35,14 +36,14 @@ void MyDistClients::add(MyDistClient * dc)
 
 MyHttpDistInfo * MyDistClients::find(const char * dist_id)
 {
-  if (unlikely(!m_dist_infos))
-    return NULL;
+  MY_ASSERT_RETURN(!m_dist_infos, "", NULL);
   return m_dist_infos->find(dist_id);
 }
 
 MyDistClients::MyDistClients(MyHttpDistInfos * dist_infos)
 {
   m_dist_infos = dist_infos;
+  db_time = 0;
 }
 
 MyDistClients::~MyDistClients()
@@ -56,27 +57,27 @@ void MyDistClients::clear()
   dist_clients.clear();
   MyDistClientList x;
   x.swap(dist_clients);
+  db_time = 0;
 }
 
 
 //MyClientFileDistributor//
 
+MyClientFileDistributor::MyClientFileDistributor(): m_dist_clients(&m_dist_infos)
+{
+
+}
+
 bool MyClientFileDistributor::check_dist_info()
 {
   m_dist_infos.prepare_update();
-  int m = MyServerAppX::instance()->db().load_dist_infos(m_dist_infos);
-  if (m <= 0)
+  if (MyServerAppX::instance()->db().load_dist_infos(m_dist_infos) <= 0)
     return true;
 
-  int count = m_dist_infos.m_dist_infos.size();
-  if (unlikely(m > count))
-  {
-    MY_FATAL("dist info list corrupted, retrieved %d while total is %d\n", m, count);
-    m = count;
-  }
-
-  for (int i = count - m; i < count; ++ i)
-    check_dist_info_one(m_dist_infos.m_dist_infos[i]);
+  int count = m_dist_infos.dist_infos.size();
+  for (int i = count - 1; i >= 0; -- i)
+    if (!check_dist_info_one(m_dist_infos.dist_infos[i]))
+      return false;
 
   return true;
 }
@@ -96,25 +97,29 @@ bool MyClientFileDistributor::check_dist_info_one(MyHttpDistInfo * info)
         return false;
     }
     info->cmp_done.data()[0] = '1';
-    db.mark_cmp_done(info->ver.data());
+    db.dist_mark_cmp_done(info->ver.data());
+    info->cmp_needed = false;
   }
 
-  if ((info->cmp_needed || !info->exist) && info->cmp_done.data()[0] == '1')
+  if (info->md5_needed)
   {
-    return do_clients_dist(info);
+    if (db.dist_take_md5_ownership(info))
+    {
+      MyHttpDistRequest http_dist_request(*info);
+      MyDistMd5Calculator calc;
+      if (!calc.calculate(http_dist_request, info->md5))
+        return false;
+    }
+    info->md5_needed = false;
   }
-}
 
-bool MyClientFileDistributor::do_clients_dist(MyHttpDistInfo * info)
-{
-  if (unlikely(!info))
-    return false;
-
-
+  return true;
 }
 
 bool MyClientFileDistributor::check_dist_clients()
 {
+  if (!MyServerAppX::instance()->db().load_dist_clients(&m_dist_clients))
+    return false;
 
 }
 

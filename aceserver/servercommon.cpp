@@ -112,36 +112,21 @@ MyHttpDistInfos::~MyHttpDistInfos()
 
 void MyHttpDistInfos::clear()
 {
-  std::for_each(m_dist_infos.begin(), m_dist_infos.end(), MyPooledObjectDeletor());
-  m_dist_infos.clear();
+  std::for_each(dist_infos.begin(), dist_infos.end(), MyPooledObjectDeletor());
+  dist_infos.clear();
   MyHttpDistInfoList x;
-  x.swap(m_dist_infos);
+  x.swap(dist_infos);
 }
 
 void MyHttpDistInfos::add(MyHttpDistInfo *p)
 {
   if (likely(p != NULL))
-    m_dist_infos.push_back(p);
+    dist_infos.push_back(p);
 }
 
 void MyHttpDistInfos::prepare_update()
 {
-  MyHttpDistInfoList::iterator it;
-  for (it = m_dist_infos.begin(); it != m_dist_infos.end(); )
-  {
-    if (unlikely(!(*it) || !((*it)->ver.data())))
-    {
-      MyPooledObjectDeletor deletor;
-      deletor(*it);
-      it = m_dist_infos.erase(it);
-    }
-    else
-    {
-      (*it)->exist = true;
-      (*it)->cmp_needed = false;
-      ++it;
-    }
-  }
+  clear();
 }
 
 MyHttpDistInfo * MyHttpDistInfos::find(const char * dist_id)
@@ -149,13 +134,13 @@ MyHttpDistInfo * MyHttpDistInfos::find(const char * dist_id)
   if (unlikely(!dist_id || !*dist_id))
     return NULL;
 
-  int count = m_dist_infos.size();
+  int count = dist_infos.size();
   for (int i = 0; i < count; ++ i)
   {
-    if (unlikely(!m_dist_infos[i] || !m_dist_infos[i]->ver.data()))
+    if (unlikely(!dist_infos[i] || !dist_infos[i]->ver.data()))
       continue;
-    if (ACE_OS::strcmp(dist_id, m_dist_infos[i]->ver.data()) == 0)
-      return m_dist_infos[i];
+    if (ACE_OS::strcmp(dist_id, dist_infos[i]->ver.data()) == 0)
+      return dist_infos[i];
   }
   return NULL;
 }
@@ -288,4 +273,30 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
 
   closedir(dir);
   return true;
+}
+
+
+//MyDistMd5Calculator//
+
+bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, MyPooledMemGuard &md5_result)
+{
+//  if (!http_dist_request.need_md5())
+//    return true;
+  MyFileMD5s md5s_server;
+  if (unlikely(!md5s_server.calculate(http_dist_request.fdir, http_dist_request.findex, *http_dist_request.type == '0')))
+  {
+    MY_ERROR("failed to calculate md5 file list for dist %s\n", http_dist_request.ver);
+    return false;
+  }
+  md5s_server.sort();
+  int result_len = md5s_server.total_size(true);
+
+  MyMemPoolFactoryX::instance()->get_mem(result_len, &md5_result);
+  if (unlikely(!md5s_server.to_buffer(md5_result.data(), result_len, true)))
+  {
+    MY_ERROR("can not get md5 file list result for dist %s\n", http_dist_request.ver);
+    return false;
+  }
+
+  return MyServerAppX::instance()->db().save_dist_md5(http_dist_request.ver, md5_result.data(), result_len);
 }
