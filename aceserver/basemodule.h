@@ -139,7 +139,6 @@ class MyFileMD5s
 {
 public:
   typedef std::vector<MyFileMD5 *, MyAllocator<MyFileMD5 *> > MyFileMD5List;
-  enum { SEPARATOR_END = '*', SEPARATOR_MIDDLE = '?' };
 
   MyFileMD5s();
   ~MyFileMD5s();

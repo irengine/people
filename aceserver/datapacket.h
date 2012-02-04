@@ -130,11 +130,18 @@ public:
 
 };
 
+
+#ifndef Null_Item
+  #define Null_Item "!"
+#endif
 //every packet commute between server and clients at least has this head
 class MyDataPacketHeader
 {
 public:
   enum { DATAPACKET_MAGIC = 0x80089397 };
+  enum { ITEM_SEPARATOR = '*', MIDDLE_SEPARATOR = '?', FINISH_SEPARATOR = ':' };
+  enum { NULL_ITEM_LENGTH = 1 };
+
   enum COMMAND
   {
     CMD_NULL = 0,
@@ -262,7 +269,6 @@ public:
     VER_SERVER_LIST
   };
   enum { MAX_REPLY_DATA_LENGTH = 4096 };
-  enum { SERVER_LIST_SEPERATOR = ';', SERVER_FTP_SEPERATOR = '#' };
   int8_t reply_code;
   char data[0]; //placeholder
 };
@@ -310,7 +316,6 @@ public:
 class MyServerFileMD5List: public MyDataPacketHeader
 {
 public:
-  enum { LEAD_ITEM_SEPARATOR = '*', LEAD_FINISH_SEPARATOR = ':' };
   char data[0];
 };
 

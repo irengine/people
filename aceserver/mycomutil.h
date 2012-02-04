@@ -664,6 +664,8 @@ public:
   static bool copy_file(int src_fd, int dest_fd);
   static int  cat_path(const char * path, const char * subpath, MyPooledMemGuard & result);
   static bool get_correlate_path(MyPooledMemGuard & pathfile, int skip);
+  static bool remove(const char *pathfile);
+  static bool rename(const char *old_path, const char * new_path);
 };
 
 class MyStringTokenizer

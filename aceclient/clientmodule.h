@@ -20,6 +20,17 @@ class MyClientToDistConnector;
 
 const int16_t const_client_version = 1;
 
+class MyDistInfoHeader
+{
+public:
+  int load_from_string(char * src);
+
+  MyPooledMemGuard dist_id;
+  MyPooledMemGuard findex;
+  MyPooledMemGuard adir;
+  MyPooledMemGuard aindex;
+};
+
 class MyClientToDistProcessor: public MyBaseClientProcessor
 {
 public:
@@ -35,6 +46,8 @@ protected:
 
 private:
   int send_version_check_req();
+
+  MyBaseProcessor::EVENT_RESULT do_ftp_file_request(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
 
   bool m_version_check_reply_done;

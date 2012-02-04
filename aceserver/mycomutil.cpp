@@ -201,7 +201,7 @@ bool mycomutil_find_tag_value(char * & ptr, const char * tag, char * & value, ch
   if (unlikely(!ptr || !*ptr || !tag))
     return false;
   int key_len = ACE_OS::strlen(tag);
-  if (ACE_OS::memcpy(ptr, tag, key_len) != 0)
+  if (ACE_OS::memcmp(ptr, tag, key_len) != 0)
     return false;
   ptr += key_len;
   value = ptr;
@@ -545,12 +545,28 @@ bool MyFilePaths::get_correlate_path(MyPooledMemGuard & pathfile, int skip)
 {
   char * ptr = pathfile.data() + skip + 1;
   char * ptr2 = ACE_OS::strrchr(ptr, '.');
-  if (unlikely(!ptr2 || ptr2 < ptr))
+  if (unlikely(!ptr2 || ptr2 <= ptr))
     return false;
   *ptr2 = 0;
   if (unlikely(*(ptr2 - 1) == '/'))
     return false;
   return true;
+}
+
+bool MyFilePaths::rename(const char *old_path, const char * new_path)
+{
+  bool result = (::rename(old_path, new_path) == 0);
+  if (!result)
+    MY_ERROR("rename %s to %s failed %s\n", old_path, new_path, (const char*)MyErrno());
+  return result;
+}
+
+bool MyFilePaths::remove(const char *pathfile)
+{
+  bool result = (::remove(pathfile) == 0);
+  if (!result)
+    MY_ERROR("remove %s failed %s\n", pathfile, (const char*)MyErrno());
+  return result;
 }
 
 
@@ -812,14 +828,11 @@ void MyMemPoolFactory::dump_info()
 MyStringTokenizer::MyStringTokenizer(char * str, const char * separator)
 {
   m_str = str;
-  m_savedptr = NULL;
   m_separator = separator;
 }
 
 char * MyStringTokenizer::get_token()
 {
-  if (!m_str)
-    return NULL;
   char * token;
   while (true)
   {
@@ -829,8 +842,9 @@ char * MyStringTokenizer::get_token()
       m_str = NULL;
       return NULL;
     }
-    if (unlikely(!*token))
-      continue;
+//    if (unlikely(!*token))
+//      continue;
+    m_str = NULL;
     return token;
   }
 

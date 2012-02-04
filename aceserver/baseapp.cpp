@@ -39,7 +39,7 @@ const int  DEFAULT_client_heart_beat_interval = 60; //in seconds
   const int  DEFAULT_test_client_connection_number = 1;
 #endif
 const int  DEFAULT_db_server_port = 5432;
-const int  DEFAULT_http_port = 1921;
+const int  DEFAULT_http_port = 1922;
 const int  DEFAULT_bs_server_port = 0;
 
 //common for all

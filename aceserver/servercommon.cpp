@@ -101,7 +101,7 @@ bool MyHttpDistRequest::check_valid(const bool check_acode) const
   if (!check_value(type, "type"))
     return false;
 
-  if (unlikely(type[1] != 0 || type[0] != '0' || type[0] != '1' || type[0] != '3'))
+  if (unlikely(type[1] != 0 || (type[0] != '0' && type[0] != '1' && type[0] != '3')))
   {
     MY_ERROR("bad http dist request, type = %s\n", type);
     return false;
@@ -182,8 +182,8 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
     return false;
   }
 
-  if (*http_dist_request.type != '0')
-  {
+//  if (*http_dist_request.type != '0')
+//  {
     MyPooledMemGuard composite_dir;
     composite_dir.init_from_string(destdir.data(), "/", composite_path());
     if (mkdir(composite_dir.data(), S_IRWXU) == -1 && ACE_OS::last_error() != EEXIST)
@@ -193,14 +193,15 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
     }
     MyPooledMemGuard all_in_one;
     all_in_one.init_from_string(composite_dir.data(), "/all_in_one.mbz");
-    if (!m_compositor.open(all_in_one.data()))
-      return false;
-  }
+    if (*http_dist_request.type != '0')
+      if (!m_compositor.open(all_in_one.data()))
+        return false;
+//  }
 
   MyPooledMemGuard mfile;
   MyFilePaths::cat_path(http_dist_request.fdir, http_dist_request.findex, mfile);
   MyPooledMemGuard mdestfile;
-  mdestfile.init_from_string(destdir.data(), (http_dist_request.findex? http_dist_request.findex: http_dist_request.aindex), ".mbz");
+  mdestfile.init_from_string(destdir.data(), "/", (http_dist_request.findex? http_dist_request.findex: http_dist_request.aindex), ".mbz");
   if (!m_compressor.compress(mfile.data(), prefix_len, mdestfile.data(), http_dist_request.password))
   {
     MY_ERROR("compress(%s) to (%s) failed\n", mfile.data(), mdestfile.data());
@@ -209,7 +210,7 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
   }
 
   if (*http_dist_request.type == '0')
-    return true;
+    return MyFilePaths::rename(mdestfile.data(), all_in_one.data());
 
   if (unlikely(!MyFilePaths::get_correlate_path(mfile, prefix_len)))
   {
@@ -221,6 +222,18 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
   if (!result)
     MY_ERROR("can not generate compressed files for %s from %s\n", http_dist_request.ver, mfile.data());
   m_compositor.close();
+
+  if (*http_dist_request.type == '3')
+  {
+    MyFilePaths::remove(mdestfile.data());
+    int len = ACE_OS::strlen(mdestfile.data());
+    if (likely(len > 4))
+    {
+      mdestfile.data()[len - 4] = 0;
+      if (likely(MyFilePaths::get_correlate_path(mdestfile, 1)))
+        MyFilePaths::remove_path(mdestfile.data());
+    }
+  }
   return result;
 }
 

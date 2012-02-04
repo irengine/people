@@ -202,7 +202,7 @@ MyFileMD5::MyFileMD5(const char * _filename, const char * md5, int prefix_len, c
   {
     MD5_CTX mdContext;
     if (!md5file(_filename, 0, &mdContext, m_md5, MD5_STRING_LENGTH))
-      MY_ERROR("failed not calculate md5 value of file %s\n", _filename);
+      MY_ERROR("failed to calculate md5 value of file %s\n", _filename);
   } else
     memcpy((void*)m_md5, (void*)md5, MD5_STRING_LENGTH);
 }
@@ -354,13 +354,13 @@ bool MyFileMD5s::to_buffer(char * buff, int buff_len, bool include_md5_value)
     }
     int fm_file_length = fm.size(false);
     ACE_OS::memcpy(buff + len, fm.filename(), fm_file_length);
-    buff[len + fm_file_length - 1] = include_md5_value? SEPARATOR_MIDDLE: SEPARATOR_END;
+    buff[len + fm_file_length - 1] = include_md5_value? MyDataPacketHeader::MIDDLE_SEPARATOR: MyDataPacketHeader::ITEM_SEPARATOR;
     len += fm_file_length;
     if (include_md5_value)
     {
       ACE_OS::memcpy(buff + len, fm.md5(), MyFileMD5::MD5_STRING_LENGTH);
       len += MyFileMD5::MD5_STRING_LENGTH;
-      buff[len++] = SEPARATOR_END;
+      buff[len++] = MyDataPacketHeader::ITEM_SEPARATOR;
     }
   }
   buff[len] = 0;
@@ -372,7 +372,7 @@ bool MyFileMD5s::from_buffer(char * buff)
   if (!buff || !*buff)
     return true;
 
-  char seperator[2] = {SEPARATOR_END, 0};
+  char seperator[2] = {MyDataPacketHeader::ITEM_SEPARATOR, 0};
   char *str, *token, *saveptr, *md5;
 
 //  ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
@@ -383,7 +383,7 @@ bool MyFileMD5s::from_buffer(char * buff)
       break;
     if (unlikely(!*token))
       continue;
-    md5 = ACE_OS::strchr(token, SEPARATOR_MIDDLE);
+    md5 = ACE_OS::strchr(token, MyDataPacketHeader::MIDDLE_SEPARATOR);
     if (unlikely(md5 == token || !md5))
     {
       MY_ERROR("bad file/md5 list item @MyFileMD5s::from_buffer: %s\n", token);

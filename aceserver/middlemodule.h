@@ -87,6 +87,7 @@ public:
 private:
   void calc_server_list();
   MyDistLoads::MyDistLoadVecIt find_i(const char * addr);
+
   MyDistLoadVec m_loads;
   char m_server_list[SERVER_LIST_LENGTH];
   int  m_server_list_length;

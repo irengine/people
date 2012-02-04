@@ -95,7 +95,7 @@ void MyDistLoads::calc_server_list()
     ACE_OS::memcpy(ptr, it->m_ip_addr, len + 1);
     ptr += len;
     remain_len -= (len + 1);
-    *ptr = MyClientVersionCheckReply::SERVER_LIST_SEPERATOR;
+    *ptr = MyDataPacketHeader::ITEM_SEPARATOR;
     ++ptr;
   }
   *ptr = 0;
@@ -105,7 +105,7 @@ void MyDistLoads::calc_server_list()
     MY_ERROR("ftp server addr list is too long @MyDistLoads::calc_server_list()\n");
   else
   {
-    *ptr++ = MyClientVersionCheckReply::SERVER_FTP_SEPERATOR;
+    *ptr++ = MyDataPacketHeader::FINISH_SEPARATOR;
     ACE_OS::strsncpy(ptr, MyConfigX::instance()->ftp_addr_list.c_str(), remain_len + 1);
   }
 
@@ -351,7 +351,7 @@ int MyHttpProcessor::packet_length()
 MyBaseProcessor::EVENT_RESULT MyHttpProcessor::on_recv_header()
 {
   int len = packet_length();
-  if (len > 1024 * 1024 * 10 || len <= 4)
+  if (len > 1024 * 1024 * 10 || len < 20)
   {
     MY_ERROR("got an invalid http packet with size = %d\n", len);
     return ER_ERROR;
@@ -463,7 +463,10 @@ bool MyHttpService::parse_request(ACE_Message_Block * mb, MyHttpDistRequest &htt
 {
   const char const_header[] = "http://127.0.0.1:10092/file?";
   const int const_header_len = sizeof(const_header) / sizeof(char) - 1;
-  if (unlikely((int)(mb->length()) <= const_header_len))
+  int mb_len = mb->length();
+  ACE_OS::memmove(mb->base(), mb->base() + 4, mb_len - 4);
+  mb->base()[mb_len - 4] = 0;
+  if (unlikely((int)(mb->length()) <= const_header_len + 10))
   {
     MY_ERROR("bad http request, packet too short\n", const_header);
     return false;

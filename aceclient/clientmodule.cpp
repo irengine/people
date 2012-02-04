@@ -9,6 +9,45 @@
 #include "baseapp.h"
 #include "client.h"
 
+//MyDistInfoHeader//
+
+int MyDistInfoHeader::load_from_string(char * src)
+{
+  char * end = strchr(src, MyDataPacketHeader::FINISH_SEPARATOR);
+  if (!end)
+    return false;
+  *end = 0;
+
+  const char separator[2] = { MyDataPacketHeader::ITEM_SEPARATOR, 0 };
+  MyStringTokenizer tk(src, separator);
+  char * token = tk.get_token();
+  if (unlikely(!token))
+    return -1;
+  else
+    dist_id.init_from_string(token);
+
+  token = tk.get_token();
+  if (unlikely(!token))
+    return -1;
+  else
+    findex.init_from_string(token);
+
+  token = tk.get_token();
+  if (unlikely(!token))
+    return -1;
+  else if (ACE_OS::strcmp(token, Null_Item) != 0)
+    adir.init_from_string(token);
+
+  token = tk.get_token();
+  if (unlikely(!token))
+    return -1;
+  else if (ACE_OS::strcmp(token, Null_Item) != 0)
+    aindex.init_from_string(token);
+
+  return end - src + 1;
+}
+
+
 //MyClientToDistProcessor//
 
 MyClientToDistProcessor::MyClientToDistProcessor(MyBaseHandler * handler): MyBaseClientProcessor(handler)
@@ -79,6 +118,19 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
     return ER_OK;
   }
 
+  if (m_packet_header.command == MyDataPacketHeader::CMD_FTP_FILE)
+  {
+    MyFtpFileProc proc;
+    proc.attach((const char*)&m_packet_header);
+    if (!proc.validate_header())
+    {
+      MY_ERROR("failed to validate header for server ftp file\n");
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
+
   MY_ERROR("unexpected packet header from dist server, header.command = %d\n", m_packet_header.command);
   return ER_ERROR;
 }
@@ -105,11 +157,14 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
     ACE_Time_Value tv(ACE_Time_Value::zero);
     if (((MyClientToDistHandler*)m_handler)->module_x()->service()->putq(mb, &tv) == -1)
     {
-      MY_ERROR("failed to put server file md5 list message block to service queue.\n");
+      MY_ERROR("failed to put server file md5 list message to service queue.\n");
       mb->release();
     }
     return ER_OK;
   }
+
+  if (header->command == MyDataPacketHeader::CMD_FTP_FILE)
+    return do_ftp_file_request(mb);
 
   MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyClientToDistProcessor::on_recv_packet_i(), command = %d\n",
@@ -129,6 +184,41 @@ int MyClientToDistProcessor::send_heart_beat()
   int ret = (m_handler->send_data(mb) < 0? -1: 0);
 //  MY_DEBUG("send_heart_beat = %d\n", ret);
   return ret;
+}
+
+MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  MyFtpFile * ftp_file = (MyFtpFile *) mb->base();
+  int data_len = ftp_file->length - sizeof(MyFtpFile);
+  ftp_file->data[data_len - 1] = 0;
+
+  MyDistInfoHeader dist_header;
+  int header_len = dist_header.load_from_string(ftp_file->data);
+  if (header_len <= 0)
+  {
+    MY_ERROR("bad ftp file packet, no valid dist info\n");
+    return ER_ERROR;
+  }
+
+  if (unlikely(header_len >= data_len))
+  {
+    MY_ERROR("bad ftp file packet, no valid file/password info\n");
+    return ER_ERROR;
+  }
+
+  char * file_password = ftp_file->data + header_len;
+  int password_len = ACE_OS::strlen(file_password);
+  if (password_len == data_len - 1)
+  {
+    MY_ERROR("bad ftp file packet, no ftp file name\n");
+    return ER_ERROR;
+  }
+  char * file_name = ftp_file->data + password_len + 1;
+  MY_INFO("recieved one ftp command for dist %s: password = %s, file name = %s\n",
+      dist_header.dist_id.data(), file_password, file_name);
+
+  return ER_OK;
 }
 
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(ACE_Message_Block * mb)
@@ -204,11 +294,11 @@ void MyDistServerAddrList::addr_list(char *list)
 
   m_addr_list_len = ACE_OS::strlen(list) + 1;
   m_addr_list.init_from_string(list);
-  char * ftp_list = strchr(list, MyClientVersionCheckReply::SERVER_FTP_SEPERATOR);
+  char * ftp_list = strchr(list, MyDataPacketHeader::FINISH_SEPARATOR);
   if (ftp_list)
     *ftp_list++ = 0;
 
-  char seperator[2] = {MyClientVersionCheckReply::SERVER_LIST_SEPERATOR, 0};
+  char seperator[2] = {MyDataPacketHeader::ITEM_SEPARATOR, 0};
   char *str, *token, *saveptr;
 
   for (str = list; ;str = NULL)

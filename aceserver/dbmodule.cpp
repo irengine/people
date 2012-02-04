@@ -214,7 +214,7 @@ bool MyDB::save_dist(MyHttpDistRequest & http_dist_request)
 {
   const char * insert_sql_template = "insert into tb_dist_info("
                "dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
-               "dist_ftype, dist_password) values('%s', '%s', %s, '%s', '%s', '%s', '%s', '%s')";
+               "dist_ftype, dist_password) values('%s', '%s', %s, '%s', '%s', '%s', '%s')";
   char insert_sql[4096];
   MyPooledMemGuard aindex;
   wrap_str(http_dist_request.aindex, aindex);
