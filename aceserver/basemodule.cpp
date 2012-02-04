@@ -1,7 +1,23 @@
 #include "basemodule.h"
 #include "baseapp.h"
 
-//MyClientInfos//
+MyClientIDTable * g_client_id_table = NULL;
+
+//MyClientInfo//
+
+MyClientInfo::MyClientInfo()
+{
+  active = false;
+}
+
+MyClientInfo::MyClientInfo(const MyClientID & id)
+{
+  active = false;
+  client_id = id;
+}
+
+
+//MyClientIDTable//
 
 MyClientIDTable::MyClientIDTable()
 {
@@ -21,10 +37,10 @@ bool MyClientIDTable::contains(const MyClientID & id)
 
 void MyClientIDTable::add_i(const MyClientID & id)
 {
-  int index = index_of_i(id);
-  if (index >= 0)
+  if (index_of_i(id) >= 0)
     return;
-  m_table.push_back(id);
+  MyClientInfo info(id);
+  m_table.push_back(info);
   m_map[id] = m_table.size() - 1;
 }
 
@@ -81,7 +97,7 @@ int MyClientIDTable::index_of_i(const MyClientID & id, ClientIDTable_map::iterat
     *pIt = it;
   if (it == m_map.end())
     return -1;
-  if (it->second < 0 || it->second >= (int)m_table.size())
+  if (unlikely(it->second < 0 || it->second >= (int)m_table.size()))
   {
     MY_ERROR("Invalid MyClientInfos map index = %d, table size = %d\n", it->second, (int)m_table.size());
     return -1;
@@ -102,8 +118,42 @@ bool MyClientIDTable::value(int index, MyClientID * id)
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
   if (unlikely(index >= (int)m_table.size()))
     return false;
-  *id = m_table[index];
+  *id = m_table[index].client_id;
   return true;
+}
+
+bool MyClientIDTable::active(const MyClientID & id, int & index)
+{
+  ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
+  index = index_of_i(id);
+  if (unlikely(index < 0))
+    return false;
+  return m_table[index].active;
+}
+
+//void MyClientIDTable::active(const MyClientID & id, bool _active)
+//{
+//  ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
+//  int idx = index_of_i(id);
+//  if (unlikely(idx < 0))
+//    return;
+//  m_table[idx].active = _active;
+//}
+
+bool MyClientIDTable::active(int index)
+{
+  ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
+  if (unlikely(index < 0 || index > (int)m_table.size()))
+    return false;
+  return m_table[index].active;
+}
+
+void MyClientIDTable::active(int index, bool _active)
+{
+  ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
+  if (unlikely(index < 0 || index > (int)m_table.size()))
+    return;
+  m_table[index].active = _active;
 }
 
 int MyClientIDTable::last_sequence() const
@@ -1704,7 +1754,7 @@ void MyBaseConnectionManager::set_connection_state(MyBaseHandler * handler, Conn
   add_connection(handler, state);
 }
 
-void MyBaseConnectionManager::remove_connection(MyBaseHandler * handler)
+void MyBaseConnectionManager::remove_connection(MyBaseHandler * handler, MyClientIDTable * id_table)
 {
   if (m_locked)
     return;
@@ -1723,7 +1773,11 @@ void MyBaseConnectionManager::remove_connection(MyBaseHandler * handler)
 
   MyIndexHandlerMapPtr ptr2 = find_handler_by_index_i(index);
   if (ptr2 != m_index_handler_map.end() && (ptr2->second == handler || ptr2->second == NULL))
+  {
     m_index_handler_map.erase(ptr2);
+    if (id_table)
+      id_table->active(index, false);
+  }
 }
 
 MyBaseConnectionManager::MyConnectionsPtr MyBaseConnectionManager::find(MyBaseHandler * handler)
@@ -1817,7 +1871,7 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
   while (-1 != this->getq(mb, &nowait))
     mb->release();
   if (m_connection_manager)
-    m_connection_manager->remove_connection(this);
+    m_connection_manager->remove_connection(this, g_client_id_table);
   on_close();
   m_processor->on_close();
   //here comes the tricky part, parent class will NOT call delete as it normally does

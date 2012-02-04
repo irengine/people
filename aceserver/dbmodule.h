@@ -37,6 +37,7 @@ public:
   bool dist_mark_md5_done(const char * dist_id);
   bool save_dist_md5(const char * dist_id, const char * md5, int md5_len);
   bool load_dist_clients(MyDistClients * dist_clients);
+  bool set_dist_client_status(MyDistClient & dist_client, int new_status);
 
 private:
   void disconnect();

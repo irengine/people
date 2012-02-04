@@ -16,6 +16,7 @@ MyDistClient::MyDistClient(MyHttpDistInfo * _dist_info)
   dist_info = _dist_info;
   status = -1;
   last_update = 0;
+  m_client_id_index = -1;
 }
 
 bool MyDistClient::check_valid() const
@@ -23,22 +24,156 @@ bool MyDistClient::check_valid() const
   return ((dist_info != NULL) && (status >= 0 && status <= 4) && (!client_id.is_null()));
 }
 
+bool MyDistClient::active()
+{
+  return g_client_id_table->active(client_id, m_client_id_index);
+}
+
+int MyDistClient::dist_file(MyDistClients & dist_clients)
+{
+  if (!active())
+    return 0;
+
+  switch (status)
+  {
+  case 0:
+    return do_stage_0(dist_clients);
+
+  case 1:
+    return do_stage_1(dist_clients);
+
+  case 2:
+    return do_stage_2(dist_clients);
+
+  case 3:
+    return do_stage_3(dist_clients);
+
+  case 4:
+    return do_stage_4(dist_clients);
+
+  default:
+    MY_ERROR("unexpected status value = %d @MyDistClient::dist_file\n", status);
+    return 0;
+  }
+}
+
+int MyDistClient::do_stage_0(MyDistClients & dist_clients)
+{
+  if (dist_info->need_md5())
+    return send_md5();
+
+  return send_ftp();
+}
+
+int MyDistClient::do_stage_1(MyDistClients & dist_clients)
+{
+
+  return 0;
+}
+
+int MyDistClient::do_stage_2(MyDistClients & dist_clients)
+{
+  return 0;
+}
+
+int MyDistClient::do_stage_3(MyDistClients & dist_clients)
+{
+
+  return 0;
+}
+
+int MyDistClient::do_stage_4(MyDistClients & dist_clients)
+{
+  return 0;
+}
+
+int MyDistClient::dist_out_leading_length()
+{
+  int adir_len = adir.data() ? ACE_OS::strlen(adir.data()) : 0;
+  return dist_info->ver_len + dist_info->findex_len + dist_info->aindex_len + adir_len + 4;
+}
+
+void MyDistClient::dist_out_leading_data(char * data)
+{
+  sprintf(data, "%s%c%s%c%s%c%s%c",
+      dist_info->ver.data(), MyServerFileMD5List::LEAD_ITEM_SEPARATOR,
+      dist_info->findex.data(), MyServerFileMD5List::LEAD_ITEM_SEPARATOR,
+      adir.data()? adir.data(): "", MyServerFileMD5List::LEAD_ITEM_SEPARATOR,
+      dist_info->aindex.data()? dist_info->aindex.data(): "", MyServerFileMD5List::LEAD_FINISH_SEPARATOR);
+}
+
+int MyDistClient::send_md5()
+{
+  if (!dist_info->md5.data() || !dist_info->md5.data()[0] || dist_info->md5_len <= 0)
+    return 0;
+
+  int data_len = dist_out_leading_length() + dist_info->md5_len;
+  int total_len = sizeof(MyServerFileMD5List) + data_len;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len);
+  MyServerFileMD5List * md5_packet = (MyServerFileMD5List *)mb->base();
+  md5_packet->command = MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST;
+  md5_packet->length = total_len;
+  md5_packet->magic = m_client_id_index;
+  dist_out_leading_data(md5_packet->data);
+  ACE_OS::memcpy(md5_packet->data + data_len - dist_info->md5_len, dist_info->md5.data(), dist_info->md5_len);
+  mb->wr_ptr(mb->capacity());
+
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (MyServerAppX::instance()->heart_beat_module()->dispatcher()->putq(mb, &tv) == -1)
+  {
+    MY_ERROR("can not put file md5 list message to disatcher's queue\n");
+    mb->release();
+    return -1;
+  } else
+  {
+    MyServerAppX::instance()->db().set_dist_client_status(*this, 1);
+    status = 1;
+    return 1;
+  }
+}
+
+int MyDistClient::send_ftp()
+{
+  if (!dist_info->need_md5())
+  {
+    if (!dist_info->is_cmp_done())
+      return 0;
+
+    const char * ftp_file_name = MyDistCompressor::all_in_one_mbz();
+    int leading_length = dist_out_leading_length();
+    int ftp_file_name_len = ACE_OS::strlen(ftp_file_name) + 1;
+    int data_len = leading_length + ftp_file_name_len + dist_info->password_len + 1;
+    int total_len = sizeof(MyFtpFile) + data_len;
+    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len);
+    MyFtpFile * packet = (MyFtpFile *)mb->base();
+    packet->command = MyDataPacketHeader::CMD_FTP_FILE;
+    packet->length = total_len;
+    packet->magic = m_client_id_index;
+    dist_out_leading_data(packet->data);
+    ACE_OS::memcpy(packet->data + leading_length, dist_info->password.data(), dist_info->password_len + 1);
+    ACE_OS::memcpy(packet->data + leading_length + dist_info->password_len + 1, ftp_file_name, ftp_file_name_len);
+    mb->wr_ptr(mb->capacity());
+
+    ACE_Time_Value tv(ACE_Time_Value::zero);
+    if (MyServerAppX::instance()->heart_beat_module()->dispatcher()->putq(mb, &tv) == -1)
+    {
+      MY_ERROR("can not put file md5 list message to disatcher's queue\n");
+      mb->release();
+      return -1;
+    } else
+    {
+      MyServerAppX::instance()->db().set_dist_client_status(*this, 1);
+      status = 1;
+      return 1;
+    }
+  }
+
+  //todo: handle ftp of need md5
+  return 0;
+}
+
 
 //MyDistClients//
-
-void MyDistClients::add(MyDistClient * dc)
-{
-  if (unlikely(!dc || !dc->check_valid()))
-    return;
-
-  dist_clients.push_back(dc);
-}
-
-MyHttpDistInfo * MyDistClients::find(const char * dist_id)
-{
-  MY_ASSERT_RETURN(!m_dist_infos, "", NULL);
-  return m_dist_infos->find(dist_id);
-}
 
 MyDistClients::MyDistClients(MyHttpDistInfos * dist_infos)
 {
@@ -58,6 +193,26 @@ void MyDistClients::clear()
   MyDistClientList x;
   x.swap(dist_clients);
   db_time = 0;
+}
+void MyDistClients::add(MyDistClient * dc)
+{
+  if (unlikely(!dc || !dc->check_valid()))
+    return;
+
+  dist_clients.push_back(dc);
+}
+
+MyHttpDistInfo * MyDistClients::find(const char * dist_id)
+{
+  MY_ASSERT_RETURN(!m_dist_infos, "", NULL);
+  return m_dist_infos->find(dist_id);
+}
+
+void MyDistClients::dist_files()
+{
+  int count = dist_clients.size();
+  for (int i = 0; i < count; ++ i)
+    dist_clients[i]->dist_file(*this);
 }
 
 
@@ -96,7 +251,7 @@ bool MyClientFileDistributor::check_dist_info_one(MyHttpDistInfo * info)
       if (!compressor.compress(http_dist_request))
         return false;
     }
-    info->cmp_done.data()[0] = '1';
+    info->cmp_done[0] = '1';
     db.dist_mark_cmp_done(info->ver.data());
     info->cmp_needed = false;
   }
@@ -107,7 +262,7 @@ bool MyClientFileDistributor::check_dist_info_one(MyHttpDistInfo * info)
     {
       MyHttpDistRequest http_dist_request(*info);
       MyDistMd5Calculator calc;
-      if (!calc.calculate(http_dist_request, info->md5))
+      if (!calc.calculate(http_dist_request, info->md5, info->md5_len))
         return false;
     }
     info->md5_needed = false;
@@ -121,6 +276,8 @@ bool MyClientFileDistributor::check_dist_clients()
   if (!MyServerAppX::instance()->db().load_dist_clients(&m_dist_clients))
     return false;
 
+  m_dist_clients.dist_files();
+  return true;
 }
 
 

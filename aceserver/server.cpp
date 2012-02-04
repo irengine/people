@@ -139,6 +139,8 @@ void MyServerApp::do_dump_info()
 bool MyServerApp::on_construct()
 {
   MyConfig * cfg = MyConfigX::instance();
+  g_client_id_table = &m_client_id_table;
+
   if (!m_db.connect())
   {
     MY_FATAL("can not connect to database. quitting...\n");
@@ -209,6 +211,7 @@ void MyServerApp::app_fini()
 {
   MY_INFO(ACE_TEXT("shutdown server...\n"));
   MyServerAppX::close();  //this comes before the releasing of memory pool
+  g_client_id_table = NULL;
   MyConfigX::close();
   dump_mem_pool_info(); //only mem pool info, other objects should gone by now
   MyHeartBeatHandler::fini_mem_pool();

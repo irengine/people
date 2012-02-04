@@ -42,13 +42,14 @@ class MyHttpDistInfo
 public:
   MyHttpDistInfo();
   bool need_md5() const;
+  bool is_cmp_done() const;
 
-  MyPooledMemGuard ftype;
+  char ftype[2];
+  char type[2];
   MyPooledMemGuard fdir;
   MyPooledMemGuard findex;
   MyPooledMemGuard aindex;
   MyPooledMemGuard ver;
-  MyPooledMemGuard type;
   MyPooledMemGuard password;
 
   MyPooledMemGuard dist_time;
@@ -56,11 +57,17 @@ public:
   MyPooledMemGuard md5_time;
 
   MyPooledMemGuard cmp_time;
-  MyPooledMemGuard cmp_done;
+  char cmp_done[2];
 
   bool exist;
   bool cmp_needed;
   bool md5_needed;
+
+  int  md5_len;
+  int  ver_len;
+  int  findex_len;
+  int  aindex_len;
+  int  password_len;
 };
 
 class MyHttpDistInfos
@@ -82,6 +89,7 @@ class MyDistCompressor
 public:
   bool compress(MyHttpDistRequest & http_dist_request);
   static const char * composite_path();
+  static const char * all_in_one_mbz();
 
 private:
   bool do_generate_compressed_files(const char * src_path, const char * dest_path, int prefix_len, const char * passwrod);
@@ -93,7 +101,7 @@ private:
 class MyDistMd5Calculator
 {
 public:
-  bool calculate(MyHttpDistRequest & http_dist_request, MyPooledMemGuard &md5_result);
+  bool calculate(MyHttpDistRequest & http_dist_request, MyPooledMemGuard &md5_result, int & md5_len);
 };
 
 #endif /* SERVERCOMMON_H_ */

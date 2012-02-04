@@ -19,12 +19,15 @@
 class MyHeartBeatModule;
 class MyPingSubmitter;
 class MyHeartBeatAcceptor;
+class MyDistClients;
 
 class MyDistClient
 {
 public:
   MyDistClient(MyHttpDistInfo * _dist_info);
   bool check_valid() const;
+  int  dist_file(MyDistClients & dist_clients);
+  bool active();
 
   MyHttpDistInfo * dist_info;
   int status;
@@ -33,6 +36,20 @@ public:
   MyPooledMemGuard md5;
   MyPooledMemGuard mbz_file;
   time_t last_update;
+
+private:
+  int do_stage_0(MyDistClients & dist_clients);
+  int do_stage_1(MyDistClients & dist_clients);
+  int do_stage_2(MyDistClients & dist_clients);
+  int do_stage_3(MyDistClients & dist_clients);
+  int do_stage_4(MyDistClients & dist_clients);
+  int send_md5();
+  int send_ftp();
+
+  int dist_out_leading_length();
+  void dist_out_leading_data(char * data);
+
+  int m_client_id_index;
 };
 
 class MyDistClients
@@ -45,6 +62,9 @@ public:
   MyHttpDistInfo * find(const char * dist_id);
   void clear();
   void add(MyDistClient *);
+  void dist_files();
+
+
   MyDistClientList dist_clients;
   time_t db_time;
 

@@ -144,6 +144,7 @@ public:
     CMD_LOAD_BALANCE_REQ,
     CMD_SERVER_FILE_MD5_LIST,
     CMD_HAVE_DIST_TASK,
+    CMD_FTP_FILE,
     CMD_END
   };
   int32_t length;
@@ -309,7 +310,7 @@ public:
 class MyServerFileMD5List: public MyDataPacketHeader
 {
 public:
-  enum { LEAD_ITEM_SEPARATOR = '*' };
+  enum { LEAD_ITEM_SEPARATOR = '*', LEAD_FINISH_SEPARATOR = ':' };
   char data[0];
 };
 
@@ -383,6 +384,38 @@ public:
     }
   }
 };
+
+class MyFtpFile: public MyDataPacketHeader
+{
+public:
+  char data[0];
+};
+
+
+class MyFtpFileProc: public MyDataPacketBaseProc
+{
+public:
+  virtual void init_header()
+  {
+    MyDataPacketBaseProc::init_header();
+    m_data->command = MyDataPacketHeader::CMD_FTP_FILE;
+    m_data->length = (int32_t)sizeof(MyLoadBalanceRequest);
+  };
+
+  virtual bool validate_header() const
+  {
+    if (!MyDataPacketBaseProc::validate_header())
+      return false;
+    return (m_data->length > (int32_t)sizeof(MyFtpFile) && m_data->length < 4096 &&
+            m_data->command == MyDataPacketHeader::CMD_FTP_FILE);
+  }
+
+  virtual MyFtpFile * data() const
+  {
+    return (MyFtpFile *)m_data;
+  }
+};
+
 
 
 class MyBSBasePacket

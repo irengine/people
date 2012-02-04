@@ -349,23 +349,37 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
       if (ACE_OS::strcmp(PQfname(pres, j), "dist_id") == 0)
         info->ver.init_from_string(fvalue);
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_ftype") == 0)
-        info->ftype.init_from_string(fvalue);
+        info->ftype[0] = *fvalue;
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_fdir") == 0)
         info->fdir.init_from_string(fvalue);
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_findex") == 0)
+      {
         info->findex.init_from_string(fvalue);
+        info->findex_len = ACE_OS::strlen(fvalue);
+      }
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_md5") == 0)
+      {
+        info->md5.init_from_string(fvalue);
+        info->md5_len = ACE_OS::strlen(fvalue);
+      }
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_type") == 0)
-        info->type.init_from_string(fvalue);
+        info->type[0] = *fvalue;
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_password") == 0)
+      {
         info->password.init_from_string(fvalue);
+        info->password_len = ACE_OS::strlen(fvalue);
+      }
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_time") == 0)
         info->dist_time.init_from_string(fvalue);
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_aindex") == 0)
+      {
         info->aindex.init_from_string(fvalue);
+        info->aindex_len = ACE_OS::strlen(fvalue);
+      }
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_time") == 0)
         info->cmp_time.init_from_string(fvalue);
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_done") == 0)
-        info->cmp_done.init_from_string(fvalue);
+        info->cmp_done[0] = *fvalue;
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_md5_time") == 0)
         info->md5_time.init_from_string(fvalue);
       else if (ACE_OS::strcmp(PQfname(pres, j), "cmp_needed") == 0)
@@ -541,5 +555,15 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients)
 
   MY_INFO("MyDB::get %d dist infos from database\n", count);
   return count;
+}
 
+bool MyDB::set_dist_client_status(MyDistClient & dist_client, int new_status)
+{
+  const char * update_sql_template = "update tb_dist_clients set dc_status = '%d' "
+                                     "where dc_dist_id = '%s' and dc_client_id='%s'";
+  char sql[1024];
+  ACE_OS::snprintf(sql, 1024, update_sql_template, new_status, dist_client.dist_info->ver.data(), dist_client.client_id.as_string());
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  return exec_command(sql);
 }

@@ -586,7 +586,8 @@ bool MyHttpService::do_calc_md5(MyHttpDistRequest & http_dist_request)
 {
   MyDistMd5Calculator calc;
   MyPooledMemGuard md5_result;
-  return calc.calculate(http_dist_request, md5_result);
+  int md5_len;
+  return calc.calculate(http_dist_request, md5_result, md5_len);
 }
 
 bool MyHttpService::notify_dist_servers()

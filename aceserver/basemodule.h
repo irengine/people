@@ -45,6 +45,16 @@ class MyBaseDispatcher;
 class MyBaseConnector;
 class MyBaseProcessor;
 
+class MyClientInfo
+{
+public:
+  MyClientInfo();
+  MyClientInfo(const MyClientID & id);
+
+  bool active;
+  MyClientID client_id;
+};
+
 class MyClientIDTable
 {
 public:
@@ -57,6 +67,10 @@ public:
   int  index_of(const MyClientID & id);
   int  count();
   bool value(int index, MyClientID * id);
+  bool active(const MyClientID & id, int & index);
+//  void active(const MyClientID & id, bool _active);
+  bool active(int index);
+  void active(int index, bool _active);
 
   //APIs used only by db-layer
   int last_sequence() const;
@@ -64,7 +78,7 @@ public:
   void prepare_space(int _count);
 
 private:
-  typedef std::vector<MyClientID > ClientIDTable_type;
+  typedef std::vector<MyClientInfo > ClientIDTable_type;
   typedef std::map<MyClientID, int> ClientIDTable_map;
 
 //  typedef std::vector<MyClientID, MyAllocator<MyClientID> > ClientIDTable_type;
@@ -76,6 +90,8 @@ private:
   ACE_RW_Thread_Mutex m_mutex;
   int m_last_sequence;
 };
+
+extern MyClientIDTable * g_client_id_table; //the side effect of sharing the source codes...
 
 class MyFileMD5
 {
@@ -337,7 +353,7 @@ public:
   void set_connection_client_id_index(MyBaseHandler * handler, int index);
   MyBaseHandler * find_handler_by_index(int index);
   void set_connection_state(MyBaseHandler * handler, Connection_State state);
-  void remove_connection(MyBaseHandler * handler);
+  void remove_connection(MyBaseHandler * handler, MyClientIDTable * id_table);
 
   void detect_dead_connections(int timeout);
   void lock();

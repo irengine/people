@@ -15,11 +15,24 @@ MyHttpDistInfo::MyHttpDistInfo()
 {
   exist = false;
   cmp_needed = false;
+  md5_len = 0;
+  ver_len = 0;
+  findex_len = 0;
+  password_len = 0;
+
+  ftype[0] = ftype[1] = 0;
+  type[0] = type[1] = 0;
+  cmp_done[0] = cmp_done[1] = 0;
 }
 
 bool MyHttpDistInfo::need_md5() const
 {
-  return (type.data() && type.data()[0] == '1');
+  return (type[0] == '1');
+}
+
+bool MyHttpDistInfo::is_cmp_done() const
+{
+  return (cmp_done[0] == '1');
 }
 
 
@@ -41,13 +54,13 @@ MyHttpDistRequest::MyHttpDistRequest()
 MyHttpDistRequest::MyHttpDistRequest(const MyHttpDistInfo & info)
 {
   acode = NULL;
-  ftype = info.ftype.data();
+  ftype = (char*)info.ftype;
   fdir = info.fdir.data();
   findex = info.findex.data();
   adir = NULL;
   aindex = info.aindex.data();
   ver = info.ver.data();
-  type = info.type.data();
+  type = (char*)info.type;
   password = info.password.data();
 }
 
@@ -151,6 +164,11 @@ MyHttpDistInfo * MyHttpDistInfos::find(const char * dist_id)
 const char * MyDistCompressor::composite_path()
 {
   return "_x_cmp_x_";
+}
+
+const char * MyDistCompressor::all_in_one_mbz()
+{
+  return "_x_cmp_x_/all_in_one.mbz";
 }
 
 bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
@@ -278,7 +296,7 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
 
 //MyDistMd5Calculator//
 
-bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, MyPooledMemGuard &md5_result)
+bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, MyPooledMemGuard &md5_result, int & md5_len)
 {
 //  if (!http_dist_request.need_md5())
 //    return true;
@@ -289,14 +307,14 @@ bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, MyPoo
     return false;
   }
   md5s_server.sort();
-  int result_len = md5s_server.total_size(true);
+  md5_len = md5s_server.total_size(true);
 
-  MyMemPoolFactoryX::instance()->get_mem(result_len, &md5_result);
-  if (unlikely(!md5s_server.to_buffer(md5_result.data(), result_len, true)))
+  MyMemPoolFactoryX::instance()->get_mem(md5_len, &md5_result);
+  if (unlikely(!md5s_server.to_buffer(md5_result.data(), md5_len, true)))
   {
     MY_ERROR("can not get md5 file list result for dist %s\n", http_dist_request.ver);
     return false;
   }
 
-  return MyServerAppX::instance()->db().save_dist_md5(http_dist_request.ver, md5_result.data(), result_len);
+  return MyServerAppX::instance()->db().save_dist_md5(http_dist_request.ver, md5_result.data(), md5_len);
 }
