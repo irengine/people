@@ -26,7 +26,6 @@ bool MyDistClient::check_valid() const
 
 bool MyDistClient::active()
 {
-  MY_INFO("MyDistClient::active(): client_id = %s\n", client_id.as_string());
   return g_client_id_table->active(client_id, m_client_id_index);
 }
 

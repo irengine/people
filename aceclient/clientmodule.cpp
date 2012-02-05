@@ -5,9 +5,279 @@
  *      Author: root
  */
 
+#include <ace/FILE_Addr.h>
+#include <ace/FILE_Connector.h>
+#include <ace/FILE_IO.h>
+
 #include "clientmodule.h"
 #include "baseapp.h"
 #include "client.h"
+
+//MyFTPClient//
+
+MyFTPClient::MyFTPClient(const std::string &remote_ip, const u_short remote_port,
+                     const std::string &user_name, const std::string &pass_word)
+{
+  m_user_name = user_name;
+  m_password = pass_word;
+  m_remote_addr.set((u_short)remote_port, remote_ip.c_str());
+  m_ftp_server_addr.init_from_string(remote_ip.c_str());
+}
+
+MyFTPClient::~MyFTPClient()
+{
+  m_peer.close_writer();
+  m_peer.close_reader();
+  m_peer.close();
+}
+
+bool MyFTPClient::download(const char * client_id, const char *remote_ip, const char *filename, const char * localfile)
+{
+  MyFTPClient ftp_client(remote_ip, 21, client_id, client_id);
+  if (!ftp_client.login())
+    return false;
+  if (!ftp_client.get_file(filename, localfile))
+    return false;
+  ftp_client.logout();
+  return true;
+}
+
+bool MyFTPClient::recv()
+{
+  const int BUFF_SIZE = 2048;
+  char line[BUFF_SIZE];
+  int i = 0;
+  ACE_Time_Value  tv(TIME_OUT_SECONDS);
+
+  while (true)
+  {
+    char c;
+    switch (m_peer.recv_n(&c, 1, &tv))
+    {
+    case   0:
+    case  -1:
+      return false;
+    default:
+      if (unlikely(i >= BUFF_SIZE - 2))
+      {
+        MY_ERROR("ftp unexpected so long response line from server %s\n", m_ftp_server_addr.data());
+        return false;
+      }
+      line[i++] = c;
+      break;
+    }
+
+    if ('\n' == c)
+    {
+      if (i < 3)
+        return false;
+      line[i] = 0;
+      m_response.init_from_string(line);
+      break;
+    }
+  }
+  return true;
+}
+
+bool MyFTPClient::is_response(const char * res_code)
+{
+  return m_response.data() && (ACE_OS::memcmp(m_response.data(), res_code, 3) == 0);
+}
+
+bool MyFTPClient::send(const char * command)
+{
+  int cmd_len = ACE_OS::strlen(command);
+  if (unlikely(cmd_len == 0))
+    return true;
+  ACE_Time_Value  tv(TIME_OUT_SECONDS);
+  return (cmd_len == m_peer.send_n(command, cmd_len, &tv));
+}
+
+bool MyFTPClient::login()
+{
+  ACE_Time_Value  tv(TIME_OUT_SECONDS);
+  const int CMD_BUFF_LEN = 2048;
+  char command[CMD_BUFF_LEN];
+  std::string  ftp_resp;
+
+  MY_INFO("ftp connecting to server %s\n", m_ftp_server_addr.data());
+
+  if (this->m_connector.connect(m_peer, m_remote_addr, &tv) == -1)
+  {
+    MY_ERROR("ftp connecting to server %s failed %s\n", m_ftp_server_addr.data(), (const char *)MyErrno());
+    return false;
+  }
+
+  if (!this->recv() || !is_response("220"))
+  {
+    MY_ERROR("ftp no/bad response after connecting to server %s\n", m_ftp_server_addr.data());
+    return false;
+  }
+
+  ACE_OS::snprintf(command, CMD_BUFF_LEN, "USER %s\r\n", this->m_user_name.c_str());
+  if (this->send(command))
+  {
+    if (!this->recv() || !is_response("331"))
+    {
+      MY_ERROR("ftp no/bad response on USER command to server %s\n", m_ftp_server_addr.data());
+      return false;
+    }
+  }
+
+  ACE_OS::snprintf(command, CMD_BUFF_LEN, "PASS %s\r\n", this->m_password.c_str());
+  if (this->send(command))
+  {
+    if (!this->recv() || !is_response("230"))
+    {
+      MY_ERROR("ftp no/bad response on PASS command to server %s\n", m_ftp_server_addr.data());
+      return false;
+    }
+  }
+
+  MY_INFO("ftp authentication to server %s OK\n", m_ftp_server_addr.data());
+  return true;
+}
+
+bool MyFTPClient::logout()
+{
+  if (this->send("QUIT \r\n"))
+  {
+    if (!this->recv() || !is_response("221"))
+      return false;
+  }
+
+  return true;
+}
+
+bool MyFTPClient::change_remote_dir(const char *dirname)
+{
+  MyPooledMemGuard cwd;
+  cwd.init_from_string("CWD ", dirname, "\r\n");
+  if (this->send(cwd.data()))
+  {
+    if (!this->recv() || !is_response("250"))
+    {
+      MY_ERROR("ftp no/bad response on CWD command to server %s\n", m_ftp_server_addr.data());
+      return false;
+    }
+  } else
+    return false;
+
+  if (this->send("PWD \r\n"))
+  {
+    if (!this->recv() || !is_response("257"))
+    {
+      MY_ERROR("ftp no/bad response on PWD command to server %s\n", m_ftp_server_addr.data());
+      return false;
+    }
+  } else
+    return false;
+
+  return true;
+}
+
+bool MyFTPClient::get_file(const char *filename, const char * localfile)
+{
+  MY_ASSERT_RETURN(filename && *filename && localfile && *localfile, "", false);
+
+  ACE_Time_Value  tv(TIME_OUT_SECONDS);
+  int d0, d1, d2, d3, p0, p1;
+  char ip[32];
+  ACE_INET_Addr ftp_data_addr;
+
+  ACE_SOCK_Stream     stream;
+  ACE_SOCK_Connector  connector;
+
+  ACE_FILE_IO file_put;
+  ACE_FILE_Connector file_con;
+  char file_cache[MAX_BUFSIZE];
+  int file_size, all_size;
+
+  if (this->send("PASV\r\n"))
+  {
+    if (!this->recv() || !is_response("227"))
+    {
+      MY_ERROR("ftp no/bad response on PASV command to server %s\n", m_ftp_server_addr.data());
+      return false;
+    }
+  }
+
+  char * ptr1 = ACE_OS::strrchr(m_response.data(), '(');
+  char * ptr2 = NULL;
+  if (ptr1)
+    ptr2 = ACE_OS::strrchr(ptr1, ')');
+  if (unlikely(!ptr1 || !ptr2))
+  {
+    MY_ERROR("ftp bad response data format on PASV command to server %s\n", m_ftp_server_addr.data());
+    return false;
+  }
+  *ptr1 ++ = 0;
+  *ptr2 = 0;
+
+  if (sscanf(ptr1, "%d,%d,%d,%d,%d,%d", &d0, &d1, &d2, &d3, &p0, &p1) == -1)
+  {
+    MY_ERROR("ftp bad response address data format on PASV command to server %s\n", m_ftp_server_addr.data());
+    return false;
+  }
+  snprintf(ip, 32, "%d.%d.%d.%d", d0, d1, d2, d3);
+  ftp_data_addr.set((p0 << 8) + p1, ip);
+
+  if (connector.connect(stream, ftp_data_addr, &tv) == -1)
+  {
+    MY_ERROR("ftp failed to establish data connection to server %s\n", m_ftp_server_addr.data());
+    return false;
+  }
+  else
+    MY_INFO("ftp establish data connection OK to server %s\n", m_ftp_server_addr.data());
+
+  MyPooledMemGuard retr;
+  retr.init_from_string("RETR ", filename, "\r\n");
+  if (this->send(retr.data()))
+  {
+    if (!this->recv() || !is_response("150"))
+    {
+      MY_ERROR("ftp no/bad response on RETR command to server %s\n", m_ftp_server_addr.data());
+      return false;
+    }
+  }
+
+  tv.sec(TIME_OUT_SECONDS);
+  if (file_con.connect(file_put, ACE_FILE_Addr(localfile), &tv, ACE_Addr::sap_any, 0, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR) == -1)
+  {
+    MY_ERROR("ftp failed to open local file %s to save download %s\n", localfile, (const char*)MyErrno());
+    return false;
+  }
+
+  all_size = 0;
+  tv.sec(TIME_OUT_SECONDS);
+  while ((file_size = stream.recv(file_cache, sizeof(file_cache), &tv)) > 0)
+  {
+    if (unlikely(file_put.send_n(file_cache, file_size) != file_size))
+    {
+      MY_ERROR("ftp write to file %s failed %s\n", localfile, (const char*)MyErrno());
+      return false;
+    }
+    all_size += file_size;
+    tv.sec(TIME_OUT_SECONDS);
+  }
+
+  if (file_size < 0)
+  {
+    MY_ERROR("ftp read data for file %s from server %s failed %s\n", filename, m_ftp_server_addr.data(), (const char*)MyErrno());
+    return false;
+  }
+
+  if (!this->recv() || !is_response("226"))
+  {
+    MY_ERROR("ftp no/bad response after transfer of file completed from server %s\n", m_ftp_server_addr.data());
+    return false;
+  }
+
+  MY_INFO("ftp downloaded file %s as %s size = %d\n", filename, localfile, all_size);
+  return true;
+}
+
+
 
 //MyDistInfoHeader//
 

@@ -356,12 +356,14 @@ MyBaseProcessor::EVENT_RESULT MyHttpProcessor::on_recv_header()
     MY_ERROR("got an invalid http packet with size = %d\n", len);
     return ER_ERROR;
   }
+  MY_INFO("http processor got packet len = %d\n", len);
   return ER_OK;
 }
 
 MyBaseProcessor::EVENT_RESULT MyHttpProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
   ACE_UNUSED_ARG(mb);
+  MY_INFO("http processor got complete packet, len = %d\n", mb->length());
   m_wait_for_close = true;
   bool ok = do_process_input_data();
   ACE_Message_Block * reply_mb = MyMemPoolFactoryX::instance()->get_message_block(4);
@@ -387,6 +389,7 @@ bool MyHttpProcessor::do_process_input_data()
     return true;
   } else
   {
+    MY_ERROR("can not put http request into target queue @MyHttpProcessor::do_process_input_data()\n");
     m_current_block->release();
     m_current_block = NULL;
     return false;

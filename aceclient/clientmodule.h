@@ -20,6 +20,37 @@ class MyClientToDistConnector;
 
 const int16_t const_client_version = 1;
 
+class MyFTPClient
+{
+public:
+  MyFTPClient(const std::string &remote_ip, const u_short remote_port,
+            const std::string &user_name, const std::string &pass_word);
+  virtual ~MyFTPClient();
+
+  bool login();
+  bool logout();
+  bool change_remote_dir(const char * dirname);
+  bool get_file(const char *filename, const char * localfile);
+
+  static bool download(const char * client_id, const char *remote_ip, const char *filename, const char * localfile);
+
+
+private:
+  enum { TIME_OUT_SECONDS = 30, MAX_BUFSIZE = 2048 };
+  bool recv();
+  bool send(const char * command);
+  bool is_response(const char * res_code);
+
+  std::string        m_user_name;
+  std::string        m_password;
+  MyPooledMemGuard   m_ftp_server_addr;
+  ACE_INET_Addr      m_remote_addr;
+  ACE_SOCK_Connector m_connector;
+  ACE_SOCK_Stream    m_peer;
+  MyPooledMemGuard   m_response;
+};
+
+
 class MyDistInfoHeader
 {
 public:
