@@ -180,7 +180,7 @@ void mycomutil_generate_random_password(char * buff, const int password_len)
   buff[i] = 0;
   const char schar[] = "~!@#$^&_-+=/\\";
   //0-9 a-Z A-Z schar
-  const long total = 10 + 26 + 26 + sizeof(schar) / sizeof(char);
+  const long total = 10 + 26 + 26 + sizeof(schar) / sizeof(char) - 1;
   while ((--i) >= 0)
   {
     long val = random() % total;

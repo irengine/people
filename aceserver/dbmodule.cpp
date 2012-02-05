@@ -52,6 +52,7 @@ time_t MyDB::get_time_from_string(const char * s)
   int ret = sscanf(s, "%04d-%02d-%02d %02d:%02d:%02d", &_tm.tm_year, &_tm.tm_mon, &_tm.tm_mday,
       &_tm.tm_hour, &_tm.tm_min, &_tm.tm_sec);
   _tm.tm_year -= 1900;
+  _tm.tm_isdst = -1;
   if (ret != 6 || _tm.tm_year <= 0)
     return 0;
 
@@ -347,7 +348,10 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
       if (!fvalue || !*fvalue)
         continue;
       if (ACE_OS::strcmp(PQfname(pres, j), "dist_id") == 0)
+      {
         info->ver.init_from_string(fvalue);
+        info->ver_len = ACE_OS::strlen(fvalue);
+      }
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_ftype") == 0)
         info->ftype[0] = *fvalue;
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_fdir") == 0)
@@ -519,12 +523,13 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients)
     return -1;
   }
 
+  int count_added = 0;
   for (int i = 0; i < count; ++ i)
   {
     MyHttpDistInfo * info = dist_clients->find(PQgetvalue(pres, i, fid_index));
     if (unlikely(!info))
       continue;
-    void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyDistClients));
+    void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyDistClient));
     MyDistClient * dc = new (p) MyDistClient(info);
     const char * adir = NULL;
     const char * md5 = NULL;
@@ -551,9 +556,12 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients)
       dc->md5.init_from_string(md5);
     if (adir)
       dc->adir.init_from_string(adir); //todo: optimize
+
+    if (likely(dist_clients->add(dc)))
+      ++ count_added;
   }
 
-  MY_INFO("MyDB::get %d dist infos from database\n", count);
+  MY_INFO("MyDB::get %d/%d dist client infos from database\n", count_added, count);
   return count;
 }
 

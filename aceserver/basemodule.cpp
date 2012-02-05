@@ -1446,7 +1446,7 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE
   m_client_id_index = client_id_index;
   m_client_id = vcr.data()->client_id;
   m_client_id_length = strlen(m_client_id.as_string());
-  m_handler->connection_manager()->set_connection_client_id_index(m_handler, client_id_index);
+  m_handler->connection_manager()->set_connection_client_id_index(m_handler, client_id_index, g_client_id_table);
   return ER_CONTINUE;
 }
 
@@ -1700,11 +1700,13 @@ void MyBaseConnectionManager::detect_dead_connections(int timeout)
   }
 }
 
-void MyBaseConnectionManager::set_connection_client_id_index(MyBaseHandler * handler, int index)
+void MyBaseConnectionManager::set_connection_client_id_index(MyBaseHandler * handler, int index, MyClientIDTable * id_table)
 {
   if (!handler || m_locked || index < 0)
     return;
   MyIndexHandlerMapPtr it = m_index_handler_map.lower_bound(index);
+  if (id_table)
+    id_table->active(index, true);
   if (it != m_index_handler_map.end() && (it->first == index))
   {
     MyBaseHandler * handler_old = it->second;

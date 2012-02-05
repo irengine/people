@@ -152,7 +152,8 @@ bool MyServerApp::on_construct()
     return false;
   }
 
-#ifdef MY_server_test
+#if 0
+//#ifdef MY_server_test
   if (cfg->is_dist_server())
   {
     char * _app_data_path = new char[cfg->app_test_data_path.length() + 1];

@@ -61,7 +61,7 @@ public:
 
   MyHttpDistInfo * find(const char * dist_id);
   void clear();
-  void add(MyDistClient *);
+  bool add(MyDistClient *);
   void dist_files();
 
 
@@ -76,6 +76,7 @@ class MyClientFileDistributor
 {
 public:
   MyClientFileDistributor();
+  bool distribute();
   bool check_dist_info();
   bool check_dist_clients();
 
@@ -144,12 +145,15 @@ public:
   MyHeartBeatService(MyBaseModule * module, int numThreads = 1);
   virtual int svc();
 
-protected:
+private:
   enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
 
+  void do_have_dist_task();
   void calc_server_file_md5_list(ACE_Message_Block * mb);
   void calc_server_file_md5_list_one(const char * client_id);
   ACE_Message_Block * make_server_file_md5_list_mb(int list_len, int client_id_index);
+
+  MyClientFileDistributor m_distributor;
 };
 
 class MyHeartBeatDispatcher: public MyBaseDispatcher
@@ -321,6 +325,7 @@ private:
 
   int send_version_check_req();
   MyBaseProcessor::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_have_dist_task(ACE_Message_Block * mb);
 
   bool m_version_check_reply_done;
   char m_local_addr[IP_ADDR_LENGTH];

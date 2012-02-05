@@ -74,7 +74,7 @@ int MyClientToDistProcessor::on_open()
     MY_ERROR("MyClientToDistProcessor::on_open() can not find client_id_index for id = %s\n", myid);
     return -1;
   }
-  m_handler->connection_manager()->set_connection_client_id_index(m_handler, m_client_id_index);
+  m_handler->connection_manager()->set_connection_client_id_index(m_handler, m_client_id_index, NULL);
 #endif
 
   return send_version_check_req();
@@ -214,7 +214,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_M
     MY_ERROR("bad ftp file packet, no ftp file name\n");
     return ER_ERROR;
   }
-  char * file_name = ftp_file->data + password_len + 1;
+  char * file_name = ftp_file->data + header_len + password_len + 1;
   MY_INFO("recieved one ftp command for dist %s: password = %s, file name = %s\n",
       dist_header.dist_id.data(), file_password, file_name);
 
@@ -824,7 +824,7 @@ int MyClientToMiddleProcessor::on_open()
     MY_ERROR("MyClientToDistProcessor::on_open() can not find client_id_index for id = %s\n", myid);
     return -1;
   }
-  m_handler->connection_manager()->set_connection_client_id_index(m_handler, m_client_id_index);
+  m_handler->connection_manager()->set_connection_client_id_index(m_handler, m_client_id_index, NULL);
   id_generator.put(myid);
 #endif
 

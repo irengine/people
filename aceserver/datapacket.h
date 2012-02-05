@@ -196,6 +196,26 @@ protected:
   MyDataPacketHeader * m_data;
 };
 
+class MyHaveDistTaskProc: public MyDataPacketBaseProc
+{
+public:
+  virtual void init_header()
+  {
+    MyDataPacketBaseProc::init_header();
+    m_data->length = sizeof(MyDataPacketHeader);
+    m_data->command = MyDataPacketHeader::CMD_HAVE_DIST_TASK;
+  };
+
+  virtual bool validate_header() const
+  {
+    if (!MyDataPacketBaseProc::validate_header())
+      return false;
+    return (m_data->length == sizeof(MyDataPacketHeader) &&
+            m_data->command == MyDataPacketHeader::CMD_HAVE_DIST_TASK);
+  }
+};
+
+
 //Heart Beat Packet is just an alias to the Header packet
 class MyHeartBeatPingProc: public MyDataPacketBaseProc
 {

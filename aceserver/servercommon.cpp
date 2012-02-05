@@ -173,34 +173,35 @@ const char * MyDistCompressor::all_in_one_mbz()
 
 bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
 {
-  int prefix_len = ACE_OS::strlen(http_dist_request.fdir);
+  bool result = false;;
+  int prefix_len = ACE_OS::strlen(http_dist_request.fdir) - 1;
   MyPooledMemGuard destdir;
+  MyPooledMemGuard composite_dir;
+  MyPooledMemGuard all_in_one;
+  MyPooledMemGuard mfile;
+  MyPooledMemGuard mdestfile;
   destdir.init_from_string(MyConfigX::instance()->compressed_store_path.c_str(), "/", http_dist_request.ver);
   if (mkdir(destdir.data(), S_IRWXU) == -1 && ACE_OS::last_error() != EEXIST)
   {
     MY_ERROR("can not create directory %s, %s\n", destdir.data(), (const char *)MyErrno());
-    return false;
+    goto __exit__;
   }
 
 //  if (*http_dist_request.type != '0')
 //  {
-    MyPooledMemGuard composite_dir;
     composite_dir.init_from_string(destdir.data(), "/", composite_path());
     if (mkdir(composite_dir.data(), S_IRWXU) == -1 && ACE_OS::last_error() != EEXIST)
     {
       MY_ERROR("can not create directory %s, %s\n", composite_dir.data(), (const char *)MyErrno());
-      return false;
+      goto __exit__;
     }
-    MyPooledMemGuard all_in_one;
     all_in_one.init_from_string(composite_dir.data(), "/all_in_one.mbz");
     if (*http_dist_request.type != '0')
       if (!m_compositor.open(all_in_one.data()))
-        return false;
+        goto __exit__;
 //  }
 
-  MyPooledMemGuard mfile;
   MyFilePaths::cat_path(http_dist_request.fdir, http_dist_request.findex, mfile);
-  MyPooledMemGuard mdestfile;
   mdestfile.init_from_string(destdir.data(), "/", (http_dist_request.findex? http_dist_request.findex: http_dist_request.aindex), ".mbz");
   if (!m_compressor.compress(mfile.data(), prefix_len, mdestfile.data(), http_dist_request.password))
   {
@@ -210,18 +211,26 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
   }
 
   if (*http_dist_request.type == '0')
-    return MyFilePaths::rename(mdestfile.data(), all_in_one.data());
+  {
+    result = MyFilePaths::rename(mdestfile.data(), all_in_one.data());
+    goto __exit__;
+  }
 
   if (unlikely(!MyFilePaths::get_correlate_path(mfile, prefix_len)))
   {
     MY_ERROR("can not calculate related path for %s\n", mfile.data());
     m_compositor.close();
-    return false;
+    goto __exit__;
   }
-  bool result = do_generate_compressed_files(mfile.data(), destdir.data(), prefix_len, http_dist_request.password);
+
+  result = do_generate_compressed_files(mfile.data(), destdir.data(), prefix_len, http_dist_request.password);
+  m_compositor.close();
+
+__exit__:
   if (!result)
     MY_ERROR("can not generate compressed files for %s from %s\n", http_dist_request.ver, mfile.data());
-  m_compositor.close();
+  else
+    MY_INFO("generation of compressed files for %s is done\n", http_dist_request.ver);
 
   if (*http_dist_request.type == '3')
   {
@@ -311,8 +320,12 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
 
 bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, MyPooledMemGuard &md5_result, int & md5_len)
 {
-//  if (!http_dist_request.need_md5())
-//    return true;
+  if (!http_dist_request.need_md5())
+  {
+    MY_INFO("skipping file md5 generation for %s, not needed\n", http_dist_request.ver);
+    return true;
+  }
+
   MyFileMD5s md5s_server;
   if (unlikely(!md5s_server.calculate(http_dist_request.fdir, http_dist_request.findex, *http_dist_request.type == '0')))
   {
@@ -329,5 +342,10 @@ bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, MyPoo
     return false;
   }
 
-  return MyServerAppX::instance()->db().save_dist_md5(http_dist_request.ver, md5_result.data(), md5_len);
+  bool result = MyServerAppX::instance()->db().save_dist_md5(http_dist_request.ver, md5_result.data(), md5_len);
+  if (likely(result))
+    MY_INFO("file md5 list for %s generated and stored into database\n", http_dist_request.ver);
+  else
+    MY_ERROR("can not save file md5 list for %s into database\n", http_dist_request.ver);
+  return result;
 }

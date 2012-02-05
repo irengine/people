@@ -26,6 +26,7 @@ bool MyDistClient::check_valid() const
 
 bool MyDistClient::active()
 {
+  MY_INFO("MyDistClient::active(): client_id = %s\n", client_id.as_string());
   return g_client_id_table->active(client_id, m_client_id_index);
 }
 
@@ -195,17 +196,22 @@ void MyDistClients::clear()
   x.swap(dist_clients);
   db_time = 0;
 }
-void MyDistClients::add(MyDistClient * dc)
-{
-  if (unlikely(!dc || !dc->check_valid()))
-    return;
 
+bool MyDistClients::add(MyDistClient * dc)
+{
+  if (unlikely(!dc->check_valid()))
+  {
+    MyPooledObjectDeletor dt;
+    dt(dc);
+    return false;
+  }
   dist_clients.push_back(dc);
+  return true;
 }
 
 MyHttpDistInfo * MyDistClients::find(const char * dist_id)
 {
-  MY_ASSERT_RETURN(!m_dist_infos, "", NULL);
+  MY_ASSERT_RETURN(m_dist_infos, "", NULL);
   return m_dist_infos->find(dist_id);
 }
 
@@ -224,6 +230,13 @@ MyClientFileDistributor::MyClientFileDistributor(): m_dist_clients(&m_dist_infos
 
 }
 
+bool MyClientFileDistributor::distribute()
+{
+  if (!check_dist_info())
+    return false;
+  return check_dist_clients();
+}
+
 bool MyClientFileDistributor::check_dist_info()
 {
   m_dist_infos.prepare_update();
@@ -231,11 +244,12 @@ bool MyClientFileDistributor::check_dist_info()
     return true;
 
   int count = m_dist_infos.dist_infos.size();
+  bool result = false;
   for (int i = count - 1; i >= 0; -- i)
-    if (!check_dist_info_one(m_dist_infos.dist_infos[i]))
-      return false;
+    if (check_dist_info_one(m_dist_infos.dist_infos[i]))
+      result = true;
 
-  return true;
+  return result;
 }
 
 bool MyClientFileDistributor::check_dist_info_one(MyHttpDistInfo * info)
@@ -502,11 +516,22 @@ int MyHeartBeatService::svc()
 
   for (ACE_Message_Block * mb; getq(mb) != -1; )
   {
-    calc_server_file_md5_list(mb);
+    MyMessageBlockGuard guard(mb);
+    MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
+    if (dph->command == MyDataPacketHeader::CMD_HAVE_DIST_TASK)
+    {
+      do_have_dist_task();
+    } else
+      MY_ERROR("unknown packet recieved @%s, cmd = %d\n", name(), dph->command);
   }
 
   MY_INFO("exiting %s::svc()\n", name());
   return 0;
+}
+
+void MyHeartBeatService::do_have_dist_task()
+{
+  m_distributor.distribute();
 }
 
 void MyHeartBeatService::calc_server_file_md5_list(ACE_Message_Block * mb)
@@ -1107,7 +1132,19 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::on_recv_header()
     proc.attach((const char*)&m_packet_header);
     if (!proc.validate_header())
     {
-      MY_ERROR("failed to validate header for version check\n");
+      MY_ERROR("failed to validate header for version check reply packet\n");
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
+  if (m_packet_header.command == MyDataPacketHeader::CMD_HAVE_DIST_TASK)
+  {
+    MyHaveDistTaskProc proc;
+    proc.attach((const char*)&m_packet_header);
+    if (!proc.validate_header())
+    {
+      MY_ERROR("failed to validate header for dist task notify packet\n");
       return ER_ERROR;
     }
     return ER_OK;
@@ -1135,6 +1172,13 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::on_recv_packet_i(ACE_Mess
     return result;
   }
 
+  if (header->command == MyDataPacketHeader::CMD_HAVE_DIST_TASK)
+  {
+    MyBaseProcessor::EVENT_RESULT result = do_have_dist_task(mb);
+    MY_INFO("got notification from middle server on new dist task\n");
+    return result;
+  }
+
   MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyDistToMiddleProcessor::on_recv_packet_i(), command = %d\n",
       header->command);
@@ -1145,6 +1189,7 @@ int MyDistToMiddleProcessor::send_server_load()
 {
   if (!m_version_check_reply_done)
     return 0;
+
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyLoadBalanceRequest));
   MyLoadBalanceRequestProc proc;
   proc.attach(mb->base());
@@ -1191,6 +1236,18 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_version_check_reply(AC
   }
 
 }
+
+MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_have_dist_task(ACE_Message_Block * mb)
+{
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (MyServerAppX::instance()->heart_beat_module()->service()->putq(mb, &tv) == -1)
+  {
+    MY_ERROR("can not put file md5 list message to disatcher's queue\n");
+    mb->release();
+  }
+  return ER_OK;
+}
+
 
 int MyDistToMiddleProcessor::send_version_check_req()
 {

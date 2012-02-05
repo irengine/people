@@ -349,7 +349,7 @@ public:
   void on_data_send(int data_size);
 
   void add_connection(MyBaseHandler * handler, Connection_State state);
-  void set_connection_client_id_index(MyBaseHandler * handler, int index);
+  void set_connection_client_id_index(MyBaseHandler * handler, int index, MyClientIDTable * id_table);
   MyBaseHandler * find_handler_by_index(int index);
   void set_connection_state(MyBaseHandler * handler, Connection_State state);
   void remove_connection(MyBaseHandler * handler, MyClientIDTable * id_table);
