@@ -28,6 +28,18 @@ MyClientToDistModule * MyClientApp::client_to_dist_module() const
   return m_client_to_dist_module;
 }
 
+void MyClientApp::data_path(MyPooledMemGuard & _data_path, const char * client_id)
+{
+#ifdef MY_client_test
+  char tmp[128];
+  MyTestClientPathGenerator::client_id_to_path(client_id, tmp, 128);
+  _data_path.init_from_string(MyConfigX::instance()->app_path.c_str(), "/data/", tmp);
+#else
+  ACE_UNUSED_ARGS(client_id);
+  _data_path.init_from_string(MyConfigX::instance()->app_path.c_str(), "/data");
+#endif
+}
+
 bool MyClientApp::on_start()
 {
   return true;

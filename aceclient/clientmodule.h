@@ -42,7 +42,6 @@ public:
 
   static bool download(const char * client_id, const char *remote_ip, const char *filename, const char * localfile);
 
-
 private:
   enum { TIME_OUT_SECONDS = 30, MAX_BUFSIZE = 4096 };
   bool recv();
@@ -78,15 +77,20 @@ public:
   bool load_from_string(char * src);
   time_t get_delay_penalty() const;
   bool should_ftp(time_t now) const;
+  void touch();
+  void inc_failed();
 
   MyPooledMemGuard file_name;
   MyPooledMemGuard file_password;
-  time_t last_update;
+#ifdef MY_client_test
+  MyClientID client_id;
+#endif
   int  status;
-  int  failed_count;
 
 private:
   enum { FAILED_PENALTY = 4, MAX_FAILED_COUNT = 20 };
+  time_t last_update;
+  int  failed_count;
 };
 
 class MyDistInfoFtps
@@ -121,7 +125,6 @@ protected:
 
 private:
   int send_version_check_req();
-
   MyBaseProcessor::EVENT_RESULT do_ftp_file_request(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
 
@@ -140,7 +143,7 @@ public:
 
   const char * begin_ftp();
   const char * next_ftp();
-  bool empty_ftp() const;
+  bool empty_ftp();
 
   void save();
   void load();
@@ -151,6 +154,7 @@ private:
 
   std::vector<std::string> m_server_addrs;
   std::vector<std::string> m_ftp_addrs;
+  ACE_Thread_Mutex m_mutex;
   MyPooledMemGuard m_addr_list;
   int m_addr_list_len;
   int m_index;
@@ -196,7 +200,7 @@ public:
   bool add_ftp_task(MyDistInfoFtp * p);
 
 private:
-  void do_ftp_download(ACE_Message_Block * mb);
+  bool do_ftp_download(ACE_Message_Block * mb, const char * server_ip);
 };
 
 
@@ -217,7 +221,7 @@ protected:
   virtual bool on_event_loop();
 
 private:
-  enum { FTP_CHECK_INTERVAL = 2 }; //in minutes
+  enum { FTP_CHECK_INTERVAL = 1 }; //in minutes
   MyClientToDistConnector * m_connector;
   MyClientToMiddleConnector * m_middle_connector;
 };

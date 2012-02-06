@@ -53,10 +53,12 @@ MyFTPClient::~MyFTPClient()
 
 bool MyFTPClient::download(const char * client_id, const char *remote_ip, const char *filename, const char * localfile)
 {
-  MyFTPClient ftp_client(remote_ip, 21, client_id, client_id);
+  MyFTPClient ftp_client(remote_ip, 21, "root", "111111");
   if (!ftp_client.login())
     return false;
-  if (!ftp_client.get_file(filename, localfile))
+  MyPooledMemGuard ftp_file_name;
+  ftp_file_name.init_from_string("compress_store/", client_id, "/", filename);
+  if (!ftp_client.get_file(ftp_file_name.data(), localfile))
     return false;
   ftp_client.logout();
   return true;
@@ -96,6 +98,10 @@ bool MyFTPClient::recv()
       break;
     }
   }
+
+  if (unlikely(!MyClientAppX::instance()->running()))
+    return false;
+
   return true;
 }
 
@@ -109,6 +115,9 @@ bool MyFTPClient::send(const char * command)
   int cmd_len = ACE_OS::strlen(command);
   if (unlikely(cmd_len == 0))
     return true;
+  if (unlikely(!MyClientAppX::instance()->running()))
+    return false;
+
   ACE_Time_Value  tv(TIME_OUT_SECONDS);
   return (cmd_len == m_peer.send_n(command, cmd_len, &tv));
 }
@@ -118,7 +127,6 @@ bool MyFTPClient::login()
   ACE_Time_Value  tv(TIME_OUT_SECONDS);
   const int CMD_BUFF_LEN = 2048;
   char command[CMD_BUFF_LEN];
-  std::string  ftp_resp;
 
   MY_INFO("ftp connecting to server %s\n", m_ftp_server_addr.data());
 
@@ -267,11 +275,16 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
     MY_ERROR("ftp failed to open local file %s to save download %s\n", localfile, (const char*)MyErrno());
     return false;
   }
+  if (unlikely(!MyClientAppX::instance()->running()))
+    return false;
 
   all_size = 0;
   tv.sec(TIME_OUT_SECONDS);
   while ((file_size = stream.recv(file_cache, sizeof(file_cache), &tv)) > 0)
   {
+    if (unlikely(!MyClientAppX::instance()->running()))
+      return false;
+
     if (unlikely(file_put.send_n(file_cache, file_size) != file_size))
     {
       MY_ERROR("ftp write to file %s failed %s\n", localfile, (const char*)MyErrno());
@@ -391,7 +404,17 @@ time_t MyDistInfoFtp::get_delay_penalty() const
 
 bool MyDistInfoFtp::should_ftp(time_t now) const
 {
-  return last_update + get_delay_penalty() < now;
+  return status == 0 && last_update + get_delay_penalty() < now;
+}
+
+void MyDistInfoFtp::touch()
+{
+  last_update = time(NULL);
+}
+
+void MyDistInfoFtp::inc_failed()
+{
+  ++ failed_count;
 }
 
 
@@ -431,11 +454,6 @@ MyDistInfoFtp * MyDistInfoFtps::get(time_t now)
 
   return NULL;
 }
-
-
-//  ACE_Thread_Mutex m_mutex;
-//  MyDistInfoFtpList m_dist_info_ftps;
-
 
 
 //MyClientToDistProcessor//
@@ -582,11 +600,11 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_M
   int data_len = ftp_file->length - sizeof(MyFtpFile);
   ftp_file->data[data_len - 1] = 0;
 
-#ifdef MY_client_test
-  ftp_file->magic = m_client_id_index;
-#endif
 
   MyDistInfoFtp * dist_ftp = new MyDistInfoFtp();
+#ifdef MY_client_test
+  dist_ftp->client_id = m_client_id;
+#endif
   if (dist_ftp->load_from_string(ftp_file->data))
     MY_INFO("recieved one ftp command for dist %s: password = %s, file name = %s\n",
             dist_ftp->dist_id.data(), dist_ftp->file_password.data(), dist_ftp->file_name.data());
@@ -658,6 +676,7 @@ MyDistServerAddrList::MyDistServerAddrList()
 
 void MyDistServerAddrList::addr_list(char *list)
 {
+  ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex));
   m_index = -1;
   m_ftp_index = -1;
   m_server_addrs.clear();
@@ -714,7 +733,6 @@ void MyDistServerAddrList::addr_list(char *list)
       m_ftp_addrs.push_back(token);
     }
   }
-
 }
 
 const char * MyDistServerAddrList::begin()
@@ -741,6 +759,7 @@ bool MyDistServerAddrList::empty() const
 
 const char * MyDistServerAddrList::begin_ftp()
 {
+  ACE_MT(ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, NULL));
   m_ftp_index = 0;
   if (m_ftp_addrs.empty())
     return NULL;
@@ -749,6 +768,7 @@ const char * MyDistServerAddrList::begin_ftp()
 
 const char * MyDistServerAddrList::next_ftp()
 {
+  ACE_MT(ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, NULL));
   if (m_ftp_index <= int(m_ftp_addrs.size() + 1) && m_ftp_index >= 0)
     ++m_ftp_index;
   if (m_ftp_index >= int(m_ftp_addrs.size()) || m_ftp_index < 0)
@@ -756,8 +776,9 @@ const char * MyDistServerAddrList::next_ftp()
   return m_ftp_addrs[m_ftp_index].c_str();
 }
 
-bool MyDistServerAddrList::empty_ftp() const
+bool MyDistServerAddrList::empty_ftp()
 {
+  ACE_MT(ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, true));
   return m_ftp_addrs.empty();
 }
 
@@ -993,10 +1014,23 @@ int MyClientFtpService::svc()
     MY_INFO(ACE_TEXT ("running %s::svc()\n"), name());
     bprinted = true;
   }
+  std::string server_addr = ((MyClientToDistModule*)module_x())->server_addr_list().begin_ftp();
+  int failed_count = 0;
 
   for (ACE_Message_Block *mb; getq(mb) != -1;)
   {
-    do_ftp_download(mb);
+    if (!do_ftp_download(mb, server_addr.c_str()))
+    {
+      if (++ failed_count > 3)
+      {
+        failed_count = 0;
+        const char * p = ((MyClientToDistModule*)module_x())->server_addr_list().next_ftp();
+        if (p)
+          server_addr = p;
+        else
+          server_addr = ((MyClientToDistModule*)module_x())->server_addr_list().begin_ftp();
+      }
+    }
   }
 
   if (bprinted)
@@ -1029,14 +1063,32 @@ bool MyClientFtpService::add_ftp_task(MyDistInfoFtp * p)
     return true;
 }
 
-void MyClientFtpService::do_ftp_download(ACE_Message_Block * mb)
+bool MyClientFtpService::do_ftp_download(ACE_Message_Block * mb, const char * server_ip)
 {
   MyMessageBlockGuard guard(mb);
   MyDistInfoFtp * p = *((MyDistInfoFtp **)mb->base());
+  if (unlikely(!server_ip || !*server_ip))
+  {
+    ((MyClientToDistModule*)module_x())->dist_info_ftps().add(p);
+    return false;
+  }
+
   MY_INFO("processing ftp download for dist_id=%s, filename=%s, password=%s\n",
       p->dist_id.data(), p->file_name.data(), p->file_password.data());
-  p->status = 1;
+  MyPooledMemGuard local_file_name, app_data_path;
+#ifdef MY_client_test
+  MyClientApp::data_path(app_data_path, p->client_id.as_string());
+#else
+  MyClientApp::data_path(app_data_path);
+#endif
+  local_file_name.init_from_string(app_data_path.data(), "/", p->dist_id.data(), ".mbz");
+  bool result = MyFTPClient::download(p->dist_id.data(), server_ip, p->file_name.data(), local_file_name.data());
+  if (result)
+    p->status = 1;
+  else
+    p->inc_failed();
   ((MyClientToDistModule*)module_x())->dist_info_ftps().add(p);
+  return result;
 }
 
 
@@ -1229,6 +1281,16 @@ MyClientFtpService * MyClientToDistModule::client_ftp_service() const
 void MyClientToDistModule::ask_for_server_addr_list_done(bool success)
 {
   m_dispatcher->ask_for_server_addr_list_done(success);
+  if (unlikely(m_server_addr_list.empty_ftp()))
+    return;
+  if (m_client_ftp_service)
+    return;
+#ifdef MY_client_test
+  add_service(m_client_ftp_service = new MyClientFtpService(this, MyConfigX::instance()->test_client_ftp_thread_number));
+#else
+  add_service(m_client_ftp_service = new MyClientFtpService(this, 1));
+#endif
+  m_client_ftp_service->start();
 }
 
 MyDistInfoFtps & MyClientToDistModule::dist_info_ftps()
@@ -1259,11 +1321,6 @@ bool MyClientToDistModule::on_start()
 {
   add_service(m_service = new MyClientToDistService(this, 1));
   add_dispatcher(m_dispatcher = new MyClientToDistDispatcher(this));
-#ifdef MY_client_test
-  add_service(m_client_ftp_service = new MyClientFtpService(this, MyConfigX::instance()->test_client_ftp_thread_number));
-#else
-  add_service(m_client_ftp_service = new MyClientFtpService(this, 1));
-#endif
   return true;
 }
 

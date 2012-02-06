@@ -574,7 +574,7 @@ protected:
 
   void data(void * _buff, int index)
   {
-    if (m_buff)
+    if (unlikely(m_buff != NULL))
       MY_ERROR("memory leak @MyPooledMemGuard, index = %d\n", m_index);
     m_buff = (char*)_buff;
     m_index = index;

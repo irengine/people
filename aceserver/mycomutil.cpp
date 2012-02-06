@@ -796,6 +796,7 @@ void MyMemPoolFactory::free_mem(MyPooledMemGuard * guard)
         idx, (int)m_pools.size());
   else
     m_pools[idx]->free(guard->data());
+  guard->m_buff = NULL;
 }
 
 void MyMemPoolFactory::dump_info()
