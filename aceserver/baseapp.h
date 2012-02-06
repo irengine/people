@@ -81,6 +81,9 @@ public:
 
   //client only
   int client_heart_beat_interval;
+#if defined(MY_client_test)
+  int test_client_ftp_thread_number;
+#endif
 
   //dist only
   int module_heart_beat_mem_pool_size;

@@ -151,8 +151,9 @@ int MyDistClient::send_ftp()
     packet->length = total_len;
     packet->magic = m_client_id_index;
     dist_out_leading_data(packet->data);
-    ACE_OS::memcpy(packet->data + leading_length, dist_info->password.data(), dist_info->password_len + 1);
-    ACE_OS::memcpy(packet->data + leading_length + dist_info->password_len + 1, ftp_file_name, ftp_file_name_len);
+    ACE_OS::memcpy(packet->data + leading_length, ftp_file_name, ftp_file_name_len);
+    packet->data[leading_length + ftp_file_name_len - 1] = MyDataPacketHeader::FINISH_SEPARATOR;
+    ACE_OS::memcpy(packet->data + leading_length + ftp_file_name_len, dist_info->password.data(), dist_info->password_len + 1);
     mb->wr_ptr(mb->capacity());
 
     ACE_Time_Value tv(ACE_Time_Value::zero);

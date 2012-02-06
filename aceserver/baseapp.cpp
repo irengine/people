@@ -36,7 +36,8 @@ const int  DEFAULT_middle_server_dist_port = 2224;
 const int  DEFAULT_remote_access_port = 2225;
 const int  DEFAULT_client_heart_beat_interval = 60; //in seconds
 #ifdef MY_client_test
-  const int  DEFAULT_test_client_connection_number = 1;
+  const int DEFAULT_test_client_connection_number = 1;
+  const int DEFAULT_test_client_ftp_thread_number = 50;
 #endif
 const int  DEFAULT_db_server_port = 5432;
 const int  DEFAULT_http_port = 1922;
@@ -60,6 +61,7 @@ const ACE_TCHAR * CONFIG_log_file_size_in_MB = ACE_TEXT("log.file_size");
 #if defined(MY_client_test)
   const ACE_TCHAR * CONFIG_test_client_connection_number = ACE_TEXT("module.test_client_connection_number");
   const ACE_TCHAR * CONFIG_test_client_start_client_id = ACE_TEXT("module.test_client_start_client_id");
+  const ACE_TCHAR * CONFIG_test_client_ftp_thread_number = ACE_TEXT("module.test_client_ftp_thread_number");
 #endif
 
 const ACE_TCHAR * CONFIG_remote_access_port = ACE_TEXT("remote_access_port");
@@ -131,6 +133,9 @@ MyConfig::MyConfig()
 
   //client only
   client_heart_beat_interval = DEFAULT_client_heart_beat_interval;
+#if defined(MY_client_test)
+  test_client_ftp_thread_number = DEFAULT_test_client_ftp_thread_number;
+#endif
 
   //middle only
   http_port = DEFAULT_http_port;
@@ -480,6 +485,19 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
     else
       client_heart_beat_interval = ival;
   }
+
+#ifdef MY_client_test
+  if (cfgHeap.get_integer_value (section,  CONFIG_test_client_ftp_thread_number, ival) == 0)
+  {
+    if (ival == 0 || ival > 500 )
+    {
+      MY_WARNING(ACE_TEXT("Invalid %s value (= %d), using default value = %d\n"),
+          CONFIG_test_client_ftp_thread_number, ival, DEFAULT_test_client_ftp_thread_number);
+    }
+    else
+      test_client_ftp_thread_number = ival;
+  }
+#endif
 
   return true;
 }

@@ -20,6 +20,14 @@ class MyClientToDistConnector;
 
 const int16_t const_client_version = 1;
 
+class MyClientDB
+{
+public:
+  bool open_db(const char * client_id);
+  void close_db();
+  bool save_ftp_command(const char * ftp_command);
+};
+
 class MyFTPClient
 {
 public:
@@ -36,7 +44,7 @@ public:
 
 
 private:
-  enum { TIME_OUT_SECONDS = 30, MAX_BUFSIZE = 2048 };
+  enum { TIME_OUT_SECONDS = 30, MAX_BUFSIZE = 4096 };
   bool recv();
   bool send(const char * command);
   bool is_response(const char * res_code);
@@ -54,12 +62,48 @@ private:
 class MyDistInfoHeader
 {
 public:
-  int load_from_string(char * src);
-
   MyPooledMemGuard dist_id;
   MyPooledMemGuard findex;
   MyPooledMemGuard adir;
   MyPooledMemGuard aindex;
+
+protected:
+  int load_header_from_string(char * src);
+};
+
+class MyDistInfoFtp: public MyDistInfoHeader
+{
+public:
+  MyDistInfoFtp();
+  bool load_from_string(char * src);
+  time_t get_delay_penalty() const;
+  bool should_ftp(time_t now) const;
+
+  MyPooledMemGuard file_name;
+  MyPooledMemGuard file_password;
+  time_t last_update;
+  int  status;
+  int  failed_count;
+
+private:
+  enum { FAILED_PENALTY = 4, MAX_FAILED_COUNT = 20 };
+};
+
+class MyDistInfoFtps
+{
+public:
+  typedef std::list<MyDistInfoFtp * > MyDistInfoFtpList;
+  typedef MyDistInfoFtpList::iterator MyDistInfoFtpListPtr;
+
+  ~MyDistInfoFtps();
+  void begin();
+  void add(MyDistInfoFtp * p);
+  MyDistInfoFtp * get(time_t now = time(NULL));
+
+  ACE_Thread_Mutex m_mutex; //for performance reasons...somewhat ugly
+private:
+  MyDistInfoFtpList m_dist_info_ftps;
+  MyDistInfoFtpListPtr m_current_ptr;
 };
 
 class MyClientToDistProcessor: public MyBaseClientProcessor
@@ -138,10 +182,23 @@ public:
   virtual int svc();
   virtual const char * name() const;
 
-protected:
+private:
   enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
   void do_server_file_md5_list(ACE_Message_Block * mb);
 };
+
+class MyClientFtpService: public MyBaseService
+{
+public:
+  MyClientFtpService(MyBaseModule * module, int numThreads = 1);
+  virtual int svc();
+  virtual const char * name() const;
+  bool add_ftp_task(MyDistInfoFtp * p);
+
+private:
+  void do_ftp_download(ACE_Message_Block * mb);
+};
+
 
 class MyClientToMiddleConnector;
 
@@ -149,6 +206,8 @@ class MyClientToDistDispatcher: public MyBaseDispatcher
 {
 public:
   MyClientToDistDispatcher(MyBaseModule * pModule, int numThreads = 1);
+  ~MyClientToDistDispatcher();
+  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
   virtual const char * name() const;
   void ask_for_server_addr_list_done(bool success);
 
@@ -158,6 +217,7 @@ protected:
   virtual bool on_event_loop();
 
 private:
+  enum { FTP_CHECK_INTERVAL = 2 }; //in minutes
   MyClientToDistConnector * m_connector;
   MyClientToMiddleConnector * m_middle_connector;
 };
@@ -190,8 +250,11 @@ public:
   {
     return m_dispatcher;
   }
+  MyClientFtpService * client_ftp_service() const;
   virtual const char * name() const;
   void ask_for_server_addr_list_done(bool success);
+  MyDistInfoFtps & dist_info_ftps();
+  void check_ftp_timed_task();
 #ifdef MY_client_test
   MyTestClientIDGenerator & id_generator()
   {
@@ -207,6 +270,8 @@ private:
   MyDistServerAddrList m_server_addr_list;
   MyClientToDistService * m_service;
   MyClientToDistDispatcher *m_dispatcher;
+  MyDistInfoFtps m_dist_info_ftps;
+  MyClientFtpService * m_client_ftp_service;
 
 #ifdef MY_client_test
   MyTestClientIDGenerator m_id_generator;

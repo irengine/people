@@ -2351,10 +2351,11 @@ int MyBaseDispatcher::open (void *)
   if (m_clock_interval > 0)
   {
     ACE_Time_Value interval(m_clock_interval);
-    m_reactor->schedule_timer (this,
-                             0,
-                             interval,
-                             interval);
+    if (m_reactor->schedule_timer (this, 0, interval, interval) < 0)
+    {
+      MY_ERROR("setup timer failed %s %s\n", name(), (const char*)MyErrno());
+      return -1;
+    }
   }
 
   return 0;
