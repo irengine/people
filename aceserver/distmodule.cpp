@@ -91,16 +91,17 @@ int MyDistClient::dist_out_leading_length()
 {
   int adir_len = adir.data() ? ACE_OS::strlen(adir.data()) : (int)MyDataPacketHeader::NULL_ITEM_LENGTH;
   int aindex_len = dist_info->aindex_len > 0 ? dist_info->aindex_len : (int)MyDataPacketHeader::NULL_ITEM_LENGTH;
-  return dist_info->ver_len + dist_info->findex_len + aindex_len + adir_len + 4;
+  return dist_info->ver_len + dist_info->findex_len + aindex_len + adir_len + 4 + 2;
 }
 
 void MyDistClient::dist_out_leading_data(char * data)
 {
-  sprintf(data, "%s%c%s%c%s%c%s%c",
+  sprintf(data, "%s%c%s%c%s%c%s%c%c%c",
       dist_info->ver.data(), MyDataPacketHeader::ITEM_SEPARATOR,
       dist_info->findex.data(), MyDataPacketHeader::ITEM_SEPARATOR,
       adir.data()? adir.data(): Null_Item, MyDataPacketHeader::ITEM_SEPARATOR,
-      dist_info->aindex.data()? dist_info->aindex.data(): Null_Item, MyDataPacketHeader::FINISH_SEPARATOR);
+      dist_info->aindex.data()? dist_info->aindex.data(): Null_Item, MyDataPacketHeader::ITEM_SEPARATOR,
+      dist_info->ftype[0], MyDataPacketHeader::FINISH_SEPARATOR);
 }
 
 int MyDistClient::send_md5()

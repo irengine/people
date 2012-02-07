@@ -15,6 +15,8 @@
 #include "baseapp.h"
 #include "basemodule.h"
 
+#include <sqlite3.h>
+
 class MyClientToDistModule;
 class MyClientToDistConnector;
 
@@ -23,9 +25,19 @@ const int16_t const_client_version = 1;
 class MyClientDB
 {
 public:
+  MyClientDB();
+  ~MyClientDB();
+
   bool open_db(const char * client_id);
   void close_db();
   bool save_ftp_command(const char * ftp_command);
+  bool mark_ftp_command_finished(const char * dist_id);
+  void remove_outdated_ftp_command(time_t deadline);
+
+private:
+  bool do_exec(const char *sql);
+
+  sqlite3 * m_db;
 };
 
 class MyFTPClient
@@ -65,6 +77,7 @@ public:
   MyPooledMemGuard findex;
   MyPooledMemGuard adir;
   MyPooledMemGuard aindex;
+  char ftype;
 
 protected:
   int load_header_from_string(char * src);
@@ -79,6 +92,9 @@ public:
   bool should_ftp(time_t now) const;
   void touch();
   void inc_failed();
+  void calc_local_file_name();
+  void calc_target_parent_path(MyPooledMemGuard & target_parent_path, bool extract_only);
+  bool calc_target_path(const char * target_parent_path, MyPooledMemGuard & target_path);
 
   MyPooledMemGuard file_name;
   MyPooledMemGuard file_password;
@@ -86,6 +102,8 @@ public:
   MyClientID client_id;
 #endif
   int  status;
+  time_t recv_time;
+  MyPooledMemGuard local_file_name;
 
 private:
   enum { FAILED_PENALTY = 4, MAX_FAILED_COUNT = 20 };
@@ -102,12 +120,30 @@ public:
   ~MyDistInfoFtps();
   void begin();
   void add(MyDistInfoFtp * p);
+  void add_finished(const char * dist_id);
+  bool finished(const char * dist_id);
   MyDistInfoFtp * get(time_t now = time(NULL));
 
   ACE_Thread_Mutex m_mutex; //for performance reasons...somewhat ugly
 private:
+  typedef std::vector<std::string> MyDistInfoFtpFinishedList;
+  typedef MyDistInfoFtpFinishedList::iterator MyDistInfoFtpFinishedListPtr;
+
   MyDistInfoFtpList m_dist_info_ftps;
   MyDistInfoFtpListPtr m_current_ptr;
+  MyDistInfoFtpFinishedList m_finished_ftps;
+};
+
+class MyDistFtpFileExtractor
+{
+public:
+  MyDistFtpFileExtractor();
+
+  bool extract(MyDistInfoFtp * dist_info);
+
+private:
+
+  MyDistInfoFtp * m_dist_info;
 };
 
 class MyClientToDistProcessor: public MyBaseClientProcessor
@@ -200,7 +236,11 @@ public:
   bool add_ftp_task(MyDistInfoFtp * p);
 
 private:
-  bool do_ftp_download(ACE_Message_Block * mb, const char * server_ip);
+  bool do_ftp_download(MyDistInfoFtp * dist_info, const char * server_ip);
+  bool do_extract_file(MyDistInfoFtp * dist_info);
+
+  void return_back(MyDistInfoFtp * dist_info);
+  MyDistInfoFtp * get_dist_info_ftp(ACE_Message_Block * mb);
 };
 
 

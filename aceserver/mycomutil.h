@@ -658,6 +658,7 @@ class MyFilePaths
 {
 public:
   static bool make_path(char* path, int prefix_len, bool is_file);
+  static bool make_path_const(const char* path, int prefix_len, bool is_file);
   static bool make_path(const char * path, const char * subpath, bool is_file);
   static bool copy_path(const char * srcdir, const char * destdir);
   static bool remove_path(const char * path);
@@ -679,6 +680,13 @@ private:
   char * m_savedptr;
   const char * m_separator;
 };
+
+#define ftype_is_led(ftype) ((ftype) == '7' || (ftype) == '9')
+#define ftype_is_adv(ftype) ((ftype) == '3' || (ftype) == '5' || (ftype) == '6')
+#define ftype_is_chn(ftype) ((ftype) == '1' || (ftype) == '2' || (ftype) == '4')
+#define ftype_is_frame(ftype) ((ftype) == '0')
+#define ftype_is_backgnd(ftype) ((ftype) == '8')
+#define ftype_is_valid(ftype) ((ftype) >= '0' && (ftype) <= '9')
 
 void mycomutil_hex_dump(void * ptr, int len, char * result_buff, int buff_len);
 void mycomutil_generate_random_password(char * buff, const int password_len);

@@ -360,25 +360,35 @@ bool MyFilePaths::make_path(char * path, int prefix_len, bool is_file)
 {
   if (!path || !*path)
     return false;
-  if (prefix_len >= (int)strlen(path))
+  if (prefix_len > (int)strlen(path))
     return false;
   char * ptr = path + prefix_len;
   while (*ptr == '/')
     ++ptr;
   char * end_ptr;
+  bool result = true;
   while ((end_ptr = strchr(ptr, '/')) != NULL)
   {
     *end_ptr = 0;
-    mkdir(path, S_IRWXU);
+    result = (mkdir(path, S_IRWXU) == 0 || ACE_OS::last_error() == EEXIST);
+    if (!result)
+      return false;
     //MY_INFO("mkdir: %s\n", path);
     *end_ptr = '/';
     ptr = end_ptr + 1;
   }
 
   if (!is_file)
-    mkdir(path, S_IRWXU);
+    result = (mkdir(path, S_IRWXU) == 0 || ACE_OS::last_error() == EEXIST);
     //MY_INFO("mkdir: %s\n", path);
-  return true;
+  return result;
+}
+
+bool MyFilePaths::make_path_const(const char* path, int prefix_len, bool is_file)
+{
+  MyPooledMemGuard path_copy;
+  path_copy.init_from_string(path);
+  return MyFilePaths::make_path(path_copy.data(), prefix_len, is_file);
 }
 
 bool MyFilePaths::make_path(const char * path, const char * subpath, bool is_file)
@@ -497,6 +507,7 @@ bool MyFilePaths::remove_path(const char * path)
   };
 
   closedir(dir);
+  ret = ::remove(path) == 0;
   return ret;
 }
 

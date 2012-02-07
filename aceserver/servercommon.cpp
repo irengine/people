@@ -209,6 +209,11 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
     m_compositor.close();
     return false;
   }
+  if (*http_dist_request.type != '0' && !m_compositor.add(mdestfile.data()))
+  {
+    m_compositor.close();
+    return false;
+  }
 
   if (*http_dist_request.type == '0')
   {
@@ -269,9 +274,19 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
   int len2 = ACE_OS::strlen(dest_path);
 
   struct dirent *entry;
+  int dest_middle_leading_path_len = len1 - prefix_len;
+  if (dest_middle_leading_path_len > 0)
+  {
+    if (!MyFilePaths::make_path(dest_path, src_path + prefix_len + 1, false))
+    {
+      MY_ERROR("failed to create dir %s%s %s\n", dest_path, src_path + prefix_len, (const char*)MyErrno());
+      return false;
+    }
+  }
+
   while ((entry = readdir(dir)) != NULL)
   {
-    if (!entry->d_name)
+    if (unlikely(!entry->d_name))
       continue;
     if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
       continue;
@@ -280,12 +295,14 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
     int len = ACE_OS::strlen(entry->d_name);
     MyMemPoolFactoryX::instance()->get_mem(len1 + len + 2, &msrc);
     ACE_OS::sprintf(msrc.data(), "%s/%s", src_path, entry->d_name);
-    MyMemPoolFactoryX::instance()->get_mem(len2 + len + 8, &mdest);
-
+    MyMemPoolFactoryX::instance()->get_mem(len2 + len + 10 + dest_middle_leading_path_len, &mdest);
 
     if (entry->d_type == DT_REG)
     {
-      ACE_OS::sprintf(mdest.data(), "%s/%s.mbz", dest_path, entry->d_name);
+      if (dest_middle_leading_path_len > 0)
+        ACE_OS::sprintf(mdest.data(), "%s%s/%s.mbz", dest_path, src_path + prefix_len, entry->d_name);
+      else
+        ACE_OS::sprintf(mdest.data(), "%s/%s.mbz", dest_path, entry->d_name);
       if (!m_compressor.compress(msrc.data(), prefix_len, mdest.data(), password))
       {
         MY_ERROR("compress(%s) to (%s) failed\n", msrc.data(), mdest.data());
