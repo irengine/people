@@ -83,7 +83,7 @@ bool MyHttpDistRequest::check_valid(const bool check_acode) const
   if (!check_value(ftype, "ftype"))
     return false;
 
-  if (unlikely(ftype[1] != 0 || ftype[0] < '0' || ftype[0] > '9'))
+  if (unlikely(ftype[1] != 0 || !ftype_is_valid(ftype[0])))
   {
     MY_ERROR("bad http dist request, ftype = %s\n", ftype);
     return false;
@@ -101,7 +101,7 @@ bool MyHttpDistRequest::check_valid(const bool check_acode) const
   if (!check_value(type, "type"))
     return false;
 
-  if (unlikely(type[1] != 0 || (type[0] != '0' && type[0] != '1' && type[0] != '3')))
+  if (unlikely(type[1] != 0 || !type_is_valid(type[0])))
   {
     MY_ERROR("bad http dist request, type = %s\n", type);
     return false;
@@ -181,7 +181,7 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
   MyPooledMemGuard mfile;
   MyPooledMemGuard mdestfile;
   destdir.init_from_string(MyConfigX::instance()->compressed_store_path.c_str(), "/", http_dist_request.ver);
-  if (mkdir(destdir.data(), S_IRWXU) == -1 && ACE_OS::last_error() != EEXIST)
+  if (!MyFilePaths::make_path(destdir.data()))
   {
     MY_ERROR("can not create directory %s, %s\n", destdir.data(), (const char *)MyErrno());
     goto __exit__;
@@ -190,7 +190,7 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
 //  if (*http_dist_request.type != '0')
 //  {
     composite_dir.init_from_string(destdir.data(), "/", composite_path());
-    if (mkdir(composite_dir.data(), S_IRWXU) == -1 && ACE_OS::last_error() != EEXIST)
+    if (!MyFilePaths::make_path(composite_dir.data()))
     {
       MY_ERROR("can not create directory %s, %s\n", composite_dir.data(), (const char *)MyErrno());
       goto __exit__;
@@ -257,7 +257,7 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
   if (unlikely(!src_path || !*src_path || !dest_path || !*dest_path))
     return false;
 
-  if (mkdir(dest_path, S_IRWXU) == -1 && ACE_OS::last_error() != EEXIST)
+  if (!MyFilePaths::make_path(dest_path))
   {
     MY_ERROR("can not create directory %s, %s\n", dest_path, (const char *)MyErrno());
     return false;

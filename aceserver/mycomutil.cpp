@@ -356,6 +356,20 @@ int mycomutil_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH
   return (mb->space() == 0 ? 0:1);
 }
 
+
+//MyFilePaths//
+
+bool MyFilePaths::exist(const char * path)
+{
+  struct stat buf;
+  return (::stat(path, &buf) == 0);
+}
+
+bool MyFilePaths::make_path(const char* path)
+{
+  return (mkdir(path, S_IRWXU) == 0 || ACE_OS::last_error() == EEXIST);
+}
+
 bool MyFilePaths::make_path(char * path, int prefix_len, bool is_file)
 {
   if (!path || !*path)
@@ -395,9 +409,9 @@ bool MyFilePaths::make_path(const char * path, const char * subpath, bool is_fil
 {
   if (unlikely(!path || !subpath))
     return false;
-  char buff[PATH_MAX];
-  ACE_OS::snprintf(buff, PATH_MAX - 1, "%s/%s", path, subpath);
-  return make_path(buff, strlen(path) + 1, is_file);
+  MyPooledMemGuard path_x;
+  path_x.init_from_string(path, "/", subpath);
+  return make_path(path_x.data(), strlen(path) + 1, is_file);
 }
 
 bool MyFilePaths::copy_path(const char * srcdir, const char * destdir)

@@ -15,6 +15,8 @@
 
 //MyClientDB//
 
+ACE_Thread_Mutex MyClientDB::m_mutex;
+
 MyClientDB::MyClientDB()
 {
   m_db = NULL;
@@ -26,17 +28,42 @@ MyClientDB::~MyClientDB()
     sqlite3_close(m_db);
 }
 
+bool MyClientDB::init_db()
+{
+  if (unlikely(!m_db))
+    return false;
+
+  const char * const_sql_tb_ftp_info =
+      "create table tb_ftp_info(ftp_dist_id text PRIMARY KEY, ftp_str text, ftp_status integer, ftp_recv_time integer)";
+
+  return do_exec(const_sql_tb_ftp_info, false);
+}
+
 bool MyClientDB::open_db(const char * client_id)
 {
+  if (m_db)
+    return true;
+
+  bool retried = false;
   MyPooledMemGuard db_path, db_name;
   MyClientAppX::instance()->data_path(db_path, client_id);
   db_name.init_from_string(db_path.data(), "/client.db");
-  if(sqlite3_open(db_name.data(), &m_db))
+
+  while(true)
   {
-    MY_ERROR("failed to database %s, msg=%s\n", db_name.data(), sqlite3_errmsg(m_db));
-    close_db();
-    return false;
+    if(sqlite3_open(db_name.data(), &m_db))
+    {
+      MY_ERROR("failed to database %s, msg=%s\n", db_name.data(), sqlite3_errmsg(m_db));
+      close_db();
+      if (retried)
+        return false;
+      retried = true;
+      MyFilePaths::remove(db_name.data());
+    } else
+      break;
   }
+
+  init_db(); //no harm
   return true;
 }
 
@@ -49,12 +76,13 @@ void MyClientDB::close_db()
   }
 }
 
-bool MyClientDB::do_exec(const char *sql)
+bool MyClientDB::do_exec(const char *sql, bool show_error)
 {
-  char *zErrMsg = 0;
+  char * zErrMsg = 0;
   if (sqlite3_exec(m_db, sql, NULL, 0, &zErrMsg) != SQLITE_OK)
   {
-    MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
+    if (show_error)
+      MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
     if (zErrMsg)
       sqlite3_free(zErrMsg);
     return false;
@@ -80,18 +108,17 @@ bool MyClientDB::save_ftp_command(const char * ftp_command)
   const char * const_sql_template = "insert into tb_ftp_info(ftp_dist_id, ftp_str, ftp_status, ftp_recv_time) "
                                     "values('%s', '%s', %d, %d)";
   int total_len = ACE_OS::strlen(const_sql_template) + len + ACE_OS::strlen(ftp_command) + 20;
-  time_t t = time(NULL);
   MyPooledMemGuard sql;
   MyMemPoolFactoryX::instance()->get_mem(total_len, &sql);
-  ACE_OS::snprintf(sql.data(), total_len, const_sql_template, dist_id, ftp_command, 0, (long)t);
+  ACE_OS::snprintf(sql.data(), total_len, const_sql_template, dist_id, ftp_command, 0, (long)time(NULL));
   return do_exec(sql.data());
 }
 
-bool MyClientDB::mark_ftp_command_finished(const char * dist_id)
+bool MyClientDB::set_ftp_command_status(const char * dist_id, int status)
 {
-  const char * const_sql_template = "update tb_ftp_info set ftp_status = 1 where ftp_dist_id = '%s'";
+  const char * const_sql_template = "update tb_ftp_info set ftp_status = %d where ftp_dist_id = '%s'";
   char sql[200];
-  ACE_OS::snprintf(sql, 200, const_sql_template, dist_id);
+  ACE_OS::snprintf(sql, 200, const_sql_template, status, dist_id);
   return do_exec(sql);
 }
 
@@ -101,6 +128,72 @@ void MyClientDB::remove_outdated_ftp_command(time_t deadline)
   char sql[200];
   ACE_OS::snprintf(sql, 200, const_sql_template, (long)deadline);
   do_exec(sql);
+}
+
+bool MyClientDB::load_ftp_commands(MyDistInfoFtps * dist_ftps)
+{
+  if (unlikely(!dist_ftps))
+    return false;
+  const char * sql = "select ftp_dist_id, ftp_str, ftp_status, ftp_recv_time from tb_ftp_info";
+  char *zErrMsg = 0;
+  if (sqlite3_exec(m_db, sql, load_ftp_commands_callback, dist_ftps, &zErrMsg) != SQLITE_OK)
+  {
+    MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
+    if (zErrMsg)
+      sqlite3_free(zErrMsg);
+    return false;
+  }
+  if (zErrMsg)
+    sqlite3_free(zErrMsg);
+  return true;
+}
+
+int MyClientDB::load_ftp_commands_callback(void * p, int argc, char **argv, char **azColName)
+{
+  ACE_UNUSED_ARG(azColName);
+
+  MyDistInfoFtps * dist_ftps = (MyDistInfoFtps *)p;
+  if (unlikely(!dist_ftps))
+  {
+    MY_ERROR("NULL dist_ftps parameter @load_ftp_commands_callback\n");
+    return -1;
+  }
+  if (unlikely(argc != 4))
+  {
+    MY_ERROR("unexpected parameter number (=%d) @load_ftp_commands_callback\n", argc);
+    return -1;
+  }
+
+  //ftp_dist_id, ftp_str, ftp_status, ftp_recv_time
+  MyDistInfoFtp * dist_ftp = new MyDistInfoFtp();
+  if (unlikely(!dist_ftp->load_from_string(argv[1])))
+  {
+    delete dist_ftp;
+    return 0;
+  }
+
+  if (unlikely(!argv[2] || !*argv[2]))
+  {
+    delete dist_ftp;
+    return 0;
+  }
+  dist_ftp->status = atoi(argv[2]);
+
+  if (unlikely(!argv[3] || !*argv[3]))
+  {
+    delete dist_ftp;
+    return 0;
+  }
+  dist_ftp->recv_time = atoi(argv[2]);
+
+  if (unlikely(!dist_ftp->validate()))
+  {
+    delete dist_ftp;
+    return 0;
+  }
+
+  dist_ftps->add(dist_ftp);
+  return 0;
 }
 
 
@@ -445,8 +538,24 @@ MyDistInfoFtp::MyDistInfoFtp()
   last_update = time(NULL);
 }
 
+bool MyDistInfoFtp::validate()
+{
+  if (status < 0 || status > 3)
+    return false;
+  const time_t long_time = 60 * 60 * 24 * 12 * 365; //one year
+  time_t t = time(NULL);
+
+  if (!ftype_is_valid(ftype))
+    return false;
+
+  return recv_time < t + long_time && recv_time > t - long_time;
+}
+
 bool MyDistInfoFtp::load_from_string(char * src)
 {
+  if (unlikely(!src || !*src))
+    return false;
+
   int data_len = ACE_OS::strlen(src);
   int header_len = load_header_from_string(src);
   if (header_len <= 0)
@@ -645,7 +754,7 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
   }
 
   MyBZCompressor c;
-  bool result = c.decompress(dist_info->local_file_name.data(), target_path.data(), dist_info->file_password.data());
+  bool result = c.decompress(dist_info->local_file_name.data(), target_path.data(), dist_info->file_password.data(), dist_info->aindex.data());
   if (result)
     MY_INFO("extract mbz ok: %s to %s\n", dist_info->local_file_name.data(), target_path.data());
   return result;
@@ -798,6 +907,11 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_M
   int data_len = ftp_file->length - sizeof(MyFtpFile);
   ftp_file->data[data_len - 1] = 0;
 
+  {
+    MyClientDBGuard dbg;
+    if (dbg.db().open_db(m_client_id.as_string()))
+      dbg.db().save_ftp_command(ftp_file->data);
+  }
 
   MyDistInfoFtp * dist_ftp = new MyDistInfoFtp();
   dist_ftp->status = 0;
@@ -809,6 +923,8 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_M
             dist_ftp->dist_id.data(), dist_ftp->file_password.data(), dist_ftp->file_name.data());
   else
     MY_ERROR("bad ftp command packet received\n");
+
+
   MyClientAppX::instance()->client_to_dist_module()->dist_info_ftps().add(dist_ftp);
 
   return ER_OK;
@@ -1255,7 +1371,12 @@ int MyClientFtpService::svc()
     } //status == 0
 
     if (dist_info->status == 1)
+    {
       dist_info->status = do_extract_file(dist_info) ? 2:3;
+      MyClientDBGuard dbg;
+      if (dbg.db().open_db(dist_info->client_id.as_string()))
+        dbg.db().set_ftp_command_status(dist_info->dist_id.data(), dist_info->status);
+    }
 
     return_back(dist_info);
   }
@@ -1301,7 +1422,12 @@ bool MyClientFtpService::do_ftp_download(MyDistInfoFtp * dist_info, const char *
   bool result = MyFTPClient::download(dist_info->dist_id.data(), server_ip, dist_info->file_name.data(), dist_info->local_file_name.data());
   dist_info->touch();
   if (result)
+  {
     dist_info->status = 1;
+    MyClientDBGuard dbg;
+    if (dbg.db().open_db(dist_info->client_id.as_string()))
+      dbg.db().set_ftp_command_status(dist_info->dist_id.data(), 1);
+  }
   else
     dist_info->inc_failed();
   return result;

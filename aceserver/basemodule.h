@@ -274,7 +274,7 @@ public:
   enum { COMPRESS_100k = 3 };
   enum { BUFFER_LEN = 4096 };
   bool compress(const char * filename, int prefix_len, const char * destfn, const char * key);
-  bool decompress(const char * filename, const char * destdir, const char * key);
+  bool decompress(const char * filename, const char * destdir, const char * key, const char * _rename = NULL);
 
 private:
   bool prepare_buffers();

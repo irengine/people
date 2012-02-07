@@ -657,6 +657,8 @@ public:
 class MyFilePaths
 {
 public:
+  static bool exist(const char * path);
+  static bool make_path(const char* path);
   static bool make_path(char* path, int prefix_len, bool is_file);
   static bool make_path_const(const char* path, int prefix_len, bool is_file);
   static bool make_path(const char * path, const char * subpath, bool is_file);
@@ -687,6 +689,8 @@ private:
 #define ftype_is_frame(ftype) ((ftype) == '0')
 #define ftype_is_backgnd(ftype) ((ftype) == '8')
 #define ftype_is_valid(ftype) ((ftype) >= '0' && (ftype) <= '9')
+
+#define type_is_valid(type) ((type) == '0' || (type) == '1' || (type) == '3')
 
 void mycomutil_hex_dump(void * ptr, int len, char * result_buff, int buff_len);
 void mycomutil_generate_random_password(char * buff, const int password_len);

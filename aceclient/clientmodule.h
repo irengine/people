@@ -19,25 +19,57 @@
 
 class MyClientToDistModule;
 class MyClientToDistConnector;
+class MyDistInfoFtps;
 
 const int16_t const_client_version = 1;
 
 class MyClientDB
 {
 public:
-  MyClientDB();
   ~MyClientDB();
 
   bool open_db(const char * client_id);
   void close_db();
   bool save_ftp_command(const char * ftp_command);
-  bool mark_ftp_command_finished(const char * dist_id);
+  bool set_ftp_command_status(const char * dist_id, int status);
   void remove_outdated_ftp_command(time_t deadline);
+  bool load_ftp_commands(MyDistInfoFtps * dist_ftps);
+
+protected:
+  friend class MyClientDBGuard;
+  MyClientDB();
+  static ACE_Thread_Mutex m_mutex;
 
 private:
-  bool do_exec(const char *sql);
+  static int load_ftp_commands_callback(void * p, int argc, char **argv, char **azColName);
+
+  bool do_exec(const char *sql, bool show_error = true);
+  bool init_db();
 
   sqlite3 * m_db;
+};
+
+class MyClientDBGuard
+{
+public:
+  MyClientDBGuard()
+  {
+    MyClientDB::m_mutex.acquire();
+  }
+
+  ~MyClientDBGuard()
+  {
+    m_db.close_db();
+    MyClientDB::m_mutex.release();
+  }
+
+  MyClientDB & db()
+  {
+    return m_db;
+  }
+
+private:
+  MyClientDB m_db;
 };
 
 class MyFTPClient
@@ -87,6 +119,7 @@ class MyDistInfoFtp: public MyDistInfoHeader
 {
 public:
   MyDistInfoFtp();
+  bool validate();
   bool load_from_string(char * src);
   time_t get_delay_penalty() const;
   bool should_ftp(time_t now) const;

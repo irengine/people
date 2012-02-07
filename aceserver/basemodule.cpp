@@ -968,7 +968,7 @@ bool MyBZCompressor::do_decompress(MyBaseArchiveReader * _reader, MyBaseArchiveW
   ACE_NOTREACHED(return true);
 }
 
-bool MyBZCompressor::decompress(const char * srcfn, const char * destdir, const char * key)
+bool MyBZCompressor::decompress(const char * srcfn, const char * destdir, const char * key, const char * _rename)
 {
   MyWrappedArchiveReader reader;
   if (!reader.open(srcfn))
@@ -977,10 +977,35 @@ bool MyBZCompressor::decompress(const char * srcfn, const char * destdir, const 
   prepare_buffers();
   reader.set_key(key);
 
+  bool need_rename = (_rename && *_rename);
+  MyPooledMemGuard rename_path, true_name;
+  if (need_rename)
+  {
+    rename_path.init_from_string(_rename);
+    char * ptr = ACE_OS::strrchr(rename_path.data(), '.');
+    if (ptr)
+      *ptr = 0;
+  }
+
   int ret;
   while (true)
   {
     const char * _file_name = reader.file_name();
+    if (unlikely(!_file_name))
+      return false;
+
+    if (need_rename)
+    {
+      const char * ptr = ACE_OS::strchr(_file_name, '/');
+      if (unlikely(!ptr))
+        _file_name = _rename;
+      else
+      {
+        true_name.init_from_string(rename_path.data(), ptr);
+        _file_name = true_name.data();
+      }
+    }
+
     if (!MyFilePaths::make_path(destdir, _file_name, true))
     {
       MY_ERROR("can not mkdir %s/%s %s\n", destdir, _file_name, (const char*)MyErrno());
