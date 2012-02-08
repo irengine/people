@@ -762,6 +762,21 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
   return new ACE_Message_Block(capacity);
 }
 
+ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity, int command)
+{
+  if (unlikely(capacity < (int)sizeof(MyDataPacketHeader)))
+  {
+    MY_FATAL("too samll capacity value (=%d) @MyMemPoolFactory::get_message_block(command)\n", capacity);
+    return NULL;
+  }
+  ACE_Message_Block * mb = get_message_block(capacity);
+  MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
+  dph->command = command;
+  dph->length = capacity;
+  dph->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
+  return mb;
+}
+
 bool MyMemPoolFactory::get_mem(int size, MyPooledMemGuard * guard)
 {
   if (unlikely(!guard))

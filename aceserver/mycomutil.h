@@ -517,6 +517,7 @@ public:
   ~MyMemPoolFactory();
   void init(MyConfig * config);
   ACE_Message_Block * get_message_block(int capacity);
+  ACE_Message_Block * get_message_block(int capacity, int command);
   bool get_mem(int size, MyPooledMemGuard * guard);
   void * get_mem_x(int size);
   void free_mem_x(void * ptr); //use _x to avoid ambiguous of NULL pointer as parameter
@@ -693,6 +694,9 @@ private:
 #define ftype_is_valid(ftype) ((ftype) >= '0' && (ftype) <= '9')
 
 #define type_is_valid(type) ((type) == '0' || (type) == '1' || (type) == '3')
+#define type_is_single(type) ((type) == '0')
+#define type_is_multi(type) ((type) == '1')
+#define type_is_all(type) ((type) == '3')
 
 void mycomutil_hex_dump(void * ptr, int len, char * result_buff, int buff_len);
 void mycomutil_generate_random_password(char * buff, const int password_len);

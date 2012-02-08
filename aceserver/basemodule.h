@@ -45,6 +45,21 @@ class MyBaseDispatcher;
 class MyBaseConnector;
 class MyBaseProcessor;
 
+class MyMfileSplitter
+{
+public:
+  MyMfileSplitter();
+  bool init(const char * mfile);
+  const char * path() const;
+  const char * mfile() const;
+  const char * translate(const char * src);
+
+private:
+  MyPooledMemGuard m_mfile;
+  MyPooledMemGuard m_path;
+  MyPooledMemGuard m_translated_name;
+};
+
 class MyClientInfo
 {
 public:
@@ -73,7 +88,7 @@ public:
   void active(int index, bool _active);
 
   //APIs used only by db-layer
-  int last_sequence() const;
+  int  last_sequence() const;
   void last_sequence(int _seq);
   void prepare_space(int _count);
 
@@ -143,7 +158,7 @@ public:
   MyFileMD5s();
   ~MyFileMD5s();
   bool base_dir(const char *);
-  void minus(MyFileMD5s & );
+  void minus(MyFileMD5s & , MyMfileSplitter * spl, bool do_delete);
   bool add_file(const char * filename, const char * md5, int prefix_len);
   bool add_file(const char * pathname, const char * filename, int prefix_len, const char * alias);
   void sort();

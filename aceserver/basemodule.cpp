@@ -3,6 +3,59 @@
 
 MyClientIDTable * g_client_id_table = NULL;
 
+//MyMfileSplitter//
+
+MyMfileSplitter::MyMfileSplitter()
+{
+
+}
+
+bool MyMfileSplitter::init(const char * mfile)
+{
+  if (!mfile || !*mfile)
+    return true;
+  m_mfile.init_from_string(mfile);
+  m_path.init_from_string(mfile);
+  char * ptr = ACE_OS::strrchr(m_path.data(), '.');
+  if (unlikely(!ptr))
+  {
+    MY_ERROR("bad file name @MyMfileSplitter::init(%s)\n", mfile);
+    return false;
+  }
+  else
+    *ptr = 0;
+  return true;
+}
+
+const char * MyMfileSplitter::path() const
+{
+  return m_path.data();
+}
+
+const char * MyMfileSplitter::mfile() const
+{
+  return m_mfile.data();
+}
+
+const char * MyMfileSplitter::translate(const char * src)
+{
+  if (!m_path.data())
+    return src;
+
+  if (unlikely(!src))
+    return NULL;
+
+  const char * ptr = ACE_OS::strchr(src, '/');
+  if (unlikely(!ptr))
+    return m_mfile.data();
+  else
+  {
+    m_translated_name.init_from_string(m_path.data(), ptr);
+    return m_translated_name.data();
+  }
+}
+
+
 //MyClientInfo//
 
 MyClientInfo::MyClientInfo()
@@ -233,23 +286,29 @@ bool MyFileMD5s::base_dir(const char * dir)
   return true;
 }
 
-void MyFileMD5s::minus(MyFileMD5s & target)
+void MyFileMD5s::minus(MyFileMD5s & target, MyMfileSplitter * spl, bool do_delete)
 {
   MyFileMD5List::iterator it1 = m_file_md5_list.begin(), it2 = target.m_file_md5_list.begin(), it;
   //the below algorithm is based on STL's set_difference() function
   char fn[PATH_MAX];
   while (it1 != m_file_md5_list.end() && it2 != target.m_file_md5_list.end())
   {
-    if (**it1 < **it2)
+    const char * new_name = spl? spl->translate((**it2).filename()): (**it2).filename();
+    MyFileMD5 md5_copy(new_name, (**it2).md5(), 0);
+
+    if (**it1 < md5_copy)
       ++it1;
-    else if (**it2 < **it1)
+    else if (md5_copy < **it1)
     {
-      ACE_OS::snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
-      MY_INFO("deleting file %s\n", fn);
-      //remove(fn);
-      ++it2;
+      if (do_delete)
+      {
+        ACE_OS::snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
+        MY_INFO("deleting file %s\n", fn);
+        //remove(fn);
+        ++it2;
+      }
     }
-    else if ((**it1).same_md5(**it2))//==
+    else if ((**it1).same_md5(md5_copy))//==
     {
       delete *it1;
       it1 = m_file_md5_list.erase(it1);
@@ -261,12 +320,15 @@ void MyFileMD5s::minus(MyFileMD5s & target)
     }
   }
 
-  while (it2 != target.m_file_md5_list.end())
+  if (do_delete)
   {
-    ACE_OS::snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
-    MY_INFO("deleting file %s\n", fn);
-    //remove(fn);
-    ++it2;
+    while (it2 != target.m_file_md5_list.end())
+    {
+      ACE_OS::snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
+      MY_INFO("deleting file %s\n", fn);
+      //remove(fn);
+      ++it2;
+    }
   }
 }
 
@@ -977,34 +1039,16 @@ bool MyBZCompressor::decompress(const char * srcfn, const char * destdir, const 
   prepare_buffers();
   reader.set_key(key);
 
-  bool need_rename = (_rename && *_rename);
-  MyPooledMemGuard rename_path, true_name;
-  if (need_rename)
-  {
-    rename_path.init_from_string(_rename);
-    char * ptr = ACE_OS::strrchr(rename_path.data(), '.');
-    if (ptr)
-      *ptr = 0;
-  }
+  MyMfileSplitter spl;
+  if (!spl.init(_rename))
+    return false;
 
   int ret;
   while (true)
   {
-    const char * _file_name = reader.file_name();
+    const char * _file_name = spl.translate(reader.file_name());
     if (unlikely(!_file_name))
       return false;
-
-    if (need_rename)
-    {
-      const char * ptr = ACE_OS::strchr(_file_name, '/');
-      if (unlikely(!ptr))
-        _file_name = _rename;
-      else
-      {
-        true_name.init_from_string(rename_path.data(), ptr);
-        _file_name = true_name.data();
-      }
-    }
 
     if (!MyFilePaths::make_path(destdir, _file_name, true))
     {

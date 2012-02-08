@@ -116,6 +116,7 @@ public:
   MyPooledMemGuard adir;
   MyPooledMemGuard aindex;
   char ftype;
+  char type;
 #ifdef MY_client_test
   MyClientID client_id;
 #endif
@@ -155,11 +156,39 @@ class MyDistInfoMD5: public MyDistInfoHeader
 public:
   typedef MyDistInfoHeader super;
 
+  MyDistInfoMD5();
+
   bool load_from_string(char * src);
   virtual bool validate();
+  bool compare_done() const;
+  void compare_done(bool done);
+  MyFileMD5s & md5list();
 
-  MyPooledMemGuard md5list;
+private:
+  MyFileMD5s m_md5list;
+  bool m_compare_done;
+};
 
+class MyDistInfoMD5s
+{
+public:
+  typedef std::list<MyDistInfoMD5 * > MyDistInfoMD5List;
+  typedef MyDistInfoMD5List::iterator MyDistInfoMD5ListPtr;
+
+  void add(MyDistInfoMD5 * p);
+  MyDistInfoMD5 * get();
+
+private:
+  ACE_Thread_Mutex  m_mutex;
+  MyDistInfoMD5List m_dist_info_md5s;
+  MyDistInfoMD5List m_dist_info_md5s_finished;
+};
+
+class MyDistInfoMD5Comparer
+{
+public:
+  static bool compute(MyDistInfoHeader * dist_info_header, MyFileMD5s & md5list);
+  static void compare(MyDistInfoHeader * dist_info_header, MyFileMD5s & server_md5, MyFileMD5s & client_md5);
 };
 
 class MyDistInfoFtps
@@ -285,13 +314,21 @@ public:
   virtual int svc();
   virtual const char * name() const;
   bool add_ftp_task(MyDistInfoFtp * p);
+  bool add_md5_task(MyDistInfoMD5 * p);
 
 private:
+  enum { TASK_FTP = 1, TASK_MD5 };
+
+  void do_ftp_task(MyDistInfoFtp * dist_info, std::string & server_addr, int & failed_count);
+  void do_md5_task(MyDistInfoMD5 * p);
+
+  bool do_add_task(void * p, int task_type);
   bool do_ftp_download(MyDistInfoFtp * dist_info, const char * server_ip);
   bool do_extract_file(MyDistInfoFtp * dist_info);
 
   void return_back(MyDistInfoFtp * dist_info);
   MyDistInfoFtp * get_dist_info_ftp(ACE_Message_Block * mb);
+  void * get_task(ACE_Message_Block * mb, int & task_type);
 };
 
 
@@ -349,6 +386,7 @@ public:
   virtual const char * name() const;
   void ask_for_server_addr_list_done(bool success);
   MyDistInfoFtps & dist_info_ftps();
+  MyDistInfoMD5s & dist_info_md5s();
   void check_ftp_timed_task();
 #ifdef MY_client_test
   MyTestClientIDGenerator & id_generator()
@@ -366,6 +404,7 @@ private:
   MyClientToDistService * m_service;
   MyClientToDistDispatcher *m_dispatcher;
   MyDistInfoFtps m_dist_info_ftps;
+  MyDistInfoMD5s m_dist_info_md5s;
   MyClientFtpService * m_client_ftp_service;
 
 #ifdef MY_client_test
