@@ -105,11 +105,20 @@ private:
 class MyDistInfoHeader
 {
 public:
+  MyDistInfoHeader();
+  virtual ~MyDistInfoHeader();
+  void calc_target_parent_path(MyPooledMemGuard & target_parent_path, bool extract_only);
+  bool calc_target_path(const char * target_parent_path, MyPooledMemGuard & target_path);
+  virtual bool validate();
+
   MyPooledMemGuard dist_id;
   MyPooledMemGuard findex;
   MyPooledMemGuard adir;
   MyPooledMemGuard aindex;
   char ftype;
+#ifdef MY_client_test
+  MyClientID client_id;
+#endif
 
 protected:
   int load_header_from_string(char * src);
@@ -118,22 +127,19 @@ protected:
 class MyDistInfoFtp: public MyDistInfoHeader
 {
 public:
+  typedef MyDistInfoHeader super;
   MyDistInfoFtp();
-  bool validate();
+
+  virtual bool validate();
   bool load_from_string(char * src);
   time_t get_delay_penalty() const;
   bool should_ftp(time_t now) const;
   void touch();
   void inc_failed();
   void calc_local_file_name();
-  void calc_target_parent_path(MyPooledMemGuard & target_parent_path, bool extract_only);
-  bool calc_target_path(const char * target_parent_path, MyPooledMemGuard & target_path);
 
   MyPooledMemGuard file_name;
   MyPooledMemGuard file_password;
-#ifdef MY_client_test
-  MyClientID client_id;
-#endif
   int  status;
   time_t recv_time;
   MyPooledMemGuard local_file_name;
@@ -142,6 +148,18 @@ private:
   enum { FAILED_PENALTY = 4, MAX_FAILED_COUNT = 20 };
   time_t last_update;
   int  failed_count;
+};
+
+class MyDistInfoMD5: public MyDistInfoHeader
+{
+public:
+  typedef MyDistInfoHeader super;
+
+  bool load_from_string(char * src);
+  virtual bool validate();
+
+  MyPooledMemGuard md5list;
+
 };
 
 class MyDistInfoFtps

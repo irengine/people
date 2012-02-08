@@ -478,8 +478,33 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
 
 //MyDistInfoHeader//
 
+MyDistInfoHeader::MyDistInfoHeader()
+{
+  ftype = 0;
+}
+
+
+MyDistInfoHeader::~MyDistInfoHeader()
+{
+
+}
+
+bool MyDistInfoHeader::validate()
+{
+  if (!ftype_is_valid(ftype))
+    return false;
+
+  if (aindex.data() && aindex.data()[0] && !(findex.data() && findex.data()[0]))
+    return false;
+
+  return (dist_id.data() && dist_id.data()[0]);
+}
+
 int MyDistInfoHeader::load_header_from_string(char * src)
 {
+  if (unlikely(!src))
+    return -1;
+
   char * end = strchr(src, MyDataPacketHeader::FINISH_SEPARATOR);
   if (!end)
   {
@@ -518,16 +543,54 @@ int MyDistInfoHeader::load_header_from_string(char * src)
   if (unlikely(!token))
     return -1;
   else if (ACE_OS::strcmp(token, Null_Item) != 0)
-  {
     ftype = *token;
-    if (unlikely(ftype < '0' || ftype > '9'))
-      return -1;
-  }
   else
     return -1;
 
   return end - src + 1;
 }
+
+void MyDistInfoHeader::calc_target_parent_path(MyPooledMemGuard & target_parent_path, bool extract_only)
+{
+  ACE_UNUSED_ARG(extract_only); //todo: act according to extract_only
+
+#ifdef MY_client_test
+  MyClientApp::data_path(target_parent_path, client_id.as_string());
+#else
+  MyClientApp::data_path(target_parent_path);
+#endif
+}
+
+bool MyDistInfoHeader::calc_target_path(const char * target_parent_path, MyPooledMemGuard & target_path)
+{
+  MY_ASSERT_RETURN(target_parent_path && *target_parent_path, "empty parameter target_parent_path\n", false);
+  const char * sub_path;
+  if (ftype_is_chn(ftype))
+  {
+    target_path.init_from_string(target_parent_path, "/index/", sub_path = adir.data());
+    return true;
+  }
+  else if (ftype_is_adv(ftype))
+    sub_path = "5";
+  else if (ftype_is_led(ftype))
+    sub_path = "7";
+  else if (ftype_is_frame(ftype))
+  {
+    target_path.init_from_string(target_parent_path);
+    return true;
+  }
+  else if (ftype_is_backgnd(ftype))
+    sub_path = "8";
+  else
+  {
+    MY_ERROR("invalid dist ftype = %c\n", ftype);
+    return false;
+  }
+
+  target_path.init_from_string(target_parent_path, "/", sub_path);
+  return true;
+}
+
 
 
 //MyDistInfoFtp//
@@ -540,13 +603,13 @@ MyDistInfoFtp::MyDistInfoFtp()
 
 bool MyDistInfoFtp::validate()
 {
+  if (!super::validate())
+    return false;
+
   if (status < 0 || status > 3)
     return false;
   const time_t long_time = 60 * 60 * 24 * 12 * 365; //one year
   time_t t = time(NULL);
-
-  if (!ftype_is_valid(ftype))
-    return false;
 
   return recv_time < t + long_time && recv_time > t - long_time;
 }
@@ -622,47 +685,6 @@ void MyDistInfoFtp::calc_local_file_name()
   local_file_name.init_from_string(app_data_path.data(), "/", dist_id.data(), ".mbz");
 }
 
-void MyDistInfoFtp::calc_target_parent_path(MyPooledMemGuard & target_parent_path, bool extract_only)
-{
-  ACE_UNUSED_ARG(extract_only); //todo: act according to extract_only
-
-#ifdef MY_client_test
-  MyClientApp::data_path(target_parent_path, client_id.as_string());
-#else
-  MyClientApp::data_path(target_parent_path);
-#endif
-}
-
-bool MyDistInfoFtp::calc_target_path(const char * target_parent_path, MyPooledMemGuard & target_path)
-{
-  MY_ASSERT_RETURN(target_parent_path && *target_parent_path, "empty parameter target_parent_path\n", false);
-  const char * sub_path;
-  if (ftype_is_chn(ftype))
-  {
-    target_path.init_from_string(target_parent_path, "/index/", sub_path = adir.data());
-    return true;
-  }
-  else if (ftype_is_adv(ftype))
-    sub_path = "5";
-  else if (ftype_is_led(ftype))
-    sub_path = "7";
-  else if (ftype_is_frame(ftype))
-  {
-    target_path.init_from_string(target_parent_path);
-    return true;
-  }
-  else if (ftype_is_backgnd(ftype))
-    sub_path = "8";
-  else
-  {
-    MY_ERROR("invalid dist ftype = %c\n", ftype);
-    return false;
-  }
-
-  target_path.init_from_string(target_parent_path, "/", sub_path);
-  return true;
-}
-
 
 //MyDistInfoFtps//
 
@@ -729,6 +751,7 @@ MyDistInfoFtp * MyDistInfoFtps::get(time_t now)
 
 
 //MyDistFtpFileExtractor//
+
 MyDistFtpFileExtractor::MyDistFtpFileExtractor()
 {
   m_dist_info = NULL;
@@ -761,6 +784,39 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
 }
 
 
+//MyDistInfoMD5//
+
+bool MyDistInfoMD5::load_from_string(char * src)
+{
+  if (unlikely(!src || !*src))
+    return false;
+
+  int data_len = ACE_OS::strlen(src);
+  int header_len = load_header_from_string(src);
+  if (header_len <= 0)
+  {
+    MY_ERROR("bad md5 list packet, no valid dist info\n");
+    return false;
+  }
+
+  if (unlikely(header_len >= data_len))
+  {
+    MY_ERROR("bad md5 list packet, no valid md5 list info\n");
+    return false;
+  }
+
+  char * _md5_list = src + header_len;
+
+
+}
+
+bool MyDistInfoMD5::validate()
+{
+  if (!super::validate())
+    return false;
+
+  return (md5list.data() && md5list.data()[0]);
+}
 
 
 //MyClientToDistProcessor//

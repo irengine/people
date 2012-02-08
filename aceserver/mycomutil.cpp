@@ -767,7 +767,12 @@ bool MyMemPoolFactory::get_mem(int size, MyPooledMemGuard * guard)
   if (unlikely(!guard))
     return false;
   if (unlikely(guard->data() != NULL))
-    free_mem(guard);
+  {
+    if (guard->m_size >= size)
+      return true;
+    else
+      free_mem(guard);
+  }
 
   char * p;
   int idx = g_use_mem_pool? find_first_index(size): INVALID_INDEX;
@@ -775,10 +780,10 @@ bool MyMemPoolFactory::get_mem(int size, MyPooledMemGuard * guard)
   {
     ++ m_global_alloc_count;
     p = new char[size];
-    guard->data(p, INVALID_INDEX);
+    guard->data(p, INVALID_INDEX, size);
     return true;
   }
-  guard->data(p, idx);
+  guard->data(p, idx, m_pools[idx]->chunk_size());
   return true;
 }
 
@@ -816,12 +821,13 @@ void MyMemPoolFactory::free_mem(MyPooledMemGuard * guard)
   int idx = guard->index();
   if (idx == INVALID_INDEX)
     delete [] (char*)guard->data();
-  else if (idx < 0 || idx >= (int)m_pools.size())
+  else if (unlikely(idx < 0 || idx >= (int)m_pools.size()))
     MY_FATAL("attempt to release bad mem_pool data: index = %d, pool.size() = %d\n",
         idx, (int)m_pools.size());
   else
     m_pools[idx]->free(guard->data());
   guard->m_buff = NULL;
+  guard->m_size = 0;
 }
 
 void MyMemPoolFactory::dump_info()

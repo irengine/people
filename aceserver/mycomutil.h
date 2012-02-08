@@ -541,7 +541,7 @@ typedef ACE_Unmanaged_Singleton<MyMemPoolFactory, ACE_Null_Mutex> MyMemPoolFacto
 class MyPooledMemGuard
 {
 public:
-  MyPooledMemGuard(): m_buff(NULL), m_index(-1)
+  MyPooledMemGuard(): m_buff(NULL), m_index(-1), m_size(0)
   {}
 
   ~MyPooledMemGuard()
@@ -572,12 +572,13 @@ public:
 protected:
   friend class MyMemPoolFactory;
 
-  void data(void * _buff, int index)
+  void data(void * _buff, int index, int size)
   {
     if (unlikely(m_buff != NULL))
       MY_ERROR("memory leak @MyPooledMemGuard, index = %d\n", m_index);
     m_buff = (char*)_buff;
     m_index = index;
+    m_size = size;
   }
   int index() const
   {
@@ -589,6 +590,7 @@ private:
   MyPooledMemGuard & operator = (const MyPooledMemGuard &);
   char * m_buff;
   int m_index;
+  int m_size;
 };
 
 template<typename T> class MyAllocator
