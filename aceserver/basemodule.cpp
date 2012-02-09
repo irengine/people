@@ -254,8 +254,9 @@ MyFileMD5::MyFileMD5(const char * _filename, const char * md5, int prefix_len, c
   if (!md5)
   {
     MD5_CTX mdContext;
-    if (!md5file(_filename, 0, &mdContext, m_md5, MD5_STRING_LENGTH))
-      MY_ERROR("failed to calculate md5 value of file %s\n", _filename);
+    md5file(_filename, 0, &mdContext, m_md5, MD5_STRING_LENGTH);
+//    if (!md5file(_filename, 0, &mdContext, m_md5, MD5_STRING_LENGTH))
+//      MY_ERROR("failed to calculate md5 value of file %s\n", _filename);
   } else
     memcpy((void*)m_md5, (void*)md5, MD5_STRING_LENGTH);
 }
@@ -305,8 +306,8 @@ void MyFileMD5s::minus(MyFileMD5s & target, MyMfileSplitter * spl, bool do_delet
         ACE_OS::snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
         MY_INFO("deleting file %s\n", fn);
         //remove(fn);
-        ++it2;
       }
+      ++it2;
     }
     else if ((**it1).same_md5(md5_copy))//==
     {
@@ -351,7 +352,8 @@ bool MyFileMD5s::add_file(const char * filename, const char * md5, int prefix_le
   }
   else
   {
-    delete fm;
+    MyPooledObjectDeletor dlt;
+    dlt(fm);
     return false;
   }
 }
@@ -513,7 +515,7 @@ bool MyFileMD5s::do_scan_directory(const char * dirname, int start_len)
 
     if (entry->d_type == DT_REG)
     {
-      if (!add_file(dirname, entry->d_name, start_len))
+      if (!add_file(dirname, entry->d_name, start_len, NULL))
       {
         closedir(dir);
         return false;

@@ -311,7 +311,7 @@ private:
 
   void do_server_file_md5_list(ACE_Message_Block * mb);
   void do_md5_task(MyDistInfoMD5 * p);
-
+  void post_md5_list_message(MyDistInfoMD5 * dist_md5) const;
 };
 
 class MyClientFtpService: public MyBaseService
@@ -323,7 +323,7 @@ public:
   bool add_ftp_task(MyDistInfoFtp * p);
 
 private:
-  enum { TASK_FTP = 1, TASK_MD5 };
+  enum { TASK_FTP = 1 };
 
   void do_ftp_task(MyDistInfoFtp * dist_info, std::string & server_addr, int & failed_count);
   bool do_ftp_download(MyDistInfoFtp * dist_info, const char * server_ip);

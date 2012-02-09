@@ -234,7 +234,8 @@ bool md5file (const char *fn , u_int32_t seed, MD5_CTX *mdContext, char * result
   int fd = open (fn, O_RDONLY);
   if (fd < 0)
   {
-    MY_ERROR("can not open file %s for read %s\n", fn, (const char*)MyErrno());
+    if (ACE_OS::last_error() != ENOENT)
+      MY_ERROR("can not open file %s for read %s\n", fn, (const char*)MyErrno());
     return false;
   }
   MD5Init (mdContext, seed);

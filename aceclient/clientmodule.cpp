@@ -1067,7 +1067,9 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_md5_list_request(ACE_M
 #endif
   if (dist_md5->load_from_string(packet->data))
   {
-    MY_INFO("received one md5 file list command for dist %s\n", dist_md5->dist_id.data());
+#ifdef MY_client_test
+    MY_INFO("received one md5 file list command for dist %s, client_id=%s\n", dist_md5->dist_id.data(), m_client_id.as_string());
+#endif
     bool added = false;
     if (MyClientAppX::instance()->client_to_dist_module()->service())
       added = MyClientAppX::instance()->client_to_dist_module()->service()->add_md5_task(dist_md5);
@@ -1451,10 +1453,26 @@ void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
     MY_INFO("md5 file list generation error\n");
 
   MyDistInfoMD5Comparer::compare(p, p->md5list(), client_md5s);
-  //p->compare_done(true);
-
+  post_md5_list_message(p);
   delete p;
 }
+
+void MyClientToDistService::post_md5_list_message(MyDistInfoMD5 * dist_md5) const
+{
+  int dist_id_len = ACE_OS::strlen(dist_md5->dist_id.data());
+  int md5_len = dist_md5->md5list().total_size(false);
+  int total_len = sizeof(MyDataPacketHeader) + dist_id_len + 1 + md5_len;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
+  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
+#ifdef MY_client_test
+  dpe->magic = dist_md5->client_id_index;
+#endif
+  ACE_OS::memcpy(dpe->data, dist_md5->dist_id.data(), dist_id_len);
+  dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
+  dist_md5->md5list().to_buffer(dpe->data + dist_id_len + 1, md5_len, false);
+  MyClientAppX::instance()->send_mb_to_dist(mb);
+}
+
 
 
 void MyClientToDistService::do_server_file_md5_list(ACE_Message_Block * mb)
@@ -1667,6 +1685,7 @@ bool MyClientFtpService::do_ftp_download(MyDistInfoFtp * dist_info, const char *
     MyClientDBGuard dbg;
     if (dbg.db().open_db(dist_info->client_id.as_string()))
       dbg.db().set_ftp_command_status(dist_info->dist_id.data(), 1);
+    post_ftp_status_message(dist_info);
   }
   else
     dist_info->inc_failed();
