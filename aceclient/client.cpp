@@ -28,6 +28,27 @@ MyClientToDistModule * MyClientApp::client_to_dist_module() const
   return m_client_to_dist_module;
 }
 
+bool MyClientApp::send_mb_to_dist(ACE_Message_Block * mb)
+{
+  MY_ASSERT_RETURN(mb, "", false);
+
+  if (unlikely(!running()))
+  {
+    mb->release();
+    return false;
+  }
+
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (m_client_to_dist_module->dispatcher()->putq(mb, &tv) == -1)
+  {
+    MY_ERROR("failed to put packet to client_to_dist service queue %s\n", (const char *)MyErrno());
+    mb->release();
+    return false;
+  }
+
+  return true;
+}
+
 void MyClientApp::data_path(MyPooledMemGuard & _data_path, const char * client_id)
 {
 #ifdef MY_client_test

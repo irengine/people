@@ -69,6 +69,8 @@ public:
   time_t db_time;
 
 private:
+  MyDistClient * find(const char * client_id, const char * dist_id);
+
   MyHttpDistInfos * m_dist_infos;
 };
 
@@ -79,8 +81,11 @@ public:
   bool distribute();
   bool check_dist_info();
   bool check_dist_clients();
+  void dist_ftp_file_reply(const char * client_id, const char * dist_id, int _status);
+  void dist_ftp_md5_reply(const char * client_id, const char * dist_id, const char * md5list);
 
 private:
+
   bool check_dist_info_one(MyHttpDistInfo * info);
 
   MyHttpDistInfos m_dist_infos;
@@ -104,6 +109,7 @@ private:
   void do_ping();
   MyBaseProcessor::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_md5_file_list(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_ftp_reply(ACE_Message_Block * mb);
 };
 
 class MyPingSubmitter
@@ -149,6 +155,8 @@ private:
   enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
 
   void do_have_dist_task();
+  void do_ftp_file_reply(ACE_Message_Block * mb);
+  void do_file_md5_reply(ACE_Message_Block * mb);
   void calc_server_file_md5_list(ACE_Message_Block * mb);
   void calc_server_file_md5_list_one(const char * client_id);
   ACE_Message_Block * make_server_file_md5_list_mb(int list_len, int client_id_index);

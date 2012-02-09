@@ -217,6 +217,11 @@ MyHttpDistInfo * MyDistClients::find(const char * dist_id)
   return m_dist_infos->find(dist_id);
 }
 
+MyDistClient * MyDistClients::find(const char * client_id, const char * dist_id)
+{
+
+}
+
 void MyDistClients::dist_files()
 {
   int count = dist_clients.size();
@@ -297,6 +302,16 @@ bool MyClientFileDistributor::check_dist_clients()
   return true;
 }
 
+void MyClientFileDistributor::dist_ftp_file_reply(const char * client_id, const char * dist_id, int _status)
+{
+
+}
+
+void MyClientFileDistributor::dist_ftp_md5_reply(const char * client_id, const char * dist_id, const char * md5list)
+{
+
+}
+
 
 //MyHeartBeatProcessor//
 
@@ -360,6 +375,21 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
     return ER_OK;
   }
 
+  if (m_packet_header.command == MyDataPacketHeader::CMD_FTP_FILE)
+  {
+    MyFtpFileProc proc;
+    proc.attach((const char*)&m_packet_header);
+    bool result = proc.validate_header();
+    if (!result)
+    {
+      MyPooledMemGuard info;
+      info_string(info);
+      MY_ERROR("bad file ftp packet received from %s\n", info.data());
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
 
   MY_ERROR(ACE_TEXT("unexpected packet header received @MyHeartBeatProcessor.on_recv_header, cmd = %d\n"),
       m_packet_header.command);
@@ -377,6 +407,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
 
   if (header->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
     return do_md5_file_list(mb);
+
+  if (header->command == MyDataPacketHeader::CMD_FTP_FILE)
+    return do_ftp_reply(mb);
 
   MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyHeartBeatProcessor::on_recv_packet_i, command = %d\n",
@@ -411,14 +444,24 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
 
 MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_md5_file_list(ACE_Message_Block * mb)
 {
-  MyMessageBlockGuard guard(mb);
-  MyServerFileMD5List * md5filelist = (MyServerFileMD5List *)mb->base();
-  int len = md5filelist->length;
-  ((char*)md5filelist)[len - 1] = 0;
+  MyDataPacketExt * md5filelist = (MyDataPacketExt *)mb->base();
+  if (unlikely(!md5filelist->guard()))
+    return ER_OK;
   //todo: process md5 file list reply from client
   MyPooledMemGuard info;
   info_string(info);
   MY_INFO("got md5 file list reply from %s: %s\n", info.data(), md5filelist->data);
+  MyServerAppX::instance()->dist_put_to_service(mb);
+  return ER_OK;
+}
+
+MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(ACE_Message_Block * mb)
+{
+  MyDataPacketExt * md5filelist = (MyDataPacketExt *)mb->base();
+  if (unlikely(!md5filelist->guard()))
+    return ER_OK;
+
+  MyServerAppX::instance()->dist_put_to_service(mb);
   return ER_OK;
 }
 
@@ -523,6 +566,12 @@ int MyHeartBeatService::svc()
     if (dph->command == MyDataPacketHeader::CMD_HAVE_DIST_TASK)
     {
       do_have_dist_task();
+    } else if ((dph->command == MyDataPacketHeader::CMD_FTP_FILE))
+    {
+      do_ftp_file_reply(mb);
+    } else if ((dph->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST))
+    {
+      do_file_md5_reply(mb);
     } else
       MY_ERROR("unknown packet recieved @%s, cmd = %d\n", name(), dph->command);
   }
@@ -534,6 +583,16 @@ int MyHeartBeatService::svc()
 void MyHeartBeatService::do_have_dist_task()
 {
   m_distributor.distribute();
+}
+
+void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
+{
+
+}
+
+void MyHeartBeatService::do_file_md5_reply(ACE_Message_Block * mb)
+{
+
 }
 
 void MyHeartBeatService::calc_server_file_md5_list(ACE_Message_Block * mb)

@@ -762,7 +762,7 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
   return new ACE_Message_Block(capacity);
 }
 
-ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity, int command)
+ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity, int command, bool _send)
 {
   if (unlikely(capacity < (int)sizeof(MyDataPacketHeader)))
   {
@@ -770,6 +770,8 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity, int comman
     return NULL;
   }
   ACE_Message_Block * mb = get_message_block(capacity);
+  if (likely(_send))
+    mb->wr_ptr(mb->capacity());
   MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
   dph->command = command;
   dph->length = capacity;

@@ -35,6 +35,7 @@ public:
   static bool app_init(const char * app_home_path = NULL, MyConfig::RUNNING_MODE mode = MyConfig::RM_UNKNOWN);
   static void app_fini();
   static void dump_mem_pool_info();
+  bool dist_put_to_service(ACE_Message_Block * mb);
 
 protected:
   virtual bool on_start();

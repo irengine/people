@@ -119,6 +119,7 @@ public:
   char type;
 #ifdef MY_client_test
   MyClientID client_id;
+  int client_id_index;
 #endif
 
 protected:
@@ -242,6 +243,7 @@ protected:
 private:
   int send_version_check_req();
   MyBaseProcessor::EVENT_RESULT do_ftp_file_request(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_md5_list_request(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
 
   bool m_version_check_reply_done;
@@ -327,8 +329,9 @@ private:
   bool do_extract_file(MyDistInfoFtp * dist_info);
 
   void return_back(MyDistInfoFtp * dist_info);
-  MyDistInfoFtp * get_dist_info_ftp(ACE_Message_Block * mb);
-  void * get_task(ACE_Message_Block * mb, int & task_type);
+  MyDistInfoFtp * get_dist_info_ftp(ACE_Message_Block * mb) const;
+  void * get_task(ACE_Message_Block * mb, int & task_type) const;
+  void post_ftp_status_message(MyDistInfoFtp * dist_info) const;
 };
 
 

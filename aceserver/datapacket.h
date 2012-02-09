@@ -159,6 +159,15 @@ public:
   int16_t command;
 };
 
+class MyDataPacketExt: public MyDataPacketHeader
+{
+public:
+  char data[0];
+
+  bool guard();
+};
+
+
 //the ultimate root class for all data packets Proc
 class MyDataPacketBaseProc
 {

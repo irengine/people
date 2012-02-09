@@ -8,6 +8,19 @@
 #include "datapacket.h"
 #include "mycomutil.h"
 
+//MyDataPacketExt//
+
+bool MyDataPacketExt::guard()
+{
+  bool result = (length > (int)sizeof(MyDataPacketHeader));
+  if (likely(result))
+    data[length - 1] = 0;
+  return result;
+}
+
+
+//MyBSBasePacket//
+
 const char * const_bs_packet_magic = "vc5X";
 
 void MyBSBasePacket::packet_magic()

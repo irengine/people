@@ -61,6 +61,27 @@ MyDB & MyServerApp::db()
   return m_db;
 }
 
+bool MyServerApp::dist_put_to_service(ACE_Message_Block * mb)
+{
+  MY_ASSERT_RETURN(mb, "\n", false);
+
+  if (unlikely(!running()))
+  {
+    mb->release();
+    return false;
+  }
+
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (m_heart_beat_module->service()->putq(mb, &tv) == -1)
+  {
+    MY_ERROR("can not put packet to service's queue\n");
+    mb->release();
+    return false;
+  }
+
+  return true;
+}
+
 bool MyServerApp::on_start()
 {
 

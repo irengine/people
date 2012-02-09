@@ -20,6 +20,7 @@ public:
   virtual ~MyClientApp();
 
   MyClientToDistModule * client_to_dist_module() const;
+  bool send_mb_to_dist(ACE_Message_Block * mb);
 
 #ifdef MY_client_test
   MyClientIDTable & client_id_table()

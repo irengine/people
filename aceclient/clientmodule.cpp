@@ -1025,15 +1025,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
   }
 
   if (header->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
-  {
-    ACE_Time_Value tv(ACE_Time_Value::zero);
-    if (((MyClientToDistHandler*)m_handler)->module_x()->service()->putq(mb, &tv) == -1)
-    {
-      MY_ERROR("failed to put server file md5 list message to service queue.\n");
-      mb->release();
-    }
-    return ER_OK;
-  }
+    return do_md5_list_request(mb);
 
   if (header->command == MyDataPacketHeader::CMD_FTP_FILE)
     return do_ftp_file_request(mb);
@@ -1058,31 +1050,76 @@ int MyClientToDistProcessor::send_heart_beat()
   return ret;
 }
 
+MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_md5_list_request(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  MyDataPacketExt * packet = (MyDataPacketExt *) mb->base();
+  if (!packet->guard())
+  {
+    MY_ERROR("empty md5 list packet %s\n");
+    return ER_OK;
+  }
+
+  MyDistInfoMD5 * dist_md5 = new MyDistInfoMD5;
+#ifdef MY_client_test
+  dist_md5->client_id = m_client_id;
+  dist_md5->client_id_index = m_client_id_index;
+#endif
+  if (dist_md5->load_from_string(packet->data))
+  {
+    MY_INFO("received one md5 file list command for dist %s\n", dist_md5->dist_id.data());
+    bool added = false;
+    if (MyClientAppX::instance()->client_to_dist_module()->client_ftp_service())
+      added = MyClientAppX::instance()->client_to_dist_module()->client_ftp_service()->add_md5_task(dist_md5);
+    if (!added)
+      MyClientAppX::instance()->client_to_dist_module()->dist_info_md5s().add(dist_md5);
+  }
+  else
+  {
+    MY_ERROR("bad md5 file list command packet received\n");
+    delete dist_md5;
+  }
+
+  return ER_OK;
+}
+
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_Message_Block * mb)
 {
   MyMessageBlockGuard guard(mb);
-  MyFtpFile * ftp_file = (MyFtpFile *) mb->base();
-  int data_len = ftp_file->length - sizeof(MyFtpFile);
-  ftp_file->data[data_len - 1] = 0;
+  MyDataPacketExt * packet = (MyDataPacketExt *) mb->base();
+  if (!packet->guard())
+  {
+    MY_ERROR("empty md5 list packet %s\n");
+    return ER_OK;
+  }
 
   {
     MyClientDBGuard dbg;
     if (dbg.db().open_db(m_client_id.as_string()))
-      dbg.db().save_ftp_command(ftp_file->data);
+      dbg.db().save_ftp_command(packet->data);
   }
 
   MyDistInfoFtp * dist_ftp = new MyDistInfoFtp();
   dist_ftp->status = 0;
 #ifdef MY_client_test
   dist_ftp->client_id = m_client_id;
+  dist_ftp->client_id_index = m_client_id_index;
 #endif
-  if (dist_ftp->load_from_string(ftp_file->data))
+  if (dist_ftp->load_from_string(packet->data))
+  {
     MY_INFO("received one ftp command for dist %s: password = %s, file name = %s\n",
             dist_ftp->dist_id.data(), dist_ftp->file_password.data(), dist_ftp->file_name.data());
+    bool added = false;
+    if (MyClientAppX::instance()->client_to_dist_module()->client_ftp_service())
+      added = MyClientAppX::instance()->client_to_dist_module()->client_ftp_service()->add_ftp_task(dist_ftp);
+    if (!added)
+      MyClientAppX::instance()->client_to_dist_module()->dist_info_ftps().add(dist_ftp);
+  }
   else
+  {
     MY_ERROR("bad ftp command packet received\n");
-
-  MyClientAppX::instance()->client_to_dist_module()->dist_info_ftps().add(dist_ftp);
+    delete dist_ftp;
+  }
 
   return ER_OK;
 }
@@ -1612,13 +1649,28 @@ bool MyClientFtpService::add_md5_task(MyDistInfoMD5 * p)
   return do_add_task(p, TASK_MD5);
 }
 
-void * MyClientFtpService::get_task(ACE_Message_Block * mb, int & task_type)
+void * MyClientFtpService::get_task(ACE_Message_Block * mb, int & task_type) const
 {
   if (unlikely(mb->capacity() != sizeof(void *) + sizeof(int)))
     return NULL;
 
   task_type = *(int*)mb->base();
   return *((char **)(mb->base() + sizeof(int)));
+}
+
+void MyClientFtpService::post_ftp_status_message(MyDistInfoFtp * dist_info) const
+{
+  int dist_id_len = ACE_OS::strlen(dist_info->dist_id.data());
+  int total_len = sizeof(MyDataPacketHeader) + dist_id_len + 1 + 4;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_FTP_FILE);
+  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
+#ifdef MY_client_test
+  dpe->magic = dist_info->client_id_index;
+#endif
+  ACE_OS::memcpy(dpe->data, dist_info->dist_id.data(), dist_id_len);
+  dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
+  ACE_OS::snprintf(dpe->data + dist_id_len + 1, 4, "%03d", (dist_info->status == 0? 0: 100));
+  MyClientAppX::instance()->send_mb_to_dist(mb);
 }
 
 bool MyClientFtpService::do_ftp_download(MyDistInfoFtp * dist_info, const char * server_ip)
@@ -1656,7 +1708,7 @@ void MyClientFtpService::return_back(MyDistInfoFtp * dist_info)
   ((MyClientToDistModule*)module_x())->dist_info_ftps().add(dist_info);
 }
 
-MyDistInfoFtp * MyClientFtpService::get_dist_info_ftp(ACE_Message_Block * mb)
+MyDistInfoFtp * MyClientFtpService::get_dist_info_ftp(ACE_Message_Block * mb) const
 {
   if (unlikely(mb->capacity() != sizeof(void *) + sizeof(int)))
     return NULL;
