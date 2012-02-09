@@ -303,10 +303,15 @@ public:
   MyClientToDistService(MyBaseModule * module, int numThreads = 1);
   virtual int svc();
   virtual const char * name() const;
+  bool add_md5_task(MyDistInfoMD5 * p);
 
 private:
+  enum { TASK_MD5 };
   enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
+
   void do_server_file_md5_list(ACE_Message_Block * mb);
+  void do_md5_task(MyDistInfoMD5 * p);
+
 };
 
 class MyClientFtpService: public MyBaseService
@@ -316,21 +321,16 @@ public:
   virtual int svc();
   virtual const char * name() const;
   bool add_ftp_task(MyDistInfoFtp * p);
-  bool add_md5_task(MyDistInfoMD5 * p);
 
 private:
   enum { TASK_FTP = 1, TASK_MD5 };
 
   void do_ftp_task(MyDistInfoFtp * dist_info, std::string & server_addr, int & failed_count);
-  void do_md5_task(MyDistInfoMD5 * p);
-
-  bool do_add_task(void * p, int task_type);
   bool do_ftp_download(MyDistInfoFtp * dist_info, const char * server_ip);
   bool do_extract_file(MyDistInfoFtp * dist_info);
 
   void return_back(MyDistInfoFtp * dist_info);
   MyDistInfoFtp * get_dist_info_ftp(ACE_Message_Block * mb) const;
-  void * get_task(ACE_Message_Block * mb, int & task_type) const;
   void post_ftp_status_message(MyDistInfoFtp * dist_info) const;
 };
 

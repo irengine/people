@@ -38,6 +38,9 @@ public:
   bool save_dist_md5(const char * dist_id, const char * md5, int md5_len);
   bool load_dist_clients(MyDistClients * dist_clients);
   bool set_dist_client_status(MyDistClient & dist_client, int new_status);
+  bool set_dist_client_status(const char * client_id, const char * dist_id, int new_status);
+  bool set_dist_client_md5(const char * client_id, const char * dist_id, const char * md5, int new_status);
+  bool delete_dist_client(const char * client_id, const char * dist_id);
 
 private:
   void disconnect();

@@ -1069,8 +1069,8 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_md5_list_request(ACE_M
   {
     MY_INFO("received one md5 file list command for dist %s\n", dist_md5->dist_id.data());
     bool added = false;
-    if (MyClientAppX::instance()->client_to_dist_module()->client_ftp_service())
-      added = MyClientAppX::instance()->client_to_dist_module()->client_ftp_service()->add_md5_task(dist_md5);
+    if (MyClientAppX::instance()->client_to_dist_module()->service())
+      added = MyClientAppX::instance()->client_to_dist_module()->service()->add_md5_task(dist_md5);
     if (!added)
       MyClientAppX::instance()->client_to_dist_module()->dist_info_md5s().add(dist_md5);
   }
@@ -1405,16 +1405,23 @@ int MyClientToDistService::svc()
 
   for (ACE_Message_Block *mb; getq(mb) != -1;)
   {
-    MyDataPacketBaseProc proc;
-    proc.attach(mb->base());
-    if (proc.data()->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
+    int task_type;
+    void * p;
     {
-      do_server_file_md5_list(mb);
+      MyMessageBlockGuard guard(mb);
+      p = get_task(mb, task_type);
+    }
+
+    if (unlikely(!p))
+    {
+      MY_ERROR("null pointer get @%s::get_task(mb)\n", name());
       continue;
     }
 
-    MY_ERROR("unexpected message block type @MyClientToDistService::svc()\n");
-    mb->release();
+    if (task_type == TASK_MD5)
+      do_md5_task((MyDistInfoMD5 *)p);
+    else
+      MY_ERROR("unknown task type = %d @%s::svc()\n", task_type, name());
   }
 
   MY_INFO(ACE_TEXT ("exiting %s::svc()\n"), name());
@@ -1425,6 +1432,30 @@ const char * MyClientToDistService::name() const
 {
   return "MyClientToDistService";
 }
+
+bool MyClientToDistService::add_md5_task(MyDistInfoMD5 * p)
+{
+  return do_add_task(p, TASK_MD5);
+}
+
+void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
+{
+  if (unlikely(!p || p->compare_done()))
+  {
+    delete p;
+    return;
+  }
+
+  MyFileMD5s client_md5s;
+  if (!MyDistInfoMD5Comparer::compute(p, client_md5s))
+    MY_INFO("md5 file list generation error\n");
+
+  MyDistInfoMD5Comparer::compare(p, p->md5list(), client_md5s);
+  //p->compare_done(true);
+
+  delete p;
+}
+
 
 void MyClientToDistService::do_server_file_md5_list(ACE_Message_Block * mb)
 {
@@ -1543,8 +1574,6 @@ int MyClientFtpService::svc()
 
     if (task_type == TASK_FTP)
       do_ftp_task((MyDistInfoFtp *)p, server_addr, failed_count);
-    else if (task_type == TASK_MD5)
-      do_md5_task((MyDistInfoMD5 *)p);
     else
       MY_ERROR("unknown task type = %d @%s::svc()\n", task_type, name());
   }
@@ -1581,7 +1610,8 @@ void MyClientFtpService::do_ftp_task(MyDistInfoFtp * dist_info, std::string & se
           server_addr = ((MyClientToDistModule*)module_x())->server_addr_list().begin_ftp();
       }
       return;
-    }
+    } else
+      failed_count = 0;
   } //status == 0
 
   if (dist_info->status == 1)
@@ -1595,48 +1625,9 @@ void MyClientFtpService::do_ftp_task(MyDistInfoFtp * dist_info, std::string & se
   return_back(dist_info);
 }
 
-void MyClientFtpService::do_md5_task(MyDistInfoMD5 * p)
-{
-  if (unlikely(!p || p->compare_done()))
-  {
-    delete p;
-    return;
-  }
-
-  MyFileMD5s client_md5s;
-  if (!MyDistInfoMD5Comparer::compute(p, client_md5s))
-    MY_INFO("md5 file list generation error\n");
-
-  MyDistInfoMD5Comparer::compare(p, p->md5list(), client_md5s);
-  //p->compare_done(true);
-
-  delete p;
-}
-
-
 const char * MyClientFtpService::name() const
 {
   return "MyClientFtpService";
-}
-
-bool MyClientFtpService::do_add_task(void * p, int task_type)
-{
-  if (unlikely(!p))
-    return true;
-
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(int) + sizeof(void *));
-  *((int*)mb->base()) = task_type;
-  *(char **)(mb->base() + sizeof(int)) = (char*)p;
-//  *(MyDistInfoFtp **)mb->base() = p;
-
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (putq(mb, &tv) < 0)
-  {
-    MY_ERROR("failed to place task %d command packet to %s %s\n", task_type, name(), (const char*)MyErrno());
-    mb->release();
-    return false;
-  } else
-    return true;
 }
 
 bool MyClientFtpService::add_ftp_task(MyDistInfoFtp * p)
@@ -1644,24 +1635,10 @@ bool MyClientFtpService::add_ftp_task(MyDistInfoFtp * p)
   return do_add_task(p, TASK_FTP);
 }
 
-bool MyClientFtpService::add_md5_task(MyDistInfoMD5 * p)
-{
-  return do_add_task(p, TASK_MD5);
-}
-
-void * MyClientFtpService::get_task(ACE_Message_Block * mb, int & task_type) const
-{
-  if (unlikely(mb->capacity() != sizeof(void *) + sizeof(int)))
-    return NULL;
-
-  task_type = *(int*)mb->base();
-  return *((char **)(mb->base() + sizeof(int)));
-}
-
 void MyClientFtpService::post_ftp_status_message(MyDistInfoFtp * dist_info) const
 {
   int dist_id_len = ACE_OS::strlen(dist_info->dist_id.data());
-  int total_len = sizeof(MyDataPacketHeader) + dist_id_len + 1 + 4;
+  int total_len = sizeof(MyDataPacketHeader) + dist_id_len + 1 + 2;
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_FTP_FILE);
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
 #ifdef MY_client_test
@@ -1669,7 +1646,8 @@ void MyClientFtpService::post_ftp_status_message(MyDistInfoFtp * dist_info) cons
 #endif
   ACE_OS::memcpy(dpe->data, dist_info->dist_id.data(), dist_id_len);
   dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
-  ACE_OS::snprintf(dpe->data + dist_id_len + 1, 4, "%03d", (dist_info->status == 0? 0: 100));
+  dpe->data[dist_id_len + 1] = (dist_info->status == 0? '0': '1');
+  dpe->data[dist_id_len + 2] = 0;
   MyClientAppX::instance()->send_mb_to_dist(mb);
 }
 

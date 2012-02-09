@@ -29,6 +29,28 @@ bool MyDistClient::active()
   return g_client_id_table->active(client_id, m_client_id_index);
 }
 
+void MyDistClient::update_status(int _status)
+{
+  if (_status > status)
+    status = _status;
+}
+
+void MyDistClient::update_md5_list(const char * _md5)
+{
+  if (unlikely(!dist_info->need_md5()))
+  {
+    MY_WARNING("got unexpected md5 reply packet on client_id(%s) dist_id(%s)\n",
+        client_id.as_string(), dist_info->ver.data());
+    return;
+  }
+
+  if (unlikely(md5.data() && md5.data()[0]))
+    return;
+
+  md5.init_from_string(_md5);
+  update_status(2);
+}
+
 int MyDistClient::dist_file(MyDistClients & dist_clients)
 {
   if (!active())
@@ -304,12 +326,24 @@ bool MyClientFileDistributor::check_dist_clients()
 
 void MyClientFileDistributor::dist_ftp_file_reply(const char * client_id, const char * dist_id, int _status)
 {
-
+  MyDistClient * dc = m_dist_clients.find(client_id, dist_id);
+  int new_status = (_status == 1)? 5:4;
+  if (likely(dc != NULL))
+    dc->update_status(_status);
+  if (new_status != 5)
+    MyServerAppX::instance()->db().set_dist_client_status(client_id, dist_id, _status);
+  else
+    MyServerAppX::instance()->db().delete_dist_client(client_id, dist_id);
+  //todo: notify bs about progress
 }
 
 void MyClientFileDistributor::dist_ftp_md5_reply(const char * client_id, const char * dist_id, const char * md5list)
 {
-
+  MyDistClient * dc = m_dist_clients.find(client_id, dist_id);
+  if (likely(dc != NULL))
+    dc->update_md5_list(md5list);
+  MyServerAppX::instance()->db().set_dist_client_md5(client_id, dist_id, md5list, 2);
+  //todo: generate mbz and notifify client to download
 }
 
 
@@ -587,12 +621,54 @@ void MyHeartBeatService::do_have_dist_task()
 
 void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
 {
+  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
+  MyClientID client_id;
+  if (unlikely(!MyServerAppX::instance()->client_id_table().value(dpe->magic, &client_id)))
+  {
+    MY_FATAL("can not find client id @MyHeartBeatService::do_ftp_file_reply()\n");
+    return;
+  } //todo: optimize: pass client_id directly from processor
 
+  int len = dpe->length;
+  if (unlikely(dpe->data[len - 3] != MyDataPacketHeader::ITEM_SEPARATOR))
+  {
+    MY_ERROR("bad ftp file reply packet @%s::do_ftp_file_reply()\n", name());
+    return;
+  }
+  if (unlikely(!dpe->data[0]))
+  {
+    MY_ERROR("bad ftp file reply packet @%s::do_ftp_file_reply(), no dist_id\n", name());
+    return;
+  }
+  const char * dist_id = dpe->data;
+  int status = (dpe->data[len - 2] == '0' ? 0 : 1);
+  m_distributor.dist_ftp_file_reply(client_id.as_string(), dist_id, status);
 }
 
 void MyHeartBeatService::do_file_md5_reply(ACE_Message_Block * mb)
 {
+  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
+  MyClientID client_id;
+  if (unlikely(!MyServerAppX::instance()->client_id_table().value(dpe->magic, &client_id)))
+  {
+    MY_FATAL("can not find client id @MyHeartBeatService::do_ftp_file_reply()\n");
+    return;
+  } //todo: optimize: pass client_id directly from processor
 
+  int len = dpe->length;
+  if (unlikely(dpe->data[len - 3] != MyDataPacketHeader::ITEM_SEPARATOR))
+  {
+    MY_ERROR("bad ftp file reply packet @%s::do_ftp_file_reply()\n", name());
+    return;
+  }
+  if (unlikely(!dpe->data[0]))
+  {
+    MY_ERROR("bad ftp file reply packet @%s::do_ftp_file_reply(), no dist_id\n", name());
+    return;
+  }
+  const char * dist_id = dpe->data;
+  int status = (dpe->data[len - 2] == '0' ? 0 : 1);
+  m_distributor.dist_ftp_file_reply(client_id.as_string(), dist_id, status);
 }
 
 void MyHeartBeatService::calc_server_file_md5_list(ACE_Message_Block * mb)

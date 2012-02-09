@@ -28,6 +28,8 @@ public:
   bool check_valid() const;
   int  dist_file(MyDistClients & dist_clients);
   bool active();
+  void update_status(int _status);
+  void update_md5_list(const char * _md5);
 
   MyHttpDistInfo * dist_info;
   int status;
@@ -56,6 +58,7 @@ class MyDistClients
 {
 public:
   typedef std::vector<MyDistClient *, MyAllocator<MyDistClient *> > MyDistClientList;
+
   MyDistClients(MyHttpDistInfos * dist_infos);
   ~MyDistClients();
 
@@ -63,13 +66,12 @@ public:
   void clear();
   bool add(MyDistClient *);
   void dist_files();
-
+  MyDistClient * find(const char * client_id, const char * dist_id);
 
   MyDistClientList dist_clients;
   time_t db_time;
 
 private:
-  MyDistClient * find(const char * client_id, const char * dist_id);
 
   MyHttpDistInfos * m_dist_infos;
 };
@@ -78,6 +80,7 @@ class MyClientFileDistributor
 {
 public:
   MyClientFileDistributor();
+
   bool distribute();
   bool check_dist_info();
   bool check_dist_clients();

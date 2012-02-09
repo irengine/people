@@ -567,10 +567,39 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients)
 
 bool MyDB::set_dist_client_status(MyDistClient & dist_client, int new_status)
 {
-  const char * update_sql_template = "update tb_dist_clients set dc_status = '%d' "
-                                     "where dc_dist_id = '%s' and dc_client_id='%s'";
+  return set_dist_client_status(dist_client.client_id.as_string(), dist_client.dist_info->ver.data(), new_status);
+}
+
+bool MyDB::set_dist_client_status(const char * client_id, const char * dist_id, int new_status)
+{
+  const char * update_sql_template = "update tb_dist_clients set dc_status = %d "
+                                     "where dc_dist_id = '%s' and dc_client_id='%s' and dc_stauts < %d";
   char sql[1024];
-  ACE_OS::snprintf(sql, 1024, update_sql_template, new_status, dist_client.dist_info->ver.data(), dist_client.client_id.as_string());
+  ACE_OS::snprintf(sql, 1024, update_sql_template, new_status, dist_id, client_id, new_status);
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  return exec_command(sql);
+}
+
+bool MyDB::set_dist_client_md5(const char * client_id, const char * dist_id, const char * md5, int new_status)
+{
+  const char * update_sql_template = "update tb_dist_clients set dc_status = %d, dc_md5 = '%s' "
+                                     "where dc_dist_id = '%s' and dc_client_id='%s' and dc_stauts < %d";
+  int len = ACE_OS::strlen(update_sql_template) + ACE_OS::strlen(md5) + ACE_OS::strlen(client_id)
+    + ACE_OS::strlen(dist_id) + 40;
+  MyPooledMemGuard sql;
+  MyMemPoolFactoryX::instance()->get_mem(len, &sql);
+  ACE_OS::snprintf(sql.data(), len, update_sql_template, new_status, md5, dist_id, client_id, new_status);
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  return exec_command(sql.data());
+}
+
+bool MyDB::delete_dist_client(const char * client_id, const char * dist_id)
+{
+  const char * delete_sql_template = "delete from tb_dist_clients where dc_dist_id = '%s' and dc_client_id='%s'";
+  char sql[1024];
+  ACE_OS::snprintf(sql, 1024, delete_sql_template, dist_id, client_id);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql);

@@ -830,6 +830,8 @@ public:
 
 protected:
   virtual void do_dump_info();
+  bool do_add_task(void * p, int task_type);
+  void * get_task(ACE_Message_Block * mb, int & task_type) const;
 
 private:
   MyBaseModule * m_module;

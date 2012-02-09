@@ -2389,6 +2389,35 @@ void MyBaseService::do_dump_info()
 
 }
 
+bool MyBaseService::do_add_task(void * p, int task_type)
+{
+  if (unlikely(!p))
+    return true;
+
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(int) + sizeof(void *));
+  *((int*)mb->base()) = task_type;
+  *(char **)(mb->base() + sizeof(int)) = (char*)p;
+
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (putq(mb, &tv) < 0)
+  {
+    MY_ERROR("failed to place task %d command packet to %s %s\n", task_type, name(), (const char*)MyErrno());
+    mb->release();
+    return false;
+  } else
+    return true;
+}
+
+void * MyBaseService::get_task(ACE_Message_Block * mb, int & task_type) const
+{
+  if (unlikely(mb->capacity() != sizeof(void *) + sizeof(int)))
+    return NULL;
+
+  task_type = *(int*)mb->base();
+  return *((char **)(mb->base() + sizeof(int)));
+}
+
+
 const char * MyBaseService::name() const
 {
   return "MyBaseService";
