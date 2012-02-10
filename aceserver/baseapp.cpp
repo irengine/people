@@ -36,7 +36,6 @@ const int  DEFAULT_middle_server_dist_port = 2224;
 const int  DEFAULT_remote_access_port = 2225;
 const int  DEFAULT_client_heart_beat_interval = 60; //in seconds
 #ifdef MY_client_test
-  const int DEFAULT_test_client_connection_number = 1;
   const int DEFAULT_test_client_ftp_thread_number = 50;
 #endif
 const int  DEFAULT_db_server_port = 5432;
@@ -59,8 +58,6 @@ const ACE_TCHAR * CONFIG_log_file_number = ACE_TEXT("log.file_number");
 const ACE_TCHAR * CONFIG_log_file_size_in_MB = ACE_TEXT("log.file_size");
 
 #if defined(MY_client_test)
-  const ACE_TCHAR * CONFIG_test_client_connection_number = ACE_TEXT("module.test_client_connection_number");
-  const ACE_TCHAR * CONFIG_test_client_start_client_id = ACE_TEXT("module.test_client_start_client_id");
   const ACE_TCHAR * CONFIG_test_client_ftp_thread_number = ACE_TEXT("module.test_client_ftp_thread_number");
 #endif
 
@@ -326,38 +323,6 @@ bool MyConfig::load_config_common(ACE_Configuration_Heap & cfgHeap, ACE_Configur
   }
   else if (is_client())
     message_control_block_mem_pool_size = 1000;
-
-#if defined(MY_client_test)
-  if (!is_middle_server())
-  {
-    if (cfgHeap.get_integer_value (section,  CONFIG_test_client_connection_number, ival) == 0)
-    {
-      if (ival == 0 || ival > 60000 )
-      {
-        MY_WARNING(ACE_TEXT("Invalid %s value (= %d), using default value = %d\n"),
-            CONFIG_test_client_connection_number, ival, DEFAULT_test_client_connection_number);
-      }
-      else
-        test_client_connection_number = ival;
-    }
-
-    ACE_TString sval;
-    if (cfgHeap.get_string_value(section, CONFIG_test_client_start_client_id, sval) == 0)
-    {
-      test_client_start_client_id = atoll(sval.c_str());
-      if (test_client_start_client_id < 0)
-      {
-        MY_WARNING(ACE_TEXT("Invalid %s value (= %d)\n"), CONFIG_test_client_start_client_id, test_client_start_client_id);
-        return false;
-      }
-    }
-    else
-    {
-      MY_ERROR("can not read config value %s\n", CONFIG_test_client_start_client_id);
-      return false;
-    }
-  }
-#endif
 
   if (cfgHeap.get_integer_value (section,  CONFIG_remote_access_port, ival) == 0)
   {
@@ -634,15 +599,6 @@ void MyConfig::dump_config_info()
 
 #if defined(MY_client_test) || defined(MY_server_test)
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_mode = 1\n")));
-#endif
-#if defined(MY_client_test)
-  if (!is_middle_server())
-  {
-    char buff[100];
-    ACE_OS::sprintf(buff, "%lld", (long long int)test_client_start_client_id);
-    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_test_client_start_client_id, buff));
-    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_test_client_connection_number, test_client_connection_number));
-  }
 #else
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_mode = 0\n")));
 #endif

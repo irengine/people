@@ -6,6 +6,7 @@
  */
 
 #include <cstdio>
+#include <fstream>
 #include "basemodule.h"
 #include "client.h"
 #include "clientmodule.h"
@@ -73,20 +74,6 @@ void MyClientApp::on_stop()
 
 bool MyClientApp::on_construct()
 {
-  MyConfig * cfg = MyConfigX::instance();
-
-#ifdef MY_client_test
-  MyTestClientIDGenerator gen(cfg->test_client_start_client_id, cfg->test_client_connection_number);
-  const char * id;
-  while ((id = gen.get()) != NULL)
-    m_client_id_table.add(id);
-
-  char * _app_data_path = new char[cfg->app_test_data_path.length() + 1];
-  strcpy(_app_data_path, cfg->app_test_data_path.c_str());
-  MyTestClientPathGenerator::make_paths(_app_data_path, cfg->test_client_start_client_id, cfg->test_client_connection_number);
-  delete [] _app_data_path;
-#endif
-
   add_module(m_client_to_dist_module = new MyClientToDistModule(this));
   return true;
 }
@@ -135,8 +122,18 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
   }
   if (cfg->run_as_demon)
     MyBaseApp::app_demonize();
+
 #ifdef MY_client_test
-  MyClientToDistHandler::init_mem_pool(cfg->test_client_connection_number * 1.2);
+  std::string idfile = cfg->app_path + "/config/id.file";
+  std::ifstream ifs(idfile.c_str(), std::ifstream::in);
+  char id[64];
+  while (!ifs.eof())
+  {
+    ifs.getline(id, 64);
+    app->m_client_id_table.add(id);
+  }
+  MyTestClientPathGenerator::make_paths_from_id_table(cfg->app_test_data_path.c_str(), &app->m_client_id_table);
+  MyClientToDistHandler::init_mem_pool(app->m_client_id_table.count() * 1.2);
 #else
   MyClientToDistHandler::init_mem_pool(100);
 #endif

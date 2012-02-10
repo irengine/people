@@ -23,6 +23,46 @@ class MyDistInfoFtps;
 
 const int16_t const_client_version = 1;
 
+#if defined(MY_client_test)
+
+//simple implementation, not thread safe, multiple calls to put on the same id will generate duplicate
+//IDs for later gets. but it works for our test. that is enough
+class MyTestClientIDGenerator
+{
+public:
+  MyTestClientIDGenerator()
+  { }
+  const char * get()
+  {
+    if (m_id_list.empty())
+      return NULL;
+    MyClientID client_id = m_id_list.back();
+    ACE_OS::strsncpy(m_result, client_id.as_string(), BUFF_LEN);
+    m_id_list.pop_back();
+    return m_result;
+  }
+  void put(const char * id)
+  {
+    if (unlikely(!id || !*id))
+      return;
+    m_id_list.push_back(MyClientID(id));
+  }
+  bool empty() const
+  {
+    return m_id_list.empty();
+  }
+  int count() const
+  {
+    return m_id_list.size();
+  }
+private:
+  typedef std::vector<MyClientID> MyClientIDList;
+  enum { BUFF_LEN = 32 };
+  char  m_result[BUFF_LEN];
+  MyClientIDList m_id_list;
+};
+#endif
+
 class MyClientDB
 {
 public:

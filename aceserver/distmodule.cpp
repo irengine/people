@@ -552,9 +552,33 @@ int MyAccumulatorBlock::data_len() const
 }
 
 
+//MyBaseSubmitter//
+
+MyBaseSubmitter::~MyBaseSubmitter()
+{
+  reset();
+}
+
+void MyBaseSubmitter::submit()
+{
+  do_submit();
+  reset();
+}
+
+void MyBaseSubmitter::do_submit()
+{
+
+}
+
+void MyBaseSubmitter::reset()
+{
+
+};
+
+
 //MyPingSubmitter//
 
-MyPingSubmitter::MyPingSubmitter()
+MyPingSubmitter::MyPingSubmitter(): m_block(BLOCK_SIZE, sizeof(MyClientID))
 {
 #ifdef MY_server_test
   std::string s = MyConfigX::instance()->app_test_data_path + "/heartbeat.log";
@@ -568,8 +592,6 @@ MyPingSubmitter::MyPingSubmitter()
 
 MyPingSubmitter::~MyPingSubmitter()
 {
-  if (m_current_block)
-    m_current_block->release();
 #ifdef MY_server_test
   if (m_fd >= 0)
     close(m_fd);
@@ -578,47 +600,57 @@ MyPingSubmitter::~MyPingSubmitter()
 
 void MyPingSubmitter::reset()
 {
-  m_current_block = MyMemPoolFactoryX::instance()->get_message_block(BLOCK_SIZE);
-  m_current_length = 0;
-  m_current_ptr = m_current_block->base();
+  m_block.reset();
   m_last_add = 0;
 }
 
 void MyPingSubmitter::add_ping(const char * client_id, const int len)
 {
-  if (len + m_current_length > BLOCK_SIZE)// not zero-terminated// - 1)
+  if (!m_block.add(client_id, len))
   {
-    do_submit();
+    submit();
     m_last_add = g_clock_tick;
-  } else
+  }
+  else
     check_time_out();
   if (!client_id || !*client_id || len <= 0)
     return;
-  ACE_OS::memcpy(m_current_ptr, client_id, len);
-  m_current_length += len;
-  m_current_ptr += len;
-  *(m_current_ptr - 1) = ID_SEPARATOR;
 }
 
 void MyPingSubmitter::do_submit()
 {
-  m_current_block->wr_ptr(m_current_length);
-  //todo: do sumbit now
-#ifdef MY_server_test
-  if (m_fd >= 0)
-    write(m_fd, m_current_block->base(), m_current_length);
-#endif
-  m_current_block->release(); //just a test
-  //
+  int len = m_block.data_len();
+  if (unlikely(len == 0))
+    return;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(len, MY_BS_HEART_BEAT_CMD);
+  ACE_OS::memcpy(mb->base() + MyBSBasePacket::DATA_OFFSET, m_block.data(), len);
+  MyServerAppX::instance()->dist_to_middle_module()->send_to_bs(mb);
   reset();
 }
 
 void MyPingSubmitter::check_time_out()
 {
-  if (m_current_length == 0)
+  if (m_block.data_len() == 0)
     return;
   if (g_clock_tick > m_last_add + 4)
     do_submit();
+}
+
+
+//MyIPVerSubmitter//
+
+void MyIPVerSubmitter::add_data(const char * client_id, int id_len, const char * ip, const char * ver)
+{
+  bool ret = true;
+  if (!m_id_block.add(client_id, id_len))
+    ret = false;
+  if (!m_ip_block.add(ip, 0))
+    ret = false;
+  if (!m_ver_block.add(ver, 0))
+    ret = false;
+
+  if (!ret)
+    submit();
 }
 
 
@@ -1123,81 +1155,7 @@ int MyDistRemoteAccessProcessor::on_command_dist_file_md5(char * parameter)
 
 int MyDistRemoteAccessProcessor::on_command_dist_batch_file_md5(char * parameter)
 {
-  if (!*parameter)
-    return send_string("  usage: dist_batch start_client_id number_of_clients\n>");
-
-  const char * CONST_seperator = ",\t ";
-  char *str, *token, *saveptr;
-
-  std::string s_start_id, s_number;
-
-  for (str = parameter; ; str = NULL)
-  {
-    token = strtok_r(str, CONST_seperator, &saveptr);
-    if (token == NULL)
-      break;
-    if (!*token)
-      continue;
-    if (s_start_id.empty())
-      s_start_id = token;
-    else if (s_number.empty())
-      s_number = token;
-    else
-      return send_string("  usage: dist_batch start_client_id number_of_clients\n>");
-  }
-
-  if (s_number.empty())
-    return send_string("  usage: dist_batch start_client_id number_of_clients\n>");
-
-  long long int start_id = atoll(s_start_id.c_str());
-  int number = atoi(s_number.c_str());
-  if (number <= 0 || start_id <= 0)
-    return send_string("  usage: dist_batch start_client_id number_of_clients\n>");
-  long long int end_id = start_id + number - 1;
-  long long int valid_start_id = MyConfigX::instance()->test_client_start_client_id;
-  long long int valid_end_id = valid_start_id + MyConfigX::instance()->test_client_connection_number - 1;
-
-  valid_start_id = std::max(valid_start_id, start_id);
-  valid_end_id = std::min(valid_end_id, end_id);
-  if (valid_start_id > valid_end_id)
-    return send_string("  dist_batch: no valid client_ids found\n>");
-
-  if (send_string("  processing valid client_id(s):") < 0)
-    return -1;
-
-  const int BUFF_SIZE = 4096;
-  char buff[BUFF_SIZE];
-  int len = 0;
-  buff[0] = 0;
-  long long int i = valid_start_id;
-  while (true)
-  {
-    ACE_OS::snprintf(buff + len, BUFF_SIZE - 1 - len, " %lld", i);
-    len = strlen(buff);
-    if (len >= (int)(BUFF_SIZE - sizeof(MyClientID) - 3) || i >= valid_end_id)
-    {
-      ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(len + 1);
-      mb->copy(buff, len + 1);
-
-      ACE_Time_Value tv(ACE_Time_Value::zero);
-      if (MyServerAppX::instance()->heart_beat_module()->service()->putq(mb, &tv) == -1)
-      {
-        mb->release();
-        return send_string("  Error: can not place the request message to target.\n>");
-      }
-      buff[0] = 0;
-      len = 0;
-    }
-    if (i >= valid_end_id)
-      break;
-    ++i;
-  }
-
-  buff[0] = 0;
-  ACE_OS::snprintf(buff, BUFF_SIZE - 1, " valid_start=%lld number=%d\n", valid_start_id, int(valid_end_id - valid_start_id + 1));
-  if (send_string(buff) < 0)
-    return -1;
-  return send_string("  OK: request placed into target for later processing\n>");
+  return 0;
 }
 
 //MyDistRemoteAccessHandler//

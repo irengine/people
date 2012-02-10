@@ -1717,7 +1717,7 @@ MyClientToDistConnector::MyClientToDistConnector(MyBaseDispatcher * _dispatcher,
   m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
   m_reconnect_interval = RECONNECT_INTERVAL;
 #ifdef MY_client_test
-  m_num_connection = MyConfigX::instance()->test_client_connection_number;
+  m_num_connection = MyClientAppX::instance()->client_id_table().count();
 #endif
 }
 
@@ -1870,11 +1870,17 @@ bool MyClientToDistDispatcher::on_event_loop()
 //MyClientToDistModule//
 
 MyClientToDistModule::MyClientToDistModule(MyBaseApp * app): MyBaseModule(app)
-#ifdef MY_client_test
-   , m_id_generator(MyConfigX::instance()->test_client_start_client_id,
-                    MyConfigX::instance()->test_client_connection_number)
-#endif
 {
+#ifdef MY_client_test
+  MyClientIDTable & client_id_table = MyClientAppX::instance()->client_id_table();
+  int count = client_id_table.count();
+  MyClientID client_id;
+  for (int i = 0; i < count; ++ i)
+  {
+    if (client_id_table.value(i, &client_id))
+      m_id_generator.put(client_id.as_string());
+  }
+#endif
   m_service = NULL;
   m_dispatcher = NULL;
   m_client_ftp_service = NULL;

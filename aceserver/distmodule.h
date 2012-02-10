@@ -135,7 +135,20 @@ private:
   int m_block_size;
 };
 
-class MyPingSubmitter
+class MyBaseSubmitter
+{
+public:
+  virtual ~MyBaseSubmitter();
+
+  void submit();
+
+protected:
+  virtual void reset();
+  virtual void do_submit();
+
+};
+
+class MyPingSubmitter: public MyBaseSubmitter
 {
 public:
   enum {ID_SEPARATOR = ';' };
@@ -148,10 +161,8 @@ private:
   void do_submit();
   void reset();
   enum { BLOCK_SIZE = 4096 };
-  ACE_Message_Block * m_current_block;
   long m_last_add;
-  char * m_current_ptr;
-  int  m_current_length;
+  MyAccumulatorBlock m_block;
 
 #ifdef MY_server_test
   int m_fd;
@@ -160,14 +171,17 @@ private:
   //todo: add target
 };
 
-class MyIPVerSubmitter
+class MyIPVerSubmitter: public MyBaseSubmitter
 {
 public:
   enum {ID_SEPARATOR = ';',  FINISH_SERAPATOR = '*' };
   void add_data(const char * client_id, int id_len, const char * ip, const char * ver);
 
 private:
-
+  enum { BLOCK_SIZE = 4096 };
+  MyAccumulatorBlock m_id_block;
+  MyAccumulatorBlock m_ip_block;
+  MyAccumulatorBlock m_ver_block;
 };
 
 class MyHeartBeatHandler: public MyBaseHandler

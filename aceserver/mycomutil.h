@@ -435,54 +435,7 @@ private:
 #define PREPARE_MEMORY_POOL(Cls) \
   Cls::Mem_Pool * Cls::m_mem_pool = NULL
 
-#if defined(MY_client_test) || defined(MY_server_test)
-
-//simple implementation, not thread safe, multiple calls to put on the same id will generate duplicate
-//IDs for later gets. but it works for our test. that is enough
-class MyTestClientIDGenerator
-{
-public:
-  MyTestClientIDGenerator(int64_t _start, int _count)
-  {
-    m_start = _start;
-    m_count = _count;
-    m_id_list.reserve(m_count);
-    for (int64_t i = m_start + m_count - 1; i >= m_start; --i)
-      m_id_list.push_back(i);
-  }
-  const char * get()
-  {
-    if (m_id_list.empty())
-      return NULL;
-    int64_t id = m_id_list.back();
-    m_id_list.pop_back();
-    ACE_OS::snprintf(m_result, BUFF_LEN, "%lld", (long long)id);
-    return m_result;
-  }
-  void put(const char * id)
-  {
-    if (!id || !*id)
-      return;
-    int64_t val = atoll(id);
-    m_id_list.push_back(val);
-  }
-  bool empty() const
-  {
-    return m_id_list.empty();
-  }
-  int count() const
-  {
-    return m_id_list.size();
-  }
-private:
-  typedef std::vector<int64_t> MyClientIDList;
-  enum { BUFF_LEN = 32 };
-  char  m_result[BUFF_LEN];
-  int64_t m_start;
-  int     m_count;
-  MyClientIDList m_id_list;
-};
-
+#if defined(MY_client_test)
 class MyClientIDTable;
 
 class MyTestClientPathGenerator
@@ -517,6 +470,7 @@ public:
   void init(MyConfig * config);
   ACE_Message_Block * get_message_block(int capacity);
   ACE_Message_Block * get_message_block(int capacity, int command, bool is_send = true);
+  ACE_Message_Block * get_message_block_bs(int data_len, const char * cmd);
   bool get_mem(int size, MyPooledMemGuard * guard);
   void * get_mem_x(int size);
   void free_mem_x(void * ptr); //use _x to avoid ambiguous of NULL pointer as parameter

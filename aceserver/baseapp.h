@@ -54,10 +54,6 @@ public:
   bool log_debug_enabled;
   bool log_to_stderr;
 
-#if defined(MY_client_test)
-  int test_client_connection_number;
-  int64_t test_client_start_client_id;
-#endif
   int remote_access_port;
 
   //dist and middle server

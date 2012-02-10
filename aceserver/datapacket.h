@@ -455,7 +455,7 @@ public:
 class MyBSBasePacket
 {
 public:
-  enum { LEN_SIZE = 8, MAGIC_SIZE = 4, CMD_SIZE = 2 };
+  enum { LEN_SIZE = 8, MAGIC_SIZE = 4, CMD_SIZE = 2, DATA_OFFSET = 12 };
 
   void packet_len(int _len);
   int  packet_len() const;
@@ -470,7 +470,13 @@ public:
   char data[0];
 };
 
-
+#define MY_BS_HEART_BEAT_CMD    "04"
+#define MY_BS_ADV_CLICK_CMD     "05"
+#define MY_BS_IP_CS_CMD         "01"
+#define MY_BS_HARD_MON_CMD      "03"
+#define MY_BS_DIST_FEEDBACK_CMD "02"
+#define MY_BS_POWERON_LINK_CMD  "07"
+#define MY_BS_PATCH_FILE_CMD    "06"
 
 #pragma pack(pop)
 

@@ -633,11 +633,10 @@ void MyTestClientPathGenerator::make_paths_from_id_table(const char * app_data_p
   for (int i = 0; i < count; ++ i)
   {
     id_table->value(i, &id);
-    ACE_OS::snprintf(str_client_id, 64 - 1, "%s", id.as_string());
+    ACE_OS::snprintf(str_client_id, 64, "%s", id.as_string());
     client_id_to_path(str_client_id, buff + prefix_len, PATH_MAX - prefix_len - 1);
     MyFilePaths::make_path(buff, prefix_len + 1, false);
   }
-
 }
 
 bool MyTestClientPathGenerator::client_id_to_path(const char * id, char * result, int result_len)
@@ -785,6 +784,24 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity, int comman
   dph->command = command;
   dph->length = capacity;
   dph->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
+  return mb;
+}
+
+ACE_Message_Block * MyMemPoolFactory::get_message_block_bs(int data_len, const char * cmd)
+{
+  if (unlikely(data_len < 0 || data_len > 10 * 1024 * 1024))
+  {
+    MY_FATAL("unexpected data_len (=%d) @MyMemPoolFactory::get_message_block_bs\n", data_len);
+    return NULL;
+  }
+  int total_len = data_len + 8 + 4 + 2 + 1;
+  ACE_Message_Block * mb = get_message_block(total_len);
+  mb->wr_ptr(mb->capacity());
+  char * ptr = mb->base();
+  ptr[total_len - 1] = '$';
+  ACE_OS::snprintf(ptr, 9, "%08d", total_len);
+  ACE_OS::memcpy(ptr + 8, "vc5X", 4);
+  ACE_OS::memcpy(ptr + 12, cmd, 2);
   return mb;
 }
 
