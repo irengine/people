@@ -115,10 +115,30 @@ private:
   MyBaseProcessor::EVENT_RESULT do_ftp_reply(ACE_Message_Block * mb);
 };
 
+class MyAccumulatorBlock
+{
+public:
+  MyAccumulatorBlock(int block_size, int max_item_length);
+  ~MyAccumulatorBlock();
+
+  void reset();
+  bool add(const char * item, int len = 0);
+  const char * data();
+  int data_len() const;
+
+private:
+  enum {ITEM_SEPARATOR = ';' };
+
+  ACE_Message_Block * m_current_block;
+  char * m_current_ptr;
+  int m_max_item_length;
+  int m_block_size;
+};
+
 class MyPingSubmitter
 {
 public:
-  enum {ID_SEPERATOR = ';' };
+  enum {ID_SEPARATOR = ';' };
   MyPingSubmitter();
   ~MyPingSubmitter();
   void add_ping(const char * client_id, const int len);
@@ -138,6 +158,16 @@ private:
 #endif
 
   //todo: add target
+};
+
+class MyIPVerSubmitter
+{
+public:
+  enum {ID_SEPARATOR = ';',  FINISH_SERAPATOR = '*' };
+  void add_data(const char * client_id, int id_len, const char * ip, const char * ver);
+
+private:
+
 };
 
 class MyHeartBeatHandler: public MyBaseHandler

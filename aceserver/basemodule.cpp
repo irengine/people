@@ -1107,7 +1107,7 @@ bool MyBZCompositor::add(const char * filename)
   MyUnixHandleGuard src;
   if (!src.open_read(filename))
     return false;
-  bool result = MyFilePaths::copy_file(src.handle(), m_file.handle());
+  bool result = MyFilePaths::copy_file_by_fd(src.handle(), m_file.handle());
   if (!result)
     MY_ERROR("MyBZCompositor::add(%s) failed\n", filename);
   return result;
@@ -1418,11 +1418,7 @@ MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_packet_i(ACE_Messag
 
 ACE_Message_Block * MyBasePacketProcessor::make_version_check_request_mb()
 {
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyClientVersionCheckRequest));
-  MyClientVersionCheckRequestProc vcr;
-  vcr.attach(mb->base());
-  vcr.init_header();
-  mb->wr_ptr(mb->capacity());
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyClientVersionCheckRequest), MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
   return mb;
 }
 
@@ -1525,13 +1521,9 @@ ACE_Message_Block * MyBaseServerProcessor::make_version_check_reply_mb
    (MyClientVersionCheckReply::REPLY_CODE code, int extra_len)
 {
   int total_len = sizeof(MyClientVersionCheckReply) + extra_len;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len);
-
-  MyClientVersionCheckReplyProc vcr;
-  vcr.attach(mb->base());
-  vcr.init_header(extra_len);
-  vcr.data()->reply_code = code;
-  mb->wr_ptr(mb->capacity());
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY);
+  MyClientVersionCheckReply * vcr = (MyClientVersionCheckReply *) mb->base();
+  vcr->reply_code = code;
   return mb;
 }
 

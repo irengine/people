@@ -134,14 +134,11 @@ int MyDistClient::send_md5()
 
   int data_len = dist_out_leading_length() + dist_info->md5_len;
   int total_len = sizeof(MyServerFileMD5List) + data_len;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
   MyServerFileMD5List * md5_packet = (MyServerFileMD5List *)mb->base();
-  md5_packet->command = MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST;
-  md5_packet->length = total_len;
   md5_packet->magic = m_client_id_index;
   dist_out_leading_data(md5_packet->data);
   ACE_OS::memcpy(md5_packet->data + data_len - dist_info->md5_len, dist_info->md5.data(), dist_info->md5_len);
-  mb->wr_ptr(mb->capacity());
 
   ACE_Time_Value tv(ACE_Time_Value::zero);
   if (MyServerAppX::instance()->heart_beat_module()->dispatcher()->putq(mb, &tv) == -1)
@@ -169,16 +166,13 @@ int MyDistClient::send_ftp()
     int ftp_file_name_len = ACE_OS::strlen(ftp_file_name) + 1;
     int data_len = leading_length + ftp_file_name_len + dist_info->password_len + 1;
     int total_len = sizeof(MyFtpFile) + data_len;
-    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len);
+    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_FTP_FILE);
     MyFtpFile * packet = (MyFtpFile *)mb->base();
-    packet->command = MyDataPacketHeader::CMD_FTP_FILE;
-    packet->length = total_len;
     packet->magic = m_client_id_index;
     dist_out_leading_data(packet->data);
     ACE_OS::memcpy(packet->data + leading_length, ftp_file_name, ftp_file_name_len);
     packet->data[leading_length + ftp_file_name_len - 1] = MyDataPacketHeader::FINISH_SEPARATOR;
     ACE_OS::memcpy(packet->data + leading_length + ftp_file_name_len, dist_info->password.data(), dist_info->password_len + 1);
-    mb->wr_ptr(mb->capacity());
 
     ACE_Time_Value tv(ACE_Time_Value::zero);
     if (MyServerAppX::instance()->heart_beat_module()->dispatcher()->putq(mb, &tv) == -1)
@@ -324,6 +318,8 @@ bool MyClientFileDistributor::check_dist_info_one(MyHttpDistInfo * info)
 
 bool MyClientFileDistributor::check_dist_clients()
 {
+  m_dist_clients.clear();
+
   if (!MyServerAppX::instance()->db().load_dist_clients(&m_dist_clients))
     return false;
 
@@ -431,7 +427,6 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
     return ER_OK;
   }
 
-
   MY_ERROR(ACE_TEXT("unexpected packet header received @MyHeartBeatProcessor.on_recv_header, cmd = %d\n"),
       m_packet_header.command);
 
@@ -506,6 +501,57 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(ACE_Message_Blo
 }
 
 
+//MyAccumulatorBlock//
+
+MyAccumulatorBlock::MyAccumulatorBlock(int block_size, int max_item_length)
+{
+  m_block_size = block_size;
+  m_max_item_length = max_item_length + 1;
+  reset();
+}
+
+MyAccumulatorBlock::~MyAccumulatorBlock()
+{
+  if (m_current_block)
+    m_current_block->release();
+}
+
+void MyAccumulatorBlock::reset()
+{
+  if (unlikely(!m_current_block))
+    m_current_block = MyMemPoolFactoryX::instance()->get_message_block(m_block_size);
+  m_current_ptr = m_current_block->base();
+}
+
+bool MyAccumulatorBlock::add(const char * item, int len)
+{
+  if (len == 0)
+    len = ACE_OS::strlen(item);
+  ++len;
+  int remain_len = m_block_size - (m_current_ptr - m_current_block->base());
+  if (unlikely(len > remain_len))
+  {
+    MY_FATAL("expected long item @MyAccumulatorBlock::add(), remain_len=%d, item=%s\n", remain_len, item);
+    return false;
+  }
+  ACE_OS::memcpy(m_current_ptr, item, len - 1);
+  m_current_ptr += len;
+  *(m_current_ptr - 1) = ITEM_SEPARATOR;
+  return (remain_len - len > m_max_item_length);
+}
+
+const char * MyAccumulatorBlock::data()
+{
+  return m_current_block->base();
+}
+
+int MyAccumulatorBlock::data_len() const
+{
+  int result = (m_current_ptr - m_current_block->base());
+  return result > 0 ? (result - 1):0;
+}
+
+
 //MyPingSubmitter//
 
 MyPingSubmitter::MyPingSubmitter()
@@ -551,7 +597,7 @@ void MyPingSubmitter::add_ping(const char * client_id, const int len)
   ACE_OS::memcpy(m_current_ptr, client_id, len);
   m_current_length += len;
   m_current_ptr += len;
-  *(m_current_ptr - 1) = ID_SEPERATOR;
+  *(m_current_ptr - 1) = ID_SEPARATOR;
 }
 
 void MyPingSubmitter::do_submit()
@@ -742,13 +788,9 @@ void MyHeartBeatService::calc_server_file_md5_list_one(const char * client_id)
 
 ACE_Message_Block * MyHeartBeatService::make_server_file_md5_list_mb(int list_len, int client_id_index)
 {
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyServerFileMD5List) + list_len);
-  MyServerFileMD5ListProc vcr;
-  vcr.attach(mb->base());
-  vcr.init_header();
-  vcr.data()->length = sizeof(MyServerFileMD5List) + list_len;
-  vcr.data()->magic = client_id_index;
-  mb->wr_ptr(mb->capacity());
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyServerFileMD5List) + list_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
+  MyServerFileMD5List * pkt = (MyServerFileMD5List *) mb->base();
+  pkt->magic = client_id_index;
   return mb;
 }
 
@@ -1337,13 +1379,11 @@ int MyDistToMiddleProcessor::send_server_load()
   if (!m_version_check_reply_done)
     return 0;
 
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyLoadBalanceRequest));
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyLoadBalanceRequest), MyDataPacketHeader::CMD_LOAD_BALANCE_REQ);
   MyLoadBalanceRequestProc proc;
   proc.attach(mb->base());
-  proc.init_header();
   proc.ip_addr(m_local_addr);
   proc.data()->clients_connected = MyServerAppX::instance()->heart_beat_module()->num_active_clients();
-  mb->wr_ptr(sizeof(MyLoadBalanceRequest));
   MY_INFO("sending dist server load number [%d] to middle server...\n", proc.data()->clients_connected);
   return (m_handler->send_data(mb) < 0 ? -1: 0);
 }

@@ -230,7 +230,6 @@ private:
   }
 
   int m_handle;
-
 };
 
 template <class ACE_LOCK> class My_Cached_Allocator: public ACE_Dynamic_Cached_Allocator<ACE_LOCK>
@@ -667,7 +666,8 @@ public:
   static bool make_path(const char * path, const char * subpath, bool is_file);
   static bool copy_path(const char * srcdir, const char * destdir);
   static bool remove_path(const char * path);
-  static bool copy_file(int src_fd, int dest_fd);
+  static bool copy_file_by_fd(int src_fd, int dest_fd);
+  static bool copy_file(const char * src, const char * dest);
   static int  cat_path(const char * path, const char * subpath, MyPooledMemGuard & result);
   static bool get_correlate_path(MyPooledMemGuard & pathfile, int skip);
   static bool remove(const char *pathfile);

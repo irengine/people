@@ -451,9 +451,9 @@ bool MyFilePaths::copy_path(const char * srcdir, const char * destdir)
 
     if (entry->d_type == DT_REG)
     {
-      if (link(msrc.data(), mdest.data()) != 0)
+      if (!copy_file(msrc.data(), mdest.data()))
       {
-        MY_ERROR("link(%s, %s) failed %s\n", msrc.data(), mdest.data(), (const char *)MyErrno());
+        MY_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (const char *)MyErrno());
         closedir(dir);
         return false;
       }
@@ -465,7 +465,6 @@ bool MyFilePaths::copy_path(const char * srcdir, const char * destdir)
         closedir(dir);
         return false;
       }
-
     } else
       MY_WARNING("unknown file type (= %d) for file @MyFilePaths::copy_directory file = %s/%s\n",
            entry->d_type, srcdir, entry->d_name);
@@ -526,7 +525,7 @@ bool MyFilePaths::remove_path(const char * path)
 }
 
 
-bool MyFilePaths::copy_file(int src_fd, int dest_fd)
+bool MyFilePaths::copy_file_by_fd(int src_fd, int dest_fd)
 {
   const int BLOCK_SIZE = 4096;
   char buff[BLOCK_SIZE];
@@ -554,6 +553,16 @@ bool MyFilePaths::copy_file(int src_fd, int dest_fd)
   }
 
   ACE_NOTREACHED(return true);
+}
+
+bool MyFilePaths::copy_file(const char * src, const char * dest)
+{
+  MyUnixHandleGuard hsrc, hdest;
+  if (!hsrc.open_read(src))
+    return false;
+  if (!hdest.open_write(dest, true, true, false))
+    return false;
+  return copy_file_by_fd(hsrc.handle(), hdest.handle());
 }
 
 int MyFilePaths::cat_path(const char * path, const char * subpath, MyPooledMemGuard & result)

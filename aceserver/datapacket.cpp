@@ -12,10 +12,9 @@
 
 bool MyDataPacketExt::guard()
 {
-  bool result = (length > (int)sizeof(MyDataPacketHeader));
-  if (likely(result))
-    data[length - 1] = 0;
-  return result;
+  if (unlikely(length <= (int)sizeof(MyDataPacketHeader)))
+    return false;
+  return data[length - sizeof(MyDataPacketHeader) - 1] == 0;
 }
 
 

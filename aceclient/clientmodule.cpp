@@ -1040,11 +1040,7 @@ int MyClientToDistProcessor::send_heart_beat()
 {
   if (!m_version_check_reply_done)
     return 0;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyDataPacketHeader));
-  MyHeartBeatPingProc proc;
-  proc.attach(mb->base());
-  proc.init_header();
-  mb->wr_ptr(sizeof(MyDataPacketHeader));
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyDataPacketHeader), MyDataPacketHeader::CMD_HEARTBEAT_PING);
   int ret = (m_handler->send_data(mb) < 0? -1: 0);
 //  MY_DEBUG("send_heart_beat = %d\n", ret);
   return ret;
