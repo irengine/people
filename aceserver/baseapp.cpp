@@ -40,7 +40,7 @@ const int  DEFAULT_client_heart_beat_interval = 60; //in seconds
 #endif
 const int  DEFAULT_db_server_port = 5432;
 const int  DEFAULT_http_port = 1922;
-const int  DEFAULT_bs_server_port = 0;
+const int  DEFAULT_bs_server_port = 1921;
 
 //common for all
 const ACE_TCHAR * CONFIG_Section_global = ACE_TEXT("global");

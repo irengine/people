@@ -352,7 +352,8 @@ void MyClientFileDistributor::dist_ftp_md5_reply(const char * client_id, const c
 
 //MyHeartBeatProcessor//
 
-MyPingSubmitter * MyHeartBeatProcessor::m_sumbitter = NULL;
+MyPingSubmitter * MyHeartBeatProcessor::m_heart_beat_submitter = NULL;
+MyIPVerSubmitter * MyHeartBeatProcessor::m_ip_ver_submitter = NULL;
 
 MyHeartBeatProcessor::MyHeartBeatProcessor(MyBaseHandler * handler): MyBaseServerProcessor(handler)
 {
@@ -456,7 +457,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
 void MyHeartBeatProcessor::do_ping()
 {
 //  MY_DEBUG(ACE_TEXT("got a heart beat from %s\n"), info_string().c_str());
-  m_sumbitter->add_ping(m_client_id.as_string(), m_client_id_length + 1);
+  m_heart_beat_submitter->add_ping(m_client_id.as_string(), m_client_id_length);
 }
 
 MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message_Block * mb)
@@ -505,6 +506,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(ACE_Message_Blo
 
 MyAccumulatorBlock::MyAccumulatorBlock(int block_size, int max_item_length)
 {
+  m_current_block = NULL;
   m_block_size = block_size;
   m_max_item_length = max_item_length + 1;
   reset();
@@ -548,7 +550,7 @@ const char * MyAccumulatorBlock::data()
 int MyAccumulatorBlock::data_len() const
 {
   int result = (m_current_ptr - m_current_block->base());
-  return result > 0 ? (result - 1):0;
+  return std::max(result - 1, 0);
 }
 
 
@@ -563,6 +565,11 @@ void MyBaseSubmitter::submit()
 {
   do_submit();
   reset();
+}
+
+void MyBaseSubmitter::check_time_out()
+{
+
 }
 
 void MyBaseSubmitter::do_submit()
@@ -580,41 +587,25 @@ void MyBaseSubmitter::reset()
 
 MyPingSubmitter::MyPingSubmitter(): m_block(BLOCK_SIZE, sizeof(MyClientID))
 {
-#ifdef MY_server_test
-  std::string s = MyConfigX::instance()->app_test_data_path + "/heartbeat.log";
-  m_fd = open(s.c_str(), O_WRONLY | O_APPEND | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-  if (m_fd < 0)
-    MY_ERROR("can not open test heart beat logger file: %s %s\n", s.c_str(), (const char*)MyErrno());
-#endif
 
-  reset();
 }
 
 MyPingSubmitter::~MyPingSubmitter()
 {
-#ifdef MY_server_test
-  if (m_fd >= 0)
-    close(m_fd);
-#endif
+
 }
 
 void MyPingSubmitter::reset()
 {
   m_block.reset();
-  m_last_add = 0;
 }
 
 void MyPingSubmitter::add_ping(const char * client_id, const int len)
 {
-  if (!m_block.add(client_id, len))
-  {
-    submit();
-    m_last_add = g_clock_tick;
-  }
-  else
-    check_time_out();
-  if (!client_id || !*client_id || len <= 0)
+  if (unlikely(!client_id || !*client_id || len <= 0))
     return;
+  if (!m_block.add(client_id, len))
+    submit();
 }
 
 void MyPingSubmitter::do_submit()
@@ -625,19 +616,25 @@ void MyPingSubmitter::do_submit()
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(len, MY_BS_HEART_BEAT_CMD);
   ACE_OS::memcpy(mb->base() + MyBSBasePacket::DATA_OFFSET, m_block.data(), len);
   MyServerAppX::instance()->dist_to_middle_module()->send_to_bs(mb);
-  reset();
 }
 
 void MyPingSubmitter::check_time_out()
 {
   if (m_block.data_len() == 0)
     return;
-  if (g_clock_tick > m_last_add + 4)
-    do_submit();
+  submit();
 }
 
 
 //MyIPVerSubmitter//
+
+MyIPVerSubmitter::MyIPVerSubmitter():
+    m_id_block(BLOCK_SIZE, sizeof(MyClientID)),
+    m_ip_block(BLOCK_SIZE, INET_ADDRSTRLEN),
+    m_ver_block(BLOCK_SIZE * 7 / sizeof(MyClientID) + 1, 7)
+{
+
+}
 
 void MyIPVerSubmitter::add_data(const char * client_id, int id_len, const char * ip, const char * ver)
 {
@@ -651,6 +648,40 @@ void MyIPVerSubmitter::add_data(const char * client_id, int id_len, const char *
 
   if (!ret)
     submit();
+}
+
+void MyIPVerSubmitter::check_time_out()
+{
+  if (m_ip_block.data_len() == 0)
+    return;
+  submit();
+}
+
+
+void MyIPVerSubmitter::do_submit()
+{
+  int id_len = m_id_block.data_len();
+  if (unlikely(id_len == 0))
+    return;
+  int ip_len = m_ip_block.data_len();
+  int ver_len = m_ver_block.data_len();
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(
+      id_len + ip_len + ver_len + 2, MY_BS_IP_VER_CMD);
+  char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
+  ACE_OS::memcpy(dest, m_id_block.data(), id_len);
+  dest[id_len] = MyBSBasePacket::BS_PARAMETER_SEPARATOR;
+  ACE_OS::memcpy(dest + id_len + 1, m_ip_block.data(), ip_len);
+  dest[id_len + 1 + ip_len] = MyBSBasePacket::BS_PARAMETER_SEPARATOR;
+  ACE_OS::memcpy(dest + id_len + 1 + ip_len + 1, m_ver_block.data(), ver_len);
+  MyServerAppX::instance()->dist_to_middle_module()->send_to_bs(mb);
+}
+
+
+void MyIPVerSubmitter::reset()
+{
+  m_id_block.reset();
+  m_ip_block.reset();
+  m_ver_block.reset();
 }
 
 
@@ -879,32 +910,41 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
 {
   ACE_UNUSED_ARG(tv);
   ACE_UNUSED_ARG(act);
-
-  ACE_Message_Block *mb;
-  ACE_Time_Value nowait(ACE_Time_Value::zero);
-  while (-1 != this->getq(mb, &nowait))
+  if ((long)act == MyBaseDispatcher::TIMER_ID_BASE)
   {
-    if (mb->size() < sizeof(MyDataPacketHeader))
+    ACE_Message_Block *mb;
+    ACE_Time_Value nowait(ACE_Time_Value::zero);
+    while (-1 != this->getq(mb, &nowait))
     {
-      MY_ERROR("invalid message block size @ %s::handle_timeout\n", name());
-      mb->release();
-      continue;
-    }
-    int index = ((MyDataPacketHeader*)mb->base())->magic;
-    MyBaseHandler * handler = m_acceptor->connection_manager()->find_handler_by_index(index);
-    if (!handler)
-    {
-      MY_WARNING("can not send data to client since connection is lost @ %s::handle_timeout\n", name());
-      mb->release();
-      continue;
-    }
+      if (mb->size() < sizeof(MyDataPacketHeader))
+      {
+        MY_ERROR("invalid message block size @ %s::handle_timeout\n", name());
+        mb->release();
+        continue;
+      }
+      int index = ((MyDataPacketHeader*)mb->base())->magic;
+      MyBaseHandler * handler = m_acceptor->connection_manager()->find_handler_by_index(index);
+      if (!handler)
+      {
+        MY_WARNING("can not send data to client since connection is lost @ %s::handle_timeout\n", name());
+        mb->release();
+        continue;
+      }
 
-    ((MyDataPacketHeader*)mb->base())->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
+      ((MyDataPacketHeader*)mb->base())->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
 
-    if (handler->send_data(mb) < 0)
-      handler->handle_close(handler->get_handle(), 0);
+      if (handler->send_data(mb) < 0)
+        handler->handle_close(handler->get_handle(), 0);
+    }
+  } else if ((long)act == TIMER_ID_HEART_BEAT)
+  {
+    MyHeartBeatProcessor::m_heart_beat_submitter->check_time_out();
+  } else if ((long)act == TIMER_ID_IP_VER)
+  {
+    MyHeartBeatProcessor::m_ip_ver_submitter->add_data("12345", 5, "127.0.0.1", "1.1");
+    MyHeartBeatProcessor::m_ip_ver_submitter->add_data("22345", 5, "192.168.1.0", "5.63");
+    MyHeartBeatProcessor::m_ip_ver_submitter->check_time_out();
   }
-
   return 0;
 }
 
@@ -913,11 +953,35 @@ void MyHeartBeatDispatcher::on_stop()
   m_acceptor = NULL;
 }
 
+void MyHeartBeatDispatcher::on_stop_stage_1()
+{
+
+}
+
 bool MyHeartBeatDispatcher::on_start()
 {
   if (!m_acceptor)
     m_acceptor = new MyHeartBeatAcceptor(this, new MyBaseConnectionManager());
   add_acceptor(m_acceptor);
+
+  {
+    ACE_Time_Value interval(CLOCK_TICK_HEART_BEAT);
+    if (reactor()->schedule_timer(this, (const void*)TIMER_ID_HEART_BEAT, interval, interval) < 0)
+    {
+      MY_ERROR("setup heart beat timer failed %s %s\n", name(), (const char*)MyErrno());
+      return false;
+    }
+  }
+
+  {
+    ACE_Time_Value interval(CLOCK_TICK_IP_VER);
+    if (reactor()->schedule_timer(this, (const void*)TIMER_ID_IP_VER, interval, interval) < 0)
+    {
+      MY_ERROR("setup heart beat timer failed %s %s\n", name(), (const char*)MyErrno());
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -928,7 +992,8 @@ MyHeartBeatModule::MyHeartBeatModule(MyBaseApp * app): MyBaseModule(app)
 {
   m_service = NULL;
   m_dispatcher = NULL;
-  MyHeartBeatProcessor::m_sumbitter = &m_ping_sumbitter;
+  MyHeartBeatProcessor::m_heart_beat_submitter = &m_ping_sumbitter;
+  MyHeartBeatProcessor::m_ip_ver_submitter = &m_ip_ver_submitter;
 }
 
 MyHeartBeatModule::~MyHeartBeatModule()
@@ -1153,7 +1218,7 @@ int MyDistRemoteAccessProcessor::on_command_dist_file_md5(char * parameter)
   return send_string("  OK: request placed into target for later processing\n>");
 }
 
-int MyDistRemoteAccessProcessor::on_command_dist_batch_file_md5(char * parameter)
+int MyDistRemoteAccessProcessor::on_command_dist_batch_file_md5(char * /*parameter*/)
 {
   return 0;
 }

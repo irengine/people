@@ -798,7 +798,7 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block_bs(int data_len, const c
   ACE_Message_Block * mb = get_message_block(total_len);
   mb->wr_ptr(mb->capacity());
   char * ptr = mb->base();
-  ptr[total_len - 1] = '$';
+  ptr[total_len - 1] = MyBSBasePacket::BS_PACKET_END_MARK;
   ACE_OS::snprintf(ptr, 9, "%08d", total_len);
   ACE_OS::memcpy(ptr + 8, "vc5X", 4);
   ACE_OS::memcpy(ptr + 12, cmd, 2);

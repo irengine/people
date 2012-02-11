@@ -18,6 +18,7 @@
 
 class MyHeartBeatModule;
 class MyPingSubmitter;
+class MyIPVerSubmitter;
 class MyHeartBeatAcceptor;
 class MyDistClients;
 
@@ -103,7 +104,8 @@ public:
   MyHeartBeatProcessor(MyBaseHandler * handler);
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
 
-  static MyPingSubmitter * m_sumbitter;
+  static MyPingSubmitter * m_heart_beat_submitter;
+  static MyIPVerSubmitter * m_ip_ver_submitter;
 
 protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
@@ -141,11 +143,11 @@ public:
   virtual ~MyBaseSubmitter();
 
   void submit();
+  virtual void check_time_out();
 
 protected:
   virtual void reset();
   virtual void do_submit();
-
 };
 
 class MyPingSubmitter: public MyBaseSubmitter
@@ -155,27 +157,28 @@ public:
   MyPingSubmitter();
   ~MyPingSubmitter();
   void add_ping(const char * client_id, const int len);
-  void check_time_out();
+  virtual void check_time_out();
+
+protected:
+  virtual void do_submit();
+  virtual void reset();
 
 private:
-  void do_submit();
-  void reset();
   enum { BLOCK_SIZE = 4096 };
-  long m_last_add;
   MyAccumulatorBlock m_block;
-
-#ifdef MY_server_test
-  int m_fd;
-#endif
-
-  //todo: add target
 };
 
 class MyIPVerSubmitter: public MyBaseSubmitter
 {
 public:
-  enum {ID_SEPARATOR = ';',  FINISH_SERAPATOR = '*' };
+  enum {ID_SEPARATOR = ';' };
+  MyIPVerSubmitter();
   void add_data(const char * client_id, int id_len, const char * ip, const char * ver);
+  virtual void check_time_out();
+
+protected:
+  virtual void do_submit();
+  virtual void reset();
 
 private:
   enum { BLOCK_SIZE = 4096 };
@@ -222,11 +225,15 @@ public:
 
 protected:
   virtual void on_stop();
+  virtual void on_stop_stage_1();
   virtual bool on_start();
 
 private:
   enum { CLOCK_INTERVAL = 3 }; //in seconds, the interval of picking send out packages
   enum { MSG_QUEUE_MAX_SIZE = 20 * 1024 * 1024 };
+  enum { TIMER_ID_HEART_BEAT = 2, TIMER_ID_IP_VER };
+  enum { CLOCK_TICK_HEART_BEAT = 15, CLOCK_TICK_IP_VER = 10
+       }; //in seconds
   MyHeartBeatAcceptor * m_acceptor;
 };
 
@@ -256,6 +263,7 @@ protected:
 
 private:
   MyPingSubmitter m_ping_sumbitter;
+  MyIPVerSubmitter m_ip_ver_submitter;
   MyHeartBeatService * m_service;
   MyHeartBeatDispatcher * m_dispatcher;
 

@@ -856,8 +856,10 @@ public:
 protected:
   typedef std::vector<MyBaseConnector *> MyConnectors;
   typedef std::vector<MyBaseAcceptor *> MyAcceptors;
+  enum { TIMER_ID_BASE = 1 };
 
   virtual void on_stop();
+  virtual void on_stop_stage_1();
   virtual bool on_start();
   virtual bool on_event_loop();
   void add_connector(MyBaseConnector * _connector);
@@ -872,6 +874,7 @@ protected:
 private:
   bool do_start_i();
   void do_stop_i();
+
   ACE_Reactor *m_reactor;
   int m_numThreads;
   int m_numBatchSend;

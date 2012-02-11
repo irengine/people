@@ -2443,7 +2443,7 @@ int MyBaseDispatcher::open (void *)
   if (m_clock_interval > 0)
   {
     ACE_Time_Value interval(m_clock_interval);
-    if (m_reactor->schedule_timer (this, 0, interval, interval) < 0)
+    if (m_reactor->schedule_timer(this, (const void*)TIMER_ID_BASE, interval, interval) < 0)
     {
       MY_ERROR("setup timer failed %s %s\n", name(), (const char*)MyErrno());
       return -1;
@@ -2489,6 +2489,11 @@ bool MyBaseDispatcher::on_event_loop()
 }
 
 void MyBaseDispatcher::on_stop()
+{
+
+}
+
+void MyBaseDispatcher::on_stop_stage_1()
 {
 
 }
@@ -2546,6 +2551,7 @@ void MyBaseDispatcher::do_stop_i()
   if (!m_reactor) //reuse m_reactor as cleanup flag
     return;
   msg_queue()->flush();
+  on_stop_stage_1();
   if (m_reactor && m_clock_interval > 0)
     m_reactor->cancel_timer(this);
   std::for_each(m_connectors.begin(), m_connectors.end(), std::mem_fun(&MyBaseConnector::stop));
