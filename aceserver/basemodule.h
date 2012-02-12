@@ -458,6 +458,7 @@ public:
   virtual int on_open();
   virtual void on_close();
   virtual int handle_input();
+  virtual bool can_send_data(ACE_Message_Block * mb) const;
   bool wait_for_close() const;
   void prepare_to_close();
 
@@ -706,6 +707,7 @@ public:
   typedef MyBasePacketProcessor super;
   MyBaseServerProcessor(MyBaseHandler * handler);
   virtual ~MyBaseServerProcessor();
+  virtual bool can_send_data(ACE_Message_Block * mb) const;
   virtual bool client_id_verified() const;
 
 protected:
@@ -726,6 +728,7 @@ public:
   virtual bool client_id_verified() const;
   virtual int on_open();
   virtual void on_close();
+  virtual bool can_send_data(ACE_Message_Block * mb) const;
 
 protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header();

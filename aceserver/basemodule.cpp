@@ -1246,6 +1246,11 @@ int MyBaseProcessor::handle_input()
   return 0;
 }
 
+bool MyBaseProcessor::can_send_data(ACE_Message_Block * mb) const
+{
+  return true;
+}
+
 int MyBaseProcessor::handle_input_wait_for_close()
 {
   char buffer[4096];
@@ -1514,6 +1519,12 @@ bool MyBaseServerProcessor::client_id_verified() const
   return !m_client_id.is_null();
 }
 
+bool MyBaseServerProcessor::can_send_data(ACE_Message_Block * mb) const
+{
+  ACE_UNUSED_ARG(mb);
+  return client_id_verified();
+}
+
 MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_header()
 {
   MyBaseProcessor::EVENT_RESULT result = super::on_recv_header();
@@ -1597,6 +1608,15 @@ void MyBaseClientProcessor::client_id_verified(bool _verified)
 {
   m_client_id_verified = _verified;
 }
+
+bool MyBaseClientProcessor::can_send_data(ACE_Message_Block * mb) const
+{
+  MyDataPacketHeader * dph = (MyDataPacketHeader*) mb->base();
+  bool is_request = dph->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ;
+  bool client_verified = client_id_verified();
+  return is_request != client_verified;
+}
+
 
 int MyBaseClientProcessor::on_open()
 {
@@ -1943,6 +1963,11 @@ int MyBaseHandler::open(void * p)
 
 int MyBaseHandler::send_data(ACE_Message_Block * mb)
 {
+  if (unlikely(!m_processor->can_send_data(mb)))
+  {
+    mb->release();
+    return 0;
+  }
   m_processor->update_last_activity();
   int sent_len = mb->length();
   int ret = mycomutil_send_message_block_queue(this, mb, true);
