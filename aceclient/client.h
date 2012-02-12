@@ -21,6 +21,7 @@ public:
 
   MyClientToDistModule * client_to_dist_module() const;
   bool send_mb_to_dist(ACE_Message_Block * mb);
+  const MyClientVerson & client_version() const;
 
 #ifdef MY_client_test
   MyClientIDTable & client_id_table()
@@ -40,6 +41,7 @@ protected:
 
 private:
   MyClientToDistModule * m_client_to_dist_module;
+  MyClientVerson m_client_version;
 
 #ifdef MY_client_test
   MyClientIDTable m_client_id_table;

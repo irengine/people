@@ -152,6 +152,7 @@ public:
     CMD_SERVER_FILE_MD5_LIST,
     CMD_HAVE_DIST_TASK,
     CMD_FTP_FILE,
+    CMD_IP_VER_REQ,
     CMD_END
   };
   int32_t length;
@@ -249,9 +250,18 @@ public:
 class MyClientVersionCheckRequest: public MyDataPacketHeader
 {
 public:
-  int16_t client_version;
+  u_int8_t client_version_major;
+  u_int8_t client_version_minor;
   MyClientID client_id;
 };
+
+class MyIpVerRequest: public MyDataPacketHeader
+{
+public:
+  u_int8_t client_version_major;
+  u_int8_t client_version_minor;
+};
+
 
 class MyClientVersionCheckRequestProc: public MyDataPacketBaseProc
 {

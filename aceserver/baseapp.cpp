@@ -90,6 +90,8 @@ const ACE_TCHAR *  CONFIG_ftp_addr_list = ACE_TEXT("ftp_addr_list");
 
 //dist specific
 const ACE_TCHAR * CONFIG_module_heart_beat_mem_pool_size = ACE_TEXT("module.heart_beat.mempool_size");
+const ACE_TCHAR * CONFIG_client_version_minimum = ACE_TEXT("client_version_minimum");
+const ACE_TCHAR * CONFIG_client_version_current = ACE_TEXT("client_version_current");
 
 //client specific
 const ACE_TCHAR * CONFIG_client_heart_beat_interval = ACE_TEXT("module.client_heart_beat_interval");
@@ -484,6 +486,43 @@ bool MyConfig::load_config_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configurat
     }
     else
       module_heart_beat_mem_pool_size = ival;
+  }
+
+  ACE_TString sval;
+  if (cfgHeap.get_string_value(section, CONFIG_client_version_minimum, sval) == 0)
+  {
+    if (!client_version_minimum.from_string(sval.c_str()))
+    {
+      MY_ERROR(ACE_TEXT("Invalid config value %s: %s\n"), CONFIG_client_version_minimum, sval.c_str());
+      return false;
+    }
+  }
+  else
+  {
+    MY_ERROR(ACE_TEXT("can not read config value %s\n"), CONFIG_client_version_minimum);
+    return false;
+  }
+
+  if (cfgHeap.get_string_value(section, CONFIG_client_version_current, sval) == 0)
+  {
+    if (!client_version_current.from_string(sval.c_str()))
+    {
+      MY_ERROR(ACE_TEXT("Invalid config value %s: %s\n"), CONFIG_client_version_current, sval.c_str());
+      return false;
+    }
+  }
+  else
+  {
+    MY_ERROR(ACE_TEXT("can not read config value %s\n"), CONFIG_client_version_current);
+    return false;
+  }
+
+  if (client_version_current < client_version_minimum)
+  {
+    MY_ERROR(ACE_TEXT("Invalid config value %s(%s) < %s(%s)\n"),
+        CONFIG_client_version_current, client_version_current.to_string(),
+        CONFIG_client_version_minimum, client_version_minimum.to_string());
+    return false;
   }
 
   return true;

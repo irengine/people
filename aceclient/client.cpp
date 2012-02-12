@@ -50,6 +50,11 @@ bool MyClientApp::send_mb_to_dist(ACE_Message_Block * mb)
   return true;
 }
 
+const MyClientVerson & MyClientApp::client_version() const
+{
+  return m_client_version;
+}
+
 void MyClientApp::data_path(MyPooledMemGuard & _data_path, const char * client_id)
 {
 #ifdef MY_client_test

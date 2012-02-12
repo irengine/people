@@ -45,6 +45,25 @@ class MyBaseDispatcher;
 class MyBaseConnector;
 class MyBaseProcessor;
 
+class MyClientVerson
+{
+public:
+  MyClientVerson();
+  MyClientVerson(u_int8_t major, u_int8_t minor);
+  void init(u_int8_t major, u_int8_t minor);
+  bool from_string(const char * s);
+  const char * to_string() const;
+  bool operator < (const MyClientVerson & rhs);
+
+private:
+  enum { DATA_BUFF_SIZE = 8 };
+  void prepare_buff();
+
+  u_int8_t m_major;
+  u_int8_t m_minor;
+  char m_data[DATA_BUFF_SIZE];
+};
+
 class MyMfileSplitter
 {
 public:
@@ -693,6 +712,8 @@ protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
   MyBaseProcessor::EVENT_RESULT do_version_check_common(ACE_Message_Block * mb, MyClientIDTable & client_id_table);
   ACE_Message_Block * make_version_check_reply_mb(MyClientVersionCheckReply::REPLY_CODE code, int extra_len = 0);
+
+  MyClientVerson m_client_version;
 };
 
 class MyBaseClientProcessor: public MyBasePacketProcessor

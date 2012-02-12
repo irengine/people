@@ -3,6 +3,61 @@
 
 MyClientIDTable * g_client_id_table = NULL;
 
+//MyClientVerson//
+
+MyClientVerson::MyClientVerson()
+{
+  init(0, 0);
+}
+
+MyClientVerson::MyClientVerson(u_int8_t major, u_int8_t minor)
+{
+  init(major, minor);
+}
+
+void MyClientVerson::init(u_int8_t major, u_int8_t minor)
+{
+  m_major = major;
+  m_minor = minor;
+  prepare_buff();
+}
+
+void MyClientVerson::prepare_buff()
+{
+  ACE_OS::snprintf(m_data, DATA_BUFF_SIZE, "%hhu.%hhu", m_major, m_minor);
+}
+
+
+bool MyClientVerson::from_string(const char * s)
+{
+  if (unlikely(!s || !*s))
+    return false;
+  int major, minor;
+  sscanf(s, "%d.%d", &major, &minor);
+  if (major > 255 || major < 0 || minor > 255 || minor < 0)
+    return false;
+  m_major = (u_int8_t)major;
+  m_minor = (u_int8_t)minor;
+  prepare_buff();
+  return true;
+}
+
+const char * MyClientVerson::to_string() const
+{
+  return m_data;
+}
+
+bool MyClientVerson::operator < (const MyClientVerson & rhs)
+{
+  if (m_major < rhs.m_major)
+    return true;
+  else if (m_major > rhs.m_major)
+    return false;
+  else
+    return (m_minor < rhs.m_minor);
+}
+
+
 //MyMfileSplitter//
 
 MyMfileSplitter::MyMfileSplitter()
@@ -1486,20 +1541,13 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE
   vcr.validate_data();
   int client_id_index = -1;
   ACE_Message_Block * reply_mb = NULL;
-  if (vcr.data()->client_version != 1)
+  m_client_version.init(vcr.data()->client_version_major, vcr.data()->client_version_minor);
+  client_id_index = client_id_table.index_of(vcr.data()->client_id);
+  if (client_id_index < 0)
   {
     m_wait_for_close = true;
-    MY_WARNING(ACE_TEXT("closing connection due to mismatched client_version = %d\n"), vcr.data()->client_version);
-    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_MISMATCH);
-  } else
-  {
-    client_id_index = client_id_table.index_of(vcr.data()->client_id);
-    if (client_id_index < 0)
-    {
-      m_wait_for_close = true;
-      MY_WARNING(ACE_TEXT("closing connection due to invalid client_id = %s\n"), vcr.data()->client_id.as_string());
-      reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_ACCESS_DENIED);
-    }
+    MY_WARNING(ACE_TEXT("closing connection due to invalid client_id = %s\n"), vcr.data()->client_id.as_string());
+    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_ACCESS_DENIED);
   }
 
   if (m_wait_for_close)

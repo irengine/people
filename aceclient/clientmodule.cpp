@@ -1018,7 +1018,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
     MyBaseProcessor::EVENT_RESULT result = do_version_check_reply(mb);
     if (result == ER_OK)
     {
-      ((MyClientToDistHandler*)m_handler)->setup_timer();
+      ((MyClientToDistHandler*)m_handler)->setup_timer(1 * 60);
       client_id_verified(true);
     }
     return result;
@@ -1166,8 +1166,18 @@ int MyClientToDistProcessor::send_version_check_req()
   ACE_Message_Block * mb = make_version_check_request_mb();
   MyClientVersionCheckRequestProc proc;
   proc.attach(mb->base());
-  proc.data()->client_version = const_client_version;
+  proc.data()->client_version_major = const_client_version_major;
+  proc.data()->client_version_minor = const_client_version_minor;
   proc.data()->client_id = m_client_id;
+  return (m_handler->send_data(mb) < 0? -1: 0);
+}
+
+int MyClientToDistProcessor::send_ip_ver_req()
+{
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyClientVersionCheckRequest), MyDataPacketHeader::CMD_IP_VER_REQ);
+  MyIpVerRequest * ivr = (MyIpVerRequest *) mb->base();
+  ivr->client_version_major = const_client_version_major;
+  ivr->client_version_minor = const_client_version_minor;
   return (m_handler->send_data(mb) < 0? -1: 0);
 }
 
@@ -1336,16 +1346,26 @@ bool MyDistServerAddrList::valid_addr(const char * addr) const
 MyClientToDistHandler::MyClientToDistHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
 {
   m_processor = new MyClientToDistProcessor(this);
-  m_heat_beat_ping_timer_id = -1;
 }
 
-void MyClientToDistHandler::setup_timer()
+bool MyClientToDistHandler::setup_timer(int heart_beat_interval)
 {
-//  MY_DEBUG("MyClientToDistHandler scheduling timer...\n");
-  ACE_Time_Value interval (MyConfigX::instance()->client_heart_beat_interval);
-  m_heat_beat_ping_timer_id = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval, interval);
-  if (m_heat_beat_ping_timer_id < 0)
+    //ACE_Time_Value interval1(MyConfigX::instance()->client_heart_beat_interval);
+  ACE_Time_Value interval1(heart_beat_interval);
+  if (reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval1, interval1) < 0)
+  {
     MY_ERROR(ACE_TEXT("MyClientToDistHandler setup heart beat timer failed, %s"), (const char*)MyErrno());
+    return false;
+  }
+
+  ACE_Time_Value interval(IP_VER_TIMER * 60);
+  if (reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval, interval) < 0)
+  {
+    MY_ERROR(ACE_TEXT("MyClientToDistHandler setup ip ver timer failed, %s"), (const char*)MyErrno());
+    return false;
+  }
+
+  return true;
 }
 
 MyClientToDistModule * MyClientToDistHandler::module_x() const
@@ -1364,6 +1384,8 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
 //  MY_DEBUG("MyClientToDistHandler::handle_timeout()\n");
   if (long(act) == HEART_BEAT_PING_TIMER)
     return ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
+  else if (long(act) == IP_VER_TIMER)
+    return ((MyClientToDistProcessor*)m_processor)->send_ip_ver_req();
   else
   {
     MY_ERROR("unexpected timer call @MyClientToDistHandler::handle_timeout, timer id = %d\n", long(act));
@@ -1373,8 +1395,7 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
 
 void MyClientToDistHandler::on_close()
 {
-  if (m_heat_beat_ping_timer_id >= 0)
-    reactor()->cancel_timer(m_heat_beat_ping_timer_id);
+  reactor()->cancel_timer(this);
 
 #ifdef MY_client_test
   if (m_connection_manager->locked())
@@ -2095,7 +2116,8 @@ int MyClientToMiddleProcessor::send_version_check_req()
   ACE_Message_Block * mb = make_version_check_request_mb();
   MyClientVersionCheckRequestProc proc;
   proc.attach(mb->base());
-  proc.data()->client_version = const_client_version;
+  proc.data()->client_version_major = const_client_version_major;
+  proc.data()->client_version_minor = const_client_version_minor;
   proc.data()->client_id = m_client_id;
   MY_INFO("sending handshake request to middle server...\n");
   return (m_handler->send_data(mb) < 0? -1: 0);

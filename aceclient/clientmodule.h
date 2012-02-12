@@ -21,7 +21,8 @@ class MyClientToDistModule;
 class MyClientToDistConnector;
 class MyDistInfoFtps;
 
-const int16_t const_client_version = 1;
+const u_int8_t const_client_version_major = 1;
+const u_int8_t const_client_version_minor = 0;
 
 #if defined(MY_client_test)
 
@@ -276,6 +277,7 @@ public:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
   virtual int on_open();
   int send_heart_beat();
+  int send_ip_ver_req();
 
 protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
@@ -324,7 +326,7 @@ class MyClientToDistHandler: public MyBaseHandler
 public:
   MyClientToDistHandler(MyBaseConnectionManager * xptr = NULL);
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
-  void setup_timer();
+  bool setup_timer(int heart_beat_interval);
   MyClientToDistModule * module_x() const;
   DECLARE_MEMORY_POOL__NOTHROW(MyClientToDistHandler, ACE_Thread_Mutex);
 
@@ -333,8 +335,8 @@ protected:
   virtual int  on_open();
 
 private:
-  enum { HEART_BEAT_PING_TIMER = 1 };
-  long m_heat_beat_ping_timer_id;
+  enum { HEART_BEAT_PING_TIMER = 1, IP_VER_TIMER };
+  enum { IP_VER_INTERVAL = 1 }; //in minutes
 };
 
 class MyClientToDistService: public MyBaseService

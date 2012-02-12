@@ -83,6 +83,8 @@ public:
 
   //dist only
   int module_heart_beat_mem_pool_size;
+  MyClientVerson client_version_minimum;
+  MyClientVerson client_version_current;
 
   //middle only
   int http_port;

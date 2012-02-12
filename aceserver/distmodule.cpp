@@ -428,6 +428,18 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
     return ER_OK;
   }
 
+  if (m_packet_header.command == MyDataPacketHeader::CMD_IP_VER_REQ)
+  {
+    if (m_packet_header.length != sizeof(MyIpVerRequest) || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    {
+      MyPooledMemGuard info;
+      info_string(info);
+      MY_ERROR("bad ip ver request packet received from %s\n", info.data());
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
   MY_ERROR(ACE_TEXT("unexpected packet header received @MyHeartBeatProcessor.on_recv_header, cmd = %d\n"),
       m_packet_header.command);
 
@@ -448,6 +460,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
   if (header->command == MyDataPacketHeader::CMD_FTP_FILE)
     return do_ftp_reply(mb);
 
+  if (header->command == MyDataPacketHeader::CMD_IP_VER_REQ)
+    return do_ip_ver_req(mb);
+
   MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyHeartBeatProcessor::on_recv_packet_i, command = %d\n",
       header->command);
@@ -467,11 +482,21 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
   if (ret != ER_CONTINUE)
     return ret;
 
-  MyPooledMemGuard info;
-  info_string(info);
-  MY_INFO(ACE_TEXT("client version check ok: %s\n"), info.data());
+  {
+    MyPooledMemGuard info;
+    info_string(info);
+    MY_INFO(ACE_TEXT("client version check ok: %s\n"), info.data());
+  }
 
-  ACE_Message_Block * reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK);
+  m_ip_ver_submitter->add_data(m_client_id.as_string(), m_client_id_length, m_peer_addr, m_client_version.to_string());
+
+  ACE_Message_Block * reply_mb;
+  if (m_client_version < MyConfigX::instance()->client_version_minimum)
+    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_MISMATCH);
+  else if (m_client_version < MyConfigX::instance()->client_version_current)
+    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK_CAN_UPGRADE);
+  else
+    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK);
 
   if (m_handler->send_data(reply_mb) < 0)
     return ER_ERROR;
@@ -498,6 +523,13 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(ACE_Message_Blo
     return ER_OK;
 
   MyServerAppX::instance()->dist_put_to_service(mb);
+  return ER_OK;
+}
+
+MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ip_ver_req(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  m_ip_ver_submitter->add_data(m_client_id.as_string(), m_client_id_length, m_peer_addr, m_client_version.to_string());
   return ER_OK;
 }
 
@@ -941,8 +973,6 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
     MyHeartBeatProcessor::m_heart_beat_submitter->check_time_out();
   } else if ((long)act == TIMER_ID_IP_VER)
   {
-    MyHeartBeatProcessor::m_ip_ver_submitter->add_data("12345", 5, "127.0.0.1", "1.1");
-    MyHeartBeatProcessor::m_ip_ver_submitter->add_data("22345", 5, "192.168.1.0", "5.63");
     MyHeartBeatProcessor::m_ip_ver_submitter->check_time_out();
   }
   return 0;
@@ -1458,13 +1488,13 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_have_dist_task(ACE_Mes
   return ER_OK;
 }
 
-
 int MyDistToMiddleProcessor::send_version_check_req()
 {
   ACE_Message_Block * mb = make_version_check_request_mb();
   MyClientVersionCheckRequestProc proc;
   proc.attach(mb->base());
-  proc.data()->client_version = 1;
+  proc.data()->client_version_major = 1;
+  proc.data()->client_version_minor = 0;
   proc.data()->client_id = MyConfigX::instance()->middle_server_key.c_str();
   MY_INFO("sending handshake request to middle server...\n");
   return (m_handler->send_data(mb) < 0? -1: 0);
