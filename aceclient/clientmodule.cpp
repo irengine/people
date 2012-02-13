@@ -116,10 +116,32 @@ bool MyClientDB::save_ftp_command(const char * ftp_command)
 
 bool MyClientDB::set_ftp_command_status(const char * dist_id, int status)
 {
-  const char * const_sql_template = "update tb_ftp_info set ftp_status = %d where ftp_dist_id = '%s'";
+  const char * const_sql_template = "update tb_ftp_info set ftp_status = %d where ftp_dist_id = '%s' "
+                                    "and ftp_status < %d";
   char sql[200];
-  ACE_OS::snprintf(sql, 200, const_sql_template, status, dist_id);
+  ACE_OS::snprintf(sql, 200, const_sql_template, status, dist_id, status);
   return do_exec(sql);
+}
+
+bool MyClientDB::get_ftp_command_status(const char * dist_id, int & status)
+{
+  if (unlikely(!dist_id))
+    return false;
+  const char * const_sql_template = "select ftp_status from tb_ftp_info where ftp_dist_id = '%s'";
+  char sql[200];
+  ACE_OS::snprintf(sql, 200, const_sql_template, dist_id);
+
+  char *zErrMsg = 0;
+  if (sqlite3_exec(m_db, sql, load_ftp_commands_callback, &status, &zErrMsg) != SQLITE_OK)
+  {
+    MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
+    if (zErrMsg)
+      sqlite3_free(zErrMsg);
+    return false;
+  }
+  if (zErrMsg)
+    sqlite3_free(zErrMsg);
+  return true;
 }
 
 void MyClientDB::remove_outdated_ftp_command(time_t deadline)
@@ -196,6 +218,15 @@ int MyClientDB::load_ftp_commands_callback(void * p, int argc, char **argv, char
   return 0;
 }
 
+int MyClientDB::get_ftp_commands_status_callback(void * p, int argc, char **argv, char **azColName)
+{
+  ACE_UNUSED_ARG(azColName);
+
+  if (argc <= 0 || !argv[0] || !argv[0][0])
+    return -1;
+  *(int*)p = atoi(argv[0]);
+  return 0;
+}
 
 
 //MyFTPClient//
@@ -605,12 +636,11 @@ bool MyDistInfoHeader::calc_target_path(const char * target_parent_path, MyPoole
 }
 
 
-
 //MyDistInfoFtp//
 
 MyDistInfoFtp::MyDistInfoFtp()
 {
-  failed_count = 0;
+  failed_count = 2;
   last_update = time(NULL);
 }
 
@@ -619,7 +649,7 @@ bool MyDistInfoFtp::validate()
   if (!super::validate())
     return false;
 
-  if (status < 0 || status > 3)
+  if (status < 2 || status > 6)
     return false;
   const time_t long_time = 60 * 60 * 24 * 12 * 365; //one year
   time_t t = time(NULL);
@@ -672,7 +702,12 @@ time_t MyDistInfoFtp::get_delay_penalty() const
 
 bool MyDistInfoFtp::should_ftp(time_t now) const
 {
-  return status == 0 && last_update + get_delay_penalty() < now;
+  return status == 2 && last_update + get_delay_penalty() < now;
+}
+
+bool MyDistInfoFtp::should_extract() const
+{
+  return status == 3;
 }
 
 void MyDistInfoFtp::touch()
@@ -698,6 +733,30 @@ void MyDistInfoFtp::calc_local_file_name()
   local_file_name.init_from_string(app_data_path.data(), "/", dist_id.data(), ".mbz");
 }
 
+void MyDistInfoFtp::post_status_message() const
+{
+  int dist_id_len = ACE_OS::strlen(dist_id.data());
+  int total_len = sizeof(MyDataPacketHeader) + dist_id_len + 1 + 2;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_FTP_FILE);
+  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
+#ifdef MY_client_test
+  dpe->magic = client_id_index;
+#endif
+  ACE_OS::memcpy(dpe->data, dist_id.data(), dist_id_len);
+  dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
+  dpe->data[dist_id_len + 1] = (char)(status + '0');
+  dpe->data[dist_id_len + 2] = 0;
+  MyClientAppX::instance()->send_mb_to_dist(mb);
+}
+
+bool MyDistInfoFtp::update_db_status() const
+{
+  MyClientDBGuard dbg;
+  if (dbg.db().open_db(client_id.as_string()))
+    return dbg.db().set_ftp_command_status(dist_id.data(), status);
+  return false;
+}
+
 
 //MyDistInfoFtps//
 
@@ -716,42 +775,34 @@ void MyDistInfoFtps::add(MyDistInfoFtp * p)
   if (unlikely(!p))
     return;
   ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex));
-  if (p->status > 1)
-  {
-    add_finished(p->dist_id.data());
+  if (p->status >= 4 || p->status < 2)
     delete p;
-    return;
+  else
+    m_dist_info_ftps.push_back(p);
+}
+
+int MyDistInfoFtps::status(const char * dist_id, const char * client_id)
+{
+  if (unlikely(!dist_id || !*dist_id || !client_id || !*client_id))
+    return -1;
+  int _status;
+  MyClientDBGuard dbg;
+  if (dbg.db().open_db(client_id))
+  {
+    if (dbg.db().get_ftp_command_status(dist_id, _status))
+      return _status;
   }
-  m_dist_info_ftps.push_back(p);
+
+  return -1;
 }
 
-void MyDistInfoFtps::add_finished(const char * dist_id)
-{
-  if (unlikely(!dist_id || !*dist_id))
-    return;
-  ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex));
-  m_finished_ftps.push_back(std::string(dist_id));
-}
-
-bool MyDistInfoFtps::finished(const char * dist_id)
-{
-  if (unlikely(!dist_id || !*dist_id))
-    return true;
-  ACE_MT(ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false));
-  MyDistInfoFtpFinishedListPtr ptr;
-  for (ptr = m_finished_ftps.begin(); ptr != m_finished_ftps.end(); ++ptr)
-    if (ptr->compare(dist_id) == 0)
-      return true;
-  return false;
-}
-
-MyDistInfoFtp * MyDistInfoFtps::get(time_t now)
+MyDistInfoFtp * MyDistInfoFtps::get(bool is_ftp, time_t now)
 {
   MyDistInfoFtp * result = NULL;
   for (; m_current_ptr != m_dist_info_ftps.end(); )
   {
     result = *m_current_ptr;
-    if (result->should_ftp(now))
+    if ((is_ftp && result->should_ftp(now)) || (!is_ftp && result->should_extract()))
     {
       m_current_ptr = m_dist_info_ftps.erase(m_current_ptr);
       return result;
@@ -783,7 +834,7 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
     return false;
 
   int prefix_len = ACE_OS::strlen(target_parent_path.data());
-  if (!MyFilePaths::make_path_const(target_path.data(), prefix_len, false))
+  if (!MyFilePaths::make_path_const(target_path.data(), prefix_len, false, true))
   {
     MY_ERROR("can not mkdir(%s) %s\n", target_path.data(), (const char *)MyErrno());
     return false;
@@ -817,6 +868,22 @@ void MyDistInfoMD5::compare_done(bool done)
 MyFileMD5s & MyDistInfoMD5::md5list()
 {
   return m_md5list;
+}
+
+void MyDistInfoMD5::post_md5_message()
+{
+  int dist_id_len = ACE_OS::strlen(dist_id.data());
+  int md5_len = m_md5list.total_size(false);
+  int total_len = sizeof(MyDataPacketHeader) + dist_id_len + 1 + md5_len;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
+  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
+#ifdef MY_client_test
+  dpe->magic = client_id_index;
+#endif
+  ACE_OS::memcpy(dpe->data, dist_id.data(), dist_id_len);
+  dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
+  m_md5list.to_buffer(dpe->data + dist_id_len + 1, md5_len, false);
+  MyClientAppX::instance()->send_mb_to_dist(mb);
 }
 
 bool MyDistInfoMD5::load_from_string(char * src)
@@ -857,6 +924,12 @@ bool MyDistInfoMD5::validate()
 
 //MyDistInfoMD5s//
 
+MyDistInfoMD5s::~MyDistInfoMD5s()
+{
+  std::for_each(m_dist_info_md5s.begin(), m_dist_info_md5s.end(), MyObjectDeletor());
+  std::for_each(m_dist_info_md5s_finished.begin(), m_dist_info_md5s_finished.end(), MyObjectDeletor());
+}
+
 void MyDistInfoMD5s::add(MyDistInfoMD5 * p)
 {
   if (unlikely(!p))
@@ -879,6 +952,26 @@ MyDistInfoMD5 * MyDistInfoMD5s::get()
   return result;
 }
 
+MyDistInfoMD5 * MyDistInfoMD5s::get_finished(const MyDistInfoMD5 & rhs)
+{
+  ACE_MT(ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, NULL));
+  MyDistInfoMD5ListPtr it;
+  for (it = m_dist_info_md5s_finished.begin(); it != m_dist_info_md5s_finished.end(); ++it)
+  {
+#ifdef MY_client_test
+    if (ACE_OS::strcmp((*it)->dist_id.data(), rhs.dist_id.data()) == 0 && (*it)->client_id_index == rhs.client_id_index)
+#else
+    if (ACE_OS::strcmp((*it)->dist_id.data(), rhs.dist_id.data()) == 0)
+#endif
+    {
+      MyDistInfoMD5 * result = *it;
+      m_dist_info_md5s_finished.erase(it);
+      return result;
+    }
+  }
+
+  return NULL;
+}
 
 
 //MyDistInfoMD5Comparer//
@@ -896,7 +989,7 @@ bool MyDistInfoMD5Comparer::compute(MyDistInfoHeader * dist_info_header, MyFileM
     return false;
 
   int prefix_len = ACE_OS::strlen(target_parent_path.data());
-  if (!MyFilePaths::make_path_const(target_path.data(), prefix_len, false))
+  if (!MyFilePaths::make_path_const(target_path.data(), prefix_len, false, true))
   {
     MY_ERROR("can not mkdir(%s) %s\n", target_path.data(), (const char *)MyErrno());
     return false;
@@ -918,7 +1011,6 @@ void MyDistInfoMD5Comparer::compare(MyDistInfoHeader * dist_info_header, MyFileM
   } else
     server_md5.minus(client_md5, NULL, false);
 }
-
 
 
 //MyClientToDistProcessor//
@@ -1065,11 +1157,23 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_md5_list_request(ACE_M
   {
 #ifdef MY_client_test
     MY_INFO("received one md5 file list command for dist %s, client_id=%s\n", dist_md5->dist_id.data(), m_client_id.as_string());
+#else
+    MY_INFO("received one md5 file list command for dist %s\n", dist_md5->dist_id.data());
 #endif
+
+    MyDistInfoMD5 * existing = MyClientAppX::instance()->client_to_dist_module()->dist_info_md5s().get_finished(*dist_md5);
+    if (unlikely(existing != NULL))
+    {
+      existing->post_md5_message();
+      MyClientAppX::instance()->client_to_dist_module()->dist_info_md5s().add(existing);
+      delete dist_md5;
+      return ER_OK;
+    }
+
     bool added = false;
     if (MyClientAppX::instance()->client_to_dist_module()->service())
       added = MyClientAppX::instance()->client_to_dist_module()->service()->add_md5_task(dist_md5);
-    if (!added)
+    if (unlikely(!added))
       MyClientAppX::instance()->client_to_dist_module()->dist_info_md5s().add(dist_md5);
   }
   else
@@ -1098,7 +1202,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_M
   }
 
   MyDistInfoFtp * dist_ftp = new MyDistInfoFtp();
-  dist_ftp->status = 0;
+  dist_ftp->status = 2;
 #ifdef MY_client_test
   dist_ftp->client_id = m_client_id;
   dist_ftp->client_id_index = m_client_id_index;
@@ -1158,7 +1262,6 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
     MY_ERROR("%s get unknown reply code = %d\n", prefix_msg, vcr.data()->reply_code);
     return MyBaseProcessor::ER_ERROR;
   }
-
 }
 
 int MyClientToDistProcessor::send_version_check_req()
@@ -1306,7 +1409,7 @@ void MyDistServerAddrList::save()
   MyUnixHandleGuard f;
   MyPooledMemGuard file_name;
   get_file_name(file_name);
-  if (!f.open_write(file_name.data(), true, true, false))
+  if (!f.open_write(file_name.data(), true, true, false, true))
     return;
   if (::write(f.handle(), m_addr_list.data(), m_addr_list_len) != m_addr_list_len)
     MY_ERROR("write to file %s failed %s\n", file_name.data(), (const char*)MyErrno());
@@ -1439,6 +1542,8 @@ int MyClientToDistService::svc()
 
     if (task_type == TASK_MD5)
       do_md5_task((MyDistInfoMD5 *)p);
+    else if (task_type == TASK_EXTRACT)
+      do_extract_task((MyDistInfoFtp *)p);
     else
       MY_ERROR("unknown task type = %d @%s::svc()\n", task_type, name());
   }
@@ -1457,11 +1562,31 @@ bool MyClientToDistService::add_md5_task(MyDistInfoMD5 * p)
   return do_add_task(p, TASK_MD5);
 }
 
+bool MyClientToDistService::add_extract_task(MyDistInfoFtp * p)
+{
+  return do_add_task(p, TASK_EXTRACT);
+}
+
+void MyClientToDistService::return_back(MyDistInfoFtp * dist_info)
+{
+  if (unlikely(!dist_info))
+    return;
+  ((MyClientToDistModule*)module_x())->dist_info_ftps().add(dist_info);
+}
+
+void MyClientToDistService::return_back_md5(MyDistInfoMD5 * p)
+{
+  if (unlikely(!p))
+      return;
+  ((MyClientToDistModule*)module_x())->dist_info_md5s().add(p);
+}
+
+
 void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
 {
   if (unlikely(!p || p->compare_done()))
   {
-    delete p;
+    return_back_md5(p);
     return;
   }
 
@@ -1470,27 +1595,24 @@ void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
     MY_INFO("md5 file list generation error\n");
 
   MyDistInfoMD5Comparer::compare(p, p->md5list(), client_md5s);
-  post_md5_list_message(p);
-  delete p;
+  p->post_md5_message();
+  return_back_md5(p);
 }
 
-void MyClientToDistService::post_md5_list_message(MyDistInfoMD5 * dist_md5) const
+void MyClientToDistService::do_extract_task(MyDistInfoFtp * dist_info)
 {
-  int dist_id_len = ACE_OS::strlen(dist_md5->dist_id.data());
-  int md5_len = dist_md5->md5list().total_size(false);
-  int total_len = sizeof(MyDataPacketHeader) + dist_id_len + 1 + md5_len;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
-  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
-#ifdef MY_client_test
-  dpe->magic = dist_md5->client_id_index;
-#endif
-  ACE_OS::memcpy(dpe->data, dist_md5->dist_id.data(), dist_id_len);
-  dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
-  dist_md5->md5list().to_buffer(dpe->data + dist_id_len + 1, md5_len, false);
-  MyClientAppX::instance()->send_mb_to_dist(mb);
+
+  if (likely(dist_info->status == 3))
+  {
+    MyDistFtpFileExtractor extractor;
+    extractor.extract(dist_info);
+
+    dist_info->status = extractor.extract(dist_info) ? 4:5;
+    dist_info->update_db_status();
+    dist_info->post_status_message();
+  }
+  return_back(dist_info);
 }
-
-
 
 void MyClientToDistService::do_server_file_md5_list(ACE_Message_Block * mb)
 {
@@ -1623,7 +1745,7 @@ int MyClientFtpService::svc()
 
 void MyClientFtpService::do_ftp_task(MyDistInfoFtp * dist_info, std::string & server_addr, int & failed_count)
 {
-  if (dist_info->status == 0)
+  if (dist_info->status == 2)
   {
     if (unlikely(server_addr.empty()))
     {
@@ -1649,14 +1771,6 @@ void MyClientFtpService::do_ftp_task(MyDistInfoFtp * dist_info, std::string & se
       failed_count = 0;
   } //status == 0
 
-  if (dist_info->status == 1)
-  {
-    dist_info->status = do_extract_file(dist_info) ? 2:3;
-    MyClientDBGuard dbg;
-    if (dbg.db().open_db(dist_info->client_id.as_string()))
-      dbg.db().set_ftp_command_status(dist_info->dist_id.data(), dist_info->status);
-  }
-
   return_back(dist_info);
 }
 
@@ -1670,25 +1784,10 @@ bool MyClientFtpService::add_ftp_task(MyDistInfoFtp * p)
   return do_add_task(p, TASK_FTP);
 }
 
-void MyClientFtpService::post_ftp_status_message(MyDistInfoFtp * dist_info) const
-{
-  int dist_id_len = ACE_OS::strlen(dist_info->dist_id.data());
-  int total_len = sizeof(MyDataPacketHeader) + dist_id_len + 1 + 2;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_FTP_FILE);
-  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
-#ifdef MY_client_test
-  dpe->magic = dist_info->client_id_index;
-#endif
-  ACE_OS::memcpy(dpe->data, dist_info->dist_id.data(), dist_id_len);
-  dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
-  dpe->data[dist_id_len + 1] = (dist_info->status == 0? '0': '1');
-  dpe->data[dist_id_len + 2] = 0;
-  MyClientAppX::instance()->send_mb_to_dist(mb);
-}
 
 bool MyClientFtpService::do_ftp_download(MyDistInfoFtp * dist_info, const char * server_ip)
 {
-  if (unlikely(dist_info->status > 0))
+  if (unlikely(dist_info->status >=  3))
     return true;
 
   MY_INFO("processing ftp download for dist_id=%s, filename=%s, password=%s\n",
@@ -1698,21 +1797,13 @@ bool MyClientFtpService::do_ftp_download(MyDistInfoFtp * dist_info, const char *
   dist_info->touch();
   if (result)
   {
-    dist_info->status = 1;
-    MyClientDBGuard dbg;
-    if (dbg.db().open_db(dist_info->client_id.as_string()))
-      dbg.db().set_ftp_command_status(dist_info->dist_id.data(), 1);
-    post_ftp_status_message(dist_info);
+    dist_info->status = 3;
+    dist_info->update_db_status();
+    dist_info->post_status_message();
   }
   else
     dist_info->inc_failed();
   return result;
-}
-
-bool MyClientFtpService::do_extract_file(MyDistInfoFtp * p)
-{
-  MyDistFtpFileExtractor extractor;
-  return extractor.extract(p);
 }
 
 void MyClientFtpService::return_back(MyDistInfoFtp * dist_info)
@@ -1956,14 +2047,25 @@ void MyClientToDistModule::check_ftp_timed_task()
   ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_dist_info_ftps.m_mutex));
   m_dist_info_ftps.begin();
   time_t now = time(NULL);
-  while ((p = m_dist_info_ftps.get(now)) != NULL)
+  while ((p = m_dist_info_ftps.get(true, now)) != NULL)
   {
     if (!m_client_ftp_service->add_ftp_task(p))
     {
       m_dist_info_ftps.add(p);
-      return;
+      break;
     }
   }
+
+  m_dist_info_ftps.begin();
+  while ((p = m_dist_info_ftps.get(false, now)) != NULL)
+  {
+    if (!m_service->add_extract_task(p))
+    {
+      m_dist_info_ftps.add(p);
+      break;
+    }
+  }
+
 }
 
 bool MyClientToDistModule::on_start()

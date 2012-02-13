@@ -73,6 +73,7 @@ public:
   void close_db();
   bool save_ftp_command(const char * ftp_command);
   bool set_ftp_command_status(const char * dist_id, int status);
+  bool get_ftp_command_status(const char * dist_id, int & status);
   void remove_outdated_ftp_command(time_t deadline);
   bool load_ftp_commands(MyDistInfoFtps * dist_ftps);
 
@@ -83,6 +84,7 @@ protected:
 
 private:
   static int load_ftp_commands_callback(void * p, int argc, char **argv, char **azColName);
+  static int get_ftp_commands_status_callback(void * p, int argc, char **argv, char **azColName);
 
   bool do_exec(const char *sql, bool show_error = true);
   bool init_db();
@@ -142,7 +144,6 @@ private:
   MyPooledMemGuard   m_response;
 };
 
-
 class MyDistInfoHeader
 {
 public:
@@ -167,32 +168,6 @@ protected:
   int load_header_from_string(char * src);
 };
 
-class MyDistInfoFtp: public MyDistInfoHeader
-{
-public:
-  typedef MyDistInfoHeader super;
-  MyDistInfoFtp();
-
-  virtual bool validate();
-  bool load_from_string(char * src);
-  time_t get_delay_penalty() const;
-  bool should_ftp(time_t now) const;
-  void touch();
-  void inc_failed();
-  void calc_local_file_name();
-
-  MyPooledMemGuard file_name;
-  MyPooledMemGuard file_password;
-  int  status;
-  time_t recv_time;
-  MyPooledMemGuard local_file_name;
-
-private:
-  enum { FAILED_PENALTY = 4, MAX_FAILED_COUNT = 20 };
-  time_t last_update;
-  int  failed_count;
-};
-
 class MyDistInfoMD5: public MyDistInfoHeader
 {
 public:
@@ -205,6 +180,7 @@ public:
   bool compare_done() const;
   void compare_done(bool done);
   MyFileMD5s & md5list();
+  void post_md5_message();
 
 private:
   MyFileMD5s m_md5list;
@@ -217,8 +193,10 @@ public:
   typedef std::list<MyDistInfoMD5 * > MyDistInfoMD5List;
   typedef MyDistInfoMD5List::iterator MyDistInfoMD5ListPtr;
 
+  ~MyDistInfoMD5s();
   void add(MyDistInfoMD5 * p);
   MyDistInfoMD5 * get();
+  MyDistInfoMD5 * get_finished(const MyDistInfoMD5 & rhs);
 
 private:
   ACE_Thread_Mutex  m_mutex;
@@ -233,6 +211,35 @@ public:
   static void compare(MyDistInfoHeader * dist_info_header, MyFileMD5s & server_md5, MyFileMD5s & client_md5);
 };
 
+class MyDistInfoFtp: public MyDistInfoHeader
+{
+public:
+  typedef MyDistInfoHeader super;
+  MyDistInfoFtp();
+
+  virtual bool validate();
+  bool load_from_string(char * src);
+  time_t get_delay_penalty() const;
+  bool should_ftp(time_t now) const;
+  bool should_extract() const;
+  void touch();
+  void inc_failed();
+  void calc_local_file_name();
+  void post_status_message() const;
+  bool update_db_status() const;
+
+  MyPooledMemGuard file_name;
+  MyPooledMemGuard file_password;
+  int  status;
+  time_t recv_time;
+  MyPooledMemGuard local_file_name;
+
+private:
+  enum { FAILED_PENALTY = 4, MAX_FAILED_COUNT = 20 };
+  time_t last_update;
+  int  failed_count;
+};
+
 class MyDistInfoFtps
 {
 public:
@@ -242,18 +249,14 @@ public:
   ~MyDistInfoFtps();
   void begin();
   void add(MyDistInfoFtp * p);
-  void add_finished(const char * dist_id);
-  bool finished(const char * dist_id);
-  MyDistInfoFtp * get(time_t now = time(NULL));
+  int status(const char * dist_id, const char * client_id);
+  MyDistInfoFtp * get(bool is_ftp, time_t now = time(NULL));
 
   ACE_Thread_Mutex m_mutex; //for performance reasons...somewhat ugly
 private:
-  typedef std::vector<std::string> MyDistInfoFtpFinishedList;
-  typedef MyDistInfoFtpFinishedList::iterator MyDistInfoFtpFinishedListPtr;
 
   MyDistInfoFtpList m_dist_info_ftps;
   MyDistInfoFtpListPtr m_current_ptr;
-  MyDistInfoFtpFinishedList m_finished_ftps;
 };
 
 class MyDistFtpFileExtractor
@@ -346,14 +349,17 @@ public:
   virtual int svc();
   virtual const char * name() const;
   bool add_md5_task(MyDistInfoMD5 * p);
+  bool add_extract_task(MyDistInfoFtp * p);
 
 private:
-  enum { TASK_MD5 };
+  enum { TASK_MD5, TASK_EXTRACT };
   enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
 
+  void return_back(MyDistInfoFtp * dist_info);
+  void return_back_md5(MyDistInfoMD5 * p);
   void do_server_file_md5_list(ACE_Message_Block * mb);
   void do_md5_task(MyDistInfoMD5 * p);
-  void post_md5_list_message(MyDistInfoMD5 * dist_md5) const;
+  void do_extract_task(MyDistInfoFtp * p);
 };
 
 class MyClientFtpService: public MyBaseService
@@ -369,11 +375,9 @@ private:
 
   void do_ftp_task(MyDistInfoFtp * dist_info, std::string & server_addr, int & failed_count);
   bool do_ftp_download(MyDistInfoFtp * dist_info, const char * server_ip);
-  bool do_extract_file(MyDistInfoFtp * dist_info);
 
   void return_back(MyDistInfoFtp * dist_info);
   MyDistInfoFtp * get_dist_info_ftp(ACE_Message_Block * mb) const;
-  void post_ftp_status_message(MyDistInfoFtp * dist_info) const;
 };
 
 
@@ -474,7 +478,7 @@ protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
-  int send_version_check_req();
+  int  send_version_check_req();
   void do_version_check_reply(ACE_Message_Block * mb);
   void do_handle_server_list(ACE_Message_Block * mb);
 };

@@ -169,7 +169,7 @@ bool MyDB::get_client_ids(MyClientIDTable * id_table)
 {
   MY_ASSERT_RETURN(id_table != NULL, "null id_table @MyDB::get_client_ids\n", false);
 
-  const char * CONST_select_sql_template = "select client_id, auto_seq "
+  const char * CONST_select_sql_template = "select client_id, client_password, client_expired, auto_seq "
                                            "from tb_clients where auto_seq > %d order by auto_seq";
   char select_sql[1024];
   ACE_OS::snprintf(select_sql, 1024 - 1, CONST_select_sql_template, id_table->last_sequence());
@@ -186,8 +186,14 @@ bool MyDB::get_client_ids(MyClientIDTable * id_table)
   if (count > 0)
   {
     id_table->prepare_space(count);
+    bool expired;
+    const char * p;
     for (int i = 0; i < count; ++i)
-      id_table->add(PQgetvalue(pres, i, 0));
+    {
+      p = PQgetvalue(pres, i, 2);
+      expired = p && (*p == 't' || *p == 'T');
+      id_table->add(PQgetvalue(pres, i, 0), PQgetvalue(pres, i, 1), expired);
+    }
     int last_seq = atoi(PQgetvalue(pres, count - 1, 1));
     id_table->last_sequence(last_seq);
   }

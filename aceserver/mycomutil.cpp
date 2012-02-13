@@ -365,12 +365,12 @@ bool MyFilePaths::exist(const char * path)
   return (::stat(path, &buf) == 0);
 }
 
-bool MyFilePaths::make_path(const char* path)
+bool MyFilePaths::make_path(const char* path, bool self_only)
 {
-  return (mkdir(path, S_IRWXU) == 0 || ACE_OS::last_error() == EEXIST);
+  return (mkdir(path, self_only? DIR_FLAG_SELF : DIR_FLAG_ALL) == 0 || ACE_OS::last_error() == EEXIST);
 }
 
-bool MyFilePaths::make_path(char * path, int prefix_len, bool is_file)
+bool MyFilePaths::make_path(char * path, int prefix_len, bool is_file, bool self_only)
 {
   if (!path || !*path)
     return false;
@@ -380,12 +380,10 @@ bool MyFilePaths::make_path(char * path, int prefix_len, bool is_file)
   while (*ptr == '/')
     ++ptr;
   char * end_ptr;
-  bool result = true;
   while ((end_ptr = strchr(ptr, '/')) != NULL)
   {
     *end_ptr = 0;
-    result = (mkdir(path, S_IRWXU) == 0 || ACE_OS::last_error() == EEXIST);
-    if (!result)
+    if (!make_path(path, self_only))
       return false;
     //MY_INFO("mkdir: %s\n", path);
     *end_ptr = '/';
@@ -393,32 +391,32 @@ bool MyFilePaths::make_path(char * path, int prefix_len, bool is_file)
   }
 
   if (!is_file)
-    result = (mkdir(path, S_IRWXU) == 0 || ACE_OS::last_error() == EEXIST);
+    return make_path(path, self_only);
     //MY_INFO("mkdir: %s\n", path);
-  return result;
+  return true;
 }
 
-bool MyFilePaths::make_path_const(const char* path, int prefix_len, bool is_file)
+bool MyFilePaths::make_path_const(const char* path, int prefix_len, bool is_file, bool self_only)
 {
   MyPooledMemGuard path_copy;
   path_copy.init_from_string(path);
-  return MyFilePaths::make_path(path_copy.data(), prefix_len, is_file);
+  return MyFilePaths::make_path(path_copy.data(), prefix_len, is_file, self_only);
 }
 
-bool MyFilePaths::make_path(const char * path, const char * subpath, bool is_file)
+bool MyFilePaths::make_path(const char * path, const char * subpath, bool is_file, bool self_only)
 {
   if (unlikely(!path || !subpath))
     return false;
   MyPooledMemGuard path_x;
   path_x.init_from_string(path, "/", subpath);
-  return make_path(path_x.data(), strlen(path) + 1, is_file);
+  return make_path(path_x.data(), strlen(path) + 1, is_file, self_only);
 }
 
-bool MyFilePaths::copy_path(const char * srcdir, const char * destdir)
+bool MyFilePaths::copy_path(const char * srcdir, const char * destdir, bool self_only)
 {
   if (unlikely(!srcdir || !*srcdir || !destdir || !*destdir))
     return false;
-  if (mkdir(destdir, S_IRWXU) == -1 && ACE_OS::last_error() != EEXIST)
+  if (!make_path(destdir, self_only))
   {
     MY_ERROR("can not create directory %s, %s\n", destdir, (const char *)MyErrno());
     return false;
@@ -451,7 +449,7 @@ bool MyFilePaths::copy_path(const char * srcdir, const char * destdir)
 
     if (entry->d_type == DT_REG)
     {
-      if (!copy_file(msrc.data(), mdest.data()))
+      if (!copy_file(msrc.data(), mdest.data(), self_only))
       {
         MY_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (const char *)MyErrno());
         closedir(dir);
@@ -460,7 +458,7 @@ bool MyFilePaths::copy_path(const char * srcdir, const char * destdir)
     }
     else if(entry->d_type == DT_DIR)
     {
-      if (!copy_path(msrc.data(), mdest.data()))
+      if (!copy_path(msrc.data(), mdest.data(), self_only))
       {
         closedir(dir);
         return false;
@@ -555,12 +553,12 @@ bool MyFilePaths::copy_file_by_fd(int src_fd, int dest_fd)
   ACE_NOTREACHED(return true);
 }
 
-bool MyFilePaths::copy_file(const char * src, const char * dest)
+bool MyFilePaths::copy_file(const char * src, const char * dest, bool self_only)
 {
   MyUnixHandleGuard hsrc, hdest;
   if (!hsrc.open_read(src))
     return false;
-  if (!hdest.open_write(dest, true, true, false))
+  if (!hdest.open_write(dest, true, true, false, self_only))
     return false;
   return copy_file_by_fd(hsrc.handle(), hdest.handle());
 }
@@ -617,7 +615,7 @@ void MyTestClientPathGenerator::make_paths(const char * app_data_path, int64_t _
   {
     ACE_OS::snprintf(str_client_id, 64 - 1, "%lld", (long long)id);
     client_id_to_path(str_client_id, buff + prefix_len, PATH_MAX - prefix_len - 1);
-    MyFilePaths::make_path(buff, prefix_len + 1, false);
+    MyFilePaths::make_path(buff, prefix_len + 1, false, true);
   }
 }
 
@@ -635,7 +633,7 @@ void MyTestClientPathGenerator::make_paths_from_id_table(const char * app_data_p
     id_table->value(i, &id);
     ACE_OS::snprintf(str_client_id, 64, "%s", id.as_string());
     client_id_to_path(str_client_id, buff + prefix_len, PATH_MAX - prefix_len - 1);
-    MyFilePaths::make_path(buff, prefix_len + 1, false);
+    MyFilePaths::make_path(buff, prefix_len + 1, false, true);
   }
 }
 
@@ -660,6 +658,37 @@ bool MyTestClientPathGenerator::client_id_to_path(const char * id, char * result
 }
 
 #endif
+
+
+//MyUnixHandleGuard//
+
+bool MyUnixHandleGuard::do_open(const char * filename, bool readonly, bool create, bool truncate, bool append, bool self_only)
+{
+  int fd;
+  if (unlikely(!filename || !*filename))
+    return false;
+  if (readonly)
+    fd = ::open(filename, O_RDONLY);//O_CREAT | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
+  else
+  {
+    int flag = O_RDWR;
+    if (create)
+      flag |= O_CREAT;
+    if (truncate)
+      flag |= O_TRUNC;
+    if (append)
+      flag |= O_APPEND;
+    fd = ::open(filename, flag, (self_only ? MyFilePaths::FILE_FLAG_SELF : MyFilePaths::FILE_FLAG_ALL));
+  }
+  if (fd < 0)
+  {
+    MY_ERROR("can not open file %s, %s\n", filename, (const char *)MyErrno());
+    return false;
+  }
+  attach(fd);
+  return true;
+}
+
 
 //MyMemPoolFactory//
 

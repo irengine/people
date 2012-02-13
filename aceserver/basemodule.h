@@ -83,10 +83,14 @@ class MyClientInfo
 {
 public:
   MyClientInfo();
-  MyClientInfo(const MyClientID & id);
+  MyClientInfo(const MyClientID & id, const char * _ftp_password = NULL, bool _expired = false);
+  void set_password(const char * _ftp_password);
 
   bool active;
+  bool expired;
   MyClientID client_id;
+  enum { FTP_PASSWORD_LEN = 24 };
+  char ftp_password[FTP_PASSWORD_LEN];
 };
 
 class MyClientIDTable
@@ -96,7 +100,7 @@ public:
   ~MyClientIDTable();
   bool contains(const MyClientID & id);
   void add(const MyClientID & id);
-  void add(const char * str_id);
+  void add(const char * str_id, const char *ftp_password = NULL, bool expired = false);
   void add_batch(char * idlist); //in the format of "12334434;33222334;34343111;..."
   int  index_of(const MyClientID & id);
   int  count();
@@ -118,7 +122,7 @@ private:
 //  typedef std::vector<MyClientID, MyAllocator<MyClientID> > ClientIDTable_type;
 //  typedef std::map<MyClientID, int, std::less<MyClientID>, MyAllocator<std::pair<const MyClientID,int> > > ClientIDTable_map;
   int index_of_i(const MyClientID & id, ClientIDTable_map::iterator * pIt = NULL);
-  void add_i(const MyClientID & id);
+  void add_i(const MyClientID & id, const char *ftp_password, bool expired);
   ClientIDTable_type  m_table;
   ClientIDTable_map   m_map;
   ACE_RW_Thread_Mutex m_mutex;

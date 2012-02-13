@@ -181,25 +181,23 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
   MyPooledMemGuard mfile;
   MyPooledMemGuard mdestfile;
   destdir.init_from_string(MyConfigX::instance()->compressed_store_path.c_str(), "/", http_dist_request.ver);
-  if (!MyFilePaths::make_path(destdir.data()))
+  if (!MyFilePaths::make_path(destdir.data(), false))
   {
     MY_ERROR("can not create directory %s, %s\n", destdir.data(), (const char *)MyErrno());
     goto __exit__;
   }
 
-//  if (*http_dist_request.type != '0')
-//  {
-    composite_dir.init_from_string(destdir.data(), "/", composite_path());
-    if (!MyFilePaths::make_path(composite_dir.data()))
-    {
-      MY_ERROR("can not create directory %s, %s\n", composite_dir.data(), (const char *)MyErrno());
+
+  composite_dir.init_from_string(destdir.data(), "/", composite_path());
+  if (!MyFilePaths::make_path(composite_dir.data(), false))
+  {
+    MY_ERROR("can not create directory %s, %s\n", composite_dir.data(), (const char *)MyErrno());
+    goto __exit__;
+  }
+  all_in_one.init_from_string(composite_dir.data(), "/all_in_one.mbz");
+  if (*http_dist_request.type != '0')
+    if (!m_compositor.open(all_in_one.data()))
       goto __exit__;
-    }
-    all_in_one.init_from_string(composite_dir.data(), "/all_in_one.mbz");
-    if (*http_dist_request.type != '0')
-      if (!m_compositor.open(all_in_one.data()))
-        goto __exit__;
-//  }
 
   MyFilePaths::cat_path(http_dist_request.fdir, http_dist_request.findex, mfile);
   mdestfile.init_from_string(destdir.data(), "/", (http_dist_request.findex? http_dist_request.findex: http_dist_request.aindex), ".mbz");
@@ -257,7 +255,7 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
   if (unlikely(!src_path || !*src_path || !dest_path || !*dest_path))
     return false;
 
-  if (!MyFilePaths::make_path(dest_path))
+  if (!MyFilePaths::make_path(dest_path, false))
   {
     MY_ERROR("can not create directory %s, %s\n", dest_path, (const char *)MyErrno());
     return false;
@@ -277,7 +275,7 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
   int dest_middle_leading_path_len = len1 - prefix_len;
   if (dest_middle_leading_path_len > 0)
   {
-    if (!MyFilePaths::make_path(dest_path, src_path + prefix_len + 1, false))
+    if (!MyFilePaths::make_path(dest_path, src_path + prefix_len + 1, false, false))
     {
       MY_ERROR("failed to create dir %s%s %s\n", dest_path, src_path + prefix_len, (const char*)MyErrno());
       return false;

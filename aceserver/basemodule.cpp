@@ -116,12 +116,26 @@ const char * MyMfileSplitter::translate(const char * src)
 MyClientInfo::MyClientInfo()
 {
   active = false;
+  expired = false;
+  ftp_password[0] = 0;
 }
 
-MyClientInfo::MyClientInfo(const MyClientID & id)
+MyClientInfo::MyClientInfo(const MyClientID & id, const char * _ftp_password, bool _expired): client_id(id)
 {
   active = false;
-  client_id = id;
+  expired = _expired;
+  set_password(_ftp_password);
+}
+
+void MyClientInfo::set_password(const char * _ftp_password)
+{
+  if (!_ftp_password || !*_ftp_password)
+  {
+    ftp_password[0] = 0;
+    return;
+  }
+
+  ACE_OS::strsncpy(ftp_password, _ftp_password, FTP_PASSWORD_LEN);
 }
 
 
@@ -143,11 +157,11 @@ bool MyClientIDTable::contains(const MyClientID & id)
   return (index_of(id) >= 0);
 }
 
-void MyClientIDTable::add_i(const MyClientID & id)
+void MyClientIDTable::add_i(const MyClientID & id, const char *ftp_password, bool expired)
 {
   if (index_of_i(id) >= 0)
     return;
-  MyClientInfo info(id);
+  MyClientInfo info(id, ftp_password, expired);
   m_table.push_back(info);
   m_map[id] = m_table.size() - 1;
 }
@@ -155,12 +169,12 @@ void MyClientIDTable::add_i(const MyClientID & id)
 void MyClientIDTable::add(const MyClientID &id)
 {
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
-  add_i(id);
+  add_i(id, NULL, false);
 }
 
-void MyClientIDTable::add(const char * str_id)
+void MyClientIDTable::add(const char * str_id, const char *ftp_password, bool expired)
 {
-  if (!str_id)
+  if (unlikely(!str_id || !*str_id))
     return;
   while (*str_id == ' ')
     str_id++;
@@ -169,7 +183,7 @@ void MyClientIDTable::add(const char * str_id)
   MyClientID id(str_id);
   id.trim_tail_space();
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
-  add_i(id);
+  add_i(id, ftp_password, expired);
 }
 
 void MyClientIDTable::add_batch(char * idlist)
@@ -188,7 +202,7 @@ void MyClientIDTable::add_batch(char * idlist)
     if (!*token)
       continue;
     MyClientID id(token);
-    add_i(id);
+    add_i(id, NULL, false);
   }
 }
 
@@ -767,7 +781,7 @@ bool MyBaseArchiveWriter::open(const char * dir, const char * filename)
 
 bool MyBaseArchiveWriter::do_open()
 {
-  return m_file.open_write(m_file_name.data(), true, true, false);
+  return m_file.open_write(m_file_name.data(), true, true, false, false);
 }
 
 bool MyBaseArchiveWriter::write(char * buff, int buff_len)
@@ -1107,7 +1121,7 @@ bool MyBZCompressor::decompress(const char * srcfn, const char * destdir, const 
     if (unlikely(!_file_name))
       return false;
 
-    if (!MyFilePaths::make_path(destdir, _file_name, true))
+    if (!MyFilePaths::make_path(destdir, _file_name, true, true))
     {
       MY_ERROR("can not mkdir %s/%s %s\n", destdir, _file_name, (const char*)MyErrno());
       return false;
@@ -1147,7 +1161,7 @@ bool MyBZCompressor::decompress(const char * srcfn, const char * destdir, const 
 
 bool MyBZCompositor::open(const char * filename)
 {
-  return m_file.open_write(filename, true, true, true);
+  return m_file.open_write(filename, true, true, true, false);
 }
 
 void MyBZCompositor::close()
@@ -1248,6 +1262,7 @@ int MyBaseProcessor::handle_input()
 
 bool MyBaseProcessor::can_send_data(ACE_Message_Block * mb) const
 {
+  ACE_UNUSED_ARG(mb);
   return true;
 }
 

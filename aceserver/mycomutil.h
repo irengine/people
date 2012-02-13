@@ -170,12 +170,12 @@ public:
 
   bool open_read(const char * filename)
   {
-    return do_open(filename, true, false, false, false);
+    return do_open(filename, true, false, false, false, false);
   }
 
-  bool open_write(const char * filename, bool create, bool truncate, bool append)
+  bool open_write(const char * filename, bool create, bool truncate, bool append, bool self_only)
   {
-    return do_open(filename, false, create, truncate, append);
+    return do_open(filename, false, create, truncate, append, self_only);
   }
 
   int handle() const
@@ -202,33 +202,7 @@ public:
   }
 
 private:
-  bool do_open(const char * filename, bool readonly, bool create, bool truncate, bool append)
-  {
-    int fd;
-    if (unlikely(!filename || !*filename))
-      return false;
-    if (readonly)
-      fd = ::open(filename, O_RDONLY);//O_CREAT | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
-    else
-    {
-      int flag = O_RDWR;
-      if (create)
-        flag |= O_CREAT;
-      if (truncate)
-        flag |= O_TRUNC;
-      if (append)
-        flag |= O_APPEND;
-      fd = ::open(filename, flag, S_IRUSR | S_IWUSR);
-    }
-    if (fd < 0)
-    {
-      MY_ERROR("can not open file %s, %s\n", filename, (const char *)MyErrno());
-      return false;
-    }
-    attach(fd);
-    return true;
-  }
-
+  bool do_open(const char * filename, bool readonly, bool create, bool truncate, bool append, bool self_only);
   int m_handle;
 };
 
@@ -613,15 +587,22 @@ public:
 class MyFilePaths
 {
 public:
+  enum
+  {
+    FILE_FLAG_SELF = S_IRUSR | S_IWUSR,
+    FILE_FLAG_ALL = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH,
+    DIR_FLAG_SELF = S_IRWXU,
+    DIR_FLAG_ALL = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH
+  };
   static bool exist(const char * path);
-  static bool make_path(const char* path);
-  static bool make_path(char* path, int prefix_len, bool is_file);
-  static bool make_path_const(const char* path, int prefix_len, bool is_file);
-  static bool make_path(const char * path, const char * subpath, bool is_file);
-  static bool copy_path(const char * srcdir, const char * destdir);
+  static bool make_path(const char* path, bool self_only);
+  static bool make_path(char* path, int prefix_len, bool is_file, bool self_only);
+  static bool make_path_const(const char* path, int prefix_len, bool is_file, bool self_only);
+  static bool make_path(const char * path, const char * subpath, bool is_file, bool self_only);
+  static bool copy_path(const char * srcdir, const char * destdir, bool self_only);
   static bool remove_path(const char * path);
   static bool copy_file_by_fd(int src_fd, int dest_fd);
-  static bool copy_file(const char * src, const char * dest);
+  static bool copy_file(const char * src, const char * dest, bool self_only);
   static int  cat_path(const char * path, const char * subpath, MyPooledMemGuard & result);
   static bool get_correlate_path(MyPooledMemGuard & pathfile, int skip);
   static bool remove(const char *pathfile);
