@@ -478,7 +478,10 @@ void MyHeartBeatProcessor::do_ping()
 MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message_Block * mb)
 {
   MyMessageBlockGuard guard(mb);
-  MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, MyServerAppX::instance()->client_id_table());
+
+  MyClientIDTable & client_id_table = MyServerAppX::instance()->client_id_table();
+
+  MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, client_id_table);
   if (ret != ER_CONTINUE)
     return ret;
 
@@ -490,14 +493,19 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
 
   m_ip_ver_submitter->add_data(m_client_id.as_string(), m_client_id_length, m_peer_addr, m_client_version.to_string());
 
+  MyClientInfo client_info;
+  client_id_table.value_all(m_client_id_index, client_info);
+
   ACE_Message_Block * reply_mb;
   if (m_client_version < MyConfigX::instance()->client_version_minimum)
-    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_MISMATCH);
+    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_MISMATCH, client_info.password_len + 1);
   else if (m_client_version < MyConfigX::instance()->client_version_current)
-    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK_CAN_UPGRADE);
+    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK_CAN_UPGRADE, client_info.password_len + 1);
   else
-    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK);
+    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK, client_info.password_len + 1);
 
+  MyClientVersionCheckReply * vcr = (MyClientVersionCheckReply *) reply_mb->base();
+  ACE_OS::memcpy(vcr->data, client_info.ftp_password, client_info.password_len + 1);
   if (m_handler->send_data(reply_mb) < 0)
     return ER_ERROR;
   else

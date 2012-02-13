@@ -86,11 +86,13 @@ public:
   MyClientInfo(const MyClientID & id, const char * _ftp_password = NULL, bool _expired = false);
   void set_password(const char * _ftp_password);
 
+  enum { FTP_PASSWORD_LEN = 24 };
+
   bool active;
   bool expired;
   MyClientID client_id;
-  enum { FTP_PASSWORD_LEN = 24 };
   char ftp_password[FTP_PASSWORD_LEN];
+  int  password_len;
 };
 
 class MyClientIDTable
@@ -105,6 +107,7 @@ public:
   int  index_of(const MyClientID & id);
   int  count();
   bool value(int index, MyClientID * id);
+  bool value_all(int index, MyClientInfo & client_info);
   bool active(const MyClientID & id, int & index);
 //  void active(const MyClientID & id, bool _active);
   bool active(int index);

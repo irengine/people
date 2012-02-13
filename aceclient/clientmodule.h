@@ -127,7 +127,7 @@ public:
   bool change_remote_dir(const char * dirname);
   bool get_file(const char *filename, const char * localfile);
 
-  static bool download(const char * client_id, const char *remote_ip, const char *filename, const char * localfile);
+  static bool download(const char * client_id, const char *remote_ip, const char * ftp_password, const char *filename, const char * localfile);
 
 private:
   enum { TIME_OUT_SECONDS = 30, MAX_BUFSIZE = 4096 };
@@ -230,6 +230,7 @@ public:
 
   MyPooledMemGuard file_name;
   MyPooledMemGuard file_password;
+  MyPooledMemGuard ftp_password;
   int  status;
   time_t recv_time;
   MyPooledMemGuard local_file_name;
@@ -292,6 +293,7 @@ private:
   MyBaseProcessor::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
 
   bool m_version_check_reply_done;
+  MyPooledMemGuard m_ftp_password;
 };
 
 class MyDistServerAddrList

@@ -291,7 +291,6 @@ public:
     data()->client_id.fix_data();
     return true;
   }
-
 };
 
 
@@ -336,13 +335,8 @@ public:
   virtual bool validate_data() const
   {
     MyClientVersionCheckReply * pData = data();
-    if (pData->reply_code >= MyClientVersionCheckReply::VER_OK &&
-        pData->reply_code < MyClientVersionCheckReply::VER_SERVER_LIST)
-      return pData->length == (int)sizeof(MyClientVersionCheckReply);
-    else
-      return (pData->reply_code == MyClientVersionCheckReply::VER_SERVER_LIST) &&
-             (pData->length >= (int)sizeof(MyClientVersionCheckReply)) &&
-             (pData->length <= (int)sizeof(MyClientVersionCheckReply) + MyClientVersionCheckReply::MAX_REPLY_DATA_LENGTH);
+    return (pData->reply_code >= MyClientVersionCheckReply::VER_OK &&
+        pData->reply_code <= MyClientVersionCheckReply::VER_SERVER_LIST);
   }
 
   virtual MyClientVersionCheckReply * data() const

@@ -101,7 +101,7 @@ void MyDistLoads::calc_server_list()
   *ptr = 0;
 
   int ftp_list_len = MyConfigX::instance()->ftp_addr_list.length();
-  if (unlikely(ftp_list_len + 2 > remain_len))
+  if (unlikely(ftp_list_len + 3 > remain_len))
     MY_ERROR("ftp server addr list is too long @MyDistLoads::calc_server_list()\n");
   else
   {
@@ -185,7 +185,9 @@ MyBaseProcessor::EVENT_RESULT MyLocationProcessor::do_version_check(ACE_Message_
 {
   MyMessageBlockGuard guard(mb);
 
-  MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, MyServerAppX::instance()->client_id_table());
+  MyClientIDTable & client_id_table = MyServerAppX::instance()->client_id_table();
+
+  MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, client_id_table);
   if (ret != ER_CONTINUE)
     return ret;
 

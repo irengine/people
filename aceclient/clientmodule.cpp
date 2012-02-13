@@ -247,7 +247,7 @@ MyFTPClient::~MyFTPClient()
   m_peer.close();
 }
 
-bool MyFTPClient::download(const char * client_id, const char *remote_ip, const char *filename, const char * localfile)
+bool MyFTPClient::download(const char * client_id, const char *remote_ip, const char * ftp_password, const char *filename, const char * localfile)
 {
   MyFTPClient ftp_client(remote_ip, 21, "root", "111111");
   if (!ftp_client.login())
@@ -1207,6 +1207,8 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_M
   dist_ftp->client_id = m_client_id;
   dist_ftp->client_id_index = m_client_id_index;
 #endif
+  dist_ftp->ftp_password.init_from_string(m_ftp_password.data());
+
   if (dist_ftp->load_from_string(packet->data))
   {
     MY_INFO("received one ftp command for dist %s: password = %s, file name = %s\n",
@@ -1232,20 +1234,26 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
   m_version_check_reply_done = true;
 
   const char * prefix_msg = "dist server version check reply:";
-  MyClientVersionCheckReplyProc vcr;
-  vcr.attach(mb->base());
-  switch (vcr.data()->reply_code)
+  MyClientVersionCheckReply * vcr;
+  vcr = (MyClientVersionCheckReply *)mb->base();
+  switch (vcr->reply_code)
   {
   case MyClientVersionCheckReply::VER_OK:
  //   MY_INFO("%s OK\n", prefix_msg);
+    if (vcr->length > sizeof(MyClientVersionCheckReply) + 1)
+      m_ftp_password.init_from_string(vcr->data);
     return MyBaseProcessor::ER_OK;
 
   case MyClientVersionCheckReply::VER_OK_CAN_UPGRADE:
+    if (vcr->length > sizeof(MyClientVersionCheckReply) + 1)
+      m_ftp_password.init_from_string(vcr->data);
     MY_INFO("%s get version can upgrade response\n", prefix_msg);
     //todo: notify app to upgrade
     return MyBaseProcessor::ER_OK;
 
   case MyClientVersionCheckReply::VER_MISMATCH:
+    if (vcr->length > sizeof(MyClientVersionCheckReply) + 1)
+      m_ftp_password.init_from_string(vcr->data);
     MY_ERROR("%s get version mismatch response\n", prefix_msg);
     //todo: notify app to upgrade
     return MyBaseProcessor::ER_ERROR;
@@ -1259,7 +1267,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
     return MyBaseProcessor::ER_ERROR;
 
   default: //server_list
-    MY_ERROR("%s get unknown reply code = %d\n", prefix_msg, vcr.data()->reply_code);
+    MY_ERROR("%s get unknown reply code = %d\n", prefix_msg, vcr->reply_code);
     return MyBaseProcessor::ER_ERROR;
   }
 }
@@ -1793,7 +1801,7 @@ bool MyClientFtpService::do_ftp_download(MyDistInfoFtp * dist_info, const char *
   MY_INFO("processing ftp download for dist_id=%s, filename=%s, password=%s\n",
       dist_info->dist_id.data(), dist_info->file_name.data(), dist_info->file_password.data());
   dist_info->calc_local_file_name();
-  bool result = MyFTPClient::download(dist_info->dist_id.data(), server_ip, dist_info->file_name.data(), dist_info->local_file_name.data());
+  bool result = MyFTPClient::download(dist_info->dist_id.data(), server_ip, dist_info->file_password.data(), dist_info->file_name.data(), dist_info->local_file_name.data());
   dist_info->touch();
   if (result)
   {

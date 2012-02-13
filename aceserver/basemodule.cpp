@@ -117,7 +117,7 @@ MyClientInfo::MyClientInfo()
 {
   active = false;
   expired = false;
-  ftp_password[0] = 0;
+  set_password(NULL);
 }
 
 MyClientInfo::MyClientInfo(const MyClientID & id, const char * _ftp_password, bool _expired): client_id(id)
@@ -132,10 +132,12 @@ void MyClientInfo::set_password(const char * _ftp_password)
   if (!_ftp_password || !*_ftp_password)
   {
     ftp_password[0] = 0;
+    password_len = 0;
     return;
   }
 
   ACE_OS::strsncpy(ftp_password, _ftp_password, FTP_PASSWORD_LEN);
+  password_len  = ACE_OS::strlen(ftp_password);
 }
 
 
@@ -238,9 +240,18 @@ bool MyClientIDTable::value(int index, MyClientID * id)
   if (unlikely(index < 0) || !id)
     return false;
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
-  if (unlikely(index >= (int)m_table.size()))
+  if (unlikely(index >= (int)m_table.size() || index < 0))
     return false;
   *id = m_table[index].client_id;
+  return true;
+}
+
+bool MyClientIDTable::value_all(int index, MyClientInfo & client_info)
+{
+  ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
+  if (unlikely(index >= (int)m_table.size() || index < 0))
+    return false;
+  client_info = m_table[index];
   return true;
 }
 
@@ -1565,11 +1576,18 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE
   MyClientVersionCheckRequestProc vcr;
   vcr.attach(mb->base());
   vcr.validate_data();
-  int client_id_index = -1;
   ACE_Message_Block * reply_mb = NULL;
   m_client_version.init(vcr.data()->client_version_major, vcr.data()->client_version_minor);
-  client_id_index = client_id_table.index_of(vcr.data()->client_id);
-  if (client_id_index < 0)
+  int client_id_index = client_id_table.index_of(vcr.data()->client_id);
+  bool valid = false;
+
+  if (client_id_index >= 0)
+  {
+    MyClientInfo client_info;
+    if (client_id_table.value_all(client_id_index, client_info))
+      valid = ! client_info.expired;
+  }
+  if (!valid)
   {
     m_wait_for_close = true;
     MY_WARNING(ACE_TEXT("closing connection due to invalid client_id = %s\n"), vcr.data()->client_id.as_string());
