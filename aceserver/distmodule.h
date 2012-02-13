@@ -83,13 +83,12 @@ public:
   MyClientFileDistributor();
 
   bool distribute();
-  bool check_dist_info();
-  bool check_dist_clients();
   void dist_ftp_file_reply(const char * client_id, const char * dist_id, int _status);
   void dist_ftp_md5_reply(const char * client_id, const char * dist_id, const char * md5list);
 
 private:
-
+  bool check_dist_info(bool reload);
+  bool check_dist_clients(bool reload);
   bool check_dist_info_one(MyHttpDistInfo * info);
 
   MyHttpDistInfos m_dist_infos;

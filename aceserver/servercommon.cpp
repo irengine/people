@@ -118,6 +118,11 @@ bool MyHttpDistRequest::need_md5() const
 
 //MyHttpDistInfos//
 
+MyHttpDistInfos::MyHttpDistInfos()
+{
+  last_dist_time.init_from_string(NULL);
+}
+
 MyHttpDistInfos::~MyHttpDistInfos()
 {
   clear();
@@ -137,9 +142,15 @@ void MyHttpDistInfos::add(MyHttpDistInfo *p)
     dist_infos.push_back(p);
 }
 
+bool MyHttpDistInfos::need_reload() const
+{
+  return (!MyServerAppX::instance()->db().dist_info_is_update(*this));
+}
+
 void MyHttpDistInfos::prepare_update()
 {
   clear();
+  last_dist_time.init_from_string(NULL);
 }
 
 MyHttpDistInfo * MyHttpDistInfos::find(const char * dist_id)

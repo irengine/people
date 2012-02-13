@@ -73,15 +73,18 @@ public:
 class MyHttpDistInfos
 {
 public:
+  MyHttpDistInfos();
   ~MyHttpDistInfos();
 
   typedef std::vector<MyHttpDistInfo *, MyAllocator<MyHttpDistInfo *> > MyHttpDistInfoList;
   void add(MyHttpDistInfo *);
+  bool need_reload() const;
   void prepare_update();
   void clear();
   MyHttpDistInfo * find(const char * dist_id);
 
   MyHttpDistInfoList dist_infos;
+  MyPooledMemGuard   last_dist_time;
 };
 
 class MyDistCompressor

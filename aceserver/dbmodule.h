@@ -41,6 +41,8 @@ public:
   bool set_dist_client_status(const char * client_id, const char * dist_id, int new_status);
   bool set_dist_client_md5(const char * client_id, const char * dist_id, const char * md5, int new_status);
   bool delete_dist_client(const char * client_id, const char * dist_id);
+  bool dist_info_is_update(const MyHttpDistInfos & infos);
+  bool dist_info_update_status();
 
 private:
   void disconnect();
@@ -52,6 +54,8 @@ private:
   void wrap_str(const char * s, MyPooledMemGuard & wrapped) const;
   time_t get_db_time_i();
   bool take_owner_ship(const char * table, const char * field, const char * old_time, const char * where_clause);
+  bool set_cfg_value(const int id, const char * value);
+  bool load_cfg_value(const int id, MyPooledMemGuard & value);
 
   PGconn * m_connection;
   MyPooledMemGuard m_server_addr;

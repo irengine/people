@@ -572,6 +572,12 @@ bool MyHttpService::handle_packet(ACE_Message_Block * mb)
     return false;
   }
 
+  if (!db.dist_info_update_status())
+  {
+    MY_ERROR("call to dist_info_update_status() failed\n");
+    return false;
+  }
+
   if (unlikely(!module_x()->running_with_app()))
     return false;
 

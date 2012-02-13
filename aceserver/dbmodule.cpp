@@ -380,7 +380,11 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
         info->password_len = ACE_OS::strlen(fvalue);
       }
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_time") == 0)
+      {
         info->dist_time.init_from_string(fvalue);
+        if (i  == count - 1)
+          infos.last_dist_time.init_from_string(fvalue);
+      }
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_aindex") == 0)
       {
         info->aindex.init_from_string(fvalue);
@@ -609,4 +613,54 @@ bool MyDB::delete_dist_client(const char * client_id, const char * dist_id)
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql);
+}
+
+bool MyDB::dist_info_is_update(const MyHttpDistInfos & infos)
+{
+  MyPooledMemGuard value;
+  if (!load_cfg_value(1, value))
+    return true;
+  return ACE_OS::strcmp(infos.last_dist_time.data(), value.data()) == 0;
+}
+
+bool MyDB::dist_info_update_status()
+{
+  int now = (int)time(NULL);
+  int x = random() % 0xFFFFFF;
+  char buff[64];
+  ACE_OS::snprintf(buff, 64, "%d-%d", now, x);
+  return set_cfg_value(1, buff);
+}
+
+bool MyDB::set_cfg_value(const int id, const char * value)
+{
+  const char * sql_template = "update tb_config set cfg_value = '%s' where cfg_id = %d";
+  char sql[1024];
+  ACE_OS::snprintf(sql, 1024, sql_template, id, value);
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  return exec_command(sql);
+}
+
+bool MyDB::load_cfg_value(const int id, MyPooledMemGuard & value)
+{
+  const char * CONST_select_sql_template = "select cfg_value from tb_config where cfg_id = %d";
+  char select_sql[1024];
+  ACE_OS::snprintf(select_sql, 1024, CONST_select_sql_template, id);
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  PGresult * pres = PQexec(m_connection, select_sql);
+  MyPGResultGuard guard(pres);
+  if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
+  {
+    MY_ERROR("MyDB::sql (%s) failed: %s\n", select_sql, PQerrorMessage(m_connection));
+    return false;
+  }
+  int count = PQntuples(pres);
+  if (count > 0)
+  {
+    value.init_from_string(PQgetvalue(pres, 0, 0));
+    return true;
+  } else
+    return false;
 }

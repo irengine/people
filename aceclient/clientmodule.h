@@ -19,6 +19,7 @@
 
 class MyClientToDistModule;
 class MyClientToDistConnector;
+class MyDistInfoFtp;
 class MyDistInfoFtps;
 
 const u_int8_t const_client_version_major = 1;
@@ -127,7 +128,7 @@ public:
   bool change_remote_dir(const char * dirname);
   bool get_file(const char *filename, const char * localfile);
 
-  static bool download(const char * client_id, const char *remote_ip, const char * ftp_password, const char *filename, const char * localfile);
+  static bool download(MyDistInfoFtp * dist_info, const char * server_ip);
 
 private:
   enum { TIME_OUT_SECONDS = 30, MAX_BUFSIZE = 4096 };

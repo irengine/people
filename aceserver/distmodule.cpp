@@ -262,16 +262,20 @@ MyClientFileDistributor::MyClientFileDistributor(): m_dist_clients(&m_dist_infos
 
 bool MyClientFileDistributor::distribute()
 {
-  if (!check_dist_info())
-    return false;
-  return check_dist_clients();
+  bool reload = m_dist_infos.need_reload();
+
+  check_dist_info(reload);
+  return check_dist_clients(reload);
 }
 
-bool MyClientFileDistributor::check_dist_info()
+bool MyClientFileDistributor::check_dist_info(bool reload)
 {
-  m_dist_infos.prepare_update();
-  if (MyServerAppX::instance()->db().load_dist_infos(m_dist_infos) <= 0)
-    return true;
+  if (reload)
+  {
+    m_dist_infos.prepare_update();
+    if (MyServerAppX::instance()->db().load_dist_infos(m_dist_infos) <= 0)
+      return true;
+  }
 
   int count = m_dist_infos.dist_infos.size();
   bool result = false;
@@ -316,12 +320,14 @@ bool MyClientFileDistributor::check_dist_info_one(MyHttpDistInfo * info)
   return true;
 }
 
-bool MyClientFileDistributor::check_dist_clients()
+bool MyClientFileDistributor::check_dist_clients(bool reload)
 {
-  m_dist_clients.clear();
-
-  if (!MyServerAppX::instance()->db().load_dist_clients(&m_dist_clients))
-    return false;
+  if (reload)
+  {
+    m_dist_clients.clear();
+    if (!MyServerAppX::instance()->db().load_dist_clients(&m_dist_clients))
+      return false;
+  }
 
   m_dist_clients.dist_files();
   return true;

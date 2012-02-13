@@ -132,7 +132,7 @@ bool MyClientDB::get_ftp_command_status(const char * dist_id, int & status)
   ACE_OS::snprintf(sql, 200, const_sql_template, dist_id);
 
   char *zErrMsg = 0;
-  if (sqlite3_exec(m_db, sql, load_ftp_commands_callback, &status, &zErrMsg) != SQLITE_OK)
+  if (sqlite3_exec(m_db, sql, get_ftp_commands_status_callback, &status, &zErrMsg) != SQLITE_OK)
   {
     MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
     if (zErrMsg)
@@ -247,14 +247,14 @@ MyFTPClient::~MyFTPClient()
   m_peer.close();
 }
 
-bool MyFTPClient::download(const char * client_id, const char *remote_ip, const char * ftp_password, const char *filename, const char * localfile)
+bool MyFTPClient::download(MyDistInfoFtp * dist_info, const char * server_ip)
 {
-  MyFTPClient ftp_client(remote_ip, 21, "root", "111111");
+  MyFTPClient ftp_client(server_ip, 21, dist_info->client_id.as_string(), dist_info->ftp_password.data());
   if (!ftp_client.login())
     return false;
   MyPooledMemGuard ftp_file_name;
-  ftp_file_name.init_from_string("compress_store/", client_id, "/", filename);
-  if (!ftp_client.get_file(ftp_file_name.data(), localfile))
+  ftp_file_name.init_from_string(dist_info->dist_id.data(), "/", dist_info->file_name.data());
+  if (!ftp_client.get_file(ftp_file_name.data(), dist_info->local_file_name.data()))
     return false;
   ftp_client.logout();
   return true;
@@ -1240,19 +1240,19 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
   {
   case MyClientVersionCheckReply::VER_OK:
  //   MY_INFO("%s OK\n", prefix_msg);
-    if (vcr->length > sizeof(MyClientVersionCheckReply) + 1)
+    if (vcr->length > (int)sizeof(MyClientVersionCheckReply) + 1)
       m_ftp_password.init_from_string(vcr->data);
     return MyBaseProcessor::ER_OK;
 
   case MyClientVersionCheckReply::VER_OK_CAN_UPGRADE:
-    if (vcr->length > sizeof(MyClientVersionCheckReply) + 1)
+    if (vcr->length > (int)sizeof(MyClientVersionCheckReply) + 1)
       m_ftp_password.init_from_string(vcr->data);
     MY_INFO("%s get version can upgrade response\n", prefix_msg);
     //todo: notify app to upgrade
     return MyBaseProcessor::ER_OK;
 
   case MyClientVersionCheckReply::VER_MISMATCH:
-    if (vcr->length > sizeof(MyClientVersionCheckReply) + 1)
+    if (vcr->length > (int)sizeof(MyClientVersionCheckReply) + 1)
       m_ftp_password.init_from_string(vcr->data);
     MY_ERROR("%s get version mismatch response\n", prefix_msg);
     //todo: notify app to upgrade
@@ -1801,7 +1801,7 @@ bool MyClientFtpService::do_ftp_download(MyDistInfoFtp * dist_info, const char *
   MY_INFO("processing ftp download for dist_id=%s, filename=%s, password=%s\n",
       dist_info->dist_id.data(), dist_info->file_name.data(), dist_info->file_password.data());
   dist_info->calc_local_file_name();
-  bool result = MyFTPClient::download(dist_info->dist_id.data(), server_ip, dist_info->file_password.data(), dist_info->file_name.data(), dist_info->local_file_name.data());
+  bool result = MyFTPClient::download(dist_info, server_ip);
   dist_info->touch();
   if (result)
   {
@@ -2073,7 +2073,6 @@ void MyClientToDistModule::check_ftp_timed_task()
       break;
     }
   }
-
 }
 
 bool MyClientToDistModule::on_start()
