@@ -335,8 +335,10 @@ class MyDistToBSProcessor: public MyBSBasePacketProcessor
 {
 public:
   typedef MyBSBasePacketProcessor super;
-
   MyDistToBSProcessor(MyBaseHandler * handler);
+
+protected:
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 };
 
 class MyDistToBSHandler: public MyBaseHandler

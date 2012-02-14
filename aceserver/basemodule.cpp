@@ -1522,11 +1522,22 @@ MyBaseProcessor::EVENT_RESULT MyBSBasePacketProcessor::on_recv_header()
   return (m_packet_header.check_header()? ER_OK : ER_ERROR);
 }
 
+MyBaseProcessor::EVENT_RESULT MyBSBasePacketProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+{
+  MyBSBasePacket * bspacket = (MyBSBasePacket *) mb->base();
+  if (!bspacket->guard())
+  {
+    MY_ERROR("bad packet recieved from bs, no tail terminator\n");
+    return ER_ERROR;
+  }
+  return ER_OK;
+}
 
 int MyBSBasePacketProcessor::packet_length()
 {
   return m_packet_header.packet_len();
 }
+
 
 //MyBaseServerProcessor//
 

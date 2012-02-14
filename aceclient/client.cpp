@@ -140,6 +140,11 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
   MyTestClientPathGenerator::make_paths_from_id_table(cfg->app_test_data_path.c_str(), &app->m_client_id_table);
   MyClientToDistHandler::init_mem_pool(app->m_client_id_table.count() * 1.2);
 #else
+  std::string path_x = cfg->app_path + "/data/download";
+  MyFilePaths::make_path(path_x.c_str(), true);
+  path_x = cfg->app_path + "/data/tmp";
+  MyFilePaths::make_path(path_x.c_str(), true);
+
   MyClientToDistHandler::init_mem_pool(100);
 #endif
   MyClientToMiddleHandler::init_mem_pool(20);

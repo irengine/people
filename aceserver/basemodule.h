@@ -706,6 +706,7 @@ protected:
   virtual int packet_length();
 
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 };
 
 class MyBaseServerProcessor: public MyBasePacketProcessor

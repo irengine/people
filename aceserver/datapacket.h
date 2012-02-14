@@ -468,6 +468,7 @@ public:
   bool check_header() const;
   void packet_cmd(const char * _cmd);
   bool is_cmd(const char * _cmd);
+  bool guard();
 
   char len[LEN_SIZE];
   char magic[4];

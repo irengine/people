@@ -45,11 +45,13 @@ bool MyBSBasePacket::check_header() const
   }
 
   int l = packet_len();
-  if (unlikely(l <= 0 || l > 10 * 1024 * 1024))
+  if (unlikely(l <= 15 || l > 10 * 1024 * 1024))
   {
     MY_ERROR("invalid len (= %d) bs packet\n", l);
     return false;
   }
+
+
 
   return true;
 }
@@ -82,4 +84,13 @@ bool MyBSBasePacket::is_cmd(const char * _cmd)
   if (unlikely(!_cmd || !*cmd))
     return false;
   return ACE_OS::memcmp(len, _cmd, 2) == 0;
+}
+
+bool MyBSBasePacket::guard()
+{
+  int len = packet_len();
+  if (data[len - 14 - 1] != '$')
+    return false;
+  data[len - 14 - 1] = 0;
+  return true;
 }

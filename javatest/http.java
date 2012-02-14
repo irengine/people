@@ -23,6 +23,7 @@ class http
       System.out.println("Sending url...");
       out.writeInt(len);
       out.writeBytes(args[1]);
+      out.flush();
       System.out.print("Received string: '");
       while (!in.ready()) 
       {}

@@ -78,7 +78,7 @@ public class RequestProcessor implements Runnable
       System.out.println("ERROR: bad header magic:" + s_magic);
       return false;
     }
-
+    
     result.append(header);
 
     char buff[] = new char[len - header.length];
@@ -107,9 +107,51 @@ public class RequestProcessor implements Runnable
 
   private boolean handle_request(StringBuffer request, Writer out)
   {
+    String s_cmd = request.substring(12, 12 + 2);
+    int data_len = request.length() - 15;
+    String s_data = request.substring(14, 14 + data_len);
+    System.out.println("cmd=" + s_cmd + "data=" + s_data);
+    if (s_cmd.compareTo("01") == 0) //ip ver
+    {
+      return send_reply(out, s_cmd, "1");
+    } else if (s_cmd.compareTo("06") == 0) //patch file
+    {
+      
+    } else
+    {
+      return send_reply(out, s_cmd, "1");
+    }
+    
     return true;
   }
 
+  private boolean send_reply(Writer out, String s_cmd, String s_reply_data)
+  {
+    int len = 15 + s_reply_data.length();
+    String s_len = Integer.toString(len);
+    StringBuffer reply = new StringBuffer();
+    for (int i = 1; i <= 8 - s_len.length(); ++ i)
+      reply.append('0');
+    reply.append(s_len);
+    reply.append("vc5X");
+    reply.append(s_cmd);
+    reply.append(s_reply_data);
+    reply.append('$');
+    System.out.println("reply:" + reply);
+    String s_reply = reply.toString();
+    try      
+    {
+      out.write(s_reply);   
+      out.flush();
+    }
+    catch (IOException e) 
+    {
+      System.out.println("ERROR: " + e.getMessage());
+      return false;
+    }
+    return true;
+  }
+  
   public void run() 
   {
     while (true) 

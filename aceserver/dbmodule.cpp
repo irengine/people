@@ -636,7 +636,7 @@ bool MyDB::set_cfg_value(const int id, const char * value)
 {
   const char * sql_template = "update tb_config set cfg_value = '%s' where cfg_id = %d";
   char sql[1024];
-  ACE_OS::snprintf(sql, 1024, sql_template, id, value);
+  ACE_OS::snprintf(sql, 1024, sql_template, value, id);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql);

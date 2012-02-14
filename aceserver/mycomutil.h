@@ -600,7 +600,8 @@ public:
   static bool make_path_const(const char* path, int prefix_len, bool is_file, bool self_only);
   static bool make_path(const char * path, const char * subpath, bool is_file, bool self_only);
   static bool copy_path(const char * srcdir, const char * destdir, bool self_only);
-  static bool remove_path(const char * path);
+  static bool copy_path_zap(const char * srcdir, const char * destdir, bool self_only, bool zap);
+  static bool remove_path(const char * path, bool ignore_eror);
   static bool copy_file_by_fd(int src_fd, int dest_fd);
   static bool copy_file(const char * src, const char * dest, bool self_only);
   static int  cat_path(const char * path, const char * subpath, MyPooledMemGuard & result);

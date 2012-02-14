@@ -1092,6 +1092,17 @@ MyDistToBSProcessor::MyDistToBSProcessor(MyBaseHandler * handler): super(handler
 
 }
 
+MyBaseProcessor::EVENT_RESULT MyDistToBSProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+
+  if (super::on_recv_packet_i(mb) != ER_OK)
+    return ER_ERROR;
+  //MyBSBasePacket * bspacket = (MyBSBasePacket *) mb->base();
+  MY_INFO("got a bs reply packet:%s\n", mb->base());
+  return ER_OK;
+}
+
 
 //MyDistToBSHandler//
 

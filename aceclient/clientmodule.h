@@ -267,9 +267,9 @@ public:
   MyDistFtpFileExtractor();
 
   bool extract(MyDistInfoFtp * dist_info);
-
+  bool get_true_dest_path(MyDistInfoFtp * dist_info, MyPooledMemGuard & target_path);
 private:
-
+  bool do_extract(MyDistInfoFtp * dist_info);
   MyDistInfoFtp * m_dist_info;
 };
 

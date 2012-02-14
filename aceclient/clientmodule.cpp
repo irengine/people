@@ -343,7 +343,7 @@ bool MyFTPClient::login()
   {
     if (!this->recv() || !is_response("331"))
     {
-      MY_ERROR("ftp no/bad response on USER command to server %s\n", m_ftp_server_addr.data());
+      MY_ERROR("ftp no/bad response on USER command to server %s, user=%s\n", m_ftp_server_addr.data(), this->m_user_name.c_str());
       return false;
     }
   }
@@ -353,12 +353,12 @@ bool MyFTPClient::login()
   {
     if (!this->recv() || !is_response("230"))
     {
-      MY_ERROR("ftp no/bad response on PASS command to server %s\n", m_ftp_server_addr.data());
+      MY_ERROR("ftp no/bad response on PASS command to server %s, user=%s\n", m_ftp_server_addr.data(), this->m_user_name.c_str());
       return false;
     }
   }
 
-  MY_INFO("ftp authentication to server %s OK\n", m_ftp_server_addr.data());
+  MY_INFO("ftp authentication  to server %s OK, user=%s\n", m_ftp_server_addr.data(), this->m_user_name.c_str());
   return true;
 }
 
@@ -597,12 +597,21 @@ int MyDistInfoHeader::load_header_from_string(char * src)
 void MyDistInfoHeader::calc_target_parent_path(MyPooledMemGuard & target_parent_path, bool extract_only)
 {
   ACE_UNUSED_ARG(extract_only); //todo: act according to extract_only
-
+  if (!extract_only)
+  {
 #ifdef MY_client_test
-  MyClientApp::data_path(target_parent_path, client_id.as_string());
+    MyPooledMemGuard path_x;
+    MyClientApp::data_path(path_x, client_id.as_string());
+    target_parent_path.init_from_string(path_x.data(), "/daily");
 #else
-  MyClientApp::data_path(target_parent_path);
+    target_parent_path.init_from_string("/tmp/daily");
 #endif
+  } else //extract only
+  {
+    MyPooledMemGuard path_x;
+    MyClientApp::data_path(path_x, client_id.as_string());
+    target_parent_path.init_from_string(path_x.data(), "/tmp/", dist_id.data());
+  }
 }
 
 bool MyDistInfoHeader::calc_target_path(const char * target_parent_path, MyPooledMemGuard & target_path)
@@ -730,7 +739,7 @@ void MyDistInfoFtp::calc_local_file_name()
 #else
   MyClientApp::data_path(app_data_path);
 #endif
-  local_file_name.init_from_string(app_data_path.data(), "/", dist_id.data(), ".mbz");
+  local_file_name.init_from_string(app_data_path.data(), "/download/", dist_id.data(), ".mbz");
 }
 
 void MyDistInfoFtp::post_status_message() const
@@ -821,14 +830,46 @@ MyDistFtpFileExtractor::MyDistFtpFileExtractor()
   m_dist_info = NULL;
 }
 
+bool MyDistFtpFileExtractor::get_true_dest_path(MyDistInfoFtp * dist_info, MyPooledMemGuard & target_path)
+{
+  MyPooledMemGuard target_parent_path;
+  dist_info->calc_target_parent_path(target_parent_path, false);
+  return dist_info->calc_target_path(target_parent_path.data(), target_path);
+}
+
 bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
+{
+  if (!do_extract(dist_info))
+  {
+#ifdef MY_client_test
+    MY_ERROR("apply update failed for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
+#else
+    MY_ERROR("apply update failed for dist_id(%s)\n", dist_info->dist_id.data());
+#endif
+    return false;
+  } else
+  {
+#ifdef MY_client_test
+    MY_INFO("apply update OK for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
+#else
+    MY_INFO("apply update OK for dist_id(%s)\n", dist_info->dist_id.data());
+#endif
+    return true;
+  }
+}
+
+bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info)
 {
   MY_ASSERT_RETURN(dist_info, "parameter dist_info null pointer\n", false);
   dist_info->calc_local_file_name();
 
   MyPooledMemGuard target_parent_path;
   dist_info->calc_target_parent_path(target_parent_path, true);
-
+  if (!MyFilePaths::make_path(target_parent_path.data(), true))
+  {
+    MY_ERROR("can not mkdir(%s) %s\n", target_parent_path.data(), (const char *)MyErrno());
+    return false;
+  }
   MyPooledMemGuard target_path;
   if (!dist_info->calc_target_path(target_parent_path.data(), target_path))
     return false;
@@ -843,7 +884,33 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
   MyBZCompressor c;
   bool result = c.decompress(dist_info->local_file_name.data(), target_path.data(), dist_info->file_password.data(), dist_info->aindex.data());
   if (result)
+  {
     MY_INFO("extract mbz ok: %s to %s\n", dist_info->local_file_name.data(), target_path.data());
+    MyPooledMemGuard true_dest_path;
+    if (unlikely(!get_true_dest_path(dist_info,  true_dest_path)))
+    {
+      result = false;
+      goto __exit__;
+    }
+
+    if (type_is_single(dist_info->type) || type_is_multi(dist_info->type))
+    {
+      if (!MyFilePaths::copy_path(target_path.data(), true_dest_path.data(), true))
+        result = false;
+    } else if (type_is_all(dist_info->type))
+    {
+      if (!MyFilePaths::copy_path_zap(target_path.data(), true_dest_path.data(), true, false))
+        result = false;
+    } else
+    {
+      MY_ERROR("unknown dist type(%d) for dist_id(%s)\n", dist_info->type, dist_info->dist_id.data());
+      result = false;
+    }
+  }
+
+__exit__:
+  MyFilePaths::remove_path(target_path.data(), true);
+
   return result;
 }
 
@@ -1609,12 +1676,9 @@ void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
 
 void MyClientToDistService::do_extract_task(MyDistInfoFtp * dist_info)
 {
-
   if (likely(dist_info->status == 3))
   {
     MyDistFtpFileExtractor extractor;
-    extractor.extract(dist_info);
-
     dist_info->status = extractor.extract(dist_info) ? 4:5;
     dist_info->update_db_status();
     dist_info->post_status_message();

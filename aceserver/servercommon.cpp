@@ -254,7 +254,7 @@ __exit__:
     {
       mdestfile.data()[len - 4] = 0;
       if (likely(MyFilePaths::get_correlate_path(mdestfile, 1)))
-        MyFilePaths::remove_path(mdestfile.data());
+        MyFilePaths::remove_path(mdestfile.data(), true);
     }
   }
   return result;

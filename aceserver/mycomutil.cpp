@@ -472,7 +472,71 @@ bool MyFilePaths::copy_path(const char * srcdir, const char * destdir, bool self
   return true;
 }
 
-bool MyFilePaths::remove_path(const char * path)
+bool MyFilePaths::copy_path_zap(const char * srcdir, const char * destdir, bool self_only, bool zap)
+{
+  if (unlikely(!srcdir || !*srcdir || !destdir || !*destdir))
+    return false;
+
+  if (zap)
+    remove_path(destdir, true);
+
+  if (!make_path_const(destdir, 1, false, self_only))
+  {
+    MY_ERROR("can not create directory %s, %s\n", destdir, (const char *)MyErrno());
+    return false;
+  }
+
+  DIR * dir = opendir(srcdir);
+  if (!dir)
+  {
+    MY_ERROR("can not open directory: %s %s\n", srcdir, (const char*)MyErrno());
+    return false;
+  }
+
+  int len1 = ACE_OS::strlen(srcdir);
+  int len2 = ACE_OS::strlen(destdir);
+
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != NULL)
+  {
+    if (!entry->d_name)
+      continue;
+    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+      continue;
+
+    MyPooledMemGuard msrc, mdest;
+    int len = ACE_OS::strlen(entry->d_name);
+    MyMemPoolFactoryX::instance()->get_mem(len1 + len + 2, &msrc);
+    ACE_OS::sprintf(msrc.data(), "%s/%s", srcdir, entry->d_name);
+    MyMemPoolFactoryX::instance()->get_mem(len2 + len + 2, &mdest);
+    ACE_OS::sprintf(mdest.data(), "%s/%s", destdir, entry->d_name);
+
+    if (entry->d_type == DT_REG)
+    {
+      if (!copy_file(msrc.data(), mdest.data(), self_only))
+      {
+        MY_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (const char *)MyErrno());
+        closedir(dir);
+        return false;
+      }
+    }
+    else if(entry->d_type == DT_DIR)
+    {
+      if (!copy_path_zap(msrc.data(), mdest.data(), self_only, true))
+      {
+        closedir(dir);
+        return false;
+      }
+    } else
+      MY_WARNING("unknown file type (= %d) for file @MyFilePaths::copy_directory file = %s/%s\n",
+           entry->d_type, srcdir, entry->d_name);
+  };
+
+  closedir(dir);
+  return true;
+}
+
+bool MyFilePaths::remove_path(const char * path, bool ignore_eror)
 {
   if (unlikely(!path || !*path))
     return false;
@@ -480,7 +544,8 @@ bool MyFilePaths::remove_path(const char * path)
   DIR * dir = opendir(path);
   if (!dir)
   {
-    MY_ERROR("can not open directory: %s %s\n", path, (const char*)MyErrno());
+    if (!ignore_eror)
+      MY_ERROR("can not open directory: %s %s\n", path, (const char*)MyErrno());
     return false;
   }
 
@@ -502,7 +567,7 @@ bool MyFilePaths::remove_path(const char * path)
 
     if(entry->d_type == DT_DIR)
     {
-      if (!remove_path(msrc.data()))
+      if (!remove_path(msrc.data(), ignore_eror))
       {
         closedir(dir);
         return false;
@@ -511,7 +576,8 @@ bool MyFilePaths::remove_path(const char * path)
     {
       if (unlink(msrc.data()) != 0)
       {
-        MY_ERROR("can not remove file %s %s\n", msrc.data(), (const char*)MyErrno());
+        if (!ignore_eror)
+          MY_ERROR("can not remove file %s %s\n", msrc.data(), (const char*)MyErrno());
         ret = false;
       }
     }
@@ -628,12 +694,19 @@ void MyTestClientPathGenerator::make_paths_from_id_table(const char * app_data_p
   int prefix_len = strlen(buff);
   int count = id_table->count();
   MyClientID id;
+  MyPooledMemGuard path_x;
   for (int i = 0; i < count; ++ i)
   {
     id_table->value(i, &id);
     ACE_OS::snprintf(str_client_id, 64, "%s", id.as_string());
     client_id_to_path(str_client_id, buff + prefix_len, PATH_MAX - prefix_len - 1);
     MyFilePaths::make_path(buff, prefix_len + 1, false, true);
+    path_x.init_from_string(buff, "/download");
+    MyFilePaths::make_path(path_x.data(), true);
+    path_x.init_from_string(buff, "/daily");
+    MyFilePaths::make_path(path_x.data(), true);
+    path_x.init_from_string(buff, "/tmp");
+    MyFilePaths::make_path(path_x.data(), true);
   }
 }
 
