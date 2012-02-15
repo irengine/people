@@ -72,7 +72,7 @@ public:
 
   bool open_db(const char * client_id);
   void close_db();
-  bool save_ftp_command(const char * ftp_command);
+  bool save_ftp_command(const char * ftp_command, const char * dist_id);
   bool set_ftp_command_status(const char * dist_id, int status);
   bool get_ftp_command_status(const char * dist_id, int & status);
   void remove_outdated_ftp_command(time_t deadline);
@@ -160,8 +160,8 @@ public:
   MyPooledMemGuard aindex;
   char ftype;
   char type;
-#ifdef MY_client_test
   MyClientID client_id;
+#ifdef MY_client_test
   int client_id_index;
 #endif
 
@@ -229,6 +229,8 @@ public:
   void post_status_message() const;
   bool update_db_status() const;
 
+  static ACE_Message_Block * make_ftp_dist_message(const char * dist_id, int status);
+
   MyPooledMemGuard file_name;
   MyPooledMemGuard file_password;
   MyPooledMemGuard ftp_password;
@@ -268,6 +270,7 @@ public:
 
   bool extract(MyDistInfoFtp * dist_info);
   bool get_true_dest_path(MyDistInfoFtp * dist_info, MyPooledMemGuard & target_path);
+
 private:
   bool do_extract(MyDistInfoFtp * dist_info);
   MyDistInfoFtp * m_dist_info;

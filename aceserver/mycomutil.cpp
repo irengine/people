@@ -651,10 +651,10 @@ bool MyFilePaths::get_correlate_path(MyPooledMemGuard & pathfile, int skip)
   return true;
 }
 
-bool MyFilePaths::rename(const char *old_path, const char * new_path)
+bool MyFilePaths::rename(const char *old_path, const char * new_path, bool ignore_eror)
 {
   bool result = (::rename(old_path, new_path) == 0);
-  if (!result)
+  if (!result && !ignore_eror)
     MY_ERROR("rename %s to %s failed %s\n", old_path, new_path, (const char*)MyErrno());
   return result;
 }
@@ -706,6 +706,8 @@ void MyTestClientPathGenerator::make_paths_from_id_table(const char * app_data_p
     path_x.init_from_string(buff, "/daily");
     MyFilePaths::make_path(path_x.data(), true);
     path_x.init_from_string(buff, "/tmp");
+    MyFilePaths::make_path(path_x.data(), true);
+    path_x.init_from_string(buff, "/backup");
     MyFilePaths::make_path(path_x.data(), true);
   }
 }

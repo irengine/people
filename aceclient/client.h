@@ -22,12 +22,18 @@ public:
   MyClientToDistModule * client_to_dist_module() const;
   bool send_mb_to_dist(ACE_Message_Block * mb);
   const MyClientVerson & client_version() const;
+  const char * client_id() const;
 
 #ifdef MY_client_test
   MyClientIDTable & client_id_table()
     { return m_client_id_table; }
 #endif
   static void data_path(MyPooledMemGuard & _data_path, const char * client_id = NULL);
+  static void calc_display_parent_path(MyPooledMemGuard & parent_path, const char * client_id = NULL);
+  static void calc_dist_parent_path(MyPooledMemGuard & parent_path, const char * dist_id, const char * client_id = NULL);
+  static void calc_backup_parent_path(MyPooledMemGuard & parent_path, const char * client_id = NULL);
+  static bool full_backup(const char * dist_id, const char * client_id = NULL);
+  static bool full_restore(const char * dist_id, bool remove_existing, bool is_new = true, const char * client_id = NULL);
   static bool app_init(const char * app_home_path = NULL, MyConfig::RUNNING_MODE mode = MyConfig::RM_UNKNOWN);
   static void app_fini();
 
@@ -42,6 +48,7 @@ protected:
 private:
   MyClientToDistModule * m_client_to_dist_module;
   MyClientVerson m_client_version;
+  std::string m_client_id;
 
 #ifdef MY_client_test
   MyClientIDTable m_client_id_table;

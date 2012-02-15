@@ -55,16 +55,245 @@ const MyClientVerson & MyClientApp::client_version() const
   return m_client_version;
 }
 
+const char * MyClientApp::client_id() const
+{
+  return m_client_id.c_str();
+}
+
 void MyClientApp::data_path(MyPooledMemGuard & _data_path, const char * client_id)
 {
 #ifdef MY_client_test
   char tmp[128];
+  tmp[0] = 0;
   MyTestClientPathGenerator::client_id_to_path(client_id, tmp, 128);
   _data_path.init_from_string(MyConfigX::instance()->app_path.c_str(), "/data/", tmp);
 #else
   ACE_UNUSED_ARGS(client_id);
   _data_path.init_from_string(MyConfigX::instance()->app_path.c_str(), "/data");
 #endif
+}
+
+void MyClientApp::calc_display_parent_path(MyPooledMemGuard & parent_path, const char * client_id)
+{
+#ifdef MY_client_test
+    MyPooledMemGuard path_x;
+    MyClientApp::data_path(path_x, client_id);
+    parent_path.init_from_string(path_x.data(), "/daily");
+#else
+    parent_path.init_from_string("/tmp/daily");
+#endif
+}
+
+void MyClientApp::calc_dist_parent_path(MyPooledMemGuard & parent_path, const char * dist_id, const char * client_id)
+{
+  MyPooledMemGuard path_x;
+  MyClientApp::data_path(path_x, client_id);
+  parent_path.init_from_string(path_x.data(), "/tmp/", dist_id);
+}
+
+void MyClientApp::calc_backup_parent_path(MyPooledMemGuard & parent_path, const char * client_id)
+{
+  MyPooledMemGuard path_x;
+  MyClientApp::data_path(path_x, client_id);
+  parent_path.init_from_string(path_x.data(), "/backup");
+}
+
+bool MyClientApp::full_backup(const char * dist_id, const char * client_id)
+{
+  MyPooledMemGuard src_parent_path;
+  calc_display_parent_path(src_parent_path, client_id);
+
+  MyPooledMemGuard tmp, dest_parent_path;
+  calc_backup_parent_path(dest_parent_path, client_id);
+
+  tmp.init_from_string(dest_parent_path.data(), "/tmp");
+  MyFilePaths::remove_path(tmp.data(), true);
+
+  if (!MyFilePaths::make_path(tmp.data(), true))
+  {
+    MY_ERROR("can not mkdir(%s) %s\n", tmp.data(), (const char *)MyErrno());
+    return false;
+  }
+
+  MyPooledMemGuard src_path, dest_path;
+
+  src_path.init_from_string(src_parent_path.data(), "/index.html");
+  if (MyFilePaths::exist(src_path.data()))
+  {
+    dest_path.init_from_string(tmp.data(), "/index.html");
+    if (!MyFilePaths::copy_file(src_path.data(), dest_path.data(), true))
+    {
+      MY_ERROR("failed to copy file (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
+      return false;
+    }
+  }
+
+  src_path.init_from_string(src_parent_path.data(), "/index");
+  if (MyFilePaths::exist(src_path.data()))
+  {
+    dest_path.init_from_string(tmp.data(), "/index");
+    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
+    {
+      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
+      return false;
+    }
+  }
+
+  src_path.init_from_string(src_parent_path.data(), "/7");
+  if (MyFilePaths::exist(src_path.data()))
+  {
+    dest_path.init_from_string(tmp.data(), "/7");
+    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
+    {
+      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
+      return false;
+    }
+  }
+
+  src_path.init_from_string(src_parent_path.data(), "/8");
+  if (MyFilePaths::exist(src_path.data()))
+  {
+    dest_path.init_from_string(tmp.data(), "/8");
+    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
+    {
+      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
+      return false;
+    }
+  }
+
+  src_path.init_from_string(src_parent_path.data(), "/5");
+  if (MyFilePaths::exist(src_path.data()))
+  {
+    dest_path.init_from_string(tmp.data(), "/5");
+    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
+    {
+      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
+      return false;
+    }
+  }
+
+  if (dist_id && *dist_id)
+  {
+    dest_path.init_from_string(tmp.data(), "/dist_id.txt");
+    MyUnixHandleGuard fh;
+    if (fh.open_write(dest_path.data(), true, true, false, true))
+      ::write(fh.handle(), dist_id, strlen(dist_id));
+  }
+
+
+  MyPooledMemGuard old_path, new_path;
+  old_path.init_from_string(dest_parent_path.data(), "/old");
+  new_path.init_from_string(dest_parent_path.data(), "/new");
+  MyFilePaths::remove_path(old_path.data(), true);
+  if (MyFilePaths::exist(new_path.data()))
+  {
+    if (!MyFilePaths::rename(new_path.data(), old_path.data(), false))
+      return false;
+  }
+
+  return MyFilePaths::rename(tmp.data(), new_path.data(), false);
+}
+
+bool MyClientApp::full_restore(const char * dist_id, bool remove_existing, bool is_new, const char * client_id)
+{
+  ACE_UNUSED_ARG(dist_id);
+
+  MyPooledMemGuard dest_parent_path;
+  calc_display_parent_path(dest_parent_path, client_id);
+
+  MyPooledMemGuard tmp, src_parent_path;
+  calc_backup_parent_path(tmp, client_id);
+  if (is_new)
+    src_parent_path.init_from_string(tmp.data(), "/new");
+  else
+    src_parent_path.init_from_string(tmp.data(), "/old");
+
+  if (!MyFilePaths::exist(src_parent_path.data()))
+    return false;
+
+  MyPooledMemGuard src_path, dest_path;
+
+  if (dist_id && *dist_id)
+  {
+    src_path.init_from_string(src_parent_path.data(), "/dist_id.txt");
+    MyUnixHandleGuard fh;
+    if (fh.open_read(src_path.data()))
+      return false;
+    char buff[64];
+    int n = ::read(fh.handle(), buff, 64);
+    if (n <= 0)
+      return false;
+    buff[n - 1] = 0;
+    if (ACE_OS::memcmp(buff, dist_id, ACE_OS::strlen(dist_id)) != 0)
+      return false;
+  }
+
+  src_path.init_from_string(src_parent_path.data(), "/index.html");
+  if (MyFilePaths::exist(src_path.data()))
+  {
+    dest_path.init_from_string(dest_parent_path.data(), "/index.html");
+    if (remove_existing)
+      MyFilePaths::remove_path(dest_path.data(), true);
+    if (!MyFilePaths::copy_file(src_path.data(), dest_path.data(), true))
+    {
+      MY_ERROR("failed to copy file (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
+      return false;
+    }
+  }
+
+  src_path.init_from_string(src_parent_path.data(), "/index");
+  if (MyFilePaths::exist(src_path.data()))
+  {
+    dest_path.init_from_string(dest_parent_path.data(), "/index");
+    if (remove_existing)
+      MyFilePaths::remove_path(dest_path.data(), true);
+    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
+    {
+      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
+      return false;
+    }
+  }
+
+  src_path.init_from_string(src_parent_path.data(), "/7");
+  if (MyFilePaths::exist(src_path.data()))
+  {
+    dest_path.init_from_string(dest_parent_path.data(), "/7");
+    if (remove_existing)
+      MyFilePaths::remove_path(dest_path.data(), true);
+    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
+    {
+      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
+      return false;
+    }
+  }
+
+  src_path.init_from_string(src_parent_path.data(), "/8");
+  if (MyFilePaths::exist(src_path.data()))
+  {
+    dest_path.init_from_string(dest_parent_path.data(), "/8");
+    if (remove_existing)
+      MyFilePaths::remove_path(dest_path.data(), true);
+    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
+    {
+      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
+      return false;
+    }
+  }
+
+  src_path.init_from_string(src_parent_path.data(), "/5");
+  if (MyFilePaths::exist(src_path.data()))
+  {
+    dest_path.init_from_string(dest_parent_path.data(), "/5");
+    if (remove_existing)
+      MyFilePaths::remove_path(dest_path.data(), true);
+    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
+    {
+      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
+      return false;
+    }
+  }
+
+  return true;
 }
 
 bool MyClientApp::on_start()
@@ -79,6 +308,29 @@ void MyClientApp::on_stop()
 
 bool MyClientApp::on_construct()
 {
+#if !defined(MY_client_test)
+  {
+    MyUnixHandleGuard fh;
+    if (fh.open_read("/tmp/daily/id.ini"))
+      return false;
+    char buff[64];
+    int n = ::read(fh.handle(), buff, 64);
+    if (n <= 0)
+      return false;
+    buff[std::min(n, 63)] = 0;
+    m_client_id = buff;
+  }
+
+  {
+    MyClientDBGuard dbg;
+    if (dbg.db().open_db(NULL))
+    {
+      time_t deadline = time_t(NULL) - 60 * 60 * 24 * 10;
+      dbg.db().remove_outdated_ftp_command(deadline);
+    }
+  }
+#endif
+
   add_module(m_client_to_dist_module = new MyClientToDistModule(this));
   return true;
 }
@@ -144,6 +396,17 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
   MyFilePaths::make_path(path_x.c_str(), true);
   path_x = cfg->app_path + "/data/tmp";
   MyFilePaths::make_path(path_x.c_str(), true);
+  path_x = cfg->app_path + "/data/backup";
+  MyFilePaths::make_path(path_x.c_str(), true);
+
+  if (!full_restore(NULL, true))
+  {
+    MY_WARNING("restore of latest data failed, now restoring previous data...\n");
+    if (!full_restore(NULL, true, false))
+    {
+      MY_ERROR("restore of previous data failed\n");
+    }
+  }
 
   MyClientToDistHandler::init_mem_pool(100);
 #endif

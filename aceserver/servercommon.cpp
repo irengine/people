@@ -226,7 +226,7 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
 
   if (*http_dist_request.type == '0')
   {
-    result = MyFilePaths::rename(mdestfile.data(), all_in_one.data());
+    result = MyFilePaths::rename(mdestfile.data(), all_in_one.data(), false);
     goto __exit__;
   }
 
