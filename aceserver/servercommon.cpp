@@ -27,12 +27,25 @@ MyHttpDistInfo::MyHttpDistInfo()
 
 bool MyHttpDistInfo::need_md5() const
 {
-  return (type[0] == '1');
+  return (type_is_multi(type[0]));
+}
+
+bool MyHttpDistInfo::need_mbz_md5() const
+{
+  return !need_md5();
 }
 
 bool MyHttpDistInfo::is_cmp_done() const
 {
   return (cmp_done[0] == '1');
+}
+
+bool MyHttpDistInfo::is_mbz_md5_done() const
+{
+  if (!need_mbz_md5())
+    return true;
+
+  return mbz_md5.data() && mbz_md5.data()[0];
 }
 
 
@@ -112,7 +125,12 @@ bool MyHttpDistRequest::check_valid(const bool check_acode) const
 
 bool MyHttpDistRequest::need_md5() const
 {
-  return (type && *type == '1');
+  return (type && type_is_multi(*type));
+}
+
+bool MyHttpDistRequest::need_mbz_md5() const
+{
+  return !need_md5();
 }
 
 
@@ -120,7 +138,8 @@ bool MyHttpDistRequest::need_md5() const
 
 MyHttpDistInfos::MyHttpDistInfos()
 {
-  last_dist_time.init_from_string(NULL);
+  last_load_time = 0;
+  last_dist_time.init_from_string("");
 }
 
 MyHttpDistInfos::~MyHttpDistInfos()
@@ -150,7 +169,6 @@ bool MyHttpDistInfos::need_reload() const
 void MyHttpDistInfos::prepare_update()
 {
   clear();
-  last_dist_time.init_from_string(NULL);
 }
 
 MyHttpDistInfo * MyHttpDistInfos::find(const char * dist_id)
@@ -182,6 +200,13 @@ const char * MyDistCompressor::all_in_one_mbz()
   return "_x_cmp_x_/all_in_one.mbz";
 }
 
+void MyDistCompressor::get_all_in_one_mbz_file_name(const char * dist_id, MyPooledMemGuard & filename)
+{
+  MyPooledMemGuard tmp;
+  tmp.init_from_string(MyConfigX::instance()->compressed_store_path.c_str(), "/", dist_id);
+  filename.init_from_string(tmp.data(), "/", all_in_one_mbz());
+}
+
 bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
 {
   bool result = false;;
@@ -197,7 +222,6 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
     MY_ERROR("can not create directory %s, %s\n", destdir.data(), (const char *)MyErrno());
     goto __exit__;
   }
-
 
   composite_dir.init_from_string(destdir.data(), "/", composite_path());
   if (!MyFilePaths::make_path(composite_dir.data(), false))
@@ -246,7 +270,7 @@ __exit__:
   else
     MY_INFO("generation of compressed files for %s is done\n", http_dist_request.ver);
 
-  if (*http_dist_request.type == '3')
+  if (type_is_all(*http_dist_request.type))
   {
     MyFilePaths::remove(mdestfile.data());
     int len = ACE_OS::strlen(mdestfile.data());
@@ -353,7 +377,7 @@ bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, MyPoo
   }
 
   MyFileMD5s md5s_server;
-  if (unlikely(!md5s_server.calculate(http_dist_request.fdir, http_dist_request.findex, *http_dist_request.type == '0')))
+  if (unlikely(!md5s_server.calculate(http_dist_request.fdir, http_dist_request.findex, type_is_single(*http_dist_request.type))))
   {
     MY_ERROR("failed to calculate md5 file list for dist %s\n", http_dist_request.ver);
     return false;
@@ -374,4 +398,15 @@ bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, MyPoo
   else
     MY_ERROR("can not save file md5 list for %s into database\n", http_dist_request.ver);
   return result;
+}
+
+
+bool MyDistMd5Calculator::calculate_all_in_one_ftp_md5(const char * dist_id, MyPooledMemGuard & md5_result)
+{
+  MyPooledMemGuard filename;
+  MyDistCompressor::get_all_in_one_mbz_file_name(dist_id, filename);
+  if (!mycomutil_calculate_file_md5(filename.data(), md5_result))
+    return false;
+  MyServerAppX::instance()->db().save_dist_ftp_md5(dist_id, md5_result.data());
+  return true;
 }

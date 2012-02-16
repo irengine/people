@@ -75,6 +75,7 @@ public:
   bool save_ftp_command(const char * ftp_command, const char * dist_id);
   bool set_ftp_command_status(const char * dist_id, int status);
   bool get_ftp_command_status(const char * dist_id, int & status);
+  bool reset_ftp_command_status();
   void remove_outdated_ftp_command(time_t deadline);
   bool load_ftp_commands(MyDistInfoFtps * dist_ftps);
 
@@ -234,6 +235,8 @@ public:
   MyPooledMemGuard file_name;
   MyPooledMemGuard file_password;
   MyPooledMemGuard ftp_password;
+  MyPooledMemGuard ftp_md5;
+
   int  status;
   time_t recv_time;
   MyPooledMemGuard local_file_name;

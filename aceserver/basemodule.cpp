@@ -374,12 +374,12 @@ void MyFileMD5s::minus(MyFileMD5s & target, MyMfileSplitter * spl, bool do_delet
   char fn[PATH_MAX];
   while (it1 != m_file_md5_list.end() && it2 != target.m_file_md5_list.end())
   {
-    const char * new_name = spl? spl->translate((**it2).filename()): (**it2).filename();
-    MyFileMD5 md5_copy(new_name, (**it2).md5(), 0);
+    const char * new_name = spl? spl->translate((**it1).filename()): (**it1).filename();
+    MyFileMD5 md5_copy(new_name, (**it1).md5(), 0);
 
-    if (**it1 < md5_copy)
+    if (md5_copy < **it2)
       ++it1;
-    else if (md5_copy < **it1)
+    else if (**it2 < md5_copy)
     {
       if (do_delete)
       {
@@ -389,9 +389,10 @@ void MyFileMD5s::minus(MyFileMD5s & target, MyMfileSplitter * spl, bool do_delet
       }
       ++it2;
     }
-    else if ((**it1).same_md5(md5_copy))//==
+    else if (md5_copy.same_md5(**it2))//==
     {
-      delete *it1;
+      MyPooledObjectDeletor dlt;
+      dlt(*it1);
       it1 = m_file_md5_list.erase(it1);
       ++it2;
     } else

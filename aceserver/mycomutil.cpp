@@ -217,6 +217,17 @@ bool mycomutil_find_tag_value(char * & ptr, const char * tag, char * & value, ch
   return true;
 }
 
+bool mycomutil_calculate_file_md5(const char * _file, MyPooledMemGuard & md5_result)
+{
+  char buff[32 + 1];
+  MD5_CTX mdContext;
+  if (!md5file(_file, 0, &mdContext, buff, 32))
+    return false;
+  buff[32] = 0;
+  md5_result.init_from_string(buff);
+  return true;
+}
+
 int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
 
 int mycomutil_translate_tcp_result(ssize_t transfer_return_value)

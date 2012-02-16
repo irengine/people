@@ -583,8 +583,24 @@ bool MyHttpService::handle_packet(ACE_Message_Block * mb)
 
   if (do_compress(http_dist_request))
     db.dist_mark_cmp_done(http_dist_request.ver);
+  else
+    goto __exit__;
 
-  do_calc_md5(http_dist_request);
+  if (unlikely(!module_x()->running_with_app()))
+    return false;
+
+  if (!do_calc_md5(http_dist_request))
+    goto __exit__;
+
+  if (http_dist_request.need_mbz_md5())
+  {
+    MyPooledMemGuard md5_result;
+    MyDistMd5Calculator::calculate_all_in_one_ftp_md5(http_dist_request.ver, md5_result);
+  }
+
+__exit__:
+  if (unlikely(!module_x()->running_with_app()))
+    return false;
 
   notify_dist_servers();
   return true;

@@ -22,6 +22,7 @@ public:
 
   bool check_valid(const bool check_acode) const;
   bool need_md5() const;
+  bool need_mbz_md5() const;
 
   char * acode;
   char * ftype;
@@ -42,7 +43,9 @@ class MyHttpDistInfo
 public:
   MyHttpDistInfo();
   bool need_md5() const;
+  bool need_mbz_md5() const;
   bool is_cmp_done() const;
+  bool is_mbz_md5_done() const;
 
   char ftype[2];
   char type[2];
@@ -56,8 +59,12 @@ public:
   MyPooledMemGuard md5;
   MyPooledMemGuard md5_time;
 
+  MyPooledMemGuard mbz_md5;
+  MyPooledMemGuard mbz_md5_time;
+
   MyPooledMemGuard cmp_time;
   char cmp_done[2];
+
 
   bool exist;
   bool cmp_needed;
@@ -84,13 +91,15 @@ public:
   MyHttpDistInfo * find(const char * dist_id);
 
   MyHttpDistInfoList dist_infos;
-  MyPooledMemGuard   last_dist_time;
+  time_t last_load_time;
+  MyPooledMemGuard last_dist_time;
 };
 
 class MyDistCompressor
 {
 public:
   bool compress(MyHttpDistRequest & http_dist_request);
+  static void get_all_in_one_mbz_file_name(const char * dist_id, MyPooledMemGuard & filename);
   static const char * composite_path();
   static const char * all_in_one_mbz();
 
@@ -105,6 +114,7 @@ class MyDistMd5Calculator
 {
 public:
   bool calculate(MyHttpDistRequest & http_dist_request, MyPooledMemGuard &md5_result, int & md5_len);
+  static bool calculate_all_in_one_ftp_md5(const char * dist_id, MyPooledMemGuard & md5_result);
 };
 
 #endif /* SERVERCOMMON_H_ */

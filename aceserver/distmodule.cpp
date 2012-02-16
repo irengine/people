@@ -132,13 +132,14 @@ int MyDistClient::send_md5()
   if (!dist_info->md5.data() || !dist_info->md5.data()[0] || dist_info->md5_len <= 0)
     return 0;
 
-  int data_len = dist_out_leading_length() + dist_info->md5_len;
+  int md5_len = dist_info->md5_len + 1;
+  int data_len = dist_out_leading_length() + md5_len;
   int total_len = sizeof(MyServerFileMD5List) + data_len;
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
   MyServerFileMD5List * md5_packet = (MyServerFileMD5List *)mb->base();
   md5_packet->magic = m_client_id_index;
   dist_out_leading_data(md5_packet->data);
-  ACE_OS::memcpy(md5_packet->data + data_len - dist_info->md5_len, dist_info->md5.data(), dist_info->md5_len);
+  ACE_OS::memcpy(md5_packet->data + data_len - md5_len, dist_info->md5.data(), md5_len);
 
   ACE_Time_Value tv(ACE_Time_Value::zero);
   if (MyServerAppX::instance()->heart_beat_module()->dispatcher()->putq(mb, &tv) == -1)
@@ -161,18 +162,28 @@ int MyDistClient::send_ftp()
     if (!dist_info->is_cmp_done())
       return 0;
 
+    if (!dist_info->is_mbz_md5_done())
+      return 0;
+
     const char * ftp_file_name = MyDistCompressor::all_in_one_mbz();
+    const char * _mbz_md5 = dist_info->need_mbz_md5()? dist_info->mbz_md5.data() : Null_Item;
+    int _mbz_md5_len = ACE_OS::strlen(_mbz_md5) + 1;
     int leading_length = dist_out_leading_length();
     int ftp_file_name_len = ACE_OS::strlen(ftp_file_name) + 1;
-    int data_len = leading_length + ftp_file_name_len + dist_info->password_len + 1;
+    int data_len = leading_length + ftp_file_name_len + dist_info->password_len + 1 + _mbz_md5_len + 1;
     int total_len = sizeof(MyFtpFile) + data_len;
     ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_FTP_FILE);
     MyFtpFile * packet = (MyFtpFile *)mb->base();
     packet->magic = m_client_id_index;
     dist_out_leading_data(packet->data);
-    ACE_OS::memcpy(packet->data + leading_length, ftp_file_name, ftp_file_name_len);
-    packet->data[leading_length + ftp_file_name_len - 1] = MyDataPacketHeader::FINISH_SEPARATOR;
-    ACE_OS::memcpy(packet->data + leading_length + ftp_file_name_len, dist_info->password.data(), dist_info->password_len + 1);
+    char * ptr = packet->data + leading_length;
+    ACE_OS::memcpy(ptr, ftp_file_name, ftp_file_name_len);
+    ptr += ftp_file_name_len;
+    *(ptr - 1) = MyDataPacketHeader::ITEM_SEPARATOR;
+    ACE_OS::memcpy(ptr, _mbz_md5, _mbz_md5_len);
+    ptr += _mbz_md5_len;
+    *(ptr - 1) = MyDataPacketHeader::FINISH_SEPARATOR;
+    ACE_OS::memcpy(ptr, dist_info->password.data(), dist_info->password_len + 1);
 
     ACE_Time_Value tv(ACE_Time_Value::zero);
     if (MyServerAppX::instance()->heart_beat_module()->dispatcher()->putq(mb, &tv) == -1)
@@ -336,10 +347,9 @@ bool MyClientFileDistributor::check_dist_clients(bool reload)
 void MyClientFileDistributor::dist_ftp_file_reply(const char * client_id, const char * dist_id, int _status)
 {
   MyDistClient * dc = m_dist_clients.find(client_id, dist_id);
-  int new_status = (_status == 1)? 5:4;
   if (likely(dc != NULL))
     dc->update_status(_status);
-  if (new_status != 5)
+  if (_status <= 4)
     MyServerAppX::instance()->db().set_dist_client_status(client_id, dist_id, _status);
   else
     MyServerAppX::instance()->db().delete_dist_client(client_id, dist_id);
@@ -804,7 +814,19 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
   }
 
   const char * dist_id = dpe->data;
-  int status = (dpe->data[len - 2] == '0' ? 0 : 1);
+  char recv_status = dpe->data[len - 2];
+  int status;
+  if (recv_status == '2')
+    status = 4;
+  else if (recv_status == '3')
+    status = 5;
+  else if (recv_status == '4' || recv_status == '4')
+    status = 5;
+  else
+  {
+    MY_ERROR("unknown ftp reply status code: %c\n", recv_status);
+    return;
+  }
   m_distributor.dist_ftp_file_reply(client_id.as_string(), dist_id, status);
   MY_DEBUG("ftp download completed client_id(%s) dist_id(%s)\n", client_id.as_string(), dist_id);
 }
@@ -1099,7 +1121,7 @@ MyBaseProcessor::EVENT_RESULT MyDistToBSProcessor::on_recv_packet_i(ACE_Message_
   if (super::on_recv_packet_i(mb) != ER_OK)
     return ER_ERROR;
   //MyBSBasePacket * bspacket = (MyBSBasePacket *) mb->base();
-  MY_INFO("got a bs reply packet:%s\n", mb->base());
+//  MY_INFO("got a bs reply packet:%s\n", mb->base());
   return ER_OK;
 }
 

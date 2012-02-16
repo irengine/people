@@ -325,8 +325,9 @@ bool MyClientApp::on_construct()
     MyClientDBGuard dbg;
     if (dbg.db().open_db(NULL))
     {
-      time_t deadline = time_t(NULL) - 60 * 60 * 24 * 10;
+      time_t deadline = time_t(NULL) - const_one_day * 10;
       dbg.db().remove_outdated_ftp_command(deadline);
+      dbg.db().reset_ftp_command_status();
     }
   }
 #endif
@@ -391,6 +392,20 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
   }
   MyTestClientPathGenerator::make_paths_from_id_table(cfg->app_test_data_path.c_str(), &app->m_client_id_table);
   MyClientToDistHandler::init_mem_pool(app->m_client_id_table.count() * 1.2);
+
+  int m = app->m_client_id_table.count();
+  MyClientID client_id;
+  time_t deadline = time_t(NULL) - const_one_day * 10;
+  for (int i = 0; i < m; ++i)
+  {
+    app->m_client_id_table.value(i, &client_id);
+    MyClientDBGuard dbg;
+    if (dbg.db().open_db(client_id.as_string()))
+    {
+      dbg.db().remove_outdated_ftp_command(deadline);
+      dbg.db().reset_ftp_command_status();
+    }
+  }
 #else
   std::string path_x = cfg->app_path + "/data/download";
   MyFilePaths::make_path(path_x.c_str(), true);

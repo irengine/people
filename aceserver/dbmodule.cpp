@@ -44,7 +44,7 @@ MyDB::~MyDB()
 time_t MyDB::get_time_from_string(const char * s)
 {
   static time_t _current = time(NULL);
-  const time_t const_longevity = 60 * 24 * 365 * 12 * 10;
+  const time_t const_longevity = const_one_year * 10;
 
   if (unlikely(!s || !*s))
     return 0;
@@ -308,16 +308,18 @@ bool MyDB::save_dist_cmp_done(const char *dist_id)
 
 int MyDB::load_dist_infos(MyHttpDistInfos & infos)
 {
-  const char * CONST_select_sql =
-      "select *, ((('now'::text)::timestamp(0) without time zone - dist_cmp_time > interval '00:10:10') "
-//      "or (dist_cmp_time is null)) and dist_cmp_done = '0' as cmp_needed, "
-      ") and dist_cmp_done = '0' as cmp_needed, "
-      "((('now'::text)::timestamp(0) without time zone - dist_md5_time > interval '00:10:10') "
-//            "or (dist_md5_time is null)) and (dist_md5 is null) and (dist_type = '1') as md5_needed "
-      ") and (dist_md5 is null) and (dist_type = '1') as md5_needed "
-      "from tb_dist_info order by dist_time";
+  const char * CONST_select_sql = "select * from tb_dist_info order by dist_time";
+//      "select *, ((('now'::text)::timestamp(0) without time zone - dist_cmp_time > interval '00:10:10') "
+//      ") and dist_cmp_done = '0' as cmp_needed, "
+//      "((('now'::text)::timestamp(0) without time zone - dist_md5_time > interval '00:10:10') "
+//      ") and (dist_md5 is null) and (dist_type = '1') as md5_needed "
+//      "from tb_dist_info order by dist_time";
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+
+  if (!load_db_server_time_i(infos.last_load_time))
+    return -1;
+
   PGresult * pres = PQexec(m_connection, CONST_select_sql);
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
@@ -382,8 +384,6 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_time") == 0)
       {
         info->dist_time.init_from_string(fvalue);
-        if (i  == count - 1)
-          infos.last_dist_time.init_from_string(fvalue);
       }
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_aindex") == 0)
       {
@@ -396,10 +396,10 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
         info->cmp_done[0] = *fvalue;
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_md5_time") == 0)
         info->md5_time.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "cmp_needed") == 0)
-        info->cmp_needed = (*fvalue == 't' || *fvalue == 'T');
-      else if (ACE_OS::strcmp(PQfname(pres, j), "md5_needed") == 0)
-        info->md5_needed = (*fvalue == 't' || *fvalue == 'T');
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_mbz_md5_time") == 0)
+        info->mbz_md5_time.init_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_mbz_md5") == 0)
+        info->mbz_md5.init_from_string(fvalue);
     }
     infos.add(info);
   }
@@ -415,7 +415,7 @@ bool MyDB::dist_take_cmp_ownership(MyHttpDistInfo * info)
 
   char where[128];
   ACE_OS::snprintf(where, 128, "where dist_id = '%s'", info->ver.data());
-  return take_owner_ship("tb_dist_info", "dist_cmp_time", info->cmp_time.data(), where);
+  return take_owner_ship("tb_dist_info", "dist_cmp_time", info->cmp_time, where);
 }
 
 bool MyDB::dist_take_md5_ownership(MyHttpDistInfo * info)
@@ -425,19 +425,19 @@ bool MyDB::dist_take_md5_ownership(MyHttpDistInfo * info)
 
   char where[128];
   ACE_OS::snprintf(where, 128, "where dist_id = '%s'", info->ver.data());
-  return take_owner_ship("tb_dist_info", "dist_md5_time", info->md5_time.data(), where);
+  return take_owner_ship("tb_dist_info", "dist_md5_time", info->md5_time, where);
 }
 
-bool MyDB::take_owner_ship(const char * table, const char * field, const char * old_time, const char * where_clause)
+bool MyDB::take_owner_ship(const char * table, const char * field, MyPooledMemGuard & old_time, const char * where_clause)
 {
   const char * update_sql_template = "update %s set "
                                      "%s = ('now'::text)::timestamp(0) without time zone "
                                      "%s and %s %s %s";
   char sql[1024];
-  if (old_time)
+  if (old_time.data() && old_time.data()[0])
   {
     MyPooledMemGuard wrapped_time;
-    wrap_str(old_time, wrapped_time);
+    wrap_str(old_time.data(), wrapped_time);
     ACE_OS::snprintf(sql, 1024, update_sql_template, table, field, where_clause, field, "=", wrapped_time.data());
   }
   else
@@ -445,8 +445,24 @@ bool MyDB::take_owner_ship(const char * table, const char * field, const char * 
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   int m = 0;
-  return (exec_command(sql, &m) && m == 1);
+  if (!exec_command(sql, &m))
+    return false;
 
+  bool result = (m == 1);
+
+  const char * select_sql_template = "select %s from %s %s";
+  ACE_OS::snprintf(sql, 1024, select_sql_template, field, table, where_clause);
+  PGresult * pres = PQexec(m_connection, sql);
+  MyPGResultGuard guard(pres);
+  if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
+  {
+    MY_ERROR("MyDB::sql (%s) failed: %s\n", sql, PQerrorMessage(m_connection));
+    return result;
+  }
+  int count = PQntuples(pres);
+  if (count > 0)
+    old_time.init_from_string(PQgetvalue(pres, 0, 0));
+  return result;
 }
 
 bool MyDB::dist_mark_cmp_done(const char * dist_id)
@@ -491,6 +507,20 @@ bool MyDB::save_dist_md5(const char * dist_id, const char * md5, int md5_len)
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql.data());
+}
+
+bool MyDB::save_dist_ftp_md5(const char * dist_id, const char * md5)
+{
+  if (unlikely(!dist_id || !*dist_id || !md5 || !*md5))
+    return false;
+
+  const char * update_sql_template = "update tb_dist_info set dist_mbz_md5 = '%s' "
+                                     "where dist_id = '%s'";
+  char sql[1024];
+  ACE_OS::snprintf(sql, 1024, update_sql_template, md5, dist_id);
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  return exec_command(sql);
 }
 
 bool MyDB::load_dist_clients(MyDistClients * dist_clients)
@@ -644,11 +674,16 @@ bool MyDB::set_cfg_value(const int id, const char * value)
 
 bool MyDB::load_cfg_value(const int id, MyPooledMemGuard & value)
 {
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  return load_cfg_value_i(id, value);
+}
+
+bool MyDB::load_cfg_value_i(const int id, MyPooledMemGuard & value)
+{
   const char * CONST_select_sql_template = "select cfg_value from tb_config where cfg_id = %d";
   char select_sql[1024];
   ACE_OS::snprintf(select_sql, 1024, CONST_select_sql_template, id);
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   PGresult * pres = PQexec(m_connection, select_sql);
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
@@ -663,4 +698,21 @@ bool MyDB::load_cfg_value(const int id, MyPooledMemGuard & value)
     return true;
   } else
     return false;
+}
+
+
+bool MyDB::load_db_server_time_i(time_t &t)
+{
+  const char * select_sql = "select ('now'::text)::timestamp(0) without time zone";
+  PGresult * pres = PQexec(m_connection, select_sql);
+  MyPGResultGuard guard(pres);
+  if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
+  {
+    MY_ERROR("MyDB::sql (%s) failed: %s\n", select_sql, PQerrorMessage(m_connection));
+    return false;
+  }
+  if (PQntuples(pres) <= 0)
+    return false;
+  t = get_time_from_string(PQgetvalue(pres, 0, 0));
+  return true;
 }
