@@ -217,21 +217,26 @@ bool MyDB::save_client_id(const char * s)
   return exec_command(insert_sql);
 }
 
-bool MyDB::save_dist(MyHttpDistRequest & http_dist_request)
+bool MyDB::save_dist(MyHttpDistRequest & http_dist_request, const char * md5, const char * mbz_md5)
 {
   const char * insert_sql_template = "insert into tb_dist_info("
                "dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
-               "dist_ftype, dist_password) values('%s', '%s', %s, '%s', '%s', '%s', '%s')";
-  char insert_sql[4096];
+               "dist_ftype, dist_password, dist_md5, dist_mbz_md5) "
+               "values('%s', '%s', %s, '%s', '%s', '%s', '%s', '%s', '%s')";
+  const char * _md5 = md5 ? md5 : "";
+  const char * _mbz_md5 = mbz_md5 ? mbz_md5 : "";
+  int len = ACE_OS::strlen(insert_sql_template) + ACE_OS::strlen(_md5) + ACE_OS::strlen(_mbz_md5) + 2000;
+  MyPooledMemGuard sql;
+  MyMemPoolFactoryX::instance()->get_mem(len, &sql);
   MyPooledMemGuard aindex;
   wrap_str(http_dist_request.aindex, aindex);
-  ACE_OS::snprintf(insert_sql, 4096, insert_sql_template,
+  ACE_OS::snprintf(sql.data(), 4096, insert_sql_template,
       http_dist_request.ver, http_dist_request.type, aindex.data(),
       http_dist_request.findex, http_dist_request.fdir,
-      http_dist_request.ftype, http_dist_request.password);
+      http_dist_request.ftype, http_dist_request.password, _md5, _mbz_md5);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return exec_command(insert_sql);
+  return exec_command(sql.data());
 }
 
 bool MyDB::save_dist_clients(char * idlist, char * adirlist, const char * dist_id)
@@ -390,14 +395,6 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
         info->aindex.init_from_string(fvalue);
         info->aindex_len = ACE_OS::strlen(fvalue);
       }
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_time") == 0)
-        info->cmp_time.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_cmp_done") == 0)
-        info->cmp_done[0] = *fvalue;
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_md5_time") == 0)
-        info->md5_time.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_mbz_md5_time") == 0)
-        info->mbz_md5_time.init_from_string(fvalue);
       else if (ACE_OS::strcmp(PQfname(pres, j), "dist_mbz_md5") == 0)
         info->mbz_md5.init_from_string(fvalue);
     }
@@ -408,25 +405,25 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
   return count;
 }
 
-bool MyDB::dist_take_cmp_ownership(MyHttpDistInfo * info)
-{
-  if (unlikely(!info))
-    return false;
-
-  char where[128];
-  ACE_OS::snprintf(where, 128, "where dist_id = '%s'", info->ver.data());
-  return take_owner_ship("tb_dist_info", "dist_cmp_time", info->cmp_time, where);
-}
-
-bool MyDB::dist_take_md5_ownership(MyHttpDistInfo * info)
-{
-  if (unlikely(!info))
-    return false;
-
-  char where[128];
-  ACE_OS::snprintf(where, 128, "where dist_id = '%s'", info->ver.data());
-  return take_owner_ship("tb_dist_info", "dist_md5_time", info->md5_time, where);
-}
+//bool MyDB::dist_take_cmp_ownership(MyHttpDistInfo * info)
+//{
+//  if (unlikely(!info))
+//    return false;
+//
+//  char where[128];
+//  ACE_OS::snprintf(where, 128, "where dist_id = '%s'", info->ver.data());
+//  return take_owner_ship("tb_dist_info", "dist_cmp_time", info->cmp_time, where);
+//}
+//
+//bool MyDB::dist_take_md5_ownership(MyHttpDistInfo * info)
+//{
+//  if (unlikely(!info))
+//    return false;
+//
+//  char where[128];
+//  ACE_OS::snprintf(where, 128, "where dist_id = '%s'", info->ver.data());
+//  return take_owner_ship("tb_dist_info", "dist_md5_time", info->md5_time, where);
+//}
 
 bool MyDB::take_owner_ship(const char * table, const char * field, MyPooledMemGuard & old_time, const char * where_clause)
 {

@@ -27,12 +27,12 @@ public:
   bool connect();
   bool get_client_ids(MyClientIDTable * idtable);
   bool save_client_id(const char * s);
-  bool save_dist(MyHttpDistRequest & http_dist_request);
+  bool save_dist(MyHttpDistRequest & http_dist_request, const char * md5, const char * mbz_md5);
   bool save_dist_clients(char * idlist, char * adirlist, const char * dist_id);
   bool save_dist_cmp_done(const char *dist_id);
   int  load_dist_infos(MyHttpDistInfos & infos);
-  bool dist_take_cmp_ownership(MyHttpDistInfo * info);
-  bool dist_take_md5_ownership(MyHttpDistInfo * info);
+//  bool dist_take_cmp_ownership(MyHttpDistInfo * info);
+//  bool dist_take_md5_ownership(MyHttpDistInfo * info);
   bool dist_mark_cmp_done(const char * dist_id);
   bool dist_mark_md5_done(const char * dist_id);
   bool save_dist_md5(const char * dist_id, const char * md5, int md5_len);

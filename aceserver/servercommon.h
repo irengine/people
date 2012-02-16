@@ -44,8 +44,6 @@ public:
   MyHttpDistInfo();
   bool need_md5() const;
   bool need_mbz_md5() const;
-  bool is_cmp_done() const;
-  bool is_mbz_md5_done() const;
 
   char ftype[2];
   char type[2];
@@ -57,18 +55,10 @@ public:
 
   MyPooledMemGuard dist_time;
   MyPooledMemGuard md5;
-  MyPooledMemGuard md5_time;
 
   MyPooledMemGuard mbz_md5;
-  MyPooledMemGuard mbz_md5_time;
-
-  MyPooledMemGuard cmp_time;
-  char cmp_done[2];
-
 
   bool exist;
-  bool cmp_needed;
-  bool md5_needed;
 
   int  md5_len;
   int  ver_len;

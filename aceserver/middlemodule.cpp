@@ -560,7 +560,34 @@ bool MyHttpService::handle_packet(ACE_Message_Block * mb)
   http_dist_request.password = password;
   MyDB & db = MyServerAppX::instance()->db();
 
-  if (!db.save_dist(http_dist_request))
+  if (unlikely(!module_x()->running_with_app()))
+    return false;
+
+  if (!do_compress(http_dist_request))
+    return false;
+
+  if (unlikely(!module_x()->running_with_app()))
+    return false;
+
+  MyPooledMemGuard md5_result;
+  {
+    MyDistMd5Calculator calc;
+    int md5_len;
+    if (!calc.calculate(http_dist_request, md5_result, md5_len))
+      return false;
+  }
+
+  if (unlikely(!module_x()->running_with_app()))
+    return false;
+
+  MyPooledMemGuard mbz_md5_result;
+  if (http_dist_request.need_mbz_md5())
+  {
+    if (!MyDistMd5Calculator::calculate_all_in_one_ftp_md5(http_dist_request.ver, mbz_md5_result))
+      return false;
+  }
+
+  if (!db.save_dist(http_dist_request, md5_result.data(), mbz_md5_result.data()))
   {
     MY_ERROR("can not save_dist to db\n");
     return false;
@@ -572,35 +599,14 @@ bool MyHttpService::handle_packet(ACE_Message_Block * mb)
     return false;
   }
 
+  if (unlikely(!module_x()->running_with_app()))
+    return false;
+
   if (!db.dist_info_update_status())
   {
     MY_ERROR("call to dist_info_update_status() failed\n");
     return false;
   }
-
-  if (unlikely(!module_x()->running_with_app()))
-    return false;
-
-  if (do_compress(http_dist_request))
-    db.dist_mark_cmp_done(http_dist_request.ver);
-  else
-    goto __exit__;
-
-  if (unlikely(!module_x()->running_with_app()))
-    return false;
-
-  if (!do_calc_md5(http_dist_request))
-    goto __exit__;
-
-  if (http_dist_request.need_mbz_md5())
-  {
-    MyPooledMemGuard md5_result;
-    MyDistMd5Calculator::calculate_all_in_one_ftp_md5(http_dist_request.ver, md5_result);
-  }
-
-__exit__:
-  if (unlikely(!module_x()->running_with_app()))
-    return false;
 
   notify_dist_servers();
   return true;

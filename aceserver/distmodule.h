@@ -41,13 +41,15 @@ public:
   time_t last_update;
 
 private:
+  enum { MD5_REPLY_TIME_OUT = 15, FTP_REPLY_TIME_OUT = 5 }; //in minutes
+
   int do_stage_0(MyDistClients & dist_clients);
   int do_stage_1(MyDistClients & dist_clients);
   int do_stage_2(MyDistClients & dist_clients);
   int do_stage_3(MyDistClients & dist_clients);
   int do_stage_4(MyDistClients & dist_clients);
-  int send_md5();
-  int send_ftp();
+  bool send_md5();
+  bool send_ftp();
 
   int dist_out_leading_length();
   void dist_out_leading_data(char * data);

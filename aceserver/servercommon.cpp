@@ -14,7 +14,6 @@
 MyHttpDistInfo::MyHttpDistInfo()
 {
   exist = false;
-  cmp_needed = false;
   md5_len = 0;
   ver_len = 0;
   findex_len = 0;
@@ -22,7 +21,6 @@ MyHttpDistInfo::MyHttpDistInfo()
 
   ftype[0] = ftype[1] = 0;
   type[0] = type[1] = 0;
-  cmp_done[0] = cmp_done[1] = 0;
 }
 
 bool MyHttpDistInfo::need_md5() const
@@ -33,19 +31,6 @@ bool MyHttpDistInfo::need_md5() const
 bool MyHttpDistInfo::need_mbz_md5() const
 {
   return !need_md5();
-}
-
-bool MyHttpDistInfo::is_cmp_done() const
-{
-  return (cmp_done[0] == '1');
-}
-
-bool MyHttpDistInfo::is_mbz_md5_done() const
-{
-  if (!need_mbz_md5())
-    return true;
-
-  return mbz_md5.data() && mbz_md5.data()[0];
 }
 
 
@@ -230,7 +215,7 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
     goto __exit__;
   }
   all_in_one.init_from_string(composite_dir.data(), "/all_in_one.mbz");
-  if (*http_dist_request.type != '0')
+  if (!type_is_single(*http_dist_request.type))
     if (!m_compositor.open(all_in_one.data()))
       goto __exit__;
 
@@ -242,13 +227,13 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
     m_compositor.close();
     return false;
   }
-  if (*http_dist_request.type != '0' && !m_compositor.add(mdestfile.data()))
+  if (type_is_single(*http_dist_request.type) && !m_compositor.add(mdestfile.data()))
   {
     m_compositor.close();
     return false;
   }
 
-  if (*http_dist_request.type == '0')
+  if (type_is_single(*http_dist_request.type))
   {
     result = MyFilePaths::rename(mdestfile.data(), all_in_one.data(), false);
     goto __exit__;
@@ -392,12 +377,12 @@ bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, MyPoo
     return false;
   }
 
-  bool result = MyServerAppX::instance()->db().save_dist_md5(http_dist_request.ver, md5_result.data(), md5_len);
-  if (likely(result))
-    MY_INFO("file md5 list for %s generated and stored into database\n", http_dist_request.ver);
-  else
-    MY_ERROR("can not save file md5 list for %s into database\n", http_dist_request.ver);
-  return result;
+//  bool result = MyServerAppX::instance()->db().save_dist_md5(http_dist_request.ver, md5_result.data(), md5_len);
+//  if (likely(result))
+//    MY_INFO("file md5 list for %s generated and stored into database\n", http_dist_request.ver);
+//  else
+//    MY_ERROR("can not save file md5 list for %s into database\n", http_dist_request.ver);
+  return true;
 }
 
 
@@ -405,8 +390,5 @@ bool MyDistMd5Calculator::calculate_all_in_one_ftp_md5(const char * dist_id, MyP
 {
   MyPooledMemGuard filename;
   MyDistCompressor::get_all_in_one_mbz_file_name(dist_id, filename);
-  if (!mycomutil_calculate_file_md5(filename.data(), md5_result))
-    return false;
-  MyServerAppX::instance()->db().save_dist_ftp_md5(dist_id, md5_result.data());
-  return true;
+  return mycomutil_calculate_file_md5(filename.data(), md5_result);
 }
