@@ -70,11 +70,12 @@ class MyClickInfo
 {
 public:
   MyClickInfo();
-  MyClickInfo(const char * chn, const char * pcode, int count);
+  MyClickInfo(const char * chn, const char * pcode, const char * count);
 
   std::string channel;
   std::string point_code;
-  int click_count;
+  std::string click_count;
+  int len;
 };
 
 typedef std::list<MyClickInfo> MyClickInfos;
@@ -91,6 +92,7 @@ public:
   bool set_ftp_command_status(const char * dist_id, int status);
   bool get_ftp_command_status(const char * dist_id, int & status);
   bool get_click_infos(MyClickInfos & infos);
+  bool clear_click_infos();
   bool save_click_info(const char * channel, const char * point_code);
   bool reset_ftp_command_status();
   void remove_outdated_ftp_command(time_t deadline);
@@ -103,7 +105,7 @@ protected:
 
 private:
   static int load_ftp_commands_callback(void * p, int argc, char **argv, char **azColName);
-  static int get_ftp_commands_status_callback(void * p, int argc, char **argv, char **azColName);
+  static int get_one_integer_value_callback(void * p, int argc, char **argv, char **azColName);
   static int get_click_infos_callback(void * p, int argc, char **argv, char **azColName);
 
   bool do_exec(const char *sql, bool show_error = true);
@@ -478,6 +480,11 @@ public:
   MyDistInfoFtps & dist_info_ftps();
   MyDistInfoMD5s & dist_info_md5s();
   void check_ftp_timed_task();
+  ACE_Message_Block * get_click_infos(const char * client_id) const;
+  bool click_sent() const;
+  void click_sent_done(const char * client_id);
+  MyWatchDog & watch_dog();
+
 #ifdef MY_client_test
   MyTestClientIDGenerator & id_generator()
   {
@@ -496,6 +503,10 @@ private:
   MyDistInfoFtps m_dist_info_ftps;
   MyDistInfoMD5s m_dist_info_md5s;
   MyClientFtpService * m_client_ftp_service;
+
+  MyClickInfos m_click_infos;
+  bool m_click_sent;
+  MyWatchDog m_watch_dog;
 
 #ifdef MY_client_test
   MyTestClientIDGenerator m_id_generator;

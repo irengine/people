@@ -153,6 +153,7 @@ public:
     CMD_HAVE_DIST_TASK,
     CMD_FTP_FILE,
     CMD_IP_VER_REQ,
+    CMD_UI_CLICK,
     CMD_END
   };
   int32_t length;

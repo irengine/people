@@ -18,12 +18,13 @@
 
 MyClickInfo::MyClickInfo()
 {
-  click_count = 0;
+  len = 0;
 }
 
-MyClickInfo::MyClickInfo(const char * chn, const char * pcode, int count): channel(chn), point_code(pcode), click_count(count)
+MyClickInfo::MyClickInfo(const char * chn, const char * pcode, const char * count):
+    channel(chn), point_code(pcode), click_count(count)
 {
-
+  len = channel.length() + point_code.length() + click_count.length() + 3;
 }
 
 
@@ -48,9 +49,9 @@ bool MyClientDB::init_db()
     return false;
 
   const char * const_sql_tb_ftp_info =
-      "create table tb_ftp_info(ftp_dist_id text PRIMARY KEY, ftp_str text, ftp_status integer, ftp_recv_time integer)";
+      "create table if not exists tb_ftp_info(ftp_dist_id text PRIMARY KEY, ftp_str text, ftp_status integer, ftp_recv_time integer)";
   const char * const_sql_tb_click =
-      "create table tb_click(channel_id text, point_code text)";
+      "create table if not exists tb_click(channel_id text, point_code text, click_num, primary key(channel_id, point_code))";
 
   do_exec(const_sql_tb_ftp_info, false);
   return do_exec(const_sql_tb_click, false);
@@ -149,7 +150,7 @@ bool MyClientDB::get_ftp_command_status(const char * dist_id, int & status)
   ACE_OS::snprintf(sql, 200, const_sql_template, dist_id);
 
   char *zErrMsg = 0;
-  if (sqlite3_exec(m_db, sql, get_ftp_commands_status_callback, &status, &zErrMsg) != SQLITE_OK)
+  if (sqlite3_exec(m_db, sql, get_one_integer_value_callback, &status, &zErrMsg) != SQLITE_OK)
   {
     MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
     if (zErrMsg)
@@ -165,18 +166,50 @@ bool MyClientDB::save_click_info(const char * channel, const char * point_code)
 {
   if (unlikely(!channel || !*channel || !point_code || !*point_code))
     return false;
-
-  const char * const_sql_template = "insert into tb_click(channel_id, point_code) values('%s', '%s')";
   char sql[800];
-  ACE_OS::snprintf(sql, 800, const_sql_template, channel, point_code);
+  int num = 0;
+
+  {
+    const char * const_sql_template = "select click_num from tb_click where channel_id='%s' and point_code='%s'";
+    ACE_OS::snprintf(sql, 800, const_sql_template, channel, point_code);
+
+    char *zErrMsg = 0;
+    if (sqlite3_exec(m_db, sql, get_one_integer_value_callback, &num, &zErrMsg) != SQLITE_OK)
+    {
+      MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
+      if (zErrMsg)
+        sqlite3_free(zErrMsg);
+      return false;
+    }
+    if (zErrMsg)
+      sqlite3_free(zErrMsg);
+  }
+
+  if (num > 0)
+  {
+    const char * const_sql_template = "update tb_click set click_num = click_num + 1 where channel_id='%s' and point_code='%s'";
+    ACE_OS::snprintf(sql, 800, const_sql_template, channel, point_code);
+    return do_exec(sql);
+  } else
+  {
+    const char * const_sql_template = "insert into tb_click(channel_id, point_code, click_num) values('%s', '%s', 1)";
+    ACE_OS::snprintf(sql, 800, const_sql_template, channel, point_code);
+    return do_exec(sql);
+  }
+}
+
+bool MyClientDB::clear_click_infos()
+{
+  const char * sql = "delete from tb_click";
   return do_exec(sql);
 }
 
 bool MyClientDB::get_click_infos(MyClickInfos & infos)
 {
-  const char * sql = "select channel_id, point_code, count(*) from tb_click group by channel_id, point_code";
+//  const char * sql = "select channel_id, point_code, count(*) from tb_click group by channel_id, point_code";
+  const char * sql = "select channel_id, point_code, click_num from tb_click";
   char *zErrMsg = 0;
-  if (sqlite3_exec(m_db, sql, get_ftp_commands_status_callback, &infos, &zErrMsg) != SQLITE_OK)
+  if (sqlite3_exec(m_db, sql, get_click_infos_callback, &infos, &zErrMsg) != SQLITE_OK)
   {
     MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
     if (zErrMsg)
@@ -266,14 +299,18 @@ int MyClientDB::get_click_infos_callback(void * p, int argc, char **argv, char *
 {
   ACE_UNUSED_ARG(azColName);
   MyClickInfos * infos = (MyClickInfos *)p;
-  if (unlikely(!argv[0] || ))
+  if (unlikely(argc != 3 || !argv[0] || !argv[0][0] || !argv[1] || !argv[1][0] || !argv[2] || !argv[2][0]))
+    return 0;
+
+  infos->push_back(MyClickInfo(argv[0], argv[1], argv[2]));
+  return 0;
 }
 
-int MyClientDB::get_ftp_commands_status_callback(void * p, int argc, char **argv, char **azColName)
+int MyClientDB::get_one_integer_value_callback(void * p, int argc, char **argv, char **azColName)
 {
   ACE_UNUSED_ARG(azColName);
 
-  if (argc <= 0 || !argv[0] || !argv[0][0])
+  if (argc != 1 || !argv[0])
     return -1;
   *(int*)p = atoi(argv[0]);
   return 0;
@@ -1274,6 +1311,35 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
       ((MyClientToDistHandler*)m_handler)->setup_timer(1 * 60);
       client_id_verified(true);
     }
+#ifdef MY_client_test
+
+    if (unlikely(m_client_id_index == 0))
+    {
+      MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
+      if (!mod->click_sent())
+      {
+        ACE_Message_Block * mb = mod->get_click_infos(m_client_id.as_string());
+        if (!mb)
+          mod->click_sent_done(m_client_id.as_string());
+        else if (m_handler->send_data(mb) < 0)
+          return ER_ERROR;
+        else
+          mod->click_sent_done(m_client_id.as_string());
+      }
+    }
+#else
+    MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
+    if (!mod->click_sent())
+    {
+      ACE_Message_Block * mb = mod->get_click_infos(m_client_id.as_string());
+      if (!mb)
+        mod->click_sent_done(m_client_id.as_string());
+      else if (m_handler->send_data(mb) < 0)
+        return ER_ERROR;
+      else
+        mod->click_sent_done(m_client_id.as_string());
+    }
+#endif
     return result;
   }
 
@@ -2187,11 +2253,31 @@ MyClientToDistModule::MyClientToDistModule(MyBaseApp * app): MyBaseModule(app)
   m_service = NULL;
   m_dispatcher = NULL;
   m_client_ftp_service = NULL;
+  m_click_sent = false;
 }
 
 MyClientToDistModule::~MyClientToDistModule()
 {
 
+}
+
+bool MyClientToDistModule::click_sent() const
+{
+  return m_click_sent;
+}
+
+void MyClientToDistModule::click_sent_done(const char * client_id)
+{
+  m_click_sent = true;
+  MyClientDBGuard dbg;
+  if (!dbg.db().open_db(client_id))
+    return;
+  dbg.db().clear_click_infos();
+}
+
+MyWatchDog & MyClientToDistModule::watch_dog()
+{
+  return m_watch_dog;
 }
 
 const char * MyClientToDistModule::name() const
@@ -2256,6 +2342,44 @@ void MyClientToDistModule::check_ftp_timed_task()
       break;
     }
   }
+}
+
+ACE_Message_Block * MyClientToDistModule::get_click_infos(const char * client_id) const
+{
+  MyClickInfos click_infos;
+
+  MyClickInfos::iterator it;
+  int len = 0;
+
+  {
+    MyClientDBGuard dbg;
+    if (!dbg.db().open_db(client_id))
+      return NULL;
+
+    dbg.db().get_click_infos(click_infos);
+
+    for (it = click_infos.begin(); it != click_infos.end(); ++it)
+      len += it->len;
+    if (len == 0)
+      return NULL;
+  }
+
+  ++len;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(len, MyDataPacketHeader::CMD_UI_CLICK, true);
+  MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+  char * ptr = dpe->data;
+  for (it = click_infos.begin(); it != click_infos.end(); ++it)
+  {
+    ACE_OS::sprintf(ptr, "%s%c%s%c%s%c",
+        it->channel.c_str(),
+        MyDataPacketHeader::ITEM_SEPARATOR,
+        it->point_code.c_str(),
+        MyDataPacketHeader::ITEM_SEPARATOR,
+        it->click_count.c_str(),
+        MyDataPacketHeader::FINISH_SEPARATOR);
+    ptr += it->len;
+  }
+  return mb;
 }
 
 bool MyClientToDistModule::on_start()
@@ -2568,12 +2692,28 @@ int MyHttp1991Processor::handle_input()
 
 void MyHttp1991Processor::do_command_watch_dog()
 {
-
+  MyClientAppX::instance()->client_to_dist_module()->watch_dog().touch();
 }
 
 void MyHttp1991Processor::do_command_adv_click(char * parameter)
 {
+  char * pcode = ACE_OS::strchr(parameter, '&');
+  if (unlikely(!pcode || pcode == parameter))
+  {
+    MY_ERROR("invalid adv click (%s)\n", parameter);
+    return;
+  }
 
+  *pcode ++ = 0;
+  if (unlikely(*pcode == 0))
+  {
+    MY_ERROR("invalid adv click: no point code\n");
+    return;
+  }
+
+  MyClientDBGuard dbg;
+  if (dbg.db().open_db(m_client_id.as_string()))
+    dbg.db().save_click_info(parameter, pcode);
 }
 
 void MyHttp1991Processor::do_command_plc(char * parameter)
