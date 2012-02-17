@@ -44,6 +44,7 @@ public:
   bool delete_dist_client(const char * client_id, const char * dist_id);
   bool dist_info_is_update(const MyHttpDistInfos & infos);
   bool dist_info_update_status();
+  bool remove_orphan_dist_info();
 
 private:
   void disconnect();

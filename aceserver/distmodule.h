@@ -84,7 +84,7 @@ class MyClientFileDistributor
 public:
   MyClientFileDistributor();
 
-  bool distribute();
+  bool distribute(bool check_reload);
   void dist_ftp_file_reply(const char * client_id, const char * dist_id, int _status);
   void dist_ftp_md5_reply(const char * client_id, const char * dist_id, const char * md5list);
 
@@ -95,6 +95,8 @@ private:
 
   MyHttpDistInfos m_dist_infos;
   MyDistClients m_dist_clients;
+  time_t m_last_begin;
+  time_t m_last_end;
 };
 
 class MyHeartBeatProcessor: public MyBaseServerProcessor
@@ -200,6 +202,8 @@ public:
 class MyHeartBeatService: public MyBaseService
 {
 public:
+  enum { TIMED_DIST_TASK = 1 };
+
   MyHeartBeatService(MyBaseModule * module, int numThreads = 1);
   virtual int svc();
 
@@ -209,9 +213,6 @@ private:
   void do_have_dist_task();
   void do_ftp_file_reply(ACE_Message_Block * mb);
   void do_file_md5_reply(ACE_Message_Block * mb);
-  void calc_server_file_md5_list(ACE_Message_Block * mb);
-  void calc_server_file_md5_list_one(const char * client_id);
-  ACE_Message_Block * make_server_file_md5_list_mb(int list_len, int client_id_index);
 
   MyClientFileDistributor m_distributor;
 };
@@ -233,9 +234,11 @@ protected:
 private:
   enum { CLOCK_INTERVAL = 3 }; //in seconds, the interval of picking send out packages
   enum { MSG_QUEUE_MAX_SIZE = 20 * 1024 * 1024 };
-  enum { TIMER_ID_HEART_BEAT = 2, TIMER_ID_IP_VER };
-  enum { CLOCK_TICK_HEART_BEAT = 15, CLOCK_TICK_IP_VER = 10
-       }; //in seconds
+  enum { TIMER_ID_HEART_BEAT = 2, TIMER_ID_IP_VER, TIMER_ID_DIST_SERVICE };
+  enum { CLOCK_TICK_HEART_BEAT = 15, //seconds
+         CLOCK_TICK_IP_VER = 10, //seconds
+         CLOCK_TICK_DIST_SERVICE = 2 //minutes
+       };
   MyHeartBeatAcceptor * m_acceptor;
 };
 

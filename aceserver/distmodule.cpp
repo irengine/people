@@ -177,7 +177,7 @@ bool MyDistClient::send_ftp()
     int _mbz_md5_len = ACE_OS::strlen(_mbz_md5) + 1;
     int leading_length = dist_out_leading_length();
     int ftp_file_name_len = ACE_OS::strlen(ftp_file_name) + 1;
-    int data_len = leading_length + ftp_file_name_len + dist_info->password_len + 1 + _mbz_md5_len + 1;
+    int data_len = leading_length + ftp_file_name_len + dist_info->password_len + 1 + _mbz_md5_len;
     int total_len = sizeof(MyFtpFile) + data_len;
     ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_FTP_FILE);
     MyFtpFile * packet = (MyFtpFile *)mb->base();
@@ -273,15 +273,24 @@ void MyDistClients::dist_files()
 
 MyClientFileDistributor::MyClientFileDistributor(): m_dist_clients(&m_dist_infos)
 {
-
+  m_last_begin = 0;
+  m_last_end = 0;
 }
 
-bool MyClientFileDistributor::distribute()
+bool MyClientFileDistributor::distribute(bool check_reload)
 {
-  bool reload = m_dist_infos.need_reload();
+  time_t now = time(NULL);
+  bool reload = false;
+  if (check_reload)
+    reload = m_dist_infos.need_reload();
+  else if (now - m_last_end < 5 * 60)
+    return false;
 
+  m_last_begin = now;
   check_dist_info(reload);
-  return check_dist_clients(reload);
+  check_dist_clients(reload);
+  m_last_end = time(NULL);
+  return true;
 }
 
 bool MyClientFileDistributor::check_dist_info(bool reload)
@@ -772,18 +781,29 @@ int MyHeartBeatService::svc()
   for (ACE_Message_Block * mb; getq(mb) != -1; )
   {
     MyMessageBlockGuard guard(mb);
-    MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
-    if (dph->command == MyDataPacketHeader::CMD_HAVE_DIST_TASK)
+    if (mb->length() == sizeof(int))
     {
-      do_have_dist_task();
-    } else if ((dph->command == MyDataPacketHeader::CMD_FTP_FILE))
-    {
-      do_ftp_file_reply(mb);
-    } else if ((dph->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST))
-    {
-      do_file_md5_reply(mb);
+      int cmd = *(int*)mb->base();
+      if (cmd == TIMED_DIST_TASK)
+      {
+        m_distributor.distribute(false);
+      } else
+        MY_ERROR("unknown command recieved(%d)\n", cmd);
     } else
-      MY_ERROR("unknown packet recieved @%s, cmd = %d\n", name(), dph->command);
+    {
+      MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
+      if (dph->command == MyDataPacketHeader::CMD_HAVE_DIST_TASK)
+      {
+        do_have_dist_task();
+      } else if ((dph->command == MyDataPacketHeader::CMD_FTP_FILE))
+      {
+        do_ftp_file_reply(mb);
+      } else if ((dph->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST))
+      {
+        do_file_md5_reply(mb);
+      } else
+        MY_ERROR("unknown packet recieved @%s, cmd = %d\n", name(), dph->command);
+    }
   }
 
   MY_INFO("exiting %s::svc()\n", name());
@@ -792,7 +812,7 @@ int MyHeartBeatService::svc()
 
 void MyHeartBeatService::do_have_dist_task()
 {
-  m_distributor.distribute();
+  m_distributor.distribute(true);
 }
 
 void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
@@ -869,73 +889,6 @@ void MyHeartBeatService::do_file_md5_reply(ACE_Message_Block * mb)
   const char * dist_id = dpe->data;
   MY_DEBUG("file md5 list value from client_id(%s) dist_id(%s): %s\n", client_id.as_string(), dist_id, md5list);
   m_distributor.dist_ftp_md5_reply(client_id.as_string(), dist_id, md5list);
-}
-
-void MyHeartBeatService::calc_server_file_md5_list(ACE_Message_Block * mb)
-{
-  MyMessageBlockGuard guard(mb);
-
-  if (mb->size() <= 0)
-    return;
-
-  const char *seperator = "% #,*";
-  char *str, *token, *saveptr;
-
-  for (str = mb->base(); ; str = NULL)
-  {
-    token = strtok_r(str, seperator, &saveptr);
-    if (token == NULL)
-      break;
-    if (!*token)
-      continue;
-    calc_server_file_md5_list_one(token);
-  }
-}
-
-void MyHeartBeatService::calc_server_file_md5_list_one(const char * client_id)
-{
-  MyClientID id(client_id);
-  int index = MyServerAppX::instance()->client_id_table().index_of(id);
-  if (index < 0)
-  {
-    MY_ERROR("invalid client id = %s\n", client_id);
-    return;
-  }
-
-  char client_path_by_id[PATH_MAX];
-  ACE_OS::strsncpy(client_path_by_id, MyConfigX::instance()->app_test_data_path.c_str(), PATH_MAX);
-  int len = ACE_OS::strlen(client_path_by_id);
-  if (unlikely(len + sizeof(MyClientID) + 10 > PATH_MAX))
-  {
-    MY_ERROR("name too long for client sub path\n");
-    return;
-  }
-  client_path_by_id[len++] = '/';
-  client_path_by_id[len] = '0';
-  MyTestClientPathGenerator::client_id_to_path(id.as_string(), client_path_by_id + len, PATH_MAX - 1 - len);
-
-  MyFileMD5s md5s_server;
-  md5s_server.calculate(client_path_by_id, NULL, false);
-  md5s_server.sort();
-  if (!module_x()->running_with_app())
-    return;
-  int buff_len = md5s_server.total_size(true);
-  ACE_Message_Block * mb = make_server_file_md5_list_mb(buff_len, index);
-  md5s_server.to_buffer(mb->base() + sizeof(MyServerFileMD5List), buff_len, true);
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (((MyHeartBeatModule*)module_x())->dispatcher()->putq(mb, &tv) == -1)
-  {
-    MY_ERROR("can not put file md5 list message to disatcher's queue\n");
-    mb->release();
-  }
-}
-
-ACE_Message_Block * MyHeartBeatService::make_server_file_md5_list_mb(int list_len, int client_id_index)
-{
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyServerFileMD5List) + list_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
-  MyServerFileMD5List * pkt = (MyServerFileMD5List *) mb->base();
-  pkt->magic = client_id_index;
-  return mb;
 }
 
 
@@ -1023,6 +976,14 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
   } else if ((long)act == TIMER_ID_IP_VER)
   {
     MyHeartBeatProcessor::m_ip_ver_submitter->check_time_out();
+  } else if ((long)act == TIMER_ID_DIST_SERVICE)
+  {
+    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(int));
+    *(int*)mb->base() = MyHeartBeatService::TIMED_DIST_TASK;
+    ACE_Time_Value tv(ACE_Time_Value::zero);
+    if (((MyHeartBeatModule*)module_x())->service()->putq(mb, &tv) < 0)
+      mb->release();
+
   }
   return 0;
 }
@@ -1060,6 +1021,17 @@ bool MyHeartBeatDispatcher::on_start()
       return false;
     }
   }
+/*
+  {
+    ACE_Time_Value interval(CLOCK_TICK_DIST_SERVICE * 60);
+    if (reactor()->schedule_timer(this, (const void*)TIMER_ID_DIST_SERVICE, interval, interval) < 0)
+    {
+      MY_ERROR("setup heart beat timer failed %s %s\n", name(), (const char*)MyErrno());
+      return false;
+    }
+  }
+*///todo: enable this
+
 
   return true;
 }

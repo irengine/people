@@ -659,6 +659,14 @@ bool MyDB::dist_info_update_status()
   return set_cfg_value(1, buff);
 }
 
+bool MyDB::remove_orphan_dist_info()
+{
+  const char * sql = "delete from tb_dist_info where dist_id not in (select distinct dc_dist_id from tb_dist_clients)";
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  return exec_command(sql);
+}
+
 bool MyDB::set_cfg_value(const int id, const char * value)
 {
   const char * sql_template = "update tb_config set cfg_value = '%s' where cfg_id = %d";
