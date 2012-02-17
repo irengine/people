@@ -607,6 +607,7 @@ public:
   static bool copy_path(const char * srcdir, const char * destdir, bool self_only);
   static bool copy_path_zap(const char * srcdir, const char * destdir, bool self_only, bool zap);
   static bool remove_path(const char * path, bool ignore_eror);
+  static bool remove_old_files(const char * path, time_t deadline);
   static bool copy_file_by_fd(int src_fd, int dest_fd);
   static bool copy_file(const char * src, const char * dest, bool self_only);
   static int  cat_path(const char * path, const char * subpath, MyPooledMemGuard & result);

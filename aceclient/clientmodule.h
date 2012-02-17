@@ -21,6 +21,7 @@ class MyClientToDistModule;
 class MyClientToDistConnector;
 class MyDistInfoFtp;
 class MyDistInfoFtps;
+class MyHttp1991Acceptor;
 
 const u_int8_t const_client_version_major = 1;
 const u_int8_t const_client_version_minor = 0;
@@ -65,6 +66,20 @@ private:
 };
 #endif
 
+class MyClickInfo
+{
+public:
+  MyClickInfo();
+  MyClickInfo(const char * chn, const char * pcode, int count);
+
+  std::string channel;
+  std::string point_code;
+  int click_count;
+};
+
+typedef std::list<MyClickInfo> MyClickInfos;
+
+
 class MyClientDB
 {
 public:
@@ -75,6 +90,8 @@ public:
   bool save_ftp_command(const char * ftp_command, const char * dist_id);
   bool set_ftp_command_status(const char * dist_id, int status);
   bool get_ftp_command_status(const char * dist_id, int & status);
+  bool get_click_infos(MyClickInfos & infos);
+  bool save_click_info(const char * channel, const char * point_code);
   bool reset_ftp_command_status();
   void remove_outdated_ftp_command(time_t deadline);
   bool load_ftp_commands(MyDistInfoFtps * dist_ftps);
@@ -87,6 +104,7 @@ protected:
 private:
   static int load_ftp_commands_callback(void * p, int argc, char **argv, char **azColName);
   static int get_ftp_commands_status_callback(void * p, int argc, char **argv, char **azColName);
+  static int get_click_infos_callback(void * p, int argc, char **argv, char **azColName);
 
   bool do_exec(const char *sql, bool show_error = true);
   bool init_db();
@@ -279,6 +297,19 @@ private:
   MyDistInfoFtp * m_dist_info;
 };
 
+class MyWatchDog
+{
+public:
+  void touch();
+  bool expired();
+  void start();
+
+private:
+  enum { WATCH_DOG_TIME_OUT_VALUE = 5 * 60 }; //in seconds
+  bool m_running;
+  time_t m_time;
+};
+
 class MyClientToDistProcessor: public MyBaseClientProcessor
 {
 public:
@@ -410,6 +441,7 @@ private:
   enum { FTP_CHECK_INTERVAL = 1 }; //in minutes
   MyClientToDistConnector * m_connector;
   MyClientToMiddleConnector * m_middle_connector;
+  MyHttp1991Acceptor * m_http1991_acceptor;
 };
 
 
@@ -527,5 +559,48 @@ private:
   enum { MAX_CONNECT_RETRY_COUNT = 3 };
   int m_retried_count;
 };
+
+
+/////////////////////////////////////
+//http 1991
+/////////////////////////////////////
+
+class MyHttp1991Processor: public MyBaseProcessor
+{
+public:
+  typedef MyBaseProcessor super;
+  enum { MAX_COMMAND_LINE_LENGTH = 1024 };
+
+  MyHttp1991Processor(MyBaseHandler * handler);
+  virtual ~MyHttp1991Processor();
+
+  virtual int handle_input();
+
+private:
+  enum { CMD_WATCH_DOG, CMD_ADV_CLICK, CMD_PLC };
+
+  void do_command_adv_click(char * parameter);
+  void do_command_plc(char * parameter);
+  void do_command_watch_dog();
+  int process_command_line(char * cmdline);
+
+  ACE_Message_Block * m_mb;
+};
+
+class MyHttp1991Handler: public MyBaseHandler
+{
+public:
+  MyHttp1991Handler(MyBaseConnectionManager * xptr = NULL);
+};
+
+class MyHttp1991Acceptor: public MyBaseAcceptor
+{
+public:
+  enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
+  MyHttp1991Acceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
+  virtual int make_svc_handler(MyBaseHandler *& sh);
+  virtual const char * name() const;
+};
+
 
 #endif /* CLIENTMODULE_H_ */

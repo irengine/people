@@ -599,6 +599,58 @@ bool MyFilePaths::remove_path(const char * path, bool ignore_eror)
   return ret;
 }
 
+bool MyFilePaths::remove_old_files(const char * path, time_t deadline)
+{
+  if (unlikely(!path || !*path))
+    return false;
+
+  struct stat buf;
+  if (::stat(path, &buf) != 0)
+    return false;
+
+  if (S_ISREG(buf.st_mode))
+  {
+    if (buf.st_mtime < deadline)
+      return remove(path);
+  }
+  else if (S_ISDIR(buf.st_mode))
+  {
+    DIR * dir = opendir(path);
+    if (!dir)
+    {
+      MY_ERROR("can not open directory: %s %s\n", path, (const char*)MyErrno());
+      return false;
+    }
+
+    bool ret = true;
+    int len1 = ACE_OS::strlen(path);
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL)
+    {
+      if (!entry->d_name)
+        continue;
+      if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+        continue;
+
+      MyPooledMemGuard msrc;
+      int len = ACE_OS::strlen(entry->d_name);
+      MyMemPoolFactoryX::instance()->get_mem(len1 + len + 2, &msrc);
+      ACE_OS::sprintf(msrc.data(), "%s/%s", path, entry->d_name);
+
+      if (!remove_old_files(msrc.data(), deadline))
+        ret = false;
+    };
+    closedir(dir);
+    return ret;
+  } else
+  {
+    MY_ERROR("unknown type for file(%s) stat.st_mode(%d)\n", path, buf.st_mode);
+    return false;
+  }
+
+  return true;
+}
 
 bool MyFilePaths::copy_file_by_fd(int src_fd, int dest_fd)
 {
@@ -717,6 +769,7 @@ void MyTestClientPathGenerator::make_paths_from_id_table(const char * app_data_p
     path_x.init_from_string(buff, "/daily");
     MyFilePaths::make_path(path_x.data(), true);
     path_x.init_from_string(buff, "/tmp");
+    MyFilePaths::remove_path(path_x.data(), true);
     MyFilePaths::make_path(path_x.data(), true);
     path_x.init_from_string(buff, "/backup");
     MyFilePaths::make_path(path_x.data(), true);

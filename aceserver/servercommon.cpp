@@ -227,7 +227,7 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
     m_compositor.close();
     return false;
   }
-  if (type_is_single(*http_dist_request.type) && !m_compositor.add(mdestfile.data()))
+  if (!type_is_single(*http_dist_request.type) && !m_compositor.add(mdestfile.data()))
   {
     m_compositor.close();
     return false;

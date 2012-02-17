@@ -376,7 +376,7 @@ MyBaseProcessor::EVENT_RESULT MyHttpProcessor::on_recv_packet_i(ACE_Message_Bloc
   }
   const char ok_reply_str[] = "1";
   const char bad_reply_str[] = "0";
-  const int reply_len = sizeof(ok_reply_str) / sizeof(char);
+  const int reply_len = sizeof(ok_reply_str) / sizeof(char) - 1;
   ACE_OS::strsncpy(reply_mb->base(), (ok? ok_reply_str:bad_reply_str), reply_len);
   reply_mb->wr_ptr(reply_len);
   return (m_handler->send_data(reply_mb) <= 0 ? ER_ERROR:ER_OK);

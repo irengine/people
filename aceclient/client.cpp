@@ -180,7 +180,6 @@ bool MyClientApp::full_backup(const char * dist_id, const char * client_id)
       ::write(fh.handle(), dist_id, strlen(dist_id));
   }
 
-
   MyPooledMemGuard old_path, new_path;
   old_path.init_from_string(dest_parent_path.data(), "/old");
   new_path.init_from_string(dest_parent_path.data(), "/new");
@@ -410,6 +409,7 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
   std::string path_x = cfg->app_path + "/data/download";
   MyFilePaths::make_path(path_x.c_str(), true);
   path_x = cfg->app_path + "/data/tmp";
+  MyFilePaths::remove_path(path_x.c_str(), true);
   MyFilePaths::make_path(path_x.c_str(), true);
   path_x = cfg->app_path + "/data/backup";
   MyFilePaths::make_path(path_x.c_str(), true);

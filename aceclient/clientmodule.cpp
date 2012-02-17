@@ -13,6 +13,20 @@
 #include "baseapp.h"
 #include "client.h"
 
+
+//MyClickInfo//
+
+MyClickInfo::MyClickInfo()
+{
+  click_count = 0;
+}
+
+MyClickInfo::MyClickInfo(const char * chn, const char * pcode, int count): channel(chn), point_code(pcode), click_count(count)
+{
+
+}
+
+
 //MyClientDB//
 
 ACE_Thread_Mutex MyClientDB::m_mutex;
@@ -35,8 +49,11 @@ bool MyClientDB::init_db()
 
   const char * const_sql_tb_ftp_info =
       "create table tb_ftp_info(ftp_dist_id text PRIMARY KEY, ftp_str text, ftp_status integer, ftp_recv_time integer)";
+  const char * const_sql_tb_click =
+      "create table tb_click(channel_id text, point_code text)";
 
-  return do_exec(const_sql_tb_ftp_info, false);
+  do_exec(const_sql_tb_ftp_info, false);
+  return do_exec(const_sql_tb_click, false);
 }
 
 bool MyClientDB::open_db(const char * client_id)
@@ -144,6 +161,33 @@ bool MyClientDB::get_ftp_command_status(const char * dist_id, int & status)
   return status != -10;
 }
 
+bool MyClientDB::save_click_info(const char * channel, const char * point_code)
+{
+  if (unlikely(!channel || !*channel || !point_code || !*point_code))
+    return false;
+
+  const char * const_sql_template = "insert into tb_click(channel_id, point_code) values('%s', '%s')";
+  char sql[800];
+  ACE_OS::snprintf(sql, 800, const_sql_template, channel, point_code);
+  return do_exec(sql);
+}
+
+bool MyClientDB::get_click_infos(MyClickInfos & infos)
+{
+  const char * sql = "select channel_id, point_code, count(*) from tb_click group by channel_id, point_code";
+  char *zErrMsg = 0;
+  if (sqlite3_exec(m_db, sql, get_ftp_commands_status_callback, &infos, &zErrMsg) != SQLITE_OK)
+  {
+    MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
+    if (zErrMsg)
+      sqlite3_free(zErrMsg);
+    return false;
+  }
+  if (zErrMsg)
+    sqlite3_free(zErrMsg);
+  return true;
+}
+
 void MyClientDB::remove_outdated_ftp_command(time_t deadline)
 {
   const char * const_sql_template = "delete from tb_ftp_info where ftp_recv_time <= %ld";
@@ -216,6 +260,13 @@ int MyClientDB::load_ftp_commands_callback(void * p, int argc, char **argv, char
 
   dist_ftps->add(dist_ftp);
   return 0;
+}
+
+int MyClientDB::get_click_infos_callback(void * p, int argc, char **argv, char **azColName)
+{
+  ACE_UNUSED_ARG(azColName);
+  MyClickInfos * infos = (MyClickInfos *)p;
+  if (unlikely(!argv[0] || ))
 }
 
 int MyClientDB::get_ftp_commands_status_callback(void * p, int argc, char **argv, char **azColName)
@@ -887,12 +938,16 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info)
   }
   MyPooledMemGuard target_path;
   if (!dist_info->calc_target_path(target_parent_path.data(), target_path))
+  {
+    MyFilePaths::remove_path(target_parent_path.data(), true);
     return false;
+  }
 
   int prefix_len = ACE_OS::strlen(target_parent_path.data());
   if (!MyFilePaths::make_path_const(target_path.data(), prefix_len, false, true))
   {
     MY_ERROR("can not mkdir(%s) %s\n", target_path.data(), (const char *)MyErrno());
+    MyFilePaths::remove_path(target_parent_path.data(), true);
     return false;
   }
 
@@ -924,8 +979,9 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info)
   }
 
 __exit__:
-  MyFilePaths::remove_path(target_path.data(), true);
-
+  MyFilePaths::remove_path(target_parent_path.data(), true);
+  if (result)
+    MyFilePaths::remove(dist_info->local_file_name.data());
   return result;
 }
 
@@ -1092,6 +1148,27 @@ void MyDistInfoMD5Comparer::compare(MyDistInfoHeader * dist_info_header, MyFileM
     server_md5.minus(client_md5, &spl, false);
   } else
     server_md5.minus(client_md5, NULL, false);
+}
+
+
+//MyWatchDog//
+
+void MyWatchDog::touch()
+{
+  m_running = false;
+}
+
+bool MyWatchDog::expired()
+{
+  if (unlikely(!m_running))
+    return false;
+  return (time(NULL) >= m_time + WATCH_DOG_TIME_OUT_VALUE);
+}
+
+void MyWatchDog::start()
+{
+  m_running = true;
+  m_time = time(NULL);
 }
 
 
@@ -1997,6 +2074,7 @@ MyClientToDistDispatcher::MyClientToDistDispatcher(MyBaseModule * pModule, int n
 {
   m_connector = NULL;
   m_middle_connector = NULL;
+  m_http1991_acceptor = NULL;
   m_clock_interval = FTP_CHECK_INTERVAL * 60;
 }
 
@@ -2009,6 +2087,8 @@ bool MyClientToDistDispatcher::on_start()
 {
   m_middle_connector = new MyClientToMiddleConnector(this, new MyBaseConnectionManager());
   add_connector(m_middle_connector);
+  m_http1991_acceptor = new MyHttp1991Acceptor(this, new MyBaseConnectionManager());
+  add_acceptor(m_http1991_acceptor);
   return true;
 }
 
@@ -2055,6 +2135,7 @@ void MyClientToDistDispatcher::on_stop()
 {
   m_connector = NULL;
   m_middle_connector = NULL;
+  m_http1991_acceptor = NULL;
 }
 
 bool MyClientToDistDispatcher::on_event_loop()
@@ -2433,4 +2514,106 @@ bool MyClientToMiddleConnector::before_reconnect()
   finish();
   MyClientAppX::instance()->client_to_dist_module()->ask_for_server_addr_list_done(false);
   return false;
+}
+
+
+/////////////////////////////////////
+//http 1991
+/////////////////////////////////////
+
+
+//MyHttp1991Processor//
+
+MyHttp1991Processor::MyHttp1991Processor(MyBaseHandler * handler) : super(handler)
+{
+  m_mb = NULL;
+}
+
+MyHttp1991Processor::~MyHttp1991Processor()
+{
+  if (m_mb)
+    m_mb->release();
+}
+
+int MyHttp1991Processor::handle_input()
+{
+  if (m_mb == NULL)
+    m_mb = MyMemPoolFactoryX::instance()->get_message_block(MAX_COMMAND_LINE_LENGTH);
+  if (mycomutil_recv_message_block(m_handler, m_mb) < 0)
+    return -1;
+  int len = m_mb->length();
+  if (len <= 7 || len >= MAX_COMMAND_LINE_LENGTH)
+  {
+    MY_ERROR("invalid request @MyHttp1991Processor, request length = %d\n", len);
+    return -1;
+  }
+
+  char * ptr = m_mb->base();
+  ptr[len] = 0;
+
+  const char const_click_str[] = "http://127.0.0.1:1991/list?pg=";
+  const int const_click_str_len = sizeof(const_click_str) / sizeof(char) - 1;
+  const char const_plc_str[] = "http://localhost:1991/ctrl?type=";
+  const int const_plc_str_len = sizeof(const_plc_str) / sizeof(char) - 1;
+
+  if (ACE_OS::strcmp(ptr, "http://127.0.0.1:1991/op") == 0)
+    do_command_watch_dog();
+  else if (ACE_OS::strncmp(ptr, const_click_str, const_click_str_len) == 0)
+    do_command_adv_click(ptr + const_click_str_len);
+  else if (ACE_OS::strncmp(ptr, const_plc_str, const_plc_str_len) == 0)
+    do_command_plc(ptr + const_plc_str_len);
+
+  return -1;
+}
+
+void MyHttp1991Processor::do_command_watch_dog()
+{
+
+}
+
+void MyHttp1991Processor::do_command_adv_click(char * parameter)
+{
+
+}
+
+void MyHttp1991Processor::do_command_plc(char * parameter)
+{
+
+}
+
+
+//MyHttp1991Handler//
+
+MyHttp1991Handler::MyHttp1991Handler(MyBaseConnectionManager * xptr)
+  : MyBaseHandler(xptr)
+{
+  m_processor = new MyHttp1991Processor(this);
+}
+
+
+//MyHttp1991Acceptor//
+
+MyHttp1991Acceptor::MyHttp1991Acceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
+    MyBaseAcceptor(_dispatcher, _manager)
+{
+  m_tcp_port = 1991;
+  m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
+}
+
+int MyHttp1991Acceptor::make_svc_handler(MyBaseHandler *& sh)
+{
+  sh = new MyHttp1991Handler(m_connection_manager);
+  if (!sh)
+  {
+    MY_ERROR("can not alloc MyHttp1991Handler from %s\n", name());
+    return -1;
+  }
+  sh->parent((void*)this);
+  sh->reactor(reactor());
+  return 0;
+}
+
+const char * MyHttp1991Acceptor::name() const
+{
+  return "MyHttp1991Acceptor";
 }
