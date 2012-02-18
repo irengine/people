@@ -731,8 +731,6 @@ bool MyFilePaths::remove(const char *pathfile)
 }
 
 
-#if defined(MY_client_test) || defined(MY_server_test)
-
 void MyTestClientPathGenerator::make_paths(const char * app_data_path, int64_t _start, int _count)
 {
   if (!app_data_path || !*app_data_path)
@@ -795,8 +793,6 @@ bool MyTestClientPathGenerator::client_id_to_path(const char * id, char * result
   ACE_OS::sprintf(result, "%s/%s", prefix, id);
   return true;
 }
-
-#endif
 
 
 //MyUnixHandleGuard//

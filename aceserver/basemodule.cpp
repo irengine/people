@@ -1669,22 +1669,23 @@ int MyBaseClientProcessor::on_open()
   if (super::on_open() < 0)
     return -1;
 
-#ifdef MY_client_test
-  int pending_count = m_handler->connection_manager()->pending_count();
-  if (pending_count > 0 &&  pending_count <= MyBaseConnector::BATCH_CONNECT_NUM / 2)
-    m_handler->connector()->connect_ready();
+  if (g_test_mode)
+  {
+    int pending_count = m_handler->connection_manager()->pending_count();
+    if (pending_count > 0 &&  pending_count <= MyBaseConnector::BATCH_CONNECT_NUM / 2)
+      m_handler->connector()->connect_ready();
+  }
   return 0;
-#endif
 }
 
 void MyBaseClientProcessor::on_close()
 {
-
-#ifdef MY_client_test
-  int pending_count = m_handler->connection_manager()->pending_count();
-  if (pending_count > 0 &&  pending_count <= MyBaseConnector::BATCH_CONNECT_NUM / 2)
-    m_handler->connector()->connect_ready();
-#endif
+  if (g_test_mode)
+  {
+    int pending_count = m_handler->connection_manager()->pending_count();
+    if (pending_count > 0 &&  pending_count <= MyBaseConnector::BATCH_CONNECT_NUM / 2)
+      m_handler->connector()->connect_ready();
+  }
 }
 
 MyBaseProcessor::EVENT_RESULT MyBaseClientProcessor::on_recv_header()
@@ -2266,10 +2267,11 @@ int MyBaseConnector::handle_timeout(const ACE_Time_Value &current_time, const vo
   {
     if (m_connection_manager->active_connections() < m_num_connection)
     {
-#ifdef MY_client_test
-      if (m_remain_to_connect > 0)
-        return 0;
-#endif
+      if (g_test_mode)
+      {
+        if (m_remain_to_connect > 0)
+          return 0;
+      }
       if (before_reconnect())
       {
         m_reconnect_retry_count++;
@@ -2295,9 +2297,8 @@ void MyBaseConnector::on_stop()
 int MyBaseConnector::start()
 {
   m_connection_manager->unlock();
-#ifdef MY_client_test
-  m_remain_to_connect = 0;
-#endif
+  if (g_test_mode)
+    m_remain_to_connect = 0;
   if (open(m_dispatcher->reactor(), ACE_NONBLOCK) == -1)
     return -1;
   m_reconnect_retry_count = 0;
@@ -2374,89 +2375,92 @@ int MyBaseConnector::stop()
   return 0;
 }
 
-#ifdef MY_client_test
 int MyBaseConnector::connect_ready()
 {
-  return do_connect(0, false);
+  if (g_test_mode)
+    return do_connect(0, false);
+  else
+    return 0;
 }
-#endif
+
 
 int MyBaseConnector::do_connect(int count, bool bNew)
 {
-#ifdef MY_client_test
-  if (unlikely(count <= 0 && m_remain_to_connect == 0))
-    return 0;
-
-  if (unlikely(count > m_num_connection))
+  if (g_test_mode)
   {
-    MY_FATAL(ACE_TEXT("invalid connect count = %d, maximum allowed connections = %d"), count, m_num_connection);
-    return -1;
-  }
+    if (unlikely(count <= 0 && m_remain_to_connect == 0))
+      return 0;
 
-  if (m_connection_manager->pending_count() >= BATCH_CONNECT_NUM / 2)
-    return 0;
-
-  bool b_remain_connect = m_remain_to_connect > 0;
-  if (b_remain_connect && bNew)
-    return 0;
-  int true_count;
-  if (b_remain_connect)
-    true_count = std::min(m_remain_to_connect, (BATCH_CONNECT_NUM - m_connection_manager->pending_count()));
-  else
-    true_count = std::min(count, (int)BATCH_CONNECT_NUM);
-
-  if (true_count <= 0)
-    return 0;
-
-  ACE_INET_Addr port_to_connect(m_tcp_port, m_tcp_addr.c_str());
-  MyBaseHandler * handler = NULL;
-  int ok_count = 0, pending_count = 0;
-
-  ACE_Time_Value timeout(30);
-  ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
-
-  for (int i = 1; i <= true_count; ++i)
-  {
-    handler = NULL;
-    int ret_i = connect(handler, port_to_connect, synch_options);
-//    MY_DEBUG("connect result = %d, handler = %X\n", ret_i, handler);
-    if (ret_i == 0)
+    if (unlikely(count > m_num_connection))
     {
-      ++ok_count;
+      MY_FATAL(ACE_TEXT("invalid connect count = %d, maximum allowed connections = %d"), count, m_num_connection);
+      return -1;
     }
-    else if (ret_i == -1)
+
+    if (m_connection_manager->pending_count() >= BATCH_CONNECT_NUM / 2)
+      return 0;
+
+    bool b_remain_connect = m_remain_to_connect > 0;
+    if (b_remain_connect && bNew)
+      return 0;
+    int true_count;
+    if (b_remain_connect)
+      true_count = std::min(m_remain_to_connect, (BATCH_CONNECT_NUM - m_connection_manager->pending_count()));
+    else
+      true_count = std::min(count, (int)BATCH_CONNECT_NUM);
+
+    if (true_count <= 0)
+      return 0;
+
+    ACE_INET_Addr port_to_connect(m_tcp_port, m_tcp_addr.c_str());
+    MyBaseHandler * handler = NULL;
+    int ok_count = 0, pending_count = 0;
+
+    ACE_Time_Value timeout(30);
+    ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
+
+    for (int i = 1; i <= true_count; ++i)
     {
-      if (errno == EWOULDBLOCK)
+      handler = NULL;
+      int ret_i = connect(handler, port_to_connect, synch_options);
+  //    MY_DEBUG("connect result = %d, handler = %X\n", ret_i, handler);
+      if (ret_i == 0)
       {
-        pending_count++;
-        m_connection_manager->add_connection(handler, MyBaseConnectionManager::CS_Pending);
+        ++ok_count;
+      }
+      else if (ret_i == -1)
+      {
+        if (errno == EWOULDBLOCK)
+        {
+          pending_count++;
+          m_connection_manager->add_connection(handler, MyBaseConnectionManager::CS_Pending);
+        }
       }
     }
-  }
 
-  if (b_remain_connect)
-    m_remain_to_connect -= true_count;
-  else if (bNew)
-    m_remain_to_connect = count - true_count;
+    if (b_remain_connect)
+      m_remain_to_connect -= true_count;
+    else if (bNew)
+      m_remain_to_connect = count - true_count;
 
-  MY_INFO(ACE_TEXT("connecting to %s:%d (total=%d, ok=%d, failed=%d, pending=%d)... \n"),
-      m_tcp_addr.c_str(), m_tcp_port, true_count, ok_count, true_count - ok_count- pending_count, pending_count);
+    MY_INFO(ACE_TEXT("connecting to %s:%d (total=%d, ok=%d, failed=%d, pending=%d)... \n"),
+        m_tcp_addr.c_str(), m_tcp_port, true_count, ok_count, true_count - ok_count- pending_count, pending_count);
 
-  return ok_count + pending_count > 0;
-
-#else
-  ACE_INET_Addr port_to_connect(m_tcp_port, m_tcp_addr.c_str());
-  MyBaseHandler * handler = NULL;
-  ACE_Time_Value timeout(30);
-  ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
-  MY_INFO(ACE_TEXT("connecting to %s:%d ...\n"), m_tcp_addr.c_str(), m_tcp_port);
-  if (connect(handler, port_to_connect, synch_options) == -1)
+    return ok_count + pending_count > 0;
+  } else
   {
-    if (errno == EWOULDBLOCK)
-      m_connection_manager->add_connection(handler, MyBaseConnectionManager::CS_Pending);
+    ACE_INET_Addr port_to_connect(m_tcp_port, m_tcp_addr.c_str());
+    MyBaseHandler * handler = NULL;
+    ACE_Time_Value timeout(30);
+    ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
+    MY_INFO(ACE_TEXT("connecting to %s:%d ...\n"), m_tcp_addr.c_str(), m_tcp_port);
+    if (connect(handler, port_to_connect, synch_options) == -1)
+    {
+      if (errno == EWOULDBLOCK)
+        m_connection_manager->add_connection(handler, MyBaseConnectionManager::CS_Pending);
+    }
+    return 0;
   }
-  return 0;
-#endif
 }
 
 

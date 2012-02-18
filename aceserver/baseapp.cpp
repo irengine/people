@@ -13,6 +13,7 @@
 
 const ACE_TCHAR * const_app_version = ACE_TEXT("1.0");
 long g_clock_tick = 0;
+bool g_test_mode = true;
 
 //MyServerConfig//
 
@@ -35,15 +36,15 @@ const int  DEFAULT_middle_server_client_port = 2223;
 const int  DEFAULT_middle_server_dist_port = 2224;
 const int  DEFAULT_remote_access_port = 2225;
 const int  DEFAULT_client_heart_beat_interval = 60; //in seconds
-#ifdef MY_client_test
-  const int DEFAULT_test_client_ftp_thread_number = 50;
-#endif
+const int  DEFAULT_test_client_ftp_thread_number = 50;
 const int  DEFAULT_db_server_port = 5432;
 const int  DEFAULT_http_port = 1922;
 const int  DEFAULT_bs_server_port = 1921;
 
 //common for all
 const ACE_TCHAR * CONFIG_Section_global = ACE_TEXT("global");
+
+const ACE_TCHAR * CONFIG_test_mode = ACE_TEXT("test_mode");
 
 const ACE_TCHAR * CONFIG_running_mode = ACE_TEXT("running_mode");
 const ACE_TCHAR * CONFIG_use_mem_pool = ACE_TEXT("use_mem_pool");
@@ -57,9 +58,7 @@ const ACE_TCHAR * CONFIG_log_to_stderr = ACE_TEXT("log.to_stderr");
 const ACE_TCHAR * CONFIG_log_file_number = ACE_TEXT("log.file_number");
 const ACE_TCHAR * CONFIG_log_file_size_in_MB = ACE_TEXT("log.file_size");
 
-#if defined(MY_client_test)
-  const ACE_TCHAR * CONFIG_test_client_ftp_thread_number = ACE_TEXT("module.test_client_ftp_thread_number");
-#endif
+const ACE_TCHAR * CONFIG_test_client_ftp_thread_number = ACE_TEXT("module.test_client_ftp_thread_number");
 
 const ACE_TCHAR * CONFIG_remote_access_port = ACE_TEXT("remote_access_port");
 
@@ -79,7 +78,7 @@ const ACE_TCHAR * CONFIG_bs_server_port = ACE_TEXT("bs_server_port");
 
 //client and dist
 const ACE_TCHAR *  CONFIG_middle_server_addr = ACE_TEXT("middle_server.addr");
-const ACE_TCHAR * CONFIG_dist_server_heart_beat_port = ACE_TEXT("module.heart_beat.port");
+const ACE_TCHAR *  CONFIG_dist_server_heart_beat_port = ACE_TEXT("module.heart_beat.port");
 
 //client and middle
 const ACE_TCHAR *  CONFIG_middle_server_client_port = ACE_TEXT("middle_server.client_port");
@@ -95,9 +94,6 @@ const ACE_TCHAR * CONFIG_client_version_current = ACE_TEXT("client_version_curre
 
 //client specific
 const ACE_TCHAR * CONFIG_client_heart_beat_interval = ACE_TEXT("module.client_heart_beat_interval");
-#if defined(MY_client_test)
-  const ACE_TCHAR * CONFIG_dist_server_addr = ACE_TEXT("module.test_dist_server_addr");
-#endif
 
 
 MyConfig::MyConfig()
@@ -132,9 +128,7 @@ MyConfig::MyConfig()
 
   //client only
   client_heart_beat_interval = DEFAULT_client_heart_beat_interval;
-#if defined(MY_client_test)
   test_client_ftp_thread_number = DEFAULT_test_client_ftp_thread_number;
-#endif
 
   //middle only
   http_port = DEFAULT_http_port;
@@ -181,10 +175,7 @@ void MyConfig::init_path(const char * app_home_path)
   status_file_name = app_path + "/running/app.pid";
   log_file_name = app_path + "/log/app.log";
   config_file_name = app_path + "/config/app.cfg";
-
-#if defined(MY_client_test) || defined(MY_server_test)
-  app_test_data_path = app_path + "/data";
-#endif
+  app_data_path = app_path + "/data";
 }
 
 bool MyConfig::is_server() const
@@ -284,6 +275,9 @@ bool MyConfig::load_config_common(ACE_Configuration_Heap & cfgHeap, ACE_Configur
       return false;
     }
   }
+
+  if (cfgHeap.get_integer_value (section,  CONFIG_test_mode, ival) == 0)
+    g_test_mode = (ival != 0);
 
   if (cfgHeap.get_integer_value (section,  CONFIG_use_mem_pool, ival) == 0)
   {
@@ -453,18 +447,19 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
       client_heart_beat_interval = ival;
   }
 
-#ifdef MY_client_test
-  if (cfgHeap.get_integer_value (section,  CONFIG_test_client_ftp_thread_number, ival) == 0)
+  if (g_test_mode)
   {
-    if (ival == 0 || ival > 500 )
+    if (cfgHeap.get_integer_value (section,  CONFIG_test_client_ftp_thread_number, ival) == 0)
     {
-      MY_WARNING(ACE_TEXT("Invalid %s value (= %d), using default value = %d\n"),
-          CONFIG_test_client_ftp_thread_number, ival, DEFAULT_test_client_ftp_thread_number);
+      if (ival == 0 || ival > 500 )
+      {
+        MY_WARNING(ACE_TEXT("Invalid %s value (= %d), using default value = %d\n"),
+            CONFIG_test_client_ftp_thread_number, ival, DEFAULT_test_client_ftp_thread_number);
+      }
+      else
+        test_client_ftp_thread_number = ival;
     }
-    else
-      test_client_ftp_thread_number = ival;
   }
-#endif
 
   return true;
 }
@@ -636,11 +631,10 @@ void MyConfig::dump_config_info()
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_debug_enabled, log_debug_enabled));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_to_stderr, log_to_stderr));
 
-#if defined(MY_client_test) || defined(MY_server_test)
-  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_mode = 1\n")));
-#else
-  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_mode = 0\n")));
-#endif
+  if (g_test_mode)
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_mode = 1\n")));
+  else
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_mode = 0\n")));
 
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_remote_access_port, remote_access_port));
 
@@ -693,10 +687,6 @@ void MyConfig::dump_config_info()
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tconfig_file = %s\n"), config_file_name.c_str()));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tapp_path = %s\n"), app_path.c_str()));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\texe_path = %s\n"), exe_path.c_str()));
-#if defined(MY_client_test) || defined(MY_server_test)
-  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_data_path = %s\n"), app_test_data_path.c_str()));
-#endif
-
 }
 
 

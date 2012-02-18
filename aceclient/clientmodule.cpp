@@ -320,12 +320,13 @@ int MyClientDB::get_one_integer_value_callback(void * p, int argc, char **argv, 
 //MyFTPClient//
 
 MyFTPClient::MyFTPClient(const std::string &remote_ip, const u_short remote_port,
-                     const std::string &user_name, const std::string &pass_word)
+                     const std::string &user_name, const std::string &pass_word, MyDistInfoFtp * ftp_info)
 {
   m_user_name = user_name;
   m_password = pass_word;
   m_remote_addr.set((u_short)remote_port, remote_ip.c_str());
   m_ftp_server_addr.init_from_string(remote_ip.c_str());
+  m_ftp_info = ftp_info;
 }
 
 MyFTPClient::~MyFTPClient()
@@ -337,7 +338,7 @@ MyFTPClient::~MyFTPClient()
 
 bool MyFTPClient::download(MyDistInfoFtp * dist_info, const char * server_ip)
 {
-  MyFTPClient ftp_client(server_ip, 21, dist_info->client_id.as_string(), dist_info->ftp_password.data());
+  MyFTPClient ftp_client(server_ip, 21, dist_info->client_id.as_string(), dist_info->ftp_password.data(), dist_info);
   if (!ftp_client.login())
     return false;
   MyPooledMemGuard ftp_file_name;
@@ -501,7 +502,7 @@ bool MyFTPClient::change_remote_dir(const char *dirname)
 
 bool MyFTPClient::get_file(const char *filename, const char * localfile)
 {
-  MY_ASSERT_RETURN(filename && *filename && localfile && *localfile, "", false);
+  MY_ASSERT_RETURN(filename && *filename && localfile && *localfile, "\n", false);
 
   ACE_Time_Value  tv(TIME_OUT_SECONDS);
   int d0, d1, d2, d3, p0, p1;
@@ -572,6 +573,12 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
   }
   if (unlikely(!MyClientAppX::instance()->running()))
     return false;
+
+  if (m_ftp_info->first_download)
+  {
+    m_ftp_info->first_download = false;
+    m_ftp_info->post_status_message(9);
+  }
 
   all_size = 0;
   tv.sec(TIME_OUT_SECONDS);
@@ -738,6 +745,7 @@ MyDistInfoFtp::MyDistInfoFtp()
 {
   failed_count = 2;
   last_update = time(NULL);
+  first_download = true;;
 }
 
 bool MyDistInfoFtp::validate()
@@ -836,26 +844,28 @@ void MyDistInfoFtp::calc_local_file_name()
   local_file_name.init_from_string(app_data_path.data(), "/download/", dist_id.data(), ".mbz");
 }
 
-ACE_Message_Block * MyDistInfoFtp::make_ftp_dist_message(const char * dist_id, int status)
+ACE_Message_Block * MyDistInfoFtp::make_ftp_dist_message(const char * dist_id, int status, bool ok, char ftype)
 {
   int dist_id_len = ACE_OS::strlen(dist_id);
-  int total_len = sizeof(MyDataPacketHeader) + dist_id_len + 1 + 2;
+  int total_len = sizeof(MyDataPacketHeader) + dist_id_len + 1 + 2 + 2;
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_FTP_FILE);
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
   ACE_OS::memcpy(dpe->data, dist_id, dist_id_len);
   dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
-  dpe->data[dist_id_len + 1] = (char)(status + '0');
-  dpe->data[dist_id_len + 2] = 0;
+  dpe->data[dist_id_len + 1] = (ok ? '1':'0');
+  dpe->data[dist_id_len + 2] = (char)(status + '0');
+  dpe->data[dist_id_len + 3] = ftype;
+  dpe->data[dist_id_len + 4] = 0;
   return mb;
 }
 
-void MyDistInfoFtp::post_status_message() const
+void MyDistInfoFtp::post_status_message(int _status) const
 {
-  ACE_Message_Block * mb = make_ftp_dist_message(dist_id.data(), status);
+  int m = _status < 0 ? status: _status;
+  ACE_Message_Block * mb = make_ftp_dist_message(dist_id.data(), m, ftype);
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
-#ifdef MY_client_test
-  dpe->magic = client_id_index;
-#endif
+  if (g_test_mode)
+    dpe->magic = client_id_index;
 
   MyClientAppX::instance()->send_mb_to_dist(mb);
 }
@@ -1052,9 +1062,8 @@ void MyDistInfoMD5::post_md5_message()
   int total_len = sizeof(MyDataPacketHeader) + dist_id_len + 1 + md5_len;
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
-#ifdef MY_client_test
-  dpe->magic = client_id_index;
-#endif
+  if (g_test_mode)
+    dpe->magic = client_id_index;
   ACE_OS::memcpy(dpe->data, dist_id.data(), dist_id_len);
   dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
   m_md5list.to_buffer(dpe->data + dist_id_len + 1, md5_len, false);
@@ -1133,11 +1142,7 @@ MyDistInfoMD5 * MyDistInfoMD5s::get_finished(const MyDistInfoMD5 & rhs)
   MyDistInfoMD5ListPtr it;
   for (it = m_dist_info_md5s_finished.begin(); it != m_dist_info_md5s_finished.end(); ++it)
   {
-#ifdef MY_client_test
     if (ACE_OS::strcmp((*it)->dist_id.data(), rhs.dist_id.data()) == 0 && (*it)->client_id_index == rhs.client_id_index)
-#else
-    if (ACE_OS::strcmp((*it)->dist_id.data(), rhs.dist_id.data()) == 0)
-#endif
     {
       MyDistInfoMD5 * result = *it;
       m_dist_info_md5s_finished.erase(it);
@@ -1221,25 +1226,27 @@ int MyClientToDistProcessor::on_open()
   if (super::on_open() < 0)
     return -1;
 
-#ifdef MY_client_test
-  const char * myid = MyClientAppX::instance()->client_to_dist_module()->id_generator().get();
-  if (!myid)
+  if (g_test_mode)
   {
-    MY_ERROR(ACE_TEXT("can not fetch a test client id @MyClientToDistHandler::open\n"));
-    return -1;
-  }
-  client_id(myid);
-  m_client_id_index = MyClientAppX::instance()->client_id_table().index_of(myid);
-  if (m_client_id_index < 0)
+    const char * myid = MyClientAppX::instance()->client_to_dist_module()->id_generator().get();
+    if (!myid)
+    {
+      MY_ERROR(ACE_TEXT("can not fetch a test client id @MyClientToDistHandler::open\n"));
+      return -1;
+    }
+    client_id(myid);
+    m_client_id_index = MyClientAppX::instance()->client_id_table().index_of(myid);
+    if (m_client_id_index < 0)
+    {
+      MY_ERROR("MyClientToDistProcessor::on_open() can not find client_id_index for id = %s\n", myid);
+      return -1;
+    }
+    m_handler->connection_manager()->set_connection_client_id_index(m_handler, m_client_id_index, NULL);
+  } else
   {
-    MY_ERROR("MyClientToDistProcessor::on_open() can not find client_id_index for id = %s\n", myid);
-    return -1;
+    client_id(MyClientAppX::instance()->client_id());
+    m_client_id_index = 0;
   }
-  m_handler->connection_manager()->set_connection_client_id_index(m_handler, m_client_id_index, NULL);
-#else
-  client_id(MyClientAppX::instance()->client_id());
-#endif
-
   return send_version_check_req();
 }
 
@@ -1311,9 +1318,24 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
       ((MyClientToDistHandler*)m_handler)->setup_timer(1 * 60);
       client_id_verified(true);
     }
-#ifdef MY_client_test
 
-    if (unlikely(m_client_id_index == 0))
+    if (g_test_mode)
+    {
+      if (unlikely(m_client_id_index == 0))
+      {
+        MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
+        if (!mod->click_sent())
+        {
+          ACE_Message_Block * mb = mod->get_click_infos(m_client_id.as_string());
+          if (!mb)
+            mod->click_sent_done(m_client_id.as_string());
+          else if (m_handler->send_data(mb) < 0)
+            return ER_ERROR;
+          else
+            mod->click_sent_done(m_client_id.as_string());
+        }
+      }
+    } else
     {
       MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
       if (!mod->click_sent())
@@ -1327,19 +1349,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
           mod->click_sent_done(m_client_id.as_string());
       }
     }
-#else
-    MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
-    if (!mod->click_sent())
-    {
-      ACE_Message_Block * mb = mod->get_click_infos(m_client_id.as_string());
-      if (!mb)
-        mod->click_sent_done(m_client_id.as_string());
-      else if (m_handler->send_data(mb) < 0)
-        return ER_ERROR;
-      else
-        mod->click_sent_done(m_client_id.as_string());
-    }
-#endif
+
     return result;
   }
 
@@ -1377,9 +1387,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_md5_list_request(ACE_M
 
   MyDistInfoMD5 * dist_md5 = new MyDistInfoMD5;
   dist_md5->client_id = m_client_id;
-#ifdef MY_client_test
   dist_md5->client_id_index = m_client_id_index;
-#endif
   if (dist_md5->load_from_string(packet->data))
   {
     MY_INFO("received one md5 file list command for dist %s, client_id=%s\n", dist_md5->dist_id.data(), m_client_id.as_string());
@@ -1452,9 +1460,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_M
   MyDistInfoFtp * dist_ftp = new MyDistInfoFtp();
   dist_ftp->status = 2;
   dist_ftp->client_id = m_client_id;
-#ifdef MY_client_test
   dist_ftp->client_id_index = m_client_id_index;
-#endif
   dist_ftp->ftp_password.init_from_string(m_ftp_password.data());
 
   if (dist_ftp->load_from_string(packet->data))
@@ -1756,14 +1762,15 @@ void MyClientToDistHandler::on_close()
 {
   reactor()->cancel_timer(this);
 
-#ifdef MY_client_test
-  if (m_connection_manager->locked())
-    return;
-  MyClientAppX::instance()->client_to_dist_module()->id_generator().put
-      (
-        ((MyClientToDistProcessor*)m_processor)->client_id().as_string()
-      );
-#endif
+  if (g_test_mode)
+  {
+    if (m_connection_manager->locked())
+      return;
+    MyClientAppX::instance()->client_to_dist_module()->id_generator().put
+        (
+          ((MyClientToDistProcessor*)m_processor)->client_id().as_string()
+        );
+  }
 }
 
 PREPARE_MEMORY_POOL(MyClientToDistHandler);
@@ -2081,9 +2088,8 @@ MyClientToDistConnector::MyClientToDistConnector(MyBaseDispatcher * _dispatcher,
 {
   m_tcp_port = MyConfigX::instance()->dist_server_heart_beat_port;
   m_reconnect_interval = RECONNECT_INTERVAL;
-#ifdef MY_client_test
-  m_num_connection = MyClientAppX::instance()->client_id_table().count();
-#endif
+  if (g_test_mode)
+    m_num_connection = MyClientAppX::instance()->client_id_table().count();
 }
 
 const char * MyClientToDistConnector::name() const
@@ -2213,22 +2219,22 @@ bool MyClientToDistDispatcher::on_event_loop()
     ACE_Time_Value tv(ACE_Time_Value::zero);
     if (this->getq(mb, &tv) != -1)
     {
-#ifdef MY_client_test
-      int index = ((MyDataPacketHeader*)mb->base())->magic;
-      MyBaseHandler * handler = m_connector->connection_manager()->find_handler_by_index(index);
-      if (!handler)
+      if (g_test_mode)
       {
-        MY_WARNING("can not send data to client since connection is lost @ %s::on_event_loop\n", name());
-        mb->release();
-        continue;
-      }
+        int index = ((MyDataPacketHeader*)mb->base())->magic;
+        MyBaseHandler * handler = m_connector->connection_manager()->find_handler_by_index(index);
+        if (!handler)
+        {
+          MY_WARNING("can not send data to client since connection is lost @ %s::on_event_loop\n", name());
+          mb->release();
+          continue;
+        }
 
-      ((MyDataPacketHeader*)mb->base())->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
-      if (handler->send_data(mb) < 0)
-        handler->handle_close();
-#else
-      m_connector->connection_manager()->send_single(mb);
-#endif
+        ((MyDataPacketHeader*)mb->base())->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
+        if (handler->send_data(mb) < 0)
+          handler->handle_close();
+      } else
+        m_connector->connection_manager()->send_single(mb);
     } else
       break;
   }
@@ -2240,16 +2246,17 @@ bool MyClientToDistDispatcher::on_event_loop()
 
 MyClientToDistModule::MyClientToDistModule(MyBaseApp * app): MyBaseModule(app)
 {
-#ifdef MY_client_test
-  MyClientIDTable & client_id_table = MyClientAppX::instance()->client_id_table();
-  int count = client_id_table.count();
-  MyClientID client_id;
-  for (int i = 0; i < count; ++ i)
+  if (g_test_mode)
   {
-    if (client_id_table.value(i, &client_id))
-      m_id_generator.put(client_id.as_string());
+    MyClientIDTable & client_id_table = MyClientAppX::instance()->client_id_table();
+    int count = client_id_table.count();
+    MyClientID client_id;
+    for (int i = 0; i < count; ++ i)
+    {
+      if (client_id_table.value(i, &client_id))
+        m_id_generator.put(client_id.as_string());
+    }
   }
-#endif
   m_service = NULL;
   m_dispatcher = NULL;
   m_client_ftp_service = NULL;
@@ -2297,11 +2304,10 @@ void MyClientToDistModule::ask_for_server_addr_list_done(bool success)
     return;
   if (m_client_ftp_service)
     return;
-#ifdef MY_client_test
-  add_service(m_client_ftp_service = new MyClientFtpService(this, MyConfigX::instance()->test_client_ftp_thread_number));
-#else
-  add_service(m_client_ftp_service = new MyClientFtpService(this, 1));
-#endif
+  if (g_test_mode)
+    add_service(m_client_ftp_service = new MyClientFtpService(this, MyConfigX::instance()->test_client_ftp_thread_number));
+  else
+    add_service(m_client_ftp_service = new MyClientFtpService(this, 1));
   m_client_ftp_service->start();
 }
 
@@ -2419,26 +2425,29 @@ int MyClientToMiddleProcessor::on_open()
   if (super::on_open() < 0)
     return -1;
 
-#ifdef MY_client_test
-  MyTestClientIDGenerator & id_generator = MyClientAppX::instance()->client_to_dist_module()->id_generator();
-  const char * myid = id_generator.get();
-  if (!myid)
+  if (g_test_mode)
   {
-    MY_ERROR(ACE_TEXT("can not fetch a test client id @MyClientToDistHandler::open\n"));
-    return -1;
-  }
-  client_id(myid);
-  m_client_id_index = MyClientAppX::instance()->client_id_table().index_of(myid);
-  if (m_client_id_index < 0)
+    MyTestClientIDGenerator & id_generator = MyClientAppX::instance()->client_to_dist_module()->id_generator();
+    const char * myid = id_generator.get();
+    if (!myid)
+    {
+      MY_ERROR(ACE_TEXT("can not fetch a test client id @MyClientToDistHandler::open\n"));
+      return -1;
+    }
+    client_id(myid);
+    m_client_id_index = MyClientAppX::instance()->client_id_table().index_of(myid);
+    if (m_client_id_index < 0)
+    {
+      MY_ERROR("MyClientToDistProcessor::on_open() can not find client_id_index for id = %s\n", myid);
+      return -1;
+    }
+    m_handler->connection_manager()->set_connection_client_id_index(m_handler, m_client_id_index, NULL);
+    id_generator.put(myid);
+  } else
   {
-    MY_ERROR("MyClientToDistProcessor::on_open() can not find client_id_index for id = %s\n", myid);
-    return -1;
+    client_id(MyClientAppX::instance()->client_id());
+    m_client_id_index = 0;
   }
-  m_handler->connection_manager()->set_connection_client_id_index(m_handler, m_client_id_index, NULL);
-  id_generator.put(myid);
-#else
-  client_id(MyClientAppX::instance()->client_id());
-#endif
 
   return send_version_check_req();
 }
@@ -2697,14 +2706,15 @@ void MyHttp1991Processor::do_command_watch_dog()
 
 void MyHttp1991Processor::do_command_adv_click(char * parameter)
 {
-  char * pcode = ACE_OS::strchr(parameter, '&');
+  char * pcode = ACE_OS::strstr(parameter, "&no=");
   if (unlikely(!pcode || pcode == parameter))
   {
     MY_ERROR("invalid adv click (%s)\n", parameter);
     return;
   }
 
-  *pcode ++ = 0;
+  *pcode = 0;
+  pcode += ACE_OS::strlen("&no=");
   if (unlikely(*pcode == 0))
   {
     MY_ERROR("invalid adv click: no point code\n");
@@ -2718,7 +2728,42 @@ void MyHttp1991Processor::do_command_adv_click(char * parameter)
 
 void MyHttp1991Processor::do_command_plc(char * parameter)
 {
+  char * y = ACE_OS::strstr(parameter, "&value=");
+  if (unlikely(y == parameter))
+  {
+    MY_ERROR("invalid plc command (%s)\n", parameter);
+    return;
+  }
 
+  if (y != NULL)
+  {
+    *y = 0;
+    y += ACE_OS::strlen("&value=");
+    if (*y == 0)
+      y = NULL;
+  }
+
+  int x = atoi(parameter);
+
+  if (x == 5) //lcd
+  {
+
+  } else if (x == 6) //led
+  {
+
+  } else if (x == 7) //pc
+  {
+
+  }
+}
+
+void MyHttp1991Processor::send_string(const char * s)
+{
+  int len = ACE_OS::strlen(s);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(len);
+  ACE_OS::memcpy(mb->base(), s, len);
+  mb->wr_ptr(len);
+  m_handler->send_data(mb);
 }
 
 

@@ -26,8 +26,6 @@ class MyHttp1991Acceptor;
 const u_int8_t const_client_version_major = 1;
 const u_int8_t const_client_version_minor = 0;
 
-#if defined(MY_client_test)
-
 //simple implementation, not thread safe, multiple calls to put on the same id will generate duplicate
 //IDs for later gets. but it works for our test. that is enough
 class MyTestClientIDGenerator
@@ -64,7 +62,6 @@ private:
   char  m_result[BUFF_LEN];
   MyClientIDList m_id_list;
 };
-#endif
 
 class MyClickInfo
 {
@@ -141,7 +138,7 @@ class MyFTPClient
 {
 public:
   MyFTPClient(const std::string &remote_ip, const u_short remote_port,
-            const std::string &user_name, const std::string &pass_word);
+            const std::string &user_name, const std::string &pass_word, MyDistInfoFtp * ftp_info);
   virtual ~MyFTPClient();
 
   bool login();
@@ -164,6 +161,7 @@ private:
   ACE_SOCK_Connector m_connector;
   ACE_SOCK_Stream    m_peer;
   MyPooledMemGuard   m_response;
+  MyDistInfoFtp *    m_ftp_info;
 };
 
 class MyDistInfoHeader
@@ -182,9 +180,7 @@ public:
   char ftype;
   char type;
   MyClientID client_id;
-#ifdef MY_client_test
   int client_id_index;
-#endif
 
 protected:
   int load_header_from_string(char * src);
@@ -247,10 +243,10 @@ public:
   void touch();
   void inc_failed();
   void calc_local_file_name();
-  void post_status_message() const;
+  void post_status_message(int _status = -1) const;
   bool update_db_status() const;
 
-  static ACE_Message_Block * make_ftp_dist_message(const char * dist_id, int status);
+  static ACE_Message_Block * make_ftp_dist_message(const char * dist_id, int status, bool ok = true, char ftype = 'x');
 
   MyPooledMemGuard file_name;
   MyPooledMemGuard file_password;
@@ -260,6 +256,7 @@ public:
   int  status;
   time_t recv_time;
   MyPooledMemGuard local_file_name;
+  bool first_download;
 
 private:
   enum { FAILED_PENALTY = 4, MAX_FAILED_COUNT = 20 };
@@ -485,12 +482,10 @@ public:
   void click_sent_done(const char * client_id);
   MyWatchDog & watch_dog();
 
-#ifdef MY_client_test
   MyTestClientIDGenerator & id_generator()
   {
     return m_id_generator;
   }
-#endif
 
 protected:
   virtual bool on_start();
@@ -508,9 +503,7 @@ private:
   bool m_click_sent;
   MyWatchDog m_watch_dog;
 
-#ifdef MY_client_test
   MyTestClientIDGenerator m_id_generator;
-#endif
 };
 
 /////////////////////////////////////
@@ -593,7 +586,7 @@ private:
   void do_command_adv_click(char * parameter);
   void do_command_plc(char * parameter);
   void do_command_watch_dog();
-  int process_command_line(char * cmdline);
+  void send_string(const char * s);
 
   ACE_Message_Block * m_mb;
 };

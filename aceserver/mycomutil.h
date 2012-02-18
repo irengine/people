@@ -414,7 +414,6 @@ private:
 #define PREPARE_MEMORY_POOL(Cls) \
   Cls::Mem_Pool * Cls::m_mem_pool = NULL
 
-#if defined(MY_client_test)
 class MyClientIDTable;
 
 class MyTestClientPathGenerator
@@ -424,9 +423,6 @@ public:
   static bool client_id_to_path(const char * id, char * result, int result_len);
   static void make_paths_from_id_table(const char * app_data_path, MyClientIDTable * id_table);
 };
-
-#endif //MY_client_test
-
 
 class MyCached_Message_Block: public ACE_Message_Block
 {

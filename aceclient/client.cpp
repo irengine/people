@@ -62,26 +62,25 @@ const char * MyClientApp::client_id() const
 
 void MyClientApp::data_path(MyPooledMemGuard & _data_path, const char * client_id)
 {
-#ifdef MY_client_test
-  char tmp[128];
-  tmp[0] = 0;
-  MyTestClientPathGenerator::client_id_to_path(client_id, tmp, 128);
-  _data_path.init_from_string(MyConfigX::instance()->app_path.c_str(), "/data/", tmp);
-#else
-  ACE_UNUSED_ARGS(client_id);
+  if (g_test_mode)
+  {
+    char tmp[128];
+    tmp[0] = 0;
+    MyTestClientPathGenerator::client_id_to_path(client_id, tmp, 128);
+    _data_path.init_from_string(MyConfigX::instance()->app_path.c_str(), "/data/", tmp);
+  } else
   _data_path.init_from_string(MyConfigX::instance()->app_path.c_str(), "/data");
-#endif
 }
 
 void MyClientApp::calc_display_parent_path(MyPooledMemGuard & parent_path, const char * client_id)
 {
-#ifdef MY_client_test
+  if (g_test_mode)
+  {
     MyPooledMemGuard path_x;
     MyClientApp::data_path(path_x, client_id);
     parent_path.init_from_string(path_x.data(), "/daily");
-#else
+  } else
     parent_path.init_from_string("/tmp/daily");
-#endif
 }
 
 void MyClientApp::calc_dist_parent_path(MyPooledMemGuard & parent_path, const char * dist_id, const char * client_id)
@@ -307,29 +306,31 @@ void MyClientApp::on_stop()
 
 bool MyClientApp::on_construct()
 {
-#if !defined(MY_client_test)
+  if (!g_test_mode)
   {
-    MyUnixHandleGuard fh;
-    if (fh.open_read("/tmp/daily/id.ini"))
-      return false;
-    char buff[64];
-    int n = ::read(fh.handle(), buff, 64);
-    if (n <= 0)
-      return false;
-    buff[std::min(n, 63)] = 0;
-    m_client_id = buff;
-  }
-
-  {
-    MyClientDBGuard dbg;
-    if (dbg.db().open_db(NULL))
     {
-      time_t deadline = time_t(NULL) - const_one_day * 10;
-      dbg.db().remove_outdated_ftp_command(deadline);
-      dbg.db().reset_ftp_command_status();
+      MyUnixHandleGuard fh;
+      if (fh.open_read("/tmp/daily/id.ini"))
+        return false;
+      char buff[64];
+      int n = ::read(fh.handle(), buff, 64);
+      if (n <= 0)
+        return false;
+      buff[std::min(n, 63)] = 0;
+      m_client_id = buff;
+      m_client_id_table.add(buff);
+    }
+
+    {
+      MyClientDBGuard dbg;
+      if (dbg.db().open_db(NULL))
+      {
+        time_t deadline = time_t(NULL) - const_one_day * 10;
+        dbg.db().remove_outdated_ftp_command(deadline);
+        dbg.db().reset_ftp_command_status();
+      }
     }
   }
-#endif
 
   add_module(m_client_to_dist_module = new MyClientToDistModule(this));
   return true;
@@ -380,51 +381,54 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
   if (cfg->run_as_demon)
     MyBaseApp::app_demonize();
 
-#ifdef MY_client_test
-  std::string idfile = cfg->app_path + "/config/id.file";
-  std::ifstream ifs(idfile.c_str(), std::ifstream::in);
-  char id[64];
-  while (!ifs.eof())
+  if (g_test_mode)
   {
-    ifs.getline(id, 64);
-    app->m_client_id_table.add(id);
-  }
-  MyTestClientPathGenerator::make_paths_from_id_table(cfg->app_test_data_path.c_str(), &app->m_client_id_table);
-  MyClientToDistHandler::init_mem_pool(app->m_client_id_table.count() * 1.2);
-
-  int m = app->m_client_id_table.count();
-  MyClientID client_id;
-  time_t deadline = time_t(NULL) - const_one_day * 10;
-  for (int i = 0; i < m; ++i)
-  {
-    app->m_client_id_table.value(i, &client_id);
-    MyClientDBGuard dbg;
-    if (dbg.db().open_db(client_id.as_string()))
+    std::string idfile = cfg->app_path + "/config/id.file";
+    std::ifstream ifs(idfile.c_str(), std::ifstream::in);
+    char id[64];
+    while (!ifs.eof())
     {
-      dbg.db().remove_outdated_ftp_command(deadline);
-      dbg.db().reset_ftp_command_status();
+      ifs.getline(id, 64);
+      app->m_client_id_table.add(id);
     }
-  }
-#else
-  std::string path_x = cfg->app_path + "/data/download";
-  MyFilePaths::make_path(path_x.c_str(), true);
-  path_x = cfg->app_path + "/data/tmp";
-  MyFilePaths::remove_path(path_x.c_str(), true);
-  MyFilePaths::make_path(path_x.c_str(), true);
-  path_x = cfg->app_path + "/data/backup";
-  MyFilePaths::make_path(path_x.c_str(), true);
+    MyTestClientPathGenerator::make_paths_from_id_table(cfg->app_data_path.c_str(), &app->m_client_id_table);
+    MyClientToDistHandler::init_mem_pool(app->m_client_id_table.count() * 1.2);
 
-  if (!full_restore(NULL, true))
-  {
-    MY_WARNING("restore of latest data failed, now restoring previous data...\n");
-    if (!full_restore(NULL, true, false))
+    int m = app->m_client_id_table.count();
+    MyClientID client_id;
+    time_t deadline = time_t(NULL) - const_one_day * 10;
+    for (int i = 0; i < m; ++i)
     {
-      MY_ERROR("restore of previous data failed\n");
+      app->m_client_id_table.value(i, &client_id);
+      MyClientDBGuard dbg;
+      if (dbg.db().open_db(client_id.as_string()))
+      {
+        dbg.db().remove_outdated_ftp_command(deadline);
+        dbg.db().reset_ftp_command_status();
+      }
     }
+  } else
+  {
+    std::string path_x = cfg->app_path + "/data/download";
+    MyFilePaths::make_path(path_x.c_str(), true);
+    path_x = cfg->app_path + "/data/tmp";
+    MyFilePaths::remove_path(path_x.c_str(), true);
+    MyFilePaths::make_path(path_x.c_str(), true);
+    path_x = cfg->app_path + "/data/backup";
+    MyFilePaths::make_path(path_x.c_str(), true);
+
+    if (!full_restore(NULL, true))
+    {
+      MY_WARNING("restore of latest data failed, now restoring previous data...\n");
+      if (!full_restore(NULL, true, false))
+      {
+        MY_ERROR("restore of previous data failed\n");
+      }
+    }
+
+    MyClientToDistHandler::init_mem_pool(100);
   }
 
-  MyClientToDistHandler::init_mem_pool(100);
-#endif
   MyClientToMiddleHandler::init_mem_pool(20);
   MyMemPoolFactoryX::instance()->init(cfg);
   return app->do_constructor();

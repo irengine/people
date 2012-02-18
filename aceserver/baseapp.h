@@ -17,6 +17,7 @@
 
 extern const ACE_TCHAR * const_app_version;
 extern long g_clock_tick;
+extern bool g_test_mode;
 
 class MyBaseApp;
 
@@ -77,9 +78,7 @@ public:
 
   //client only
   int client_heart_beat_interval;
-#if defined(MY_client_test)
   int test_client_ftp_thread_number;
-#endif
 
   //dist only
   int module_heart_beat_mem_pool_size;
@@ -96,9 +95,7 @@ public:
   std::string log_file_name;
   std::string config_file_name;
   std::string app_path;
-#if defined(MY_client_test) || defined(MY_server_test)
-  std::string app_test_data_path;
-#endif
+  std::string app_data_path;
 
 private:
   void init_path(const char * app_home_path);

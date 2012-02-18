@@ -73,6 +73,9 @@ int MyDistClient::dist_file(MyDistClients & dist_clients)
   case 4:
     return do_stage_4(dist_clients);
 
+  case 5:
+    return 0;
+
   default:
     MY_ERROR("unexpected status value = %d @MyDistClient::dist_file\n", status);
     return 0;
@@ -574,11 +577,12 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ip_ver_req(ACE_Message_Bl
 
 //MyAccumulatorBlock//
 
-MyAccumulatorBlock::MyAccumulatorBlock(int block_size, int max_item_length)
+MyAccumulatorBlock::MyAccumulatorBlock(int block_size, int max_item_length, MyBaseSubmitter * submitter)
 {
   m_current_block = NULL;
   m_block_size = block_size;
   m_max_item_length = max_item_length + 1;
+  m_submitter = submitter;
   reset();
 }
 
@@ -603,8 +607,15 @@ bool MyAccumulatorBlock::add(const char * item, int len)
   int remain_len = m_block_size - (m_current_ptr - m_current_block->base());
   if (unlikely(len > remain_len))
   {
-    MY_FATAL("expected long item @MyAccumulatorBlock::add(), remain_len=%d, item=%s\n", remain_len, item);
-    return false;
+    if (m_submitter)
+    {
+      m_submitter->submit();
+      remain_len = m_block_size;
+    } else
+    {
+      MY_FATAL("expected long item @MyAccumulatorBlock::add(), remain_len=%d, item=%s\n", remain_len, item);
+      return false;
+    }
   }
   ACE_OS::memcpy(m_current_ptr, item, len - 1);
   m_current_ptr += len;
@@ -651,6 +662,49 @@ void MyBaseSubmitter::reset()
 {
 
 };
+
+
+//MyFtpFeedbackSubmitter//
+
+MyFtpFeedbackSubmitter::MyFtpFeedbackSubmitter():
+  m_dist_id_block(BLOCK_SIZE, 32), m_client_id_block(BLOCK_SIZE, sizeof(MyClientID)), m_ftype_block(BLOCK_SIZE, 1),
+  m_step_block(BLOCK_SIZE, 1), m_ok_flag_block(BLOCK_SIZE, 1), m_date_block(BLOCK_SIZE, 15)
+{
+
+}
+
+MyFtpFeedbackSubmitter::~MyFtpFeedbackSubmitter()
+{
+
+}
+
+void MyFtpFeedbackSubmitter::check_time_out()
+{
+  if (m_dist_id_block.data_len() == 0)
+    return;
+  submit();
+}
+
+bool MyFtpFeedbackSubmitter::add(const char *dist_id, char ftype, const char *client_id, char step, char ok_flag, const char * date)
+{
+
+}
+
+void MyFtpFeedbackSubmitter::reset()
+{
+  m_dist_id_block.reset();
+  m_client_id_block.reset();
+  m_ftype_block.reset();
+  m_step_block.reset();
+  m_ok_flag_block.reset();
+  m_date_block.reset();
+}
+
+void MyFtpFeedbackSubmitter::do_submit()
+{
+
+}
+
 
 
 //MyPingSubmitter//
@@ -826,12 +880,12 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
   } //todo: optimize: pass client_id directly from processor
 
   int len = dpe->length - sizeof(MyDataPacketHeader);
-  if (unlikely(dpe->data[len - 3] != MyDataPacketHeader::ITEM_SEPARATOR))
+  if (unlikely(dpe->data[len - 5] != MyDataPacketHeader::ITEM_SEPARATOR))
   {
     MY_ERROR("bad ftp file reply packet @%s::do_ftp_file_reply()\n", name());
     return;
   }
-  dpe->data[len - 3] = 0;
+  dpe->data[len - 5] = 0;
   if (unlikely(!dpe->data[0]))
   {
     MY_ERROR("bad ftp file reply packet @%s::do_ftp_file_reply(), no dist_id\n", name());
@@ -839,8 +893,23 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
   }
 
   const char * dist_id = dpe->data;
-  char recv_status = dpe->data[len - 2];
+  char ok = dpe->data[len - 4];
+  char recv_status = dpe->data[len - 3];
+  char ftype = dpe->data[len - 2];
+  char step = 0;
   int status;
+
+  if (unlikely(ok != '0' || ok != '1'))
+  {
+    MY_ERROR("bad ok flag(%c) on client ftp reply @%s\n", ok, name());
+    return;
+  }
+  if (unlikely(!ftype_is_valid(ftype)))
+  {
+    MY_ERROR("bad ftype(%c) on client ftp reply @%s\n", ftype, name());
+    return;
+  }
+
   if (recv_status == '2')
   {
     MY_DEBUG("ftp download started client_id(%s) dist_id(%s)\n", client_id.as_string(), dist_id);
@@ -848,20 +917,35 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
   } else if (recv_status == '3')
   {
     status = 5;
+    step = '3';
     MY_DEBUG("ftp download completed client_id(%s) dist_id(%s)\n", client_id.as_string(), dist_id);
   } else if (recv_status == '4')
   {
     status = 5;
     MY_DEBUG("dist extract completed client_id(%s) dist_id(%s)\n", client_id.as_string(), dist_id);
-  } else if ( recv_status == '5')
+  } else if (recv_status == '5')
+  {
     status = 5;
+    MY_DEBUG("dist extract failed client_id(%s) dist_id(%s)\n", client_id.as_string(), dist_id);
+  } else if (recv_status == '9')
+  {
+    step = '2';
+  }
   else
   {
     MY_ERROR("unknown ftp reply status code: %c\n", recv_status);
     return;
   }
-  m_distributor.dist_ftp_file_reply(client_id.as_string(), dist_id, status);
 
+  if ((ftype != 'x') && step != 0)
+  {
+    char buff[32];
+    ((MyHeartBeatModule *)module_x())->ftp_feedback_submitter().add(dist_id, ftype, client_id.as_string(), step, ok, buff);
+  }
+  if (recv_status == '9')
+    return;
+
+  m_distributor.dist_ftp_file_reply(client_id.as_string(), dist_id, status);
 }
 
 void MyHeartBeatService::do_file_md5_reply(ACE_Message_Block * mb)
@@ -1021,7 +1105,7 @@ bool MyHeartBeatDispatcher::on_start()
       return false;
     }
   }
-/*
+
   {
     ACE_Time_Value interval(CLOCK_TICK_DIST_SERVICE * 60);
     if (reactor()->schedule_timer(this, (const void*)TIMER_ID_DIST_SERVICE, interval, interval) < 0)
@@ -1030,8 +1114,6 @@ bool MyHeartBeatDispatcher::on_start()
       return false;
     }
   }
-*///todo: enable this
-
 
   return true;
 }
@@ -1067,6 +1149,11 @@ int MyHeartBeatModule::num_active_clients() const
   if (unlikely(!m_dispatcher || !m_dispatcher->acceptor() || !m_dispatcher->acceptor()->connection_manager()))
     return 0xFFFFFF;
   return m_dispatcher->acceptor()->connection_manager()->active_connections();
+}
+
+MyFtpFeedbackSubmitter & MyHeartBeatModule::ftp_feedback_submitter()
+{
+  return m_ftp_feedback_submitter;
 }
 
 const char * MyHeartBeatModule::name() const

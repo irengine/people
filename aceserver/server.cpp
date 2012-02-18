@@ -173,18 +173,6 @@ bool MyServerApp::on_construct()
     return false;
   }
 
-#if 0
-//#ifdef MY_server_test
-  if (cfg->is_dist_server())
-  {
-    char * _app_data_path = new char[cfg->app_test_data_path.length() + 1];
-    strcpy(_app_data_path, cfg->app_test_data_path.c_str());
-
-    MyTestClientPathGenerator::make_paths_from_id_table(_app_data_path, &m_client_id_table);
-    delete [] _app_data_path;
-  }
-#endif
-
   if (cfg->is_dist_server())
   {
     add_module(m_heart_beat_module = new MyHeartBeatModule(this));

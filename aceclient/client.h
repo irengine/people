@@ -24,10 +24,9 @@ public:
   const MyClientVerson & client_version() const;
   const char * client_id() const;
 
-#ifdef MY_client_test
   MyClientIDTable & client_id_table()
     { return m_client_id_table; }
-#endif
+
   static void data_path(MyPooledMemGuard & _data_path, const char * client_id = NULL);
   static void calc_display_parent_path(MyPooledMemGuard & parent_path, const char * client_id = NULL);
   static void calc_dist_parent_path(MyPooledMemGuard & parent_path, const char * dist_id, const char * client_id = NULL);
@@ -49,10 +48,7 @@ private:
   MyClientToDistModule * m_client_to_dist_module;
   MyClientVerson m_client_version;
   std::string m_client_id;
-
-#ifdef MY_client_test
   MyClientIDTable m_client_id_table;
-#endif
 };
 
 typedef ACE_Unmanaged_Singleton<MyClientApp, ACE_Null_Mutex> MyClientAppX;

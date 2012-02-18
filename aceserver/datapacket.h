@@ -416,9 +416,7 @@ public:
       data()->ip_addr[0] = 0;
     else
     {
-#if defined(MY_client_test) || defined(MY_server_test)
       ACE_OS::memset(data()->ip_addr, 0, MyLoadBalanceRequest::IP_ADDR_LENGTH); //noise muffler
-#endif
       ACE_OS::strsncpy(data()->ip_addr, s, MyLoadBalanceRequest::IP_ADDR_LENGTH);
     }
   }

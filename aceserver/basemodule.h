@@ -812,10 +812,7 @@ public:
   int stop();
   void dump_info();
   virtual const char * name() const;
-
-#ifdef MY_client_test
   int connect_ready();
-#endif
 
 protected:
   enum
@@ -844,9 +841,7 @@ protected:
   long m_reconnect_timer_id;
   int m_idle_time_as_dead; //in minutes
   int m_idle_connection_timer_id;
-#ifdef MY_client_test
   int m_remain_to_connect;
-#endif
 };
 
 

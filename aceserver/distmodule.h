@@ -121,10 +121,12 @@ private:
   MyBaseProcessor::EVENT_RESULT do_ip_ver_req(ACE_Message_Block * mb);
 };
 
+class MyBaseSubmitter;
+
 class MyAccumulatorBlock
 {
 public:
-  MyAccumulatorBlock(int block_size, int max_item_length);
+  MyAccumulatorBlock(int block_size, int max_item_length, MyBaseSubmitter * submitter = NULL);
   ~MyAccumulatorBlock();
 
   void reset();
@@ -139,6 +141,7 @@ private:
   char * m_current_ptr;
   int m_max_item_length;
   int m_block_size;
+  MyBaseSubmitter * m_submitter;
 };
 
 class MyBaseSubmitter
@@ -153,6 +156,30 @@ protected:
   virtual void reset();
   virtual void do_submit();
 };
+
+class MyFtpFeedbackSubmitter: public MyBaseSubmitter
+{
+public:
+  MyFtpFeedbackSubmitter();
+  virtual ~MyFtpFeedbackSubmitter();
+
+  virtual void check_time_out();
+  bool add(const char * dist_id, char ftype, const char *client_id, char step, char ok_flag, const char * date);
+
+protected:
+  virtual void reset();
+  virtual void do_submit();
+
+private:
+  enum { BLOCK_SIZE = 4096 };
+  MyAccumulatorBlock m_dist_id_block;
+  MyAccumulatorBlock m_client_id_block;
+  MyAccumulatorBlock m_ftype_block;
+  MyAccumulatorBlock m_step_block;
+  MyAccumulatorBlock m_ok_flag_block;
+  MyAccumulatorBlock m_date_block;
+};
+
 
 class MyPingSubmitter: public MyBaseSubmitter
 {
@@ -261,6 +288,7 @@ public:
   virtual const char * name() const;
   MyHeartBeatService * service() const;
   int num_active_clients() const;
+  MyFtpFeedbackSubmitter & ftp_feedback_submitter();
 
 protected:
   virtual bool on_start();
@@ -269,6 +297,7 @@ protected:
 private:
   MyPingSubmitter m_ping_sumbitter;
   MyIPVerSubmitter m_ip_ver_submitter;
+  MyFtpFeedbackSubmitter m_ftp_feedback_submitter;
   MyHeartBeatService * m_service;
   MyHeartBeatDispatcher * m_dispatcher;
 

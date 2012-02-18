@@ -368,17 +368,14 @@ MyBaseProcessor::EVENT_RESULT MyHttpProcessor::on_recv_packet_i(ACE_Message_Bloc
   MY_INFO("http processor got complete packet, len = %d\n", mb->length());
   m_wait_for_close = true;
   bool ok = do_process_input_data();
-  ACE_Message_Block * reply_mb = MyMemPoolFactoryX::instance()->get_message_block(4);
+  ACE_Message_Block * reply_mb = MyMemPoolFactoryX::instance()->get_message_block(1);
   if (!reply_mb)
   {
-    MY_ERROR(ACE_TEXT("failed to allocate 4 bytes sized memory block @MyHttpProcessor::handle_input().\n"));
+    MY_ERROR(ACE_TEXT("failed to allocate 1 bytes sized memory block @MyHttpProcessor::handle_input().\n"));
     return ER_ERROR;
   }
-  const char ok_reply_str[] = "1";
-  const char bad_reply_str[] = "0";
-  const int reply_len = sizeof(ok_reply_str) / sizeof(char) - 1;
-  ACE_OS::strsncpy(reply_mb->base(), (ok? ok_reply_str:bad_reply_str), reply_len);
-  reply_mb->wr_ptr(reply_len);
+  *(reply_mb->base()) = (ok? '1':'0');
+  reply_mb->wr_ptr(1);
   return (m_handler->send_data(reply_mb) <= 0 ? ER_ERROR:ER_OK);
 }
 
