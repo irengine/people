@@ -86,6 +86,7 @@ public:
   bool open_db(const char * client_id);
   void close_db();
   bool save_ftp_command(const char * ftp_command, const char * dist_id);
+  bool save_md5_command(const char * dist_id, const char * md5_server, const char * md5_client);
   bool set_ftp_command_status(const char * dist_id, int status);
   bool get_ftp_command_status(const char * dist_id, int & status);
   bool get_click_infos(MyClickInfos & infos);
@@ -199,8 +200,10 @@ public:
   void compare_done(bool done);
   MyFileMD5s & md5list();
   void post_md5_message();
+  const char * md5_text() const;
 
 private:
+  MyPooledMemGuard m_md5_text;
   MyFileMD5s m_md5list;
   bool m_compare_done;
 };
@@ -252,6 +255,8 @@ public:
   MyPooledMemGuard file_password;
   MyPooledMemGuard ftp_password;
   MyPooledMemGuard ftp_md5;
+  MyPooledMemGuard server_md5;
+  MyPooledMemGuard client_md5;
 
   int  status;
   time_t recv_time;

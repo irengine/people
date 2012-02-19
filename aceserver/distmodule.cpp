@@ -51,6 +51,30 @@ void MyDistClient::update_md5_list(const char * _md5)
   update_status(2);
 }
 
+void MyDistClient::dist_ftp_md5_reply(const char * md5list)
+{
+  if (!md5.data() || !md5.data()[0])
+  {
+    update_md5_list(md5list);
+    MyServerAppX::instance()->db().set_dist_client_md5(client_id.as_string(), dist_info->ver.data(), md5list, 2);
+  }
+  if (!mbz_file.data() || !mbz_file.data()[0])
+  {
+    if (!generate_diff_mbz())
+    {
+      mbz_file.init_from_string(MyDistCompressor::all_in_one_mbz());
+      mbz_md5.init_from_string(dist_info->mbz_md5.data());
+    }
+    MyServerAppX::instance()->db().set_dist_client_mbz(client_id.as_string(), dist_info->ver.data(), mbz_file.data(), mbz_md5.data());
+  }
+
+  if (send_ftp())
+  {
+    MyServerAppX::instance()->db().set_dist_client_status(*this, 3);
+    update_status(3);
+  }
+}
+
 int MyDistClient::dist_file(MyDistClients & dist_clients)
 {
   if (!active())
@@ -96,7 +120,7 @@ int MyDistClient::do_stage_0(MyDistClients & dist_clients)
 
   if (send_ftp())
   {
-    MyServerAppX::instance()->db().set_dist_client_status(*this, 1);
+    MyServerAppX::instance()->db().set_dist_client_status(*this, 3);
     update_status(3);
   }
   return 0;
@@ -171,44 +195,89 @@ bool MyDistClient::send_md5()
     return true;
 }
 
-bool MyDistClient::send_ftp()
+bool MyDistClient::generate_diff_mbz()
 {
-  if (!dist_info->need_md5())
+  MyPooledMemGuard destdir;
+  MyPooledMemGuard composite_dir;
+  MyPooledMemGuard mdestfile;
+  destdir.init_from_string(MyConfigX::instance()->compressed_store_path.c_str(), "/", dist_info->ver.data());
+  composite_dir.init_from_string(destdir.data(), "/", MyDistCompressor::composite_path());
+  mdestfile.init_from_string(composite_dir.data(), "/", client_id.as_string());
+  MyBZCompositor compositor;
+  if (!compositor.open(mdestfile.data()))
+    return false;
+  MyPooledMemGuard md5_copy;
+  md5_copy.init_from_string(md5.data());
+  char separators[2] = { MyDataPacketHeader::ITEM_SEPARATOR, 0 };
+  MyStringTokenizer tokenizer(md5_copy.data(), separators);
+  char * token;
+  MyPooledMemGuard filename;
+  while ((token =tokenizer.get_token()) != NULL)
   {
-    const char * ftp_file_name = MyDistCompressor::all_in_one_mbz();
-    const char * _mbz_md5 = dist_info->need_mbz_md5()? dist_info->mbz_md5.data() : Null_Item;
-    int _mbz_md5_len = ACE_OS::strlen(_mbz_md5) + 1;
-    int leading_length = dist_out_leading_length();
-    int ftp_file_name_len = ACE_OS::strlen(ftp_file_name) + 1;
-    int data_len = leading_length + ftp_file_name_len + dist_info->password_len + 1 + _mbz_md5_len;
-    int total_len = sizeof(MyFtpFile) + data_len;
-    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_FTP_FILE);
-    MyFtpFile * packet = (MyFtpFile *)mb->base();
-    packet->magic = m_client_id_index;
-    dist_out_leading_data(packet->data);
-    char * ptr = packet->data + leading_length;
-    ACE_OS::memcpy(ptr, ftp_file_name, ftp_file_name_len);
-    ptr += ftp_file_name_len;
-    *(ptr - 1) = MyDataPacketHeader::ITEM_SEPARATOR;
-    ACE_OS::memcpy(ptr, _mbz_md5, _mbz_md5_len);
-    ptr += _mbz_md5_len;
-    *(ptr - 1) = MyDataPacketHeader::FINISH_SEPARATOR;
-    ACE_OS::memcpy(ptr, dist_info->password.data(), dist_info->password_len + 1);
-
-    last_update = time(NULL);
-
-    ACE_Time_Value tv(ACE_Time_Value::zero);
-    if (MyServerAppX::instance()->heart_beat_module()->dispatcher()->putq(mb, &tv) == -1)
+    filename.init_from_string(destdir.data(), "/", token);
+    if (!compositor.add(filename.data()))
     {
-      MY_ERROR("can not put file md5 list message to disatcher's queue\n");
-      mb->release();
+      MyFilePaths::remove(mdestfile.data());
       return false;
-    } else
-      return true;
+    }
   }
 
-  //todo: handle ftp of need md5
-  return false;
+  MyPooledMemGuard md5_result;
+  if (!mycomutil_calculate_file_md5(mdestfile.data(), md5_result))
+  {
+    MY_ERROR("failed to calculate md5 for file %s\n", mdestfile.data());
+    MyFilePaths::remove(mdestfile.data());
+    return false;
+  }
+
+  mbz_file.init_from_string(mdestfile.data());
+  mbz_md5.init_from_string(md5_result.data());
+  return true;
+}
+
+bool MyDistClient::send_ftp()
+{
+  const char * ftp_file_name;
+  const char * _mbz_md5;
+
+  if (!dist_info->need_md5())
+  {
+    ftp_file_name = MyDistCompressor::all_in_one_mbz();
+    _mbz_md5 = dist_info->mbz_md5.data();
+  } else
+  {
+    ftp_file_name = mbz_file.data();
+    _mbz_md5 = mbz_md5.data();
+  }
+
+  int _mbz_md5_len = ACE_OS::strlen(_mbz_md5) + 1;
+  int leading_length = dist_out_leading_length();
+  int ftp_file_name_len = ACE_OS::strlen(ftp_file_name) + 1;
+  int data_len = leading_length + ftp_file_name_len + dist_info->password_len + 1 + _mbz_md5_len;
+  int total_len = sizeof(MyFtpFile) + data_len;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_FTP_FILE);
+  MyFtpFile * packet = (MyFtpFile *)mb->base();
+  packet->magic = m_client_id_index;
+  dist_out_leading_data(packet->data);
+  char * ptr = packet->data + leading_length;
+  ACE_OS::memcpy(ptr, ftp_file_name, ftp_file_name_len);
+  ptr += ftp_file_name_len;
+  *(ptr - 1) = MyDataPacketHeader::ITEM_SEPARATOR;
+  ACE_OS::memcpy(ptr, _mbz_md5, _mbz_md5_len);
+  ptr += _mbz_md5_len;
+  *(ptr - 1) = MyDataPacketHeader::FINISH_SEPARATOR;
+  ACE_OS::memcpy(ptr, dist_info->password.data(), dist_info->password_len + 1);
+
+  last_update = time(NULL);
+
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (MyServerAppX::instance()->heart_beat_module()->dispatcher()->putq(mb, &tv) == -1)
+  {
+    MY_ERROR("can not put file md5 list message to disatcher's queue\n");
+    mb->release();
+    return false;
+  } else
+    return true;
 }
 
 
@@ -377,9 +446,7 @@ void MyClientFileDistributor::dist_ftp_md5_reply(const char * client_id, const c
 {
   MyDistClient * dc = m_dist_clients.find(client_id, dist_id);
   if (likely(dc != NULL))
-    dc->update_md5_list(md5list);
-  MyServerAppX::instance()->db().set_dist_client_md5(client_id, dist_id, md5list, 2);
-  //todo: generate mbz and notifify client to download
+    dc->dist_ftp_md5_reply(md5list);
 }
 
 
@@ -577,12 +644,14 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ip_ver_req(ACE_Message_Bl
 
 //MyAccumulatorBlock//
 
-MyAccumulatorBlock::MyAccumulatorBlock(int block_size, int max_item_length, MyBaseSubmitter * submitter)
+MyAccumulatorBlock::MyAccumulatorBlock(int block_size, int max_item_length, MyBaseSubmitter * submitter, bool auto_submit)
 {
   m_current_block = NULL;
   m_block_size = block_size;
   m_max_item_length = max_item_length + 1;
   m_submitter = submitter;
+  m_auto_submit = auto_submit;
+  submitter->add_block(this);
   reset();
 }
 
@@ -607,7 +676,7 @@ bool MyAccumulatorBlock::add(const char * item, int len)
   int remain_len = m_block_size - (m_current_ptr - m_current_block->base());
   if (unlikely(len > remain_len))
   {
-    if (m_submitter)
+    if (m_auto_submit)
     {
       m_submitter->submit();
       remain_len = m_block_size;
@@ -621,6 +690,14 @@ bool MyAccumulatorBlock::add(const char * item, int len)
   m_current_ptr += len;
   *(m_current_ptr - 1) = ITEM_SEPARATOR;
   return (remain_len - len > m_max_item_length);
+}
+
+bool MyAccumulatorBlock::add(char c)
+{
+  char buff[2];
+  buff[0] = c;
+  buff[1] = 0;
+  return add(buff, 1);
 }
 
 const char * MyAccumulatorBlock::data()
@@ -644,31 +721,61 @@ MyBaseSubmitter::~MyBaseSubmitter()
 
 void MyBaseSubmitter::submit()
 {
-  do_submit();
+  do_submit(get_command());
   reset();
 }
 
 void MyBaseSubmitter::check_time_out()
 {
+  if ((*m_blocks.begin())->data_len() == 0)
+    return;
 
+  submit();
 }
 
-void MyBaseSubmitter::do_submit()
+void MyBaseSubmitter::add_block(MyAccumulatorBlock * block)
 {
+  m_blocks.push_back(block);
+}
 
+void MyBaseSubmitter::do_submit(const char * cmd)
+{
+  if (unlikely((*m_blocks.begin())->data_len() == 0))
+    return;
+  MyBlockList::iterator it;
+
+  int total_len = 0;
+  for (it = m_blocks.begin(); it != m_blocks.end(); ++it)
+    total_len += (*it)->data_len() + 1;
+  --total_len;
+
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(total_len, cmd);
+  char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
+  for (it = m_blocks.begin(); ; )
+  {
+    int len = (*it)->data_len();
+    ACE_OS::memcpy(dest, (*it)->data(), len);
+    if (++it != m_blocks.end())
+    {
+      dest[len] = MyBSBasePacket::BS_PARAMETER_SEPARATOR;
+      dest += (len + 1);
+    } else
+      break;
+  }
+  MyServerAppX::instance()->dist_to_middle_module()->send_to_bs(mb);
 }
 
 void MyBaseSubmitter::reset()
 {
-
+  std::for_each(m_blocks.begin(), m_blocks.end(), std::mem_fun(&MyAccumulatorBlock::reset));
 };
 
 
 //MyFtpFeedbackSubmitter//
 
 MyFtpFeedbackSubmitter::MyFtpFeedbackSubmitter():
-  m_dist_id_block(BLOCK_SIZE, 32), m_client_id_block(BLOCK_SIZE, sizeof(MyClientID)), m_ftype_block(BLOCK_SIZE, 1),
-  m_step_block(BLOCK_SIZE, 1), m_ok_flag_block(BLOCK_SIZE, 1), m_date_block(BLOCK_SIZE, 15)
+  m_dist_id_block(BLOCK_SIZE, 32, this), m_client_id_block(BLOCK_SIZE, sizeof(MyClientID), this), m_ftype_block(BLOCK_SIZE, 1, this),
+  m_step_block(BLOCK_SIZE, 1, this), m_ok_flag_block(BLOCK_SIZE, 1, this), m_date_block(BLOCK_SIZE, 15, this)
 {
 
 }
@@ -678,38 +785,36 @@ MyFtpFeedbackSubmitter::~MyFtpFeedbackSubmitter()
 
 }
 
-void MyFtpFeedbackSubmitter::check_time_out()
+const char * MyFtpFeedbackSubmitter::get_command() const
 {
-  if (m_dist_id_block.data_len() == 0)
-    return;
-  submit();
+  return MY_BS_DIST_FEEDBACK_CMD;
 }
 
-bool MyFtpFeedbackSubmitter::add(const char *dist_id, char ftype, const char *client_id, char step, char ok_flag, const char * date)
+void MyFtpFeedbackSubmitter::add(const char *dist_id, char ftype, const char *client_id, char step, char ok_flag, const char * date)
 {
+  bool ret = true;
 
+  if (!m_dist_id_block.add(dist_id))
+    ret = false;
+  if (!m_client_id_block.add(client_id))
+    ret = false;
+  if (!m_ftype_block.add(ftype))
+    ret = false;
+  if (!m_step_block.add(step))
+    ret = false;
+  if (!m_ok_flag_block.add(ok_flag))
+    ret = false;
+  if (!m_date_block.add(date))
+    ret = false;
+
+  if (!ret)
+    submit();
 }
-
-void MyFtpFeedbackSubmitter::reset()
-{
-  m_dist_id_block.reset();
-  m_client_id_block.reset();
-  m_ftype_block.reset();
-  m_step_block.reset();
-  m_ok_flag_block.reset();
-  m_date_block.reset();
-}
-
-void MyFtpFeedbackSubmitter::do_submit()
-{
-
-}
-
 
 
 //MyPingSubmitter//
 
-MyPingSubmitter::MyPingSubmitter(): m_block(BLOCK_SIZE, sizeof(MyClientID))
+MyPingSubmitter::MyPingSubmitter(): m_block(BLOCK_SIZE, sizeof(MyClientID), this, true)
 {
 
 }
@@ -717,11 +822,6 @@ MyPingSubmitter::MyPingSubmitter(): m_block(BLOCK_SIZE, sizeof(MyClientID))
 MyPingSubmitter::~MyPingSubmitter()
 {
 
-}
-
-void MyPingSubmitter::reset()
-{
-  m_block.reset();
 }
 
 void MyPingSubmitter::add_ping(const char * client_id, const int len)
@@ -732,30 +832,18 @@ void MyPingSubmitter::add_ping(const char * client_id, const int len)
     submit();
 }
 
-void MyPingSubmitter::do_submit()
+const char * MyPingSubmitter::get_command() const
 {
-  int len = m_block.data_len();
-  if (unlikely(len == 0))
-    return;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(len, MY_BS_HEART_BEAT_CMD);
-  ACE_OS::memcpy(mb->base() + MyBSBasePacket::DATA_OFFSET, m_block.data(), len);
-  MyServerAppX::instance()->dist_to_middle_module()->send_to_bs(mb);
-}
-
-void MyPingSubmitter::check_time_out()
-{
-  if (m_block.data_len() == 0)
-    return;
-  submit();
+  return MY_BS_HEART_BEAT_CMD;
 }
 
 
 //MyIPVerSubmitter//
 
 MyIPVerSubmitter::MyIPVerSubmitter():
-    m_id_block(BLOCK_SIZE, sizeof(MyClientID)),
-    m_ip_block(BLOCK_SIZE, INET_ADDRSTRLEN),
-    m_ver_block(BLOCK_SIZE * 7 / sizeof(MyClientID) + 1, 7)
+    m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
+    m_ip_block(BLOCK_SIZE, INET_ADDRSTRLEN, this),
+    m_ver_block(BLOCK_SIZE * 7 / sizeof(MyClientID) + 1, 7, this)
 {
 
 }
@@ -774,38 +862,9 @@ void MyIPVerSubmitter::add_data(const char * client_id, int id_len, const char *
     submit();
 }
 
-void MyIPVerSubmitter::check_time_out()
+const char * MyIPVerSubmitter::get_command() const
 {
-  if (m_ip_block.data_len() == 0)
-    return;
-  submit();
-}
-
-
-void MyIPVerSubmitter::do_submit()
-{
-  int id_len = m_id_block.data_len();
-  if (unlikely(id_len == 0))
-    return;
-  int ip_len = m_ip_block.data_len();
-  int ver_len = m_ver_block.data_len();
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(
-      id_len + ip_len + ver_len + 2, MY_BS_IP_VER_CMD);
-  char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
-  ACE_OS::memcpy(dest, m_id_block.data(), id_len);
-  dest[id_len] = MyBSBasePacket::BS_PARAMETER_SEPARATOR;
-  ACE_OS::memcpy(dest + id_len + 1, m_ip_block.data(), ip_len);
-  dest[id_len + 1 + ip_len] = MyBSBasePacket::BS_PARAMETER_SEPARATOR;
-  ACE_OS::memcpy(dest + id_len + 1 + ip_len + 1, m_ver_block.data(), ver_len);
-  MyServerAppX::instance()->dist_to_middle_module()->send_to_bs(mb);
-}
-
-
-void MyIPVerSubmitter::reset()
-{
-  m_id_block.reset();
-  m_ip_block.reset();
-  m_ver_block.reset();
+  return MY_BS_IP_VER_CMD;
 }
 
 
@@ -899,7 +958,7 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
   char step = 0;
   int status;
 
-  if (unlikely(ok != '0' || ok != '1'))
+  if (unlikely(ok != '0' && ok != '1'))
   {
     MY_ERROR("bad ok flag(%c) on client ftp reply @%s\n", ok, name());
     return;

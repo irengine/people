@@ -31,6 +31,7 @@ public:
   bool active();
   void update_status(int _status);
   void update_md5_list(const char * _md5);
+  void dist_ftp_md5_reply(const char * md5list);
 
   MyHttpDistInfo * dist_info;
   int status;
@@ -38,6 +39,7 @@ public:
   MyPooledMemGuard adir;
   MyPooledMemGuard md5;
   MyPooledMemGuard mbz_file;
+  MyPooledMemGuard mbz_md5;
   time_t last_update;
 
 private:
@@ -50,8 +52,8 @@ private:
   int do_stage_4(MyDistClients & dist_clients);
   bool send_md5();
   bool send_ftp();
-
-  int dist_out_leading_length();
+  bool generate_diff_mbz();
+  int  dist_out_leading_length();
   void dist_out_leading_data(char * data);
 
   int m_client_id_index;
@@ -126,11 +128,12 @@ class MyBaseSubmitter;
 class MyAccumulatorBlock
 {
 public:
-  MyAccumulatorBlock(int block_size, int max_item_length, MyBaseSubmitter * submitter = NULL);
+  MyAccumulatorBlock(int block_size, int max_item_length, MyBaseSubmitter * submitter, bool auto_submit = false);
   ~MyAccumulatorBlock();
 
   void reset();
   bool add(const char * item, int len = 0);
+  bool add(char c);
   const char * data();
   int data_len() const;
 
@@ -142,6 +145,7 @@ private:
   int m_max_item_length;
   int m_block_size;
   MyBaseSubmitter * m_submitter;
+  bool m_auto_submit;
 };
 
 class MyBaseSubmitter
@@ -150,11 +154,17 @@ public:
   virtual ~MyBaseSubmitter();
 
   void submit();
-  virtual void check_time_out();
+  void add_block(MyAccumulatorBlock * block);
+  void check_time_out();
 
 protected:
-  virtual void reset();
-  virtual void do_submit();
+  typedef std::list<MyAccumulatorBlock * > MyBlockList;
+
+  void reset();
+  void do_submit(const char * cmd);
+  virtual const char * get_command() const = 0;
+
+  MyBlockList m_blocks;
 };
 
 class MyFtpFeedbackSubmitter: public MyBaseSubmitter
@@ -163,15 +173,13 @@ public:
   MyFtpFeedbackSubmitter();
   virtual ~MyFtpFeedbackSubmitter();
 
-  virtual void check_time_out();
-  bool add(const char * dist_id, char ftype, const char *client_id, char step, char ok_flag, const char * date);
+  void add(const char * dist_id, char ftype, const char *client_id, char step, char ok_flag, const char * date);
 
 protected:
-  virtual void reset();
-  virtual void do_submit();
+  virtual const char * get_command() const;
 
 private:
-  enum { BLOCK_SIZE = 4096 };
+  enum { BLOCK_SIZE = 1024 };
   MyAccumulatorBlock m_dist_id_block;
   MyAccumulatorBlock m_client_id_block;
   MyAccumulatorBlock m_ftype_block;
@@ -188,11 +196,9 @@ public:
   MyPingSubmitter();
   ~MyPingSubmitter();
   void add_ping(const char * client_id, const int len);
-  virtual void check_time_out();
 
 protected:
-  virtual void do_submit();
-  virtual void reset();
+  virtual const char * get_command() const;
 
 private:
   enum { BLOCK_SIZE = 4096 };
@@ -205,14 +211,12 @@ public:
   enum {ID_SEPARATOR = ';' };
   MyIPVerSubmitter();
   void add_data(const char * client_id, int id_len, const char * ip, const char * ver);
-  virtual void check_time_out();
 
 protected:
-  virtual void do_submit();
-  virtual void reset();
+  virtual const char * get_command() const;
 
 private:
-  enum { BLOCK_SIZE = 4096 };
+  enum { BLOCK_SIZE = 2048 };
   MyAccumulatorBlock m_id_block;
   MyAccumulatorBlock m_ip_block;
   MyAccumulatorBlock m_ver_block;
@@ -249,8 +253,7 @@ class MyHeartBeatDispatcher: public MyBaseDispatcher
 public:
   MyHeartBeatDispatcher(MyBaseModule * pModule, int numThreads = 1);
   virtual const char * name() const;
-  virtual int handle_timeout (const ACE_Time_Value &tv,
-                              const void *act);
+  virtual int handle_timeout (const ACE_Time_Value &tv, const void *act);
   MyHeartBeatAcceptor * acceptor() const;
 
 protected:

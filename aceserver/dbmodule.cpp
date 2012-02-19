@@ -587,6 +587,8 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients)
         dc->mbz_file.init_from_string(fvalue);
       else if (ACE_OS::strcmp(PQfname(pres, j), "dc_last_update") == 0)
         dc->last_update = get_time_from_string(fvalue);
+      else if (ACE_OS::strcmp(PQfname(pres, j), "dc_mbz_md5") == 0)
+        dc->mbz_md5.init_from_string(fvalue);
     }
 
     if (dc->status == 2 && md5 != NULL)
@@ -629,7 +631,23 @@ bool MyDB::set_dist_client_md5(const char * client_id, const char * dist_id, con
   ACE_OS::snprintf(sql.data(), len, update_sql_template, new_status, md5, dist_id, client_id, new_status);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return exec_command(sql.data());
+  int num = 0;
+  return exec_command(sql.data(), &num) && num == 1;
+}
+
+bool MyDB::set_dist_client_mbz(const char * client_id, const char * dist_id, const char * mbz, const char * mbz_md5)
+{
+  const char * update_sql_template = "update tb_dist_clients set dc_mbz_file = '%s', dc_mbz_md5 = '%s' "
+                                     "where dc_dist_id = '%s' and dc_client_id='%s' and dc_status < 3";
+  int len = ACE_OS::strlen(update_sql_template) + ACE_OS::strlen(mbz) + ACE_OS::strlen(client_id)
+          + ACE_OS::strlen(dist_id) + 40 + ACE_OS::strlen(mbz_md5);
+  MyPooledMemGuard sql;
+  MyMemPoolFactoryX::instance()->get_mem(len, &sql);
+  ACE_OS::snprintf(sql.data(), len, update_sql_template, mbz, mbz_md5, dist_id, client_id);
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  int num = 0;
+  return exec_command(sql.data(), &num) && num == 1;
 }
 
 bool MyDB::delete_dist_client(const char * client_id, const char * dist_id)

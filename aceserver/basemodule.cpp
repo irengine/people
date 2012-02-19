@@ -305,7 +305,6 @@ void MyClientIDTable::prepare_space(int _count)
 }
 
 
-
 //MyFileMD5//
 
 MyFileMD5::MyFileMD5(const char * _filename, const char * md5, int prefix_len, const char * alias)
@@ -512,7 +511,7 @@ bool MyFileMD5s::to_buffer(char * buff, int buff_len, bool include_md5_value)
   return true;
 }
 
-bool MyFileMD5s::from_buffer(char * buff)
+bool MyFileMD5s::from_buffer(char * buff, MyMfileSplitter * spl)
 {
   if (!buff || !*buff)
     return true;
@@ -541,7 +540,8 @@ bool MyFileMD5s::from_buffer(char * buff)
       return false;
     }
     void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyFileMD5));
-    MyFileMD5 * fm = new(p) MyFileMD5(token, md5, 0);
+    const char * filename = spl? spl->translate(token): token;
+    MyFileMD5 * fm = new(p) MyFileMD5(filename, md5, 0);
     m_file_md5_list.push_back(fm);
   }
 
@@ -1879,7 +1879,7 @@ void MyBaseConnectionManager::detect_dead_connections(int timeout)
 
 void MyBaseConnectionManager::set_connection_client_id_index(MyBaseHandler * handler, int index, MyClientIDTable * id_table)
 {
-  if (!handler || m_locked || index < 0)
+  if (unlikely(!handler || m_locked || index < 0))
     return;
   MyIndexHandlerMapPtr it = m_index_handler_map.lower_bound(index);
   if (id_table)

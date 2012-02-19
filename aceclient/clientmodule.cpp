@@ -49,7 +49,7 @@ bool MyClientDB::init_db()
     return false;
 
   const char * const_sql_tb_ftp_info =
-      "create table if not exists tb_ftp_info(ftp_dist_id text PRIMARY KEY, ftp_str text, ftp_status integer, ftp_recv_time integer)";
+      "create table if not exists tb_ftp_info(ftp_dist_id text PRIMARY KEY, ftp_str text, ftp_status integer, ftp_recv_time integer, md5_client text, md5_server text)";
   const char * const_sql_tb_click =
       "create table if not exists tb_click(channel_id text, point_code text, click_num, primary key(channel_id, point_code))";
 
@@ -123,6 +123,50 @@ bool MyClientDB::save_ftp_command(const char * ftp_command, const char * dist_id
   MyMemPoolFactoryX::instance()->get_mem(total_len, &sql);
   ACE_OS::snprintf(sql.data(), total_len, const_sql_template, dist_id, ftp_command, 0, (long)time(NULL));
   return do_exec(sql.data());
+}
+
+bool MyClientDB::save_md5_command(const char * dist_id, const char * md5_server, const char * md5_client)
+{
+  if (unlikely(!md5_server || !*md5_server || !dist_id || !*dist_id))
+    return false;
+
+  int count = 0;
+  {
+    const char * const_sql_template = "select count(*) from tb_ftp_info where ftp_dist_id = '%s'";
+    char sql[200];
+    ACE_OS::snprintf(sql, 200, const_sql_template, dist_id);
+
+    char *zErrMsg = 0;
+    if (sqlite3_exec(m_db, sql, get_one_integer_value_callback, &count, &zErrMsg) != SQLITE_OK)
+    {
+      MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
+      if (zErrMsg)
+        sqlite3_free(zErrMsg);
+    }
+    if (zErrMsg)
+      sqlite3_free(zErrMsg);
+  }
+
+  if (count == 0)
+  {
+    const char * const_sql_template = "insert into tb_ftp_info(ftp_dist_id, ftp_status, md5_server, md5_client) "
+                                      "values('%s', 2, '%s', '%s')";
+    int len = ACE_OS::strlen(dist_id);
+    int total_len = ACE_OS::strlen(const_sql_template) + len + ACE_OS::strlen(md5_server) + ACE_OS::strlen(md5_client) + 20;
+    MyPooledMemGuard sql;
+    MyMemPoolFactoryX::instance()->get_mem(total_len, &sql);
+    ACE_OS::snprintf(sql.data(), total_len, const_sql_template, dist_id, md5_server, md5_client);
+    return do_exec(sql.data());
+  } else
+  {
+    const char * const_sql_template = "update tb_ftp_info set md5_server = '%s', md5_client = '%s' where ftp_dist_id = '%s'";
+    int len = ACE_OS::strlen(dist_id);
+    int total_len = ACE_OS::strlen(const_sql_template) + len + ACE_OS::strlen(md5_server) + ACE_OS::strlen(md5_client) + 20;
+    MyPooledMemGuard sql;
+    MyMemPoolFactoryX::instance()->get_mem(total_len, &sql);
+    ACE_OS::snprintf(sql.data(), total_len, const_sql_template, dist_id, md5_server, md5_client);
+    return do_exec(sql.data());
+  }
 }
 
 bool MyClientDB::set_ftp_command_status(const char * dist_id, int status)
@@ -998,6 +1042,36 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info)
     return false;
   }
 
+  if (type_is_multi(dist_info->type))
+  {
+    int len = ACE_OS::strlen(dist_info->local_file_name.data());
+    int all_in_one_len = ACE_OS::strlen("all_in_one.mbz");
+    if (len > all_in_one_len && strcmp(dist_info->local_file_name.data() + len - all_in_one_len, "all_in_one.mbz") != 0)
+    {
+      if (unlikely(!dist_info->server_md5.data() || !dist_info->server_md5.data()[0] ||
+          !dist_info->client_md5.data() || !!dist_info->server_md5.data()[0]))
+      {
+        MY_ERROR("no client/server md5 list for diff dist() client()\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
+        return false;
+      }
+
+      //todo: copy files from daily dir here
+
+
+      MyMfileSplitter spl;
+      spl.init(dist_info->aindex.data());
+      MyFileMD5s server_md5s, client_md5s;
+      if (!server_md5s.from_buffer(dist_info->server_md5.data(), &spl) ||
+          !client_md5s.from_buffer(dist_info->client_md5.data()))
+      {
+        MY_ERROR("bad server/client md5 list @MyDistFtpFileExtractor::do_extract\n");
+        return false;
+      }
+      server_md5s.base_dir(target_path.data());
+      server_md5s.minus(client_md5s, NULL, true);
+    }
+  }
+
   MyBZCompressor c;
   bool result = c.decompress(dist_info->local_file_name.data(), target_path.data(), dist_info->file_password.data(), dist_info->aindex.data());
   if (result)
@@ -1070,6 +1144,11 @@ void MyDistInfoMD5::post_md5_message()
   MyClientAppX::instance()->send_mb_to_dist(mb);
 }
 
+const char * MyDistInfoMD5::md5_text() const
+{
+  return m_md5_text.data();
+}
+
 bool MyDistInfoMD5::load_from_string(char * src)
 {
   if (unlikely(!src || !*src))
@@ -1090,6 +1169,7 @@ bool MyDistInfoMD5::load_from_string(char * src)
   }
 
   char * _md5_list = src + header_len;
+  m_md5_text.init_from_string(_md5_list);
 
   if (!m_md5list.from_buffer(_md5_list))
     return false;
@@ -1856,6 +1936,17 @@ void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
   MyFileMD5s client_md5s;
   if (!MyDistInfoMD5Comparer::compute(p, client_md5s))
     MY_INFO("md5 file list generation error\n");
+
+  {
+    MyPooledMemGuard md5_client;
+    int len = client_md5s.total_size(false);
+    MyMemPoolFactoryX::instance()->get_mem(len, &md5_client);
+    client_md5s.to_buffer(md5_client.data(), len, false);
+
+    MyClientDBGuard dbg;
+    if (dbg.db().open_db(p->client_id.as_string()))
+      dbg.db().save_md5_command(p->dist_id.data(), p->md5_text(), md5_client.data());
+  }
 
   MyDistInfoMD5Comparer::compare(p, p->md5list(), client_md5s);
   p->post_md5_message();

@@ -578,7 +578,7 @@ bool MyHttpService::handle_packet(ACE_Message_Block * mb)
     return false;
 
   MyPooledMemGuard mbz_md5_result;
-  if (http_dist_request.need_mbz_md5())
+//  if (http_dist_request.need_mbz_md5()) //generate all in one.mbz md5 anyway
   {
     if (!MyDistMd5Calculator::calculate_all_in_one_ftp_md5(http_dist_request.ver, mbz_md5_result))
       return false;

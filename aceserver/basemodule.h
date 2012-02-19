@@ -193,7 +193,7 @@ public:
     return m_file_md5_list.size();
   }
   bool to_buffer(char * buff, int buff_len, bool include_md5_value);
-  bool from_buffer(char * buff);
+  bool from_buffer(char * buff, MyMfileSplitter * spl = NULL);
 
   int total_size(bool include_md5_value);
   bool calculate(const char * dirname, const char * mfile, bool single);
