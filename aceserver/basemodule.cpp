@@ -383,8 +383,8 @@ void MyFileMD5s::minus(MyFileMD5s & target, MyMfileSplitter * spl, bool do_delet
       if (do_delete)
       {
         ACE_OS::snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
-        MY_INFO("deleting file %s\n", fn);
-        //remove(fn);
+        //MY_INFO("deleting file %s\n", fn);
+        remove(fn);
       }
       ++it2;
     }
@@ -406,8 +406,8 @@ void MyFileMD5s::minus(MyFileMD5s & target, MyMfileSplitter * spl, bool do_delet
     while (it2 != target.m_file_md5_list.end())
     {
       ACE_OS::snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
-      MY_INFO("deleting file %s\n", fn);
-      //remove(fn);
+      //MY_INFO("deleting file %s\n", fn);
+      remove(fn);
       ++it2;
     }
   }
@@ -714,7 +714,7 @@ const char * MyWrappedArchiveReader::file_name() const
 bool MyWrappedArchiveReader::read_header()
 {
   MyWrappedHeader header;
-  if (!do_read((char*)&header, sizeof(header)))
+  if (do_read((char*)&header, sizeof(header)) != sizeof(header))
     return false;
   if (header.magic != MyWrappedHeader::HEADER_MAGIC)
   {
@@ -2443,7 +2443,7 @@ int MyBaseConnector::do_connect(int count, bool bNew)
     else if (bNew)
       m_remain_to_connect = count - true_count;
 
-    MY_INFO(ACE_TEXT("connecting to %s:%d (total=%d, ok=%d, failed=%d, pending=%d)... \n"),
+    MY_INFO(ACE_TEXT("%s connecting to %s:%d (total=%d, ok=%d, failed=%d, pending=%d)... \n"), name(),
         m_tcp_addr.c_str(), m_tcp_port, true_count, ok_count, true_count - ok_count- pending_count, pending_count);
 
     return ok_count + pending_count > 0;
@@ -2453,7 +2453,7 @@ int MyBaseConnector::do_connect(int count, bool bNew)
     MyBaseHandler * handler = NULL;
     ACE_Time_Value timeout(30);
     ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
-    MY_INFO(ACE_TEXT("connecting to %s:%d ...\n"), m_tcp_addr.c_str(), m_tcp_port);
+    MY_INFO(ACE_TEXT("%s connecting to %s:%d ...\n"), name(), m_tcp_addr.c_str(), m_tcp_port);
     if (connect(handler, port_to_connect, synch_options) == -1)
     {
       if (errno == EWOULDBLOCK)

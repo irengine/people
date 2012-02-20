@@ -53,11 +53,39 @@ void MyDistClient::update_md5_list(const char * _md5)
 
 void MyDistClient::dist_ftp_md5_reply(const char * md5list)
 {
+  if (unlikely(*md5list == 0))
+  {
+    char buff[50];
+    mycomutil_generate_time_string(buff, 50);
+    MyServerAppX::instance()->heart_beat_module()->ftp_feedback_submitter().add(
+        dist_info->ver.data(),
+        dist_info->ftype[0],
+        client_id.as_string(),
+        2, '1', buff);
+
+    MyServerAppX::instance()->heart_beat_module()->ftp_feedback_submitter().add(
+        dist_info->ver.data(),
+        dist_info->ftype[0],
+        client_id.as_string(),
+        3, '1', buff);
+
+    MyServerAppX::instance()->heart_beat_module()->ftp_feedback_submitter().add(
+        dist_info->ver.data(),
+        dist_info->ftype[0],
+        client_id.as_string(),
+        4, '1', buff);
+
+    MyServerAppX::instance()->db().set_dist_client_status(*this, 4);
+    update_status(4);
+    return;
+  }
+
   if (!md5.data() || !md5.data()[0])
   {
     update_md5_list(md5list);
     MyServerAppX::instance()->db().set_dist_client_md5(client_id.as_string(), dist_info->ver.data(), md5list, 2);
   }
+
   if (!mbz_file.data() || !mbz_file.data()[0])
   {
     if (!generate_diff_mbz())
@@ -202,7 +230,7 @@ bool MyDistClient::generate_diff_mbz()
   MyPooledMemGuard mdestfile;
   destdir.init_from_string(MyConfigX::instance()->compressed_store_path.c_str(), "/", dist_info->ver.data());
   composite_dir.init_from_string(destdir.data(), "/", MyDistCompressor::composite_path());
-  mdestfile.init_from_string(composite_dir.data(), "/", client_id.as_string());
+  mdestfile.init_from_string(composite_dir.data(), "/", client_id.as_string(), ".mbz");
   MyBZCompositor compositor;
   if (!compositor.open(mdestfile.data()))
     return false;
@@ -214,7 +242,7 @@ bool MyDistClient::generate_diff_mbz()
   MyPooledMemGuard filename;
   while ((token =tokenizer.get_token()) != NULL)
   {
-    filename.init_from_string(destdir.data(), "/", token);
+    filename.init_from_string(destdir.data(), "/", token, ".mbz");
     if (!compositor.add(filename.data()))
     {
       MyFilePaths::remove(mdestfile.data());
@@ -230,7 +258,7 @@ bool MyDistClient::generate_diff_mbz()
     return false;
   }
 
-  mbz_file.init_from_string(mdestfile.data());
+  mbz_file.init_from_string(mdestfile.data() + ACE_OS::strlen(destdir.data()) + 1);
   mbz_md5.init_from_string(md5_result.data());
   return true;
 }
@@ -894,7 +922,7 @@ int MyHeartBeatService::svc()
   for (ACE_Message_Block * mb; getq(mb) != -1; )
   {
     MyMessageBlockGuard guard(mb);
-    if (mb->length() == sizeof(int))
+    if (mb->capacity() == sizeof(int))
     {
       int cmd = *(int*)mb->base();
       if (cmd == TIMED_DIST_TASK)
@@ -963,7 +991,7 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
     MY_ERROR("bad ok flag(%c) on client ftp reply @%s\n", ok, name());
     return;
   }
-  if (unlikely(!ftype_is_valid(ftype)))
+  if (unlikely(!ftype_is_valid(ftype) && ftype != 'x'))
   {
     MY_ERROR("bad ftype(%c) on client ftp reply @%s\n", ftype, name());
     return;
@@ -999,6 +1027,7 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
   if ((ftype != 'x') && step != 0)
   {
     char buff[32];
+    mycomutil_generate_time_string(buff, 32);
     ((MyHeartBeatModule *)module_x())->ftp_feedback_submitter().add(dist_id, ftype, client_id.as_string(), step, ok, buff);
   }
   if (recv_status == '9')

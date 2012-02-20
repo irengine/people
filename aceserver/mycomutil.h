@@ -640,6 +640,7 @@ void mycomutil_hex_dump(void * ptr, int len, char * result_buff, int buff_len);
 void mycomutil_generate_random_password(char * buff, const int password_len);
 bool mycomutil_find_tag_value(char * & ptr, const char * tag, char * & value, char terminator);
 bool mycomutil_calculate_file_md5(const char * _file, MyPooledMemGuard & md5_result);
+bool mycomutil_generate_time_string(char * result_buff, int buff_len, time_t t = time(NULL));
 
 int mycomutil_translate_tcp_result(ssize_t transfer_return_value);
 int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);

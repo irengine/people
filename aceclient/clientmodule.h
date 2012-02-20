@@ -83,10 +83,11 @@ class MyClientDB
 public:
   ~MyClientDB();
 
-  bool open_db(const char * client_id);
+  bool open_db(const char * client_id, bool do_init = false);
   void close_db();
   bool save_ftp_command(const char * ftp_command, const char * dist_id);
   bool save_md5_command(const char * dist_id, const char * md5_server, const char * md5_client);
+  bool load_ftp_md5_for_diff(MyDistInfoFtp & dist_info);
   bool set_ftp_command_status(const char * dist_id, int status);
   bool get_ftp_command_status(const char * dist_id, int & status);
   bool get_click_infos(MyClickInfos & infos);
@@ -105,6 +106,7 @@ private:
   static int load_ftp_commands_callback(void * p, int argc, char **argv, char **azColName);
   static int get_one_integer_value_callback(void * p, int argc, char **argv, char **azColName);
   static int get_click_infos_callback(void * p, int argc, char **argv, char **azColName);
+  static int get_ftp_md5_for_diff_callback(void * p, int argc, char **argv, char **azColName);
 
   bool do_exec(const char *sql, bool show_error = true);
   bool init_db();
@@ -297,7 +299,7 @@ public:
   bool get_true_dest_path(MyDistInfoFtp * dist_info, MyPooledMemGuard & target_path);
 
 private:
-  bool do_extract(MyDistInfoFtp * dist_info);
+  bool do_extract(MyDistInfoFtp * dist_info, const MyPooledMemGuard & target_parent_path);
   MyDistInfoFtp * m_dist_info;
 };
 

@@ -228,6 +228,17 @@ bool mycomutil_calculate_file_md5(const char * _file, MyPooledMemGuard & md5_res
   return true;
 }
 
+bool mycomutil_generate_time_string(char * result_buff, int buff_len, time_t t)
+{
+  MY_ASSERT_RETURN(buff_len > 15, "\n", false);
+  struct tm _tm;
+  if (unlikely(localtime_r(&t, &_tm) == NULL))
+    return false;
+  ACE_OS::snprintf(result_buff, buff_len, "%04d%02d%02d %02d%02d%02d", _tm.tm_year + 1900, _tm.tm_mon + 1,
+      _tm.tm_mday, _tm.tm_hour, _tm.tm_min, _tm.tm_sec);
+  return true;
+}
+
 int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
 
 int mycomutil_translate_tcp_result(ssize_t transfer_return_value)

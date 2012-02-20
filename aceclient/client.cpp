@@ -323,7 +323,7 @@ bool MyClientApp::on_construct()
 
     {
       MyClientDBGuard dbg;
-      if (dbg.db().open_db(NULL))
+      if (dbg.db().open_db(NULL, true))
       {
         time_t deadline = time_t(NULL) - const_one_day * 10;
         dbg.db().remove_outdated_ftp_command(deadline);
@@ -401,7 +401,7 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
     {
       app->m_client_id_table.value(i, &client_id);
       MyClientDBGuard dbg;
-      if (dbg.db().open_db(client_id.as_string()))
+      if (dbg.db().open_db(client_id.as_string(), true))
       {
         dbg.db().remove_outdated_ftp_command(deadline);
         dbg.db().reset_ftp_command_status();

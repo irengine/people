@@ -57,7 +57,7 @@ bool MyClientDB::init_db()
   return do_exec(const_sql_tb_click, false);
 }
 
-bool MyClientDB::open_db(const char * client_id)
+bool MyClientDB::open_db(const char * client_id, bool do_init)
 {
   if (m_db)
     return true;
@@ -81,7 +81,8 @@ bool MyClientDB::open_db(const char * client_id)
       break;
   }
 
-  init_db(); //no harm
+  if (do_init || retried)
+    init_db();
   return true;
 }
 
@@ -150,7 +151,7 @@ bool MyClientDB::save_md5_command(const char * dist_id, const char * md5_server,
   if (count == 0)
   {
     const char * const_sql_template = "insert into tb_ftp_info(ftp_dist_id, ftp_status, md5_server, md5_client) "
-                                      "values('%s', 2, '%s', '%s')";
+                                      "values('%s', 0, '%s', '%s')";
     int len = ACE_OS::strlen(dist_id);
     int total_len = ACE_OS::strlen(const_sql_template) + len + ACE_OS::strlen(md5_server) + ACE_OS::strlen(md5_client) + 20;
     MyPooledMemGuard sql;
@@ -167,6 +168,25 @@ bool MyClientDB::save_md5_command(const char * dist_id, const char * md5_server,
     ACE_OS::snprintf(sql.data(), total_len, const_sql_template, dist_id, md5_server, md5_client);
     return do_exec(sql.data());
   }
+}
+
+bool MyClientDB::load_ftp_md5_for_diff(MyDistInfoFtp & dist_info)
+{
+  const char * const_sql_template = "select md5_server, md5_client from tb_ftp_info where ftp_dist_id = '%s'";
+  char sql[200];
+  ACE_OS::snprintf(sql, 200, const_sql_template, dist_info.dist_id.data());
+  char *zErrMsg = 0;
+  if (sqlite3_exec(m_db, sql, get_ftp_md5_for_diff_callback, &dist_info, &zErrMsg) != SQLITE_OK)
+  {
+    MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
+    if (zErrMsg)
+      sqlite3_free(zErrMsg);
+    return false;
+  }
+  if (zErrMsg)
+    sqlite3_free(zErrMsg);
+  return true;
+
 }
 
 bool MyClientDB::set_ftp_command_status(const char * dist_id, int status)
@@ -360,6 +380,17 @@ int MyClientDB::get_one_integer_value_callback(void * p, int argc, char **argv, 
   return 0;
 }
 
+int MyClientDB::get_ftp_md5_for_diff_callback(void * p, int argc, char **argv, char **azColName)
+{
+  ACE_UNUSED_ARG(azColName);
+
+  if (argc != 2 || !argv[0] || !argv[1])
+    return -1;
+  MyDistInfoFtp * dist_info = (MyDistInfoFtp *) p;
+  dist_info->server_md5.init_from_string(argv[0]);
+  dist_info->client_md5.init_from_string(argv[1]);
+  return 0;
+}
 
 //MyFTPClient//
 
@@ -1003,25 +1034,26 @@ bool MyDistFtpFileExtractor::get_true_dest_path(MyDistInfoFtp * dist_info, MyPoo
 
 bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
 {
-  if (!do_extract(dist_info))
-  {
-    MY_ERROR("apply update failed for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
-    return false;
-  } else
-  {
-    MY_INFO("apply update OK for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
-    MyClientApp::full_backup(dist_info->dist_id.data(), dist_info->client_id.as_string());
-    return true;
-  }
-}
-
-bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info)
-{
   MY_ASSERT_RETURN(dist_info, "parameter dist_info null pointer\n", false);
-  dist_info->calc_local_file_name();
 
   MyPooledMemGuard target_parent_path;
   dist_info->calc_target_parent_path(target_parent_path, true);
+  bool result = do_extract(dist_info, target_parent_path);
+  if (!result)
+    MY_ERROR("apply update failed for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
+  else
+  {
+    MY_INFO("apply update OK for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
+    MyClientApp::full_backup(dist_info->dist_id.data(), dist_info->client_id.as_string());
+  }
+  MyFilePaths::remove_path(target_parent_path.data(), true);
+  return result;
+}
+
+bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPooledMemGuard & target_parent_path)
+{
+  dist_info->calc_local_file_name();
+
   if (!MyFilePaths::make_path(target_parent_path.data(), true))
   {
     MY_ERROR("can not mkdir(%s) %s\n", target_parent_path.data(), (const char *)MyErrno());
@@ -1029,34 +1061,40 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info)
   }
   MyPooledMemGuard target_path;
   if (!dist_info->calc_target_path(target_parent_path.data(), target_path))
-  {
-    MyFilePaths::remove_path(target_parent_path.data(), true);
     return false;
-  }
 
   int prefix_len = ACE_OS::strlen(target_parent_path.data());
   if (!MyFilePaths::make_path_const(target_path.data(), prefix_len, false, true))
   {
     MY_ERROR("can not mkdir(%s) %s\n", target_path.data(), (const char *)MyErrno());
-    MyFilePaths::remove_path(target_parent_path.data(), true);
     return false;
   }
+
+  MyPooledMemGuard true_dest_path;
+  if (unlikely(!get_true_dest_path(dist_info,  true_dest_path)))
+    return false;
 
   if (type_is_multi(dist_info->type))
   {
     int len = ACE_OS::strlen(dist_info->local_file_name.data());
     int all_in_one_len = ACE_OS::strlen("all_in_one.mbz");
-    if (len > all_in_one_len && strcmp(dist_info->local_file_name.data() + len - all_in_one_len, "all_in_one.mbz") != 0)
+    if (len < all_in_one_len || strcmp(dist_info->local_file_name.data() + len - all_in_one_len, "all_in_one.mbz") != 0)
     {
-      if (unlikely(!dist_info->server_md5.data() || !dist_info->server_md5.data()[0] ||
-          !dist_info->client_md5.data() || !!dist_info->server_md5.data()[0]))
+      if (!MyFilePaths::copy_path(true_dest_path.data(), target_path.data(), true))
       {
-        MY_ERROR("no client/server md5 list for diff dist() client()\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
+        MY_ERROR("copy path failed from %s to %s\n", true_dest_path.data(), target_path.data());
         return false;
       }
 
-      //todo: copy files from daily dir here
+      MyClientDBGuard dbg;
+      if (dbg.db().open_db(dist_info->client_id.as_string()))
+        dbg.db().load_ftp_md5_for_diff(*dist_info);
 
+      if (unlikely(!dist_info->server_md5.data() || !dist_info->server_md5.data()[0]))
+      {
+        MY_ERROR("no server md5 list for diff dist(%s) client(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
+        return false;
+      }
 
       MyMfileSplitter spl;
       spl.init(dist_info->aindex.data());
@@ -1067,7 +1105,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info)
         MY_ERROR("bad server/client md5 list @MyDistFtpFileExtractor::do_extract\n");
         return false;
       }
-      server_md5s.base_dir(target_path.data());
+      client_md5s.base_dir(target_path.data());
       server_md5s.minus(client_md5s, NULL, true);
     }
   }
@@ -1077,18 +1115,11 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info)
   if (result)
   {
 //    MY_INFO("extract mbz ok: %s to %s\n", dist_info->local_file_name.data(), target_path.data());
-    MyPooledMemGuard true_dest_path;
-    if (unlikely(!get_true_dest_path(dist_info,  true_dest_path)))
-    {
-      result = false;
-      goto __exit__;
-    }
-
-    if (type_is_single(dist_info->type) || type_is_multi(dist_info->type))
+    if (type_is_single(dist_info->type))
     {
       if (!MyFilePaths::copy_path(target_path.data(), true_dest_path.data(), true))
         result = false;
-    } else if (type_is_all(dist_info->type))
+    } else if (type_is_all(dist_info->type) || type_is_multi(dist_info->type))
     {
       if (!MyFilePaths::copy_path_zap(target_path.data(), true_dest_path.data(), true, false))
         result = false;
@@ -1099,8 +1130,6 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info)
     }
   }
 
-__exit__:
-  MyFilePaths::remove_path(target_parent_path.data(), true);
   if (result)
     MyFilePaths::remove(dist_info->local_file_name.data());
   return result;
@@ -1939,9 +1968,9 @@ void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
 
   {
     MyPooledMemGuard md5_client;
-    int len = client_md5s.total_size(false);
+    int len = client_md5s.total_size(true);
     MyMemPoolFactoryX::instance()->get_mem(len, &md5_client);
-    client_md5s.to_buffer(md5_client.data(), len, false);
+    client_md5s.to_buffer(md5_client.data(), len, true);
 
     MyClientDBGuard dbg;
     if (dbg.db().open_db(p->client_id.as_string()))
