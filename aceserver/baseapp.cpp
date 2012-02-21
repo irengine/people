@@ -91,6 +91,7 @@ const ACE_TCHAR *  CONFIG_ftp_addr_list = ACE_TEXT("ftp_addr_list");
 const ACE_TCHAR * CONFIG_module_heart_beat_mem_pool_size = ACE_TEXT("module.heart_beat.mempool_size");
 const ACE_TCHAR * CONFIG_client_version_minimum = ACE_TEXT("client_version_minimum");
 const ACE_TCHAR * CONFIG_client_version_current = ACE_TEXT("client_version_current");
+const ACE_TCHAR * CONFIG_server_id = ACE_TEXT("server_id");
 
 //client specific
 const ACE_TCHAR * CONFIG_client_heart_beat_interval = ACE_TEXT("module.client_heart_beat_interval");
@@ -125,6 +126,7 @@ MyConfig::MyConfig()
   //dist server only
   dist_server_heart_beat_port = DEFAULT_dist_server_heart_beat_port;
   module_heart_beat_mem_pool_size = DEFAULT_MODULE_HEART_BEAT_MPOOL_SIZE;
+  server_id = 1;
 
   //client only
   client_heart_beat_interval = DEFAULT_client_heart_beat_interval;
@@ -481,6 +483,21 @@ bool MyConfig::load_config_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configurat
     }
     else
       module_heart_beat_mem_pool_size = ival;
+  }
+
+  if (cfgHeap.get_integer_value(section, CONFIG_server_id, ival) == 0)
+  {
+    if (ival <= 1 || ival >= 256)
+    {
+      MY_ERROR(ACE_TEXT("Invalid config value %s: %d\n"), CONFIG_server_id, ival);
+      return false;
+    }
+    server_id = (u_int8_t)ival;
+  }
+  else
+  {
+    MY_ERROR(ACE_TEXT("can not read config value %s\n"), CONFIG_server_id);
+    return false;
   }
 
   ACE_TString sval;

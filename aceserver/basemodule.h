@@ -90,6 +90,7 @@ public:
 
   bool active;
   bool expired;
+  bool switched;
   MyClientID client_id;
   char ftp_password[FTP_PASSWORD_LEN];
   int  password_len;
@@ -108,10 +109,11 @@ public:
   int  count();
   bool value(int index, MyClientID * id);
   bool value_all(int index, MyClientInfo & client_info);
-  bool active(const MyClientID & id, int & index);
+  bool active(const MyClientID & id, int & index, bool & switched);
 //  void active(const MyClientID & id, bool _active);
   bool active(int index);
   void active(int index, bool _active);
+  void switched(int index, bool _switched);
 
   //APIs used only by db-layer
   int  last_sequence() const;

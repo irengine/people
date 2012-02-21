@@ -69,7 +69,7 @@ void MyClientApp::data_path(MyPooledMemGuard & _data_path, const char * client_i
     MyTestClientPathGenerator::client_id_to_path(client_id, tmp, 128);
     _data_path.init_from_string(MyConfigX::instance()->app_path.c_str(), "/data/", tmp);
   } else
-  _data_path.init_from_string(MyConfigX::instance()->app_path.c_str(), "/data");
+    _data_path.init_from_string(MyConfigX::instance()->app_path.c_str(), "/data");
 }
 
 void MyClientApp::calc_display_parent_path(MyPooledMemGuard & parent_path, const char * client_id)

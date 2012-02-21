@@ -45,6 +45,11 @@ void MyDistClient::update_status(int _status)
     status = _status;
 }
 
+void MyDistClient::delete_self()
+{
+  dist_one->delete_dist_client(this);
+}
+
 void MyDistClient::update_md5_list(const char * _md5)
 {
   if (unlikely(!dist_info->need_md5()))
@@ -85,8 +90,9 @@ void MyDistClient::dist_ftp_md5_reply(const char * md5list)
         client_id(),
         4, '1', buff);
 
-    MyServerAppX::instance()->db().set_dist_client_status(*this, 4);
-    update_status(4);
+    dist_one->delete_dist_client(this);
+//    MyServerAppX::instance()->db().set_dist_client_status(*this, 5);
+//    update_status(5);
     return;
   }
 
@@ -96,6 +102,71 @@ void MyDistClient::dist_ftp_md5_reply(const char * md5list)
     MyServerAppX::instance()->db().set_dist_client_md5(client_id(), dist_info->ver.data(), md5list, 2);
   }
 
+  do_stage_2();
+}
+
+bool MyDistClient::dist_file()
+{
+  if (!active())
+    return true;
+
+  switch (status)
+  {
+  case 0:
+    return do_stage_0();
+
+  case 1:
+    return do_stage_1();
+
+  case 2:
+    return do_stage_2();
+
+  case 3:
+    return do_stage_3();
+
+  case 4:
+    return do_stage_4();
+
+  case 5:
+    return false;
+
+  default:
+    MY_ERROR("unexpected status value = %d @MyDistClient::dist_file\n", status);
+    return false;
+  }
+}
+
+bool MyDistClient::do_stage_0()
+{
+  if (dist_info->need_md5())
+  {
+    if(send_md5())
+    {
+      MyServerAppX::instance()->db().set_dist_client_status(*this, 1);
+      update_status(1);
+    }
+    return true;
+  }
+
+  if (send_ftp())
+  {
+    MyServerAppX::instance()->db().set_dist_client_status(*this, 3);
+    update_status(3);
+  }
+  return true;
+}
+
+bool MyDistClient::do_stage_1()
+{
+  time_t now = time_t(NULL);
+  if (now > last_update + MD5_REPLY_TIME_OUT * 60)
+    send_md5();
+
+  return true;
+}
+
+bool MyDistClient::do_stage_2()
+{
   if (!mbz_file.data() || !mbz_file.data()[0])
   {
     if (!generate_diff_mbz())
@@ -111,82 +182,21 @@ void MyDistClient::dist_ftp_md5_reply(const char * md5list)
     MyServerAppX::instance()->db().set_dist_client_status(*this, 3);
     update_status(3);
   }
+  return true;
 }
 
-int MyDistClient::dist_file(MyDistClients & dist_clients)
-{
-  if (!active())
-    return 0;
-
-  switch (status)
-  {
-  case 0:
-    return do_stage_0(dist_clients);
-
-  case 1:
-    return do_stage_1(dist_clients);
-
-  case 2:
-    return do_stage_2(dist_clients);
-
-  case 3:
-    return do_stage_3(dist_clients);
-
-  case 4:
-    return do_stage_4(dist_clients);
-
-  case 5:
-    return 0;
-
-  default:
-    MY_ERROR("unexpected status value = %d @MyDistClient::dist_file\n", status);
-    return 0;
-  }
-}
-
-int MyDistClient::do_stage_0(MyDistClients & dist_clients)
-{
-  if (dist_info->need_md5())
-  {
-    if(send_md5())
-    {
-      MyServerAppX::instance()->db().set_dist_client_status(*this, 1);
-      update_status(1);
-    }
-    return 0;
-  }
-
-  if (send_ftp())
-  {
-    MyServerAppX::instance()->db().set_dist_client_status(*this, 3);
-    update_status(3);
-  }
-  return 0;
-}
-
-int MyDistClient::do_stage_1(MyDistClients & dist_clients)
-{
-
-  return 0;
-}
-
-int MyDistClient::do_stage_2(MyDistClients & dist_clients)
-{
-  return 0;
-}
-
-int MyDistClient::do_stage_3(MyDistClients & dist_clients)
+bool MyDistClient::do_stage_3()
 {
   time_t now = time_t(NULL);
   if (now > last_update + FTP_REPLY_TIME_OUT * 60)
     send_ftp();
 
-  return 0;
+  return true;
 }
 
-int MyDistClient::do_stage_4(MyDistClients & dist_clients)
+bool MyDistClient::do_stage_4()
 {
-  return 0;
+  return false;
 }
 
 int MyDistClient::dist_out_leading_length()
@@ -344,7 +354,8 @@ int MyDistClientOne::client_id_index() const
 
 bool MyDistClientOne::active()
 {
-  return g_client_id_table->active(m_client_id, m_client_id_index);
+  bool switched;
+  return g_client_id_table->active(m_client_id, m_client_id_index, switched);
 }
 
 bool MyDistClientOne::is_client_id(const char * _client_id) const
@@ -367,8 +378,8 @@ void MyDistClientOne::delete_dist_client(MyDistClient * dc)
   m_client_ones.remove(dc);
   MyPooledObjectDeletor dlt;
   dlt(dc);
-  if (m_client_ones.empty())
-    m_dist_clients->delete_client_one(this);
+//  if (m_client_ones.empty())
+//    m_dist_clients->delete_client_one(this);
 }
 
 void MyDistClientOne::clear()
@@ -376,13 +387,34 @@ void MyDistClientOne::clear()
   std::for_each(m_client_ones.begin(), m_client_ones.end(), MyPooledObjectDeletor());
 }
 
-void MyDistClientOne::dist_files()
+bool MyDistClientOne::dist_files()
 {
-  if (!active())
-    return;
+  bool switched;
+  if (!g_client_id_table->active(m_client_id, m_client_id_index, switched))
+    return !m_client_ones.empty();
+
   MyDistClientOneList::iterator it;
-  for (it = m_client_ones.begin(); it != m_client_ones.end(); ++it)
-    (*it)->dist_file(*m_dist_clients);
+
+  if (unlikely(switched))
+  {
+    for (it = m_client_ones.begin(); it != m_client_ones.end(); ++it)
+      m_dist_clients->on_remove_dist_client(*it);
+    clear();
+    MyServerAppX::instance()->db().load_dist_clients(m_dist_clients, this);
+  }
+
+  for (it = m_client_ones.begin(); it != m_client_ones.end(); )
+  {
+    if (!(*it)->dist_file())
+    {
+      m_dist_clients->on_remove_dist_client(*it);
+      MyPooledObjectDeletor dlt;
+      dlt(*it);
+      it = m_client_ones.erase(it);
+    } else
+      ++it;
+  }
+  return !m_client_ones.empty();
 }
 
 
@@ -431,6 +463,7 @@ void MyDistClients::on_create_dist_client(MyDistClient * dc)
 
 void MyDistClients::on_remove_dist_client(MyDistClient * dc)
 {
+  ++m_dist_client_finished;
   m_dist_clients_map.erase(MyClientMapKey(dc->dist_info->ver.data(), dc->client_id()));
 }
 
@@ -478,9 +511,21 @@ void MyDistClients::delete_client_one(MyDistClientOne * dco)
 
 void MyDistClients::dist_files()
 {
+  m_dist_client_finished = 0;
   MyDistClientOneList::iterator it;
-  for (it = dist_clients.begin(); it != dist_clients.end(); ++it)
-    (*it)->dist_files();
+  for (it = dist_clients.begin(); it != dist_clients.end(); )
+  {
+    if (!(*it)->dist_files())
+    {
+      m_dist_client_ones_map.erase((*it)->client_id());
+      MyPooledObjectDeletor dlt;
+      dlt(*it);
+      it = dist_clients.erase(it);
+    } else
+      ++it;
+  }
+  if (m_dist_client_finished > 0)
+    MY_INFO("number of dist client(s) finished in this round = %d\n", m_dist_client_finished);
 }
 
 
@@ -524,7 +569,7 @@ bool MyClientFileDistributor::check_dist_clients(bool reload)
   if (reload)
   {
     m_dist_clients.clear();
-    if (!MyServerAppX::instance()->db().load_dist_clients(&m_dist_clients))
+    if (!MyServerAppX::instance()->db().load_dist_clients(&m_dist_clients, NULL))
       return false;
   }
 
@@ -535,13 +580,16 @@ bool MyClientFileDistributor::check_dist_clients(bool reload)
 void MyClientFileDistributor::dist_ftp_file_reply(const char * client_id, const char * dist_id, int _status)
 {
   MyDistClient * dc = m_dist_clients.find_dist_client(client_id, dist_id);
-  if (likely(dc != NULL))
-    dc->update_status(_status);
+  if (unlikely(dc == NULL))
+    return;
+
   if (_status <= 4)
+  {
+    dc->update_status(_status);
     MyServerAppX::instance()->db().set_dist_client_status(client_id, dist_id, _status);
+  }
   else
-    MyServerAppX::instance()->db().delete_dist_client(client_id, dist_id);
-  //todo: notify bs about progress
+    dc->delete_self();
 }
 
 void MyClientFileDistributor::dist_ftp_md5_reply(const char * client_id, const char * dist_id, const char * md5list)
@@ -687,12 +735,6 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
   if (ret != ER_CONTINUE)
     return ret;
 
-  {
-    MyPooledMemGuard info;
-    info_string(info);
-    MY_INFO(ACE_TEXT("client version check ok: %s\n"), info.data());
-  }
-
   m_ip_ver_submitter->add_data(m_client_id.as_string(), m_client_id_length, m_peer_addr, m_client_version.to_string());
 
   MyClientInfo client_info;
@@ -700,14 +742,30 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
 
   ACE_Message_Block * reply_mb;
   if (m_client_version < MyConfigX::instance()->client_version_minimum)
-    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_MISMATCH, client_info.password_len + 1);
+  {
+    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_MISMATCH, client_info.password_len + 2);
+    m_wait_for_close = true;
+  }
   else if (m_client_version < MyConfigX::instance()->client_version_current)
-    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK_CAN_UPGRADE, client_info.password_len + 1);
+    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK_CAN_UPGRADE, client_info.password_len + 2);
   else
-    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK, client_info.password_len + 1);
+    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK, client_info.password_len + 2);
+
+  if (!m_wait_for_close)
+  {
+    MyClientVersionCheckRequest * vc = (MyClientVersionCheckRequest *)mb->base();
+    if (vc->server_id != MyConfigX::instance()->server_id)
+      client_id_table.switched(m_client_id_index, true);
+
+    MyPooledMemGuard info;
+    info_string(info);
+    MY_INFO(ACE_TEXT("client version check ok: %s\n"), info.data());
+
+  }
 
   MyClientVersionCheckReply * vcr = (MyClientVersionCheckReply *) reply_mb->base();
-  ACE_OS::memcpy(vcr->data, client_info.ftp_password, client_info.password_len + 1);
+  *((u_int8_t*)vcr->data) = MyConfigX::instance()->server_id;
+  ACE_OS::memcpy(vcr->data + 1, client_info.ftp_password, client_info.password_len + 1);
   if (m_handler->send_data(reply_mb) < 0)
     return ER_ERROR;
   else

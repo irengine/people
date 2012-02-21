@@ -28,6 +28,44 @@ MyClickInfo::MyClickInfo(const char * chn, const char * pcode, const char * coun
 }
 
 
+//MyServerID//
+
+int MyServerID::load(const char * client_id)
+{
+  MyPooledMemGuard data_path, fn;
+  MyClientApp::data_path(data_path, client_id);
+  fn.init_from_string(data_path.data(), "/server.id");
+  MyUnixHandleGuard fh;
+  if (fh.open_read(fn.data()))
+  {
+    char buff[32];
+    int m = ::read(fh.handle(), buff, 32);
+    if (m > 0)
+    {
+      buff[m - 1] = 0;
+      return atoi(buff);
+    }
+  }
+
+  return 0;
+}
+
+void MyServerID::save(const char * client_id, int server_id)
+{
+  MyPooledMemGuard data_path, fn;
+  MyClientApp::data_path(data_path, client_id);
+  fn.init_from_string(data_path.data(), "/server.id");
+  MyUnixHandleGuard fh;
+  if (fh.open_write(fn.data(), true, true, false, true))
+  {
+    char buff[32];
+    ACE_OS::snprintf(buff, 32, "%d", server_id);
+    ::write(fh.handle(), buff, strlen(buff));
+  }
+}
+
+
+
 //MyClientDB//
 
 ACE_Thread_Mutex MyClientDB::m_mutex;
@@ -1604,12 +1642,18 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
   case MyClientVersionCheckReply::VER_OK:
  //   MY_INFO("%s OK\n", prefix_msg);
     if (vcr->length > (int)sizeof(MyClientVersionCheckReply) + 1)
-      m_ftp_password.init_from_string(vcr->data);
+    {
+      MyServerID::save(m_client_id.as_string(), (int)(u_int8_t)vcr->data[0]);
+      m_ftp_password.init_from_string(vcr->data + 1);
+    }
     return MyBaseProcessor::ER_OK;
 
   case MyClientVersionCheckReply::VER_OK_CAN_UPGRADE:
     if (vcr->length > (int)sizeof(MyClientVersionCheckReply) + 1)
-      m_ftp_password.init_from_string(vcr->data);
+    {
+      MyServerID::save(m_client_id.as_string(), (int)(u_int8_t)vcr->data[0]);
+      m_ftp_password.init_from_string(vcr->data + 1);
+    }
     MY_INFO("%s get version can upgrade response\n", prefix_msg);
     //todo: notify app to upgrade
     return MyBaseProcessor::ER_OK;
@@ -1643,6 +1687,7 @@ int MyClientToDistProcessor::send_version_check_req()
   proc.data()->client_version_major = const_client_version_major;
   proc.data()->client_version_minor = const_client_version_minor;
   proc.data()->client_id = m_client_id;
+  proc.data()->server_id = (u_int8_t) MyServerID::load(m_client_id.as_string());
   return (m_handler->send_data(mb) < 0? -1: 0);
 }
 

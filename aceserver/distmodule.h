@@ -29,7 +29,8 @@ class MyDistClient
 public:
   MyDistClient(MyHttpDistInfo * _dist_info, MyDistClientOne * dist_one);
   bool check_valid() const;
-  int  dist_file(MyDistClients & dist_clients);
+  bool dist_file();
+  void delete_self();
   bool active();
   void update_status(int _status);
   void update_md5_list(const char * _md5);
@@ -49,11 +50,11 @@ public:
 private:
   enum { MD5_REPLY_TIME_OUT = 15, FTP_REPLY_TIME_OUT = 5 }; //in minutes
 
-  int do_stage_0(MyDistClients & dist_clients);
-  int do_stage_1(MyDistClients & dist_clients);
-  int do_stage_2(MyDistClients & dist_clients);
-  int do_stage_3(MyDistClients & dist_clients);
-  int do_stage_4(MyDistClients & dist_clients);
+  bool do_stage_0();
+  bool do_stage_1();
+  bool do_stage_2();
+  bool do_stage_3();
+  bool do_stage_4();
   bool send_md5();
   bool send_ftp();
   bool generate_diff_mbz();
@@ -74,7 +75,7 @@ public:
   bool active();
   bool is_client_id(const char * _client_id) const;
   void clear();
-  void dist_files();
+  bool dist_files();
   const char * client_id() const;
   int client_id_index() const;
 
@@ -143,6 +144,7 @@ private:
   MyHttpDistInfos * m_dist_infos;
   MyDistClientMap m_dist_clients_map;
   MyDistClientOneMap m_dist_client_ones_map;
+  int m_dist_client_finished;
 };
 
 class MyClientFileDistributor

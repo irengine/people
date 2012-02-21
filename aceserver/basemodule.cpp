@@ -117,6 +117,7 @@ MyClientInfo::MyClientInfo()
 {
   active = false;
   expired = false;
+  switched = false;
   set_password(NULL);
 }
 
@@ -124,6 +125,7 @@ MyClientInfo::MyClientInfo(const MyClientID & id, const char * _ftp_password, bo
 {
   active = false;
   expired = _expired;
+  switched = false;
   set_password(_ftp_password);
 }
 
@@ -255,12 +257,14 @@ bool MyClientIDTable::value_all(int index, MyClientInfo & client_info)
   return true;
 }
 
-bool MyClientIDTable::active(const MyClientID & id, int & index)
+bool MyClientIDTable::active(const MyClientID & id, int & index, bool & switched)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
-  index = index_of_i(id);
+  if (index < 0 || index >= (int)m_table.size())
+    index = index_of_i(id);
   if (unlikely(index < 0))
     return false;
+  switched = m_table[index].switched;
   return m_table[index].active;
 }
 
@@ -287,6 +291,14 @@ void MyClientIDTable::active(int index, bool _active)
   if (unlikely(index < 0 || index > (int)m_table.size()))
     return;
   m_table[index].active = _active;
+}
+
+void MyClientIDTable::switched(int index, bool _switched)
+{
+  ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
+  if (unlikely(index < 0 || index > (int)m_table.size()))
+    return;
+  m_table[index].switched = _switched;
 }
 
 int MyClientIDTable::last_sequence() const

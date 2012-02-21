@@ -505,13 +505,27 @@ bool MyDB::save_dist_ftp_md5(const char * dist_id, const char * md5)
   return exec_command(sql);
 }
 
-bool MyDB::load_dist_clients(MyDistClients * dist_clients)
+bool MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne * _dc_one)
 {
   MY_ASSERT_RETURN(dist_clients != NULL, "null dist_clients @MyDB::load_dist_clients\n", false);
 
-  const char * CONST_select_sql = "select dc_dist_id, dc_client_id, dc_status, dc_adir, dc_last_update,"
+  const char * CONST_select_sql_1 = "select dc_dist_id, dc_client_id, dc_status, dc_adir, dc_last_update,"
       " dc_mbz_file, dc_mbz_md5, dc_md5"
       " from tb_dist_clients order by dc_client_id";
+  const char * CONST_select_sql_2 = "select dc_dist_id, dc_client_id, dc_status, dc_adir, dc_last_update,"
+      " dc_mbz_file, dc_mbz_md5, dc_md5"
+      " from tb_dist_clients where dc_client_id = '%s'";
+  const char * const_select_sql;
+
+  char sql[512];
+  if (!_dc_one)
+    const_select_sql = CONST_select_sql_1;
+  else
+  {
+    ACE_OS::snprintf(sql, 512, CONST_select_sql_2, _dc_one->client_id());
+    const_select_sql = sql;
+  }
+
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
 
 //  dist_clients->db_time = get_db_time_i();
@@ -521,11 +535,11 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients)
 //    return false;
 //  }
 
-  PGresult * pres = PQexec(m_connection, CONST_select_sql);
+  PGresult * pres = PQexec(m_connection, const_select_sql);
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
   {
-    MY_ERROR("MyDB::sql (%s) failed: %s\n", CONST_select_sql, PQerrorMessage(m_connection));
+    MY_ERROR("MyDB::sql (%s) failed: %s\n", const_select_sql, PQerrorMessage(m_connection));
     return -1;
   }
   int count = PQntuples(pres);
@@ -542,16 +556,22 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients)
   }
 
   MyHttpDistInfo * info;
-  dc_one = dist_clients->create_client_one(PQgetvalue(pres, 0, 1));
+  if (!_dc_one)
+    dc_one = dist_clients->create_client_one(PQgetvalue(pres, 0, 1));
+  else
+    dc_one = _dc_one;
   for (int i = 0; i < count; ++ i)
   {
     info = dist_clients->find_dist_info(PQgetvalue(pres, i, 0));
     if (unlikely(!info))
       continue;
 
-    const char * client_id = PQgetvalue(pres, i, 1);
-    if (unlikely(!dc_one->is_client_id(client_id)))
-      dc_one = dist_clients->create_client_one(client_id);
+    if (!_dc_one)
+    {
+      const char * client_id = PQgetvalue(pres, i, 1);
+      if (unlikely(!dc_one->is_client_id(client_id)))
+        dc_one = dist_clients->create_client_one(client_id);
+    }
 
     MyDistClient * dc = dc_one->create_dist_client(info);
 
@@ -583,7 +603,8 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients)
   }
 
 __exit__:
-  MY_INFO("MyDB::get %d/%d dist client infos from database\n", count_added, count);
+  if (!_dc_one)
+    MY_INFO("MyDB::get %d/%d dist client infos from database\n", count_added, count);
   return count;
 }
 

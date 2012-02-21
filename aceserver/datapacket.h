@@ -253,6 +253,7 @@ class MyClientVersionCheckRequest: public MyDataPacketHeader
 public:
   u_int8_t client_version_major;
   u_int8_t client_version_minor;
+  u_int8_t server_id;
   MyClientID client_id;
 };
 

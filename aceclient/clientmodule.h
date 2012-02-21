@@ -77,6 +77,12 @@ public:
 
 typedef std::list<MyClickInfo> MyClickInfos;
 
+class MyServerID
+{
+public:
+  static int load(const char * client_id);
+  static void save(const char * client_id, int server_id);
+};
 
 class MyClientDB
 {

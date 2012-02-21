@@ -164,7 +164,7 @@ class MyUnixHandleGuard
 public:
   enum { INVALID_HANDLE = -1 };
   MyUnixHandleGuard(): m_handle(INVALID_HANDLE)
-  {}
+  { m_error_report = true; }
   MyUnixHandleGuard(int _handle): m_handle(_handle)
   {}
   ~MyUnixHandleGuard()
@@ -206,9 +206,15 @@ public:
     return m_handle >= 0;
   }
 
+  void error_report(bool b)
+  {
+    m_error_report = b;
+  }
+
 private:
   bool do_open(const char * filename, bool readonly, bool create, bool truncate, bool append, bool self_only);
-  int m_handle;
+  int  m_handle;
+  bool m_error_report;
 };
 
 template <class ACE_LOCK> class My_Cached_Allocator: public ACE_Dynamic_Cached_Allocator<ACE_LOCK>

@@ -837,7 +837,8 @@ bool MyUnixHandleGuard::do_open(const char * filename, bool readonly, bool creat
   }
   if (fd < 0)
   {
-    MY_ERROR("can not open file %s, %s\n", filename, (const char *)MyErrno());
+    if (m_error_report)
+      MY_ERROR("can not open file %s, %s\n", filename, (const char *)MyErrno());
     return false;
   }
   attach(fd);
