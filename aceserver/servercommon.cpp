@@ -11,7 +11,7 @@
 
 //MyHttpDistInfo//
 
-MyHttpDistInfo::MyHttpDistInfo()
+MyHttpDistInfo::MyHttpDistInfo(const char * dist_id)
 {
   exist = false;
   md5_len = 0;
@@ -21,6 +21,8 @@ MyHttpDistInfo::MyHttpDistInfo()
 
   ftype[0] = ftype[1] = 0;
   type[0] = type[1] = 0;
+  ver.init_from_string(dist_id);
+  ver_len = ACE_OS::strlen(dist_id);
 }
 
 bool MyHttpDistInfo::need_md5() const
@@ -123,8 +125,7 @@ bool MyHttpDistRequest::need_mbz_md5() const
 
 MyHttpDistInfos::MyHttpDistInfos()
 {
-  last_load_time = 0;
-  last_dist_time.init_from_string("");
+  last_load_time.init_from_string("");
 }
 
 MyHttpDistInfos::~MyHttpDistInfos()
@@ -138,12 +139,16 @@ void MyHttpDistInfos::clear()
   dist_infos.clear();
   MyHttpDistInfoList x;
   x.swap(dist_infos);
+  m_info_map.clear();
 }
 
-void MyHttpDistInfos::add(MyHttpDistInfo *p)
+MyHttpDistInfo * MyHttpDistInfos::create_http_dist_info(const char * dist_id)
 {
-  if (likely(p != NULL))
-    dist_infos.push_back(p);
+  void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyHttpDistInfo));
+  MyHttpDistInfo * result = new (p) MyHttpDistInfo(dist_id);
+  dist_infos.push_back(result);
+  m_info_map.insert(std::pair<const char *, MyHttpDistInfo *>(result->ver.data(), result));
+  return result;
 }
 
 bool MyHttpDistInfos::need_reload() const
@@ -151,9 +156,10 @@ bool MyHttpDistInfos::need_reload() const
   return (!MyServerAppX::instance()->db().dist_info_is_update(*this));
 }
 
-void MyHttpDistInfos::prepare_update()
+void MyHttpDistInfos::prepare_update(const int capacity)
 {
   clear();
+  dist_infos.reserve(capacity);
 }
 
 MyHttpDistInfo * MyHttpDistInfos::find(const char * dist_id)
@@ -161,15 +167,8 @@ MyHttpDistInfo * MyHttpDistInfos::find(const char * dist_id)
   if (unlikely(!dist_id || !*dist_id))
     return NULL;
 
-  int count = dist_infos.size();
-  for (int i = 0; i < count; ++ i)
-  {
-    if (unlikely(!dist_infos[i] || !dist_infos[i]->ver.data()))
-      continue;
-    if (ACE_OS::strcmp(dist_id, dist_infos[i]->ver.data()) == 0)
-      return dist_infos[i];
-  }
-  return NULL;
+  MyHttpDistInfoMap::iterator it = m_info_map.find(dist_id);
+  return it == m_info_map.end()? NULL: it->second;
 }
 
 

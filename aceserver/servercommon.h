@@ -11,6 +11,7 @@
 #include "common.h"
 #include "mycomutil.h"
 #include "basemodule.h"
+#include <tr1/unordered_map>
 
 class MyHttpDistInfo;
 
@@ -41,7 +42,7 @@ private:
 class MyHttpDistInfo
 {
 public:
-  MyHttpDistInfo();
+  MyHttpDistInfo(const char * dist_id);
   bool need_md5() const;
   bool need_mbz_md5() const;
 
@@ -70,19 +71,29 @@ public:
 class MyHttpDistInfos
 {
 public:
+  typedef std::vector<MyHttpDistInfo *, MyAllocator<MyHttpDistInfo *> > MyHttpDistInfoList;
+
   MyHttpDistInfos();
   ~MyHttpDistInfos();
 
-  typedef std::vector<MyHttpDistInfo *, MyAllocator<MyHttpDistInfo *> > MyHttpDistInfoList;
-  void add(MyHttpDistInfo *);
+  MyHttpDistInfo * create_http_dist_info(const char * dist_id);
   bool need_reload() const;
-  void prepare_update();
+  void prepare_update(const int capacity);
   void clear();
   MyHttpDistInfo * find(const char * dist_id);
 
+  MyPooledMemGuard last_load_time;
+
+private:
+  typedef std::tr1::unordered_map<const char *,
+                                  MyHttpDistInfo *,
+                                  MyStringHash,
+                                  MyStringEqual,
+                                  MyAllocator <std::pair<const char *, MyHttpDistInfo *> >
+                                > MyHttpDistInfoMap;
+
   MyHttpDistInfoList dist_infos;
-  time_t last_load_time;
-  MyPooledMemGuard last_dist_time;
+  MyHttpDistInfoMap  m_info_map;
 };
 
 class MyDistCompressor

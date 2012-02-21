@@ -313,7 +313,9 @@ bool MyDB::save_dist_cmp_done(const char *dist_id)
 
 int MyDB::load_dist_infos(MyHttpDistInfos & infos)
 {
-  const char * CONST_select_sql = "select * from tb_dist_info order by dist_time";
+  const char * CONST_select_sql = "select dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
+                                  " dist_ftype, dist_time, dist_password, dist_mbz_md5, dist_md5"
+                                   " from tb_dist_info order by dist_time";
 //      "select *, ((('now'::text)::timestamp(0) without time zone - dist_cmp_time > interval '00:10:10') "
 //      ") and dist_cmp_done = '0' as cmp_needed, "
 //      "((('now'::text)::timestamp(0) without time zone - dist_md5_time > interval '00:10:10') "
@@ -322,9 +324,6 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
 
-  if (!load_db_server_time_i(infos.last_load_time))
-    return -1;
-
   PGresult * pres = PQexec(m_connection, CONST_select_sql);
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
@@ -332,73 +331,59 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
     MY_ERROR("MyDB::sql (%s) failed: %s\n", CONST_select_sql, PQerrorMessage(m_connection));
     return -1;
   }
+
   int count = PQntuples(pres);
-  if (count > 0)
-    infos.dist_infos.reserve( count);
   int field_count = PQnfields(pres);
-  int fid_index = -1;
-  for (int j = 0; j < field_count; ++j)
+  if (unlikely(field_count != 10))
   {
-    if (ACE_OS::strcmp(PQfname(pres, j), "dist_id") == 0)
-    {
-      fid_index = j;
-      break;
-    }
-  }
-  if (unlikely(fid_index < 0))
-  {
-    MY_ERROR("can not find field 'dist_id' @MyDB::load_dist_infos\n");
+    MY_ERROR("incorrect column count(%d) @MyDB::load_dist_infos\n", field_count);
     return -1;
   }
 
+  infos.prepare_update(count);
   for (int i = 0; i < count; ++ i)
   {
-    void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyHttpDistInfo));
-    MyHttpDistInfo * info = new (p) MyHttpDistInfo;
+    MyHttpDistInfo * info = infos.create_http_dist_info(PQgetvalue(pres, i, 0));
+
     for (int j = 0; j < field_count; ++j)
     {
       const char * fvalue = PQgetvalue(pres, i, j);
       if (!fvalue || !*fvalue)
         continue;
-      if (ACE_OS::strcmp(PQfname(pres, j), "dist_id") == 0)
-      {
-        info->ver.init_from_string(fvalue);
-        info->ver_len = ACE_OS::strlen(fvalue);
-      }
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_ftype") == 0)
+
+      if (j == 5)
         info->ftype[0] = *fvalue;
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_fdir") == 0)
+      else if (j == 4)
         info->fdir.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_findex") == 0)
+      else if (j == 3)
       {
         info->findex.init_from_string(fvalue);
         info->findex_len = ACE_OS::strlen(fvalue);
       }
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_md5") == 0)
+      else if (j == 9)
       {
         info->md5.init_from_string(fvalue);
         info->md5_len = ACE_OS::strlen(fvalue);
       }
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_type") == 0)
+      else if (j == 1)
         info->type[0] = *fvalue;
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_password") == 0)
+      else if (j == 7)
       {
         info->password.init_from_string(fvalue);
         info->password_len = ACE_OS::strlen(fvalue);
       }
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_time") == 0)
+      else if (j == 6)
       {
         info->dist_time.init_from_string(fvalue);
       }
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_aindex") == 0)
+      else if (j == 2)
       {
         info->aindex.init_from_string(fvalue);
         info->aindex_len = ACE_OS::strlen(fvalue);
       }
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dist_mbz_md5") == 0)
+      else if (j == 8)
         info->mbz_md5.init_from_string(fvalue);
     }
-    infos.add(info);
   }
 
   MY_INFO("MyDB::get %d dist infos from database\n", count);
@@ -524,15 +509,17 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients)
 {
   MY_ASSERT_RETURN(dist_clients != NULL, "null dist_clients @MyDB::load_dist_clients\n", false);
 
-  const char * CONST_select_sql = "select * from tb_dist_clients";
+  const char * CONST_select_sql = "select dc_dist_id, dc_client_id, dc_status, dc_adir, dc_last_update,"
+      " dc_mbz_file, dc_mbz_md5, dc_md5"
+      " from tb_dist_clients order by dc_client_id";
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
 
-  dist_clients->db_time = get_db_time_i();
-  if (unlikely(dist_clients->db_time == 0))
-  {
-    MY_ERROR("can not get db server time\n");
-    return false;
-  }
+//  dist_clients->db_time = get_db_time_i();
+//  if (unlikely(dist_clients->db_time == 0))
+//  {
+//    MY_ERROR("can not get db server time\n");
+//    return false;
+//  }
 
   PGresult * pres = PQexec(m_connection, CONST_select_sql);
   MyPGResultGuard guard(pres);
@@ -542,71 +529,67 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients)
     return -1;
   }
   int count = PQntuples(pres);
-  if (count > 0)
-    dist_clients->dist_clients.reserve(count);
   int field_count = PQnfields(pres);
-  int fid_index = -1;
-  for (int j = 0; j < field_count; ++j)
+  int count_added = 0;
+  MyDistClientOne * dc_one;
+
+  if (count == 0)
+    goto __exit__;
+  if (unlikely(field_count != 8))
   {
-    if (ACE_OS::strcmp(PQfname(pres, j), "dc_dist_id") == 0)
-    {
-      fid_index = j;
-      break;
-    }
-  }
-  if (unlikely(fid_index < 0))
-  {
-    MY_ERROR("can not find field 'dc_dist_id' @MyDB::load_dist_infos\n");
-    return -1;
+    MY_ERROR("wrong column number(%d) @MyDB::load_dist_clients()\n", field_count);
+    return false;
   }
 
-  int count_added = 0;
+  MyHttpDistInfo * info;
+  dc_one = dist_clients->create_client_one(PQgetvalue(pres, 0, 1));
   for (int i = 0; i < count; ++ i)
   {
-    MyHttpDistInfo * info = dist_clients->find(PQgetvalue(pres, i, fid_index));
+    info = dist_clients->find_dist_info(PQgetvalue(pres, i, 0));
     if (unlikely(!info))
       continue;
-    void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyDistClient));
-    MyDistClient * dc = new (p) MyDistClient(info);
-    const char * adir = NULL;
+
+    const char * client_id = PQgetvalue(pres, i, 1);
+    if (unlikely(!dc_one->is_client_id(client_id)))
+      dc_one = dist_clients->create_client_one(client_id);
+
+    MyDistClient * dc = dc_one->create_dist_client(info);
+
     const char * md5 = NULL;
-    for (int j = 0; j < PQnfields(pres); ++j)
+    for (int j = 0; j < field_count; ++j)
     {
       const char * fvalue = PQgetvalue(pres, i, j);
       if (!fvalue || !*fvalue)
         continue;
-      if (ACE_OS::strcmp(PQfname(pres, j), "dc_status") == 0)
+
+      if (j == 2)
         dc->status = atoi(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dc_adir") == 0)
-        adir = fvalue;
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dc_client_id") == 0)
-        dc->client_id = fvalue;
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dc_md5") == 0)
+      else if (j == 3)
+        dc->adir.init_from_string(fvalue);
+      else if (j == 7)
         md5 = fvalue;
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dc_mbz_file") == 0)
+      else if (j == 5)
         dc->mbz_file.init_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dc_last_update") == 0)
+      else if (j == 4)
         dc->last_update = get_time_from_string(fvalue);
-      else if (ACE_OS::strcmp(PQfname(pres, j), "dc_mbz_md5") == 0)
+      else if (j == 6)
         dc->mbz_md5.init_from_string(fvalue);
     }
 
-    if (dc->status == 2 && md5 != NULL)
+    if (dc->status < 3 && md5 != NULL)
       dc->md5.init_from_string(md5);
-    if (adir)
-      dc->adir.init_from_string(adir); //todo: optimize
 
-    if (likely(dist_clients->add(dc)))
-      ++ count_added;
+    ++ count_added;
   }
 
+__exit__:
   MY_INFO("MyDB::get %d/%d dist client infos from database\n", count_added, count);
   return count;
 }
 
 bool MyDB::set_dist_client_status(MyDistClient & dist_client, int new_status)
 {
-  return set_dist_client_status(dist_client.client_id.as_string(), dist_client.dist_info->ver.data(), new_status);
+  return set_dist_client_status(dist_client.client_id(), dist_client.dist_info->ver.data(), new_status);
 }
 
 bool MyDB::set_dist_client_status(const char * client_id, const char * dist_id, int new_status)
@@ -665,7 +648,7 @@ bool MyDB::dist_info_is_update(const MyHttpDistInfos & infos)
   MyPooledMemGuard value;
   if (!load_cfg_value(1, value))
     return true;
-  return ACE_OS::strcmp(infos.last_dist_time.data(), value.data()) == 0;
+  return ACE_OS::strcmp(infos.last_load_time.data(), value.data()) == 0;
 }
 
 bool MyDB::dist_info_update_status()

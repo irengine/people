@@ -4,7 +4,7 @@ SRC=$(addsuffix .cpp,$(FILES))
 OBJ=$(addsuffix .o,$(FILES))
 BUILD=$(VBIN)
 LIBS=-L/usr/pgsql-9.1/lib -lACE -lbz2 -lpq
-CPPFLAGS=-I/usr/pgsql-9.1/include
+CPPFLAGS=-I/usr/pgsql-9.1/include -std=c++0x
 VLDLIBS=$(LDLIBS:%=%$(VAR))
 debug=1
 optimize=0

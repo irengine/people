@@ -10,6 +10,7 @@
 
 #include <ace/Malloc_T.h>
 #include <new>
+#include <tr1/unordered_map>
 
 #include "common.h"
 #include "baseapp.h"
@@ -21,21 +22,24 @@ class MyPingSubmitter;
 class MyIPVerSubmitter;
 class MyHeartBeatAcceptor;
 class MyDistClients;
+class MyDistClientOne;
 
 class MyDistClient
 {
 public:
-  MyDistClient(MyHttpDistInfo * _dist_info);
+  MyDistClient(MyHttpDistInfo * _dist_info, MyDistClientOne * dist_one);
   bool check_valid() const;
   int  dist_file(MyDistClients & dist_clients);
   bool active();
   void update_status(int _status);
   void update_md5_list(const char * _md5);
   void dist_ftp_md5_reply(const char * md5list);
+  const char * client_id() const;
+  int client_id_index() const;
 
   MyHttpDistInfo * dist_info;
+  MyDistClientOne * dist_one;
   int status;
-  MyClientID client_id;
   MyPooledMemGuard adir;
   MyPooledMemGuard md5;
   MyPooledMemGuard mbz_file;
@@ -55,30 +59,90 @@ private:
   bool generate_diff_mbz();
   int  dist_out_leading_length();
   void dist_out_leading_data(char * data);
+};
 
+class MyDistClientOne
+{
+public:
+  typedef std::list<MyDistClient *, MyAllocator<MyDistClient *> > MyDistClientOneList;
+
+  MyDistClientOne(MyDistClients * dist_clients, const char * client_id);
+  ~MyDistClientOne();
+
+  MyDistClient * create_dist_client(MyHttpDistInfo * _dist_info);
+  void delete_dist_client(MyDistClient * dc);
+  bool active();
+  bool is_client_id(const char * _client_id) const;
+  void clear();
+  void dist_files();
+  const char * client_id() const;
+  int client_id_index() const;
+
+private:
+  MyDistClientOneList m_client_ones;
+  MyDistClients * m_dist_clients;
+  MyClientID m_client_id;
   int m_client_id_index;
+};
+
+class MyClientMapKey
+{
+public:
+  MyClientMapKey(const char * _dist_id, const char * _client_id);
+  bool operator == (const MyClientMapKey & rhs) const;
+
+  const char * dist_id;
+  const char * client_id;
+};
+
+class MyClientMapHash
+{
+public:
+  size_t operator()(const MyClientMapKey & x) const
+  {
+    return mycomutil_string_hash(x.client_id) ^ mycomutil_string_hash(x.dist_id);
+  }
 };
 
 class MyDistClients
 {
 public:
-  typedef std::vector<MyDistClient *, MyAllocator<MyDistClient *> > MyDistClientList;
+  typedef std::list<MyDistClientOne *, MyAllocator<MyDistClientOne *> > MyDistClientOneList;
+  typedef std::tr1::unordered_map<MyClientMapKey,
+                                  MyDistClient *,
+                                  MyClientMapHash,
+                                  std::equal_to<MyClientMapKey>,
+                                  MyAllocator <std::pair<const MyClientMapKey, MyDistClient *>>
+                                > MyDistClientMap;
+  typedef std::tr1::unordered_map<const char *,
+                                  MyDistClientOne *,
+                                  MyStringHash,
+                                  MyStringEqual,
+                                  MyAllocator <std::pair<const char *, MyDistClientOne *>>
+                                > MyDistClientOneMap;
+
 
   MyDistClients(MyHttpDistInfos * dist_infos);
   ~MyDistClients();
 
-  MyHttpDistInfo * find(const char * dist_id);
+  MyHttpDistInfo * find_dist_info(const char * dist_id);
   void clear();
-  bool add(MyDistClient *);
   void dist_files();
-  MyDistClient * find(const char * client_id, const char * dist_id);
+  void on_create_dist_client(MyDistClient * dc);
+  void on_remove_dist_client(MyDistClient * dc);
+  MyDistClient * find_dist_client(const char * client_id, const char * dist_id);
+  MyDistClientOne * find_client_one(const char * client_id);
+  MyDistClientOne * create_client_one(const char * client_id);
+  void delete_client_one(MyDistClientOne * dco);
 
-  MyDistClientList dist_clients;
+  MyDistClientOneList dist_clients;
   time_t db_time;
 
 private:
 
   MyHttpDistInfos * m_dist_infos;
+  MyDistClientMap m_dist_clients_map;
+  MyDistClientOneMap m_dist_client_ones_map;
 };
 
 class MyClientFileDistributor
@@ -93,7 +157,6 @@ public:
 private:
   bool check_dist_info(bool reload);
   bool check_dist_clients(bool reload);
-  bool check_dist_info_one(MyHttpDistInfo * info);
 
   MyHttpDistInfos m_dist_infos;
   MyDistClients m_dist_clients;

@@ -239,6 +239,15 @@ bool mycomutil_generate_time_string(char * result_buff, int buff_len, time_t t)
   return true;
 }
 
+size_t mycomutil_string_hash(const char * str)
+{
+  unsigned long __h = 0;
+  while (*str != 0)
+    __h = 5*__h + *str++;
+  return size_t(__h);
+}
+
+
 int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
 
 int mycomutil_translate_tcp_result(ssize_t transfer_return_value)

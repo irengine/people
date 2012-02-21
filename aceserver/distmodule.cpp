@@ -11,22 +11,32 @@
 
 //MyDistClient//
 
-MyDistClient::MyDistClient(MyHttpDistInfo * _dist_info)
+MyDistClient::MyDistClient(MyHttpDistInfo * _dist_info, MyDistClientOne * _dist_one)
 {
   dist_info = _dist_info;
   status = -1;
   last_update = 0;
-  m_client_id_index = -1;
+  dist_one = _dist_one;
 }
 
 bool MyDistClient::check_valid() const
 {
-  return ((dist_info != NULL) && (status >= 0 && status <= 4) && (!client_id.is_null()));
+  return ((dist_info != NULL) && (status >= 0 && status <= 4));
 }
 
 bool MyDistClient::active()
 {
-  return g_client_id_table->active(client_id, m_client_id_index);
+  return dist_one->active();
+}
+
+const char * MyDistClient::client_id() const
+{
+  return dist_one->client_id();
+}
+
+int MyDistClient::client_id_index() const
+{
+  return dist_one->client_id_index();
 }
 
 void MyDistClient::update_status(int _status)
@@ -40,7 +50,7 @@ void MyDistClient::update_md5_list(const char * _md5)
   if (unlikely(!dist_info->need_md5()))
   {
     MY_WARNING("got unexpected md5 reply packet on client_id(%s) dist_id(%s)\n",
-        client_id.as_string(), dist_info->ver.data());
+        client_id(), dist_info->ver.data());
     return;
   }
 
@@ -60,19 +70,19 @@ void MyDistClient::dist_ftp_md5_reply(const char * md5list)
     MyServerAppX::instance()->heart_beat_module()->ftp_feedback_submitter().add(
         dist_info->ver.data(),
         dist_info->ftype[0],
-        client_id.as_string(),
+        client_id(),
         2, '1', buff);
 
     MyServerAppX::instance()->heart_beat_module()->ftp_feedback_submitter().add(
         dist_info->ver.data(),
         dist_info->ftype[0],
-        client_id.as_string(),
+        client_id(),
         3, '1', buff);
 
     MyServerAppX::instance()->heart_beat_module()->ftp_feedback_submitter().add(
         dist_info->ver.data(),
         dist_info->ftype[0],
-        client_id.as_string(),
+        client_id(),
         4, '1', buff);
 
     MyServerAppX::instance()->db().set_dist_client_status(*this, 4);
@@ -83,7 +93,7 @@ void MyDistClient::dist_ftp_md5_reply(const char * md5list)
   if (!md5.data() || !md5.data()[0])
   {
     update_md5_list(md5list);
-    MyServerAppX::instance()->db().set_dist_client_md5(client_id.as_string(), dist_info->ver.data(), md5list, 2);
+    MyServerAppX::instance()->db().set_dist_client_md5(client_id(), dist_info->ver.data(), md5list, 2);
   }
 
   if (!mbz_file.data() || !mbz_file.data()[0])
@@ -93,7 +103,7 @@ void MyDistClient::dist_ftp_md5_reply(const char * md5list)
       mbz_file.init_from_string(MyDistCompressor::all_in_one_mbz());
       mbz_md5.init_from_string(dist_info->mbz_md5.data());
     }
-    MyServerAppX::instance()->db().set_dist_client_mbz(client_id.as_string(), dist_info->ver.data(), mbz_file.data(), mbz_md5.data());
+    MyServerAppX::instance()->db().set_dist_client_mbz(client_id(), dist_info->ver.data(), mbz_file.data(), mbz_md5.data());
   }
 
   if (send_ftp())
@@ -207,7 +217,7 @@ bool MyDistClient::send_md5()
   int total_len = sizeof(MyServerFileMD5List) + data_len;
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
   MyServerFileMD5List * md5_packet = (MyServerFileMD5List *)mb->base();
-  md5_packet->magic = m_client_id_index;
+  md5_packet->magic = client_id_index();
   dist_out_leading_data(md5_packet->data);
   ACE_OS::memcpy(md5_packet->data + data_len - md5_len, dist_info->md5.data(), md5_len);
 
@@ -230,7 +240,7 @@ bool MyDistClient::generate_diff_mbz()
   MyPooledMemGuard mdestfile;
   destdir.init_from_string(MyConfigX::instance()->compressed_store_path.c_str(), "/", dist_info->ver.data());
   composite_dir.init_from_string(destdir.data(), "/", MyDistCompressor::composite_path());
-  mdestfile.init_from_string(composite_dir.data(), "/", client_id.as_string(), ".mbz");
+  mdestfile.init_from_string(composite_dir.data(), "/", client_id(), ".mbz");
   MyBZCompositor compositor;
   if (!compositor.open(mdestfile.data()))
     return false;
@@ -285,7 +295,7 @@ bool MyDistClient::send_ftp()
   int total_len = sizeof(MyFtpFile) + data_len;
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_FTP_FILE);
   MyFtpFile * packet = (MyFtpFile *)mb->base();
-  packet->magic = m_client_id_index;
+  packet->magic = client_id_index();
   dist_out_leading_data(packet->data);
   char * ptr = packet->data + leading_length;
   ACE_OS::memcpy(ptr, ftp_file_name, ftp_file_name_len);
@@ -309,6 +319,88 @@ bool MyDistClient::send_ftp()
 }
 
 
+//MyDistClientOne//
+
+MyDistClientOne::MyDistClientOne(MyDistClients * dist_clients, const char * client_id): m_client_id(client_id)
+{
+  m_dist_clients = dist_clients;
+  m_client_id_index = -1;
+}
+
+MyDistClientOne::~MyDistClientOne()
+{
+  clear();
+}
+
+const char * MyDistClientOne::client_id() const
+{
+  return m_client_id.as_string();
+}
+
+int MyDistClientOne::client_id_index() const
+{
+  return m_client_id_index;
+}
+
+bool MyDistClientOne::active()
+{
+  return g_client_id_table->active(m_client_id, m_client_id_index);
+}
+
+bool MyDistClientOne::is_client_id(const char * _client_id) const
+{
+  return ACE_OS::strcmp(m_client_id.as_string(), _client_id) == 0;
+}
+
+MyDistClient * MyDistClientOne::create_dist_client(MyHttpDistInfo * _dist_info)
+{
+  void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyDistClient));
+  MyDistClient * result = new (p) MyDistClient(_dist_info, this);
+  m_client_ones.push_back(result);
+  m_dist_clients->on_create_dist_client(result);
+  return result;
+}
+
+void MyDistClientOne::delete_dist_client(MyDistClient * dc)
+{
+  m_dist_clients->on_remove_dist_client(dc);
+  m_client_ones.remove(dc);
+  MyPooledObjectDeletor dlt;
+  dlt(dc);
+  if (m_client_ones.empty())
+    m_dist_clients->delete_client_one(this);
+}
+
+void MyDistClientOne::clear()
+{
+  std::for_each(m_client_ones.begin(), m_client_ones.end(), MyPooledObjectDeletor());
+}
+
+void MyDistClientOne::dist_files()
+{
+  if (!active())
+    return;
+  MyDistClientOneList::iterator it;
+  for (it = m_client_ones.begin(); it != m_client_ones.end(); ++it)
+    (*it)->dist_file(*m_dist_clients);
+}
+
+
+//MyClientMapKey//
+
+MyClientMapKey::MyClientMapKey(const char * _dist_id, const char * _client_id)
+{
+  dist_id = _dist_id;
+  client_id = _client_id;
+}
+
+bool MyClientMapKey::operator == (const MyClientMapKey & rhs) const
+{
+  return ACE_OS::strcmp(dist_id, rhs.dist_id) == 0 &&
+      ACE_OS::strcmp(client_id, rhs.client_id) == 0;
+}
+
+
 //MyDistClients//
 
 MyDistClients::MyDistClients(MyHttpDistInfos * dist_infos)
@@ -326,46 +418,69 @@ void MyDistClients::clear()
 {
   std::for_each(dist_clients.begin(), dist_clients.end(), MyPooledObjectDeletor());
   dist_clients.clear();
-  MyDistClientList x;
-  x.swap(dist_clients);
+  m_dist_clients_map.clear();
+  m_dist_client_ones_map.clear();
   db_time = 0;
 }
 
-bool MyDistClients::add(MyDistClient * dc)
+void MyDistClients::on_create_dist_client(MyDistClient * dc)
 {
-  if (unlikely(!dc->check_valid()))
-  {
-    MyPooledObjectDeletor dt;
-    dt(dc);
-    return false;
-  }
-  dist_clients.push_back(dc);
-  return true;
+  m_dist_clients_map.insert(std::pair<const MyClientMapKey, MyDistClient *>
+     (MyClientMapKey(dc->dist_info->ver.data(), dc->client_id()), dc));
 }
 
-MyHttpDistInfo * MyDistClients::find(const char * dist_id)
+void MyDistClients::on_remove_dist_client(MyDistClient * dc)
+{
+  m_dist_clients_map.erase(MyClientMapKey(dc->dist_info->ver.data(), dc->client_id()));
+}
+
+MyHttpDistInfo * MyDistClients::find_dist_info(const char * dist_id)
 {
   MY_ASSERT_RETURN(m_dist_infos, "", NULL);
   return m_dist_infos->find(dist_id);
 }
 
-MyDistClient * MyDistClients::find(const char * client_id, const char * dist_id)
+MyDistClient * MyDistClients::find_dist_client(const char * client_id, const char * dist_id)
 {
-  MyDistClientList::iterator it; //todo optimize
-  for (it = dist_clients.begin(); it != dist_clients.end(); ++ it)
-  {
-    if (ACE_OS::strcmp((*it)->client_id.as_string(), client_id) == 0 &&
-        ACE_OS::strcmp((*it)->dist_info->ver.data(), dist_id) == 0)
-      return *it;
-  }
-  return NULL;
+  MyDistClientMap::iterator it;
+  it = m_dist_clients_map.find(MyClientMapKey(dist_id, client_id));
+  if (it == m_dist_clients_map.end())
+    return NULL;
+  else
+    return it->second;
+}
+
+MyDistClientOne * MyDistClients::find_client_one(const char * client_id)
+{
+  MyDistClientOneMap::iterator it;
+  it = m_dist_client_ones_map.find(client_id);
+  if (it == m_dist_client_ones_map.end())
+    return NULL;
+  else
+    return it->second;
+}
+
+MyDistClientOne * MyDistClients::create_client_one(const char * client_id)
+{
+  void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyDistClientOne));
+  MyDistClientOne * result = new (p) MyDistClientOne(this, client_id);
+  dist_clients.push_back(result);
+  m_dist_client_ones_map.insert(std::pair<const char *, MyDistClientOne *>(result->client_id(), result));
+  return result;
+}
+
+void MyDistClients::delete_client_one(MyDistClientOne * dco)
+{
+  m_dist_client_ones_map.erase(dco->client_id());
+  MyPooledObjectDeletor dlt;
+  dlt(dco);
 }
 
 void MyDistClients::dist_files()
 {
-  int count = dist_clients.size();
-  for (int i = 0; i < count; ++ i)
-    dist_clients[i]->dist_file(*this);
+  MyDistClientOneList::iterator it;
+  for (it = dist_clients.begin(); it != dist_clients.end(); ++it)
+    (*it)->dist_files();
 }
 
 
@@ -397,50 +512,9 @@ bool MyClientFileDistributor::check_dist_info(bool reload)
 {
   if (reload)
   {
-    m_dist_infos.prepare_update();
-    if (MyServerAppX::instance()->db().load_dist_infos(m_dist_infos) <= 0)
-      return true;
+    m_dist_infos.prepare_update(0);
+    return (MyServerAppX::instance()->db().load_dist_infos(m_dist_infos) < 0)? false:true;
   }
-
-  int count = m_dist_infos.dist_infos.size();
-  bool result = false;
-  for (int i = count - 1; i >= 0; -- i)
-    if (check_dist_info_one(m_dist_infos.dist_infos[i]))
-      result = true;
-
-  return result;
-}
-
-bool MyClientFileDistributor::check_dist_info_one(MyHttpDistInfo * info)
-{
-  if (unlikely(!info))
-    return false;
-//  MyDB & db = MyServerAppX::instance()->db();
-//  if (info->cmp_needed)
-//  {
-//    if (db.dist_take_cmp_ownership(info))
-//    {
-//      MyHttpDistRequest http_dist_request(*info);
-//      MyDistCompressor compressor;
-//      if (!compressor.compress(http_dist_request))
-//        return false;
-//    }
-//    info->cmp_done[0] = '1';
-//    db.dist_mark_cmp_done(info->ver.data());
-//    info->cmp_needed = false;
-//  }
-//
-//  if (info->md5_needed)
-//  {
-//    if (db.dist_take_md5_ownership(info))
-//    {
-//      MyHttpDistRequest http_dist_request(*info);
-//      MyDistMd5Calculator calc;
-//      if (!calc.calculate(http_dist_request, info->md5, info->md5_len))
-//        return false;
-//    }
-//    info->md5_needed = false;
-//  }
 
   return true;
 }
@@ -460,7 +534,7 @@ bool MyClientFileDistributor::check_dist_clients(bool reload)
 
 void MyClientFileDistributor::dist_ftp_file_reply(const char * client_id, const char * dist_id, int _status)
 {
-  MyDistClient * dc = m_dist_clients.find(client_id, dist_id);
+  MyDistClient * dc = m_dist_clients.find_dist_client(client_id, dist_id);
   if (likely(dc != NULL))
     dc->update_status(_status);
   if (_status <= 4)
@@ -472,7 +546,7 @@ void MyClientFileDistributor::dist_ftp_file_reply(const char * client_id, const 
 
 void MyClientFileDistributor::dist_ftp_md5_reply(const char * client_id, const char * dist_id, const char * md5list)
 {
-  MyDistClient * dc = m_dist_clients.find(client_id, dist_id);
+  MyDistClient * dc = m_dist_clients.find_dist_client(client_id, dist_id);
   if (likely(dc != NULL))
     dc->dist_ftp_md5_reply(md5list);
 }
@@ -674,11 +748,11 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ip_ver_req(ACE_Message_Bl
 
 MyAccumulatorBlock::MyAccumulatorBlock(int block_size, int max_item_length, MyBaseSubmitter * submitter, bool auto_submit)
 {
-  m_current_block = NULL;
   m_block_size = block_size;
   m_max_item_length = max_item_length + 1;
   m_submitter = submitter;
   m_auto_submit = auto_submit;
+  m_current_block = MyMemPoolFactoryX::instance()->get_message_block(m_block_size);
   submitter->add_block(this);
   reset();
 }
@@ -691,8 +765,6 @@ MyAccumulatorBlock::~MyAccumulatorBlock()
 
 void MyAccumulatorBlock::reset()
 {
-  if (unlikely(!m_current_block))
-    m_current_block = MyMemPoolFactoryX::instance()->get_message_block(m_block_size);
   m_current_ptr = m_current_block->base();
 }
 
@@ -744,7 +816,7 @@ int MyAccumulatorBlock::data_len() const
 
 MyBaseSubmitter::~MyBaseSubmitter()
 {
-  reset();
+
 }
 
 void MyBaseSubmitter::submit()
