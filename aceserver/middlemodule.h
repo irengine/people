@@ -10,6 +10,7 @@
 
 #include <ace/Malloc_T.h>
 #include <new>
+#include <tr1/unordered_set>
 
 #include "common.h"
 #include "baseapp.h"
@@ -92,6 +93,24 @@ private:
   char m_server_list[SERVER_LIST_LENGTH];
   int  m_server_list_length;
   ACE_Thread_Mutex m_mutex;
+};
+
+class MyUnusedPathRemover
+{
+public:
+  ~MyUnusedPathRemover();
+
+  void add_dist_id(const char * dist_id);
+  void check_path(const char * path);
+
+private:
+  typedef std::tr1::unordered_set<const char *, MyStringHash, MyStringEqual, MyAllocator<const char *> > MyPathSet;
+  typedef std::list<MyPooledMemGuard *, MyAllocator<MyPooledMemGuard *> > MyPathList;
+
+  bool path_ok(const char * _path);
+
+  MyPathSet  m_path_set;
+  MyPathList m_path_list;
 };
 
 class MyLocationProcessor: public MyBaseServerProcessor

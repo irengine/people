@@ -14,6 +14,7 @@
 #include "mycomutil.h"
 #include "servercommon.h"
 #include "distmodule.h"
+#include "middlemodule.h"
 
 class MyClientIDTable;
 
@@ -46,6 +47,7 @@ public:
   bool dist_info_is_update(const MyHttpDistInfos & infos);
   bool dist_info_update_status();
   bool remove_orphan_dist_info();
+  bool get_dist_ids(MyUnusedPathRemover & path_remover);
 
 private:
   void disconnect();

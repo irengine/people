@@ -130,7 +130,7 @@ public:
   void clear();
   void dist_files();
   void on_create_dist_client(MyDistClient * dc);
-  void on_remove_dist_client(MyDistClient * dc);
+  void on_remove_dist_client(MyDistClient * dc, bool finished);
   MyDistClient * find_dist_client(const char * client_id, const char * dist_id);
   MyDistClientOne * find_client_one(const char * client_id);
   MyDistClientOne * create_client_one(const char * client_id);

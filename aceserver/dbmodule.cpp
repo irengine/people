@@ -52,6 +52,7 @@ time_t MyDB::get_time_from_string(const char * s)
   int ret = sscanf(s, "%04d-%02d-%02d %02d:%02d:%02d", &_tm.tm_year, &_tm.tm_mon, &_tm.tm_mday,
       &_tm.tm_hour, &_tm.tm_min, &_tm.tm_sec);
   _tm.tm_year -= 1900;
+  _tm.tm_mon -= 1;
   _tm.tm_isdst = -1;
   if (ret != 6 || _tm.tm_year <= 0)
     return 0;
@@ -687,6 +688,27 @@ bool MyDB::remove_orphan_dist_info()
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql);
+}
+
+bool MyDB::get_dist_ids(MyUnusedPathRemover & path_remover)
+{
+  const char * sql = "select dist_id from tb_dist_info";
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  PGresult * pres = PQexec(m_connection, sql);
+  MyPGResultGuard guard(pres);
+  if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
+  {
+    MY_ERROR("MyDB::sql (%s) failed: %s\n", sql, PQerrorMessage(m_connection));
+    return false;
+  }
+  int count = PQntuples(pres);
+  if (count > 0)
+  {
+    for (int i = 0; i < count; ++i)
+      path_remover.add_dist_id(PQgetvalue(pres, i, 0));
+  }
+  return true;
 }
 
 bool MyDB::set_cfg_value(const int id, const char * value)

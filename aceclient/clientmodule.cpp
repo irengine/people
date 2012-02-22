@@ -30,7 +30,7 @@ MyClickInfo::MyClickInfo(const char * chn, const char * pcode, const char * coun
 
 //MyServerID//
 
-int MyServerID::load(const char * client_id)
+u_int8_t MyServerID::load(const char * client_id)
 {
   MyPooledMemGuard data_path, fn;
   MyClientApp::data_path(data_path, client_id);
@@ -42,8 +42,8 @@ int MyServerID::load(const char * client_id)
     int m = ::read(fh.handle(), buff, 32);
     if (m > 0)
     {
-      buff[m - 1] = 0;
-      return atoi(buff);
+      buff[std::min(31, m)] = 0;
+      return (u_int8_t)atoi(buff);
     }
   }
 
@@ -2711,6 +2711,7 @@ int MyClientToMiddleProcessor::send_version_check_req()
   proc.data()->client_version_major = const_client_version_major;
   proc.data()->client_version_minor = const_client_version_minor;
   proc.data()->client_id = m_client_id;
+  proc.data()->server_id = 0;
   MY_INFO("sending handshake request to middle server...\n");
   return (m_handler->send_data(mb) < 0? -1: 0);
 }

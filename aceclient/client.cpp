@@ -308,18 +308,28 @@ bool MyClientApp::on_construct()
 {
   if (!g_test_mode)
   {
+
+    const char * const_id_ini = "/tmp/daily/id.ini";
+    MY_INFO("trying to read client id from %s\n", const_id_ini);
+    while (true)
     {
       MyUnixHandleGuard fh;
-      if (fh.open_read("/tmp/daily/id.ini"))
-        return false;
-      char buff[64];
-      int n = ::read(fh.handle(), buff, 64);
-      if (n <= 0)
-        return false;
-      buff[std::min(n, 63)] = 0;
-      m_client_id = buff;
-      m_client_id_table.add(buff);
+      fh.error_report(false);
+      if (fh.open_read(const_id_ini))
+      {
+        char buff[64];
+        int n = ::read(fh.handle(), buff, 64);
+        if (n > 0)
+        {
+          buff[std::min(n, 63)] = 0;
+          m_client_id = buff;
+          m_client_id_table.add(buff);
+          break;
+        }
+      }
+      ACE_OS::sleep(30);
     }
+    MY_INFO("get client id [%s] from %s\n", m_client_id.c_str(), const_id_ini);
 
     {
       MyClientDBGuard dbg;

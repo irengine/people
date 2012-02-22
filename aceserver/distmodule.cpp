@@ -158,7 +158,7 @@ bool MyDistClient::do_stage_0()
 
 bool MyDistClient::do_stage_1()
 {
-  time_t now = time_t(NULL);
+  time_t now = time(NULL);
   if (now > last_update + MD5_REPLY_TIME_OUT * 60)
     send_md5();
 
@@ -187,7 +187,7 @@ bool MyDistClient::do_stage_2()
 
 bool MyDistClient::do_stage_3()
 {
-  time_t now = time_t(NULL);
+  time_t now = time(NULL);
   if (now > last_update + FTP_REPLY_TIME_OUT * 60)
     send_ftp();
 
@@ -374,8 +374,9 @@ MyDistClient * MyDistClientOne::create_dist_client(MyHttpDistInfo * _dist_info)
 
 void MyDistClientOne::delete_dist_client(MyDistClient * dc)
 {
-  m_dist_clients->on_remove_dist_client(dc);
+  m_dist_clients->on_remove_dist_client(dc, false);
   m_client_ones.remove(dc);
+  MyServerAppX::instance()->db().delete_dist_client(m_client_id.as_string(), dc->dist_info->ver.data());
   MyPooledObjectDeletor dlt;
   dlt(dc);
 //  if (m_client_ones.empty())
@@ -385,6 +386,7 @@ void MyDistClientOne::delete_dist_client(MyDistClient * dc)
 void MyDistClientOne::clear()
 {
   std::for_each(m_client_ones.begin(), m_client_ones.end(), MyPooledObjectDeletor());
+  m_client_ones.clear();
 }
 
 bool MyDistClientOne::dist_files()
@@ -397,17 +399,19 @@ bool MyDistClientOne::dist_files()
 
   if (unlikely(switched))
   {
+    g_client_id_table->switched(m_client_id_index, false);
     for (it = m_client_ones.begin(); it != m_client_ones.end(); ++it)
-      m_dist_clients->on_remove_dist_client(*it);
+      m_dist_clients->on_remove_dist_client(*it, false);
     clear();
     MyServerAppX::instance()->db().load_dist_clients(m_dist_clients, this);
+    MY_INFO("reloading client one db for client id (%s)\n", m_client_id.as_string());
   }
 
   for (it = m_client_ones.begin(); it != m_client_ones.end(); )
   {
     if (!(*it)->dist_file())
     {
-      m_dist_clients->on_remove_dist_client(*it);
+      m_dist_clients->on_remove_dist_client(*it, true);
       MyPooledObjectDeletor dlt;
       dlt(*it);
       it = m_client_ones.erase(it);
@@ -461,9 +465,10 @@ void MyDistClients::on_create_dist_client(MyDistClient * dc)
      (MyClientMapKey(dc->dist_info->ver.data(), dc->client_id()), dc));
 }
 
-void MyDistClients::on_remove_dist_client(MyDistClient * dc)
+void MyDistClients::on_remove_dist_client(MyDistClient * dc, bool finished)
 {
-  ++m_dist_client_finished;
+  if (finished)
+    ++m_dist_client_finished;
   m_dist_clients_map.erase(MyClientMapKey(dc->dist_info->ver.data(), dc->client_id()));
 }
 
@@ -526,6 +531,7 @@ void MyDistClients::dist_files()
   }
   if (m_dist_client_finished > 0)
     MY_INFO("number of dist client(s) finished in this round = %d\n", m_dist_client_finished);
+  MY_INFO("after dist_files(), client one = %d, dist client = %d\n", m_dist_client_ones_map.size(), m_dist_clients_map.size());
 }
 
 
@@ -583,7 +589,7 @@ void MyClientFileDistributor::dist_ftp_file_reply(const char * client_id, const 
   if (unlikely(dc == NULL))
     return;
 
-  if (_status <= 4)
+  if (_status <= 3)
   {
     dc->update_status(_status);
     MyServerAppX::instance()->db().set_dist_client_status(client_id, dist_id, _status);
@@ -1833,6 +1839,7 @@ int MyDistToMiddleProcessor::send_version_check_req()
   proc.data()->client_version_major = 1;
   proc.data()->client_version_minor = 0;
   proc.data()->client_id = MyConfigX::instance()->middle_server_key.c_str();
+  proc.data()->server_id = MyConfigX::instance()->server_id;
   MY_INFO("sending handshake request to middle server...\n");
   return (m_handler->send_data(mb) < 0? -1: 0);
 }

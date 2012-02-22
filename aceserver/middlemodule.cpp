@@ -138,6 +138,62 @@ void MyDistLoads::scan_for_dead()
 }
 
 
+//MyUnusedPathRemover//
+
+MyUnusedPathRemover::~MyUnusedPathRemover()
+{
+  std::for_each(m_path_list.begin(), m_path_list.end(), MyPooledObjectDeletor());
+}
+
+void MyUnusedPathRemover::add_dist_id(const char * dist_id)
+{
+  MyPooledMemGuard * guard = new MyPooledMemGuard;
+  guard->init_from_string(dist_id);
+  m_path_list.push_back(guard);
+  m_path_set.insert(guard->data());
+}
+
+bool MyUnusedPathRemover::path_ok(const char * _path)
+{
+  return m_path_set.find(_path) != m_path_set.end();
+}
+
+void MyUnusedPathRemover::check_path(const char * path)
+{
+  DIR * dir = opendir(path);
+  if (!dir)
+  {
+    MY_ERROR("can not open directory: %s %s\n", path, (const char*)MyErrno());
+    return;
+  }
+
+  int count = 0, ok_count = 0;
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != NULL)
+  {
+    if (!entry->d_name)
+      continue;
+    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+      continue;
+
+    if(entry->d_type == DT_DIR)
+    {
+      if(!path_ok(entry->d_name))
+      {
+        ++count;
+        MyPooledMemGuard mpath;
+        mpath.init_from_string(path, "/", entry->d_name);
+        if (MyFilePaths::remove_path(mpath.data(), true))
+          ++ ok_count;
+      }
+    }
+  };
+
+  closedir(dir);
+  MY_INFO("removed %d/%d unused path(s) from compress_store\n", ok_count, count);
+}
+
+
 //MyLocationProcessor//
 
 MyDistLoads * MyLocationProcessor::m_dist_loads = NULL;
@@ -605,7 +661,14 @@ bool MyHttpService::handle_packet(ACE_Message_Block * mb)
     return false;
   }
 
+  db.remove_orphan_dist_info();
+
   notify_dist_servers();
+
+  MyUnusedPathRemover path_remover;
+  if (db.get_dist_ids(path_remover))
+    path_remover.check_path(MyConfigX::instance()->compressed_store_path.c_str());
+
   return true;
 }
 
