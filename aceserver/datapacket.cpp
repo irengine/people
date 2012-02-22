@@ -51,8 +51,6 @@ bool MyBSBasePacket::check_header() const
     return false;
   }
 
-
-
   return true;
 }
 

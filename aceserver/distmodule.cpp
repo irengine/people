@@ -766,7 +766,6 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
     MyPooledMemGuard info;
     info_string(info);
     MY_INFO(ACE_TEXT("client version check ok: %s\n"), info.data());
-
   }
 
   MyClientVersionCheckReply * vcr = (MyClientVersionCheckReply *) reply_mb->base();
@@ -1048,7 +1047,6 @@ MyHeartBeatService::MyHeartBeatService(MyBaseModule * module, int numThreads):
     MyBaseService(module, numThreads)
 {
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
-
 }
 
 int MyHeartBeatService::svc()
@@ -1258,7 +1256,7 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
     ACE_Time_Value nowait(ACE_Time_Value::zero);
     while (-1 != this->getq(mb, &nowait))
     {
-      if (mb->size() < sizeof(MyDataPacketHeader))
+      if (unlikely(mb->size() < sizeof(MyDataPacketHeader)))
       {
         MY_ERROR("invalid message block size @ %s::handle_timeout\n", name());
         mb->release();
@@ -1269,6 +1267,14 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
       if (!handler)
       {
         MY_WARNING("can not send data to client since connection is lost @ %s::handle_timeout\n", name());
+        mb->release();
+        continue;
+      }
+
+      if (unlikely(MyDataPacketHeader::CMD_DISCONNECT_INTERNAL == ((MyDataPacketHeader*)mb->base())->command))
+      {
+        //handler->processor()->prepare_to_close();
+        handler->handle_close(ACE_INVALID_HANDLE, 0);
         mb->release();
         continue;
       }
@@ -1416,9 +1422,60 @@ MyBaseProcessor::EVENT_RESULT MyDistToBSProcessor::on_recv_packet_i(ACE_Message_
 
   if (super::on_recv_packet_i(mb) != ER_OK)
     return ER_ERROR;
-  //MyBSBasePacket * bspacket = (MyBSBasePacket *) mb->base();
+  MyBSBasePacket * bspacket = (MyBSBasePacket *) mb->base();
+  if (ACE_OS::memcmp(bspacket->cmd, MY_BS_IP_VER_CMD, sizeof(bspacket->cmd)))
+    process_ip_ver_reply(bspacket);
 //  MY_INFO("got a bs reply packet:%s\n", mb->base());
+
   return ER_OK;
+}
+
+void MyDistToBSProcessor::process_ip_ver_reply(MyBSBasePacket * bspacket)
+{
+  char separator[2] = {';', 0};
+  MyStringTokenizer tknizer(bspacket->data, separator);
+  char * token;
+  while ((token = tknizer.get_token()) != NULL)
+    process_ip_ver_reply_one(token);
+}
+
+void MyDistToBSProcessor::process_ip_ver_reply_one(char * item)
+{
+  char * id, * data;
+  id = item;
+  data = strchr(item, ':');
+  if (unlikely(!data || data == item || *(data + 1) == 0))
+    return;
+  *data++ = 0;
+  bool client_valid = !(data[0] == '*' && data[1] == 0);
+  MyClientIDTable & id_table = MyServerAppX::instance()->client_id_table();
+  MyClientID client_id(id);
+  int index;
+  if (unlikely(!id_table.mark_valid(client_id, client_valid, index)))
+    MyServerAppX::instance()->db().mark_client_valid(id, client_valid);
+
+  if (likely(client_valid))
+  {
+    int len = ACE_OS::strlen(data) + 1;
+    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(len + sizeof(MyDataPacketHeader), MyDataPacketHeader::CMD_IP_VER_REQ);
+    MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
+    ACE_OS::memcpy(dpe->data, data, len);
+    dpe->magic = index;
+    ACE_Time_Value tv(ACE_Time_Value::zero);
+    if (MyServerAppX::instance()->heart_beat_module()->dispatcher()->putq(mb, &tv) == -1)
+      mb->release();
+  } else //todo: disconnect client
+  {
+    if (index >= 0)
+    {
+      ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyDataPacketHeader), MyDataPacketHeader::CMD_DISCONNECT_INTERNAL);
+      MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
+      dpe->magic = index;
+      ACE_Time_Value tv(ACE_Time_Value::zero);
+      if (MyServerAppX::instance()->heart_beat_module()->dispatcher()->putq(mb, &tv) == -1)
+        mb->release();
+    }
+  }
 }
 
 
@@ -1931,6 +1988,8 @@ MyDistToMiddleDispatcher::MyDistToMiddleDispatcher(MyBaseModule * pModule, int n
 {
   m_connector = NULL;
   m_bs_connector = NULL;
+  msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
+  m_to_bs_queue.high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
 bool MyDistToMiddleDispatcher::on_start()

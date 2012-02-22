@@ -154,6 +154,8 @@ protected:
   virtual const char * name() const;
 
 private:
+  enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
+
   MyLocationAcceptor * m_acceptor;
 };
 
@@ -228,6 +230,8 @@ public:
   virtual const char * name() const;
 
 private:
+  enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
+
   bool handle_packet(ACE_Message_Block * mb);
   bool parse_request(ACE_Message_Block * mb, MyHttpDistRequest & http_dist_request);
   bool do_compress(MyHttpDistRequest & http_dist_request);

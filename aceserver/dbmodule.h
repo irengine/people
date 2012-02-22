@@ -48,6 +48,7 @@ public:
   bool dist_info_update_status();
   bool remove_orphan_dist_info();
   bool get_dist_ids(MyUnusedPathRemover & path_remover);
+  bool mark_client_valid(const char * client_id, bool valid);
 
 private:
   void disconnect();

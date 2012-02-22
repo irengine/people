@@ -312,6 +312,7 @@ private:
 class MyWatchDog
 {
 public:
+  MyWatchDog();
   void touch();
   bool expired();
   void start();
@@ -443,6 +444,7 @@ public:
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
   virtual const char * name() const;
   void ask_for_server_addr_list_done(bool success);
+  void start_watch_dog();
 
 protected:
   virtual void on_stop();
@@ -450,7 +452,11 @@ protected:
   virtual bool on_event_loop();
 
 private:
-  enum { FTP_CHECK_INTERVAL = 1 }; //in minutes
+  enum { FTP_CHECK_INTERVAL = 1, WATCH_DOG_INTERVAL = 5 }; //in minutes
+  enum { TIMER_ID_WATCH_DOG = 2 };
+
+  void check_watch_dog();
+
   MyClientToDistConnector * m_connector;
   MyClientToMiddleConnector * m_middle_connector;
   MyHttp1991Acceptor * m_http1991_acceptor;

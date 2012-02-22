@@ -1342,9 +1342,14 @@ void MyDistInfoMD5Comparer::compare(MyDistInfoHeader * dist_info_header, MyFileM
 
 //MyWatchDog//
 
-void MyWatchDog::touch()
+MyWatchDog::MyWatchDog()
 {
   m_running = false;
+}
+
+void MyWatchDog::touch()
+{
+  m_time = time(NULL);
 }
 
 bool MyWatchDog::expired()
@@ -2326,6 +2331,10 @@ bool MyClientToDistDispatcher::on_start()
   add_connector(m_middle_connector);
   m_http1991_acceptor = new MyHttp1991Acceptor(this, new MyBaseConnectionManager());
   add_acceptor(m_http1991_acceptor);
+
+  ACE_Time_Value interval(WATCH_DOG_INTERVAL * 60);
+  if (reactor()->schedule_timer(this, (const void*)TIMER_ID_WATCH_DOG, interval, interval) < 0)
+    MY_ERROR("setup watch dog timer failed %s %s\n", name(), (const char*)MyErrno());
   return true;
 }
 
@@ -2335,9 +2344,14 @@ const char * MyClientToDistDispatcher::name() const
 }
 
 
-int MyClientToDistDispatcher::handle_timeout(const ACE_Time_Value &, const void *)
+int MyClientToDistDispatcher::handle_timeout(const ACE_Time_Value &, const void * act)
 {
-  ((MyClientToDistModule*)module_x())->check_ftp_timed_task();
+  if ((long)act == (long)TIMER_ID_BASE)
+    ((MyClientToDistModule*)module_x())->check_ftp_timed_task();
+  else if ((long)act == (long)TIMER_ID_WATCH_DOG)
+    check_watch_dog();
+  else
+    MY_ERROR("unknown timer id (%d) @%s::handle_timeout()\n", (int)(long)act);
   return 0;
 }
 
@@ -2363,9 +2377,14 @@ void MyClientToDistDispatcher::ask_for_server_addr_list_done(bool success)
   add_connector(m_connector);
   const char * addr = addr_list.begin();
   if (ACE_OS::strcmp("127.0.0.1", addr) == 0)
-        addr = MyConfigX::instance()->middle_server_addr.c_str();
+    addr = MyConfigX::instance()->middle_server_addr.c_str();
   m_connector->dist_server_addr(addr);
   m_connector->start();
+}
+
+void MyClientToDistDispatcher::start_watch_dog()
+{
+  ((MyClientToDistModule*)module_x())->watch_dog().start();
 }
 
 void MyClientToDistDispatcher::on_stop()
@@ -2373,6 +2392,14 @@ void MyClientToDistDispatcher::on_stop()
   m_connector = NULL;
   m_middle_connector = NULL;
   m_http1991_acceptor = NULL;
+}
+
+void MyClientToDistDispatcher::check_watch_dog()
+{
+  if (((MyClientToDistModule*)module_x())->watch_dog().expired())
+  {
+
+  }
 }
 
 bool MyClientToDistDispatcher::on_event_loop()
@@ -2826,6 +2853,10 @@ bool MyClientToMiddleConnector::before_reconnect()
 MyHttp1991Processor::MyHttp1991Processor(MyBaseHandler * handler) : super(handler)
 {
   m_mb = NULL;
+  if (g_test_mode)
+    MyClientAppX::instance()->client_id_table().value(0, &m_client_id);
+  else
+    m_client_id = MyClientAppX::instance()->client_id();
 }
 
 MyHttp1991Processor::~MyHttp1991Processor()

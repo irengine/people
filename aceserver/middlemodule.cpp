@@ -328,6 +328,7 @@ MyLocationDispatcher::MyLocationDispatcher(MyBaseModule * _module, int numThread
     MyBaseDispatcher(_module, numThreads)
 {
   m_acceptor = NULL;
+  msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
 bool MyLocationDispatcher::on_start()
@@ -495,7 +496,7 @@ const char * MyHttpAcceptor::name() const
 MyHttpService::MyHttpService(MyBaseModule * module, int numThreads)
   : MyBaseService(module, numThreads)
 {
-
+  msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
 int MyHttpService::svc()

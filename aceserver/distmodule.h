@@ -368,7 +368,6 @@ private:
   MyFtpFeedbackSubmitter m_ftp_feedback_submitter;
   MyHeartBeatService * m_service;
   MyHeartBeatDispatcher * m_dispatcher;
-
 };
 
 /////////////////////////////////////
@@ -441,6 +440,10 @@ public:
 
 protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+
+private:
+  void process_ip_ver_reply(MyBSBasePacket * bspacket);
+  void process_ip_ver_reply_one(char * item);
 };
 
 class MyDistToBSHandler: public MyBaseHandler
@@ -531,6 +534,8 @@ protected:
   virtual bool on_event_loop();
 
 private:
+  enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
+
   MyDistToMiddleConnector * m_connector;
   MyDistToBSConnector * m_bs_connector;
   ACE_Message_Queue<ACE_MT_SYNCH> m_to_bs_queue;

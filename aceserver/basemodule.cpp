@@ -301,6 +301,24 @@ void MyClientIDTable::switched(int index, bool _switched)
   m_table[index].switched = _switched;
 }
 
+bool MyClientIDTable::mark_valid(const MyClientID & id, bool valid, int & index)
+{
+  ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, true);
+  index = index_of_i(id);
+  bool i_valid = (index >= 0 && !m_table[index].expired);
+  if (likely(i_valid == valid))
+    return true;
+  if (valid)
+  {
+    if (index < 0)
+      add_i(id, id.as_string(), false);
+    else
+      m_table[index].expired = false;
+  } else //!valid
+    m_table[index].expired = true;
+  return false;
+}
+
 int MyClientIDTable::last_sequence() const
 {
   return m_last_sequence;

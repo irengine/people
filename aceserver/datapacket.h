@@ -154,7 +154,8 @@ public:
     CMD_FTP_FILE,
     CMD_IP_VER_REQ,
     CMD_UI_CLICK,
-    CMD_END
+    CMD_END,
+    CMD_DISCONNECT_INTERNAL
   };
   int32_t length;
   u_int32_t magic;

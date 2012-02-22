@@ -711,6 +711,23 @@ bool MyDB::get_dist_ids(MyUnusedPathRemover & path_remover)
   return true;
 }
 
+bool MyDB::mark_client_valid(const char * client_id, bool valid)
+{
+  char sql[1024];
+  if (!valid)
+  {
+    const char * sql_template = "delete from tb_clients where client_id = '%s'";
+    ACE_OS::snprintf(sql, 1024, sql_template, client_id);
+  } else
+  {
+    const char * sql_template = "insert into tb_clients(client_id, client_password) values('%s', '%s')";
+    ACE_OS::snprintf(sql, 1024, sql_template, client_id, client_id);
+  }
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  return exec_command(sql);
+}
+
 bool MyDB::set_cfg_value(const int id, const char * value)
 {
   const char * sql_template = "update tb_config set cfg_value = '%s' where cfg_id = %d";
