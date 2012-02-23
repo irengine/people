@@ -975,7 +975,7 @@ ACE_Message_Block * MyDistInfoFtp::make_ftp_dist_message(const char * dist_id, i
 void MyDistInfoFtp::post_status_message(int _status) const
 {
   int m = _status < 0 ? status: _status;
-  ACE_Message_Block * mb = make_ftp_dist_message(dist_id.data(), m, ftype);
+  ACE_Message_Block * mb = make_ftp_dist_message(dist_id.data(), m, true, ftype);
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
   if (g_test_mode)
     dpe->magic = client_id_index;
@@ -2674,7 +2674,7 @@ ACE_Message_Block * MyClientToDistModule::get_click_infos(const char * client_id
   }
 
   ++len;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(len, MyDataPacketHeader::CMD_UI_CLICK, true);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(len + sizeof(MyDataPacketHeader), MyDataPacketHeader::CMD_UI_CLICK, true);
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
   char * ptr = dpe->data;
   for (it = click_infos.begin(); it != click_infos.end(); ++it)
@@ -3032,10 +3032,10 @@ void MyHttp1991Processor::do_command_adv_click(char * parameter)
 
   char * ptr = ACE_OS::strchr(pcode, '\n');
   if (ptr)
-    ptr = 0;
+    *ptr = 0;
   ptr = ACE_OS::strchr(pcode, '\r');
   if (ptr)
-    ptr = 0;
+    *ptr = 0;
 
   MyClientDBGuard dbg;
   if (dbg.db().open_db(m_client_id.as_string()))

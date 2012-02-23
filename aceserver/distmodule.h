@@ -20,6 +20,8 @@
 class MyHeartBeatModule;
 class MyPingSubmitter;
 class MyIPVerSubmitter;
+class MyFtpFeedbackSubmitter;
+class MyAdvClickSubmitter;
 class MyHeartBeatAcceptor;
 class MyDistClients;
 class MyDistClientOne;
@@ -176,6 +178,8 @@ public:
 
   static MyPingSubmitter * m_heart_beat_submitter;
   static MyIPVerSubmitter * m_ip_ver_submitter;
+  static MyFtpFeedbackSubmitter * m_ftp_feedback_submitter;
+  static MyAdvClickSubmitter * m_adv_click_submitter;
 
 protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
@@ -288,6 +292,24 @@ private:
   MyAccumulatorBlock m_ver_block;
 };
 
+class MyAdvClickSubmitter: public MyBaseSubmitter
+{
+public:
+  enum {ID_SEPARATOR = ';' };
+  MyAdvClickSubmitter();
+  void add_data(const char * client_id, int id_len, const char * chn, const char * pcode, const char * number);
+
+protected:
+  virtual const char * get_command() const;
+
+private:
+  enum { BLOCK_SIZE = 2048 };
+  MyAccumulatorBlock m_id_block;
+  MyAccumulatorBlock m_chn_block;
+  MyAccumulatorBlock m_pcode_block;
+  MyAccumulatorBlock m_number_block;
+};
+
 class MyHeartBeatHandler: public MyBaseHandler
 {
 public:
@@ -330,9 +352,11 @@ protected:
 private:
   enum { CLOCK_INTERVAL = 3 }; //in seconds, the interval of picking send out packages
   enum { MSG_QUEUE_MAX_SIZE = 20 * 1024 * 1024 };
-  enum { TIMER_ID_HEART_BEAT = 2, TIMER_ID_IP_VER, TIMER_ID_DIST_SERVICE };
+  enum { TIMER_ID_HEART_BEAT = 2, TIMER_ID_IP_VER, TIMER_ID_DIST_SERVICE, TIMER_ID_FTP_FEEDBACK, TIMER_ID_ADV_CLICK };
   enum { CLOCK_TICK_HEART_BEAT = 15, //seconds
          CLOCK_TICK_IP_VER = 10, //seconds
+         CLOCK_TICK_FTP_FEEDBACK = 15, //seconds
+         CLOCK_TICK_ADV_CLICK = 2, //in minutes
          CLOCK_TICK_DIST_SERVICE = 2 //minutes
        };
   MyHeartBeatAcceptor * m_acceptor;
@@ -367,6 +391,7 @@ private:
   MyPingSubmitter m_ping_sumbitter;
   MyIPVerSubmitter m_ip_ver_submitter;
   MyFtpFeedbackSubmitter m_ftp_feedback_submitter;
+  MyAdvClickSubmitter m_adv_click_submitter;
   MyHeartBeatService * m_service;
   MyHeartBeatDispatcher * m_dispatcher;
 };

@@ -610,6 +610,8 @@ void MyClientFileDistributor::dist_ftp_md5_reply(const char * client_id, const c
 
 MyPingSubmitter * MyHeartBeatProcessor::m_heart_beat_submitter = NULL;
 MyIPVerSubmitter * MyHeartBeatProcessor::m_ip_ver_submitter = NULL;
+MyFtpFeedbackSubmitter * MyHeartBeatProcessor::m_ftp_feedback_submitter = NULL;
+MyAdvClickSubmitter * MyHeartBeatProcessor::m_adv_click_submitter = NULL;
 
 MyHeartBeatProcessor::MyHeartBeatProcessor(MyBaseHandler * handler): MyBaseServerProcessor(handler)
 {
@@ -698,7 +700,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_UI_CLICK)
   {
-    if (m_packet_header.length <= (int)sizeof(MyIpVerRequest)
+    if (m_packet_header.length <= (int)sizeof(MyDataPacketHeader)
         || m_packet_header.length >= 1 * 1024 * 1024
         || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
     {
@@ -798,8 +800,13 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_md5_file_list(ACE_Message
 {
   MyDataPacketExt * md5filelist = (MyDataPacketExt *)mb->base();
   if (unlikely(!md5filelist->guard()))
-    return ER_OK;
-  //todo: process md5 file list reply from client
+  {
+    MyPooledMemGuard info;
+    info_string(info);
+    MY_ERROR("bad md5 file list packet from %s\n", info.data());
+    return ER_ERROR;
+  }
+
   MyPooledMemGuard info;
   info_string(info);
   MyServerAppX::instance()->dist_put_to_service(mb);
@@ -810,7 +817,12 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(ACE_Message_Blo
 {
   MyDataPacketExt * md5filelist = (MyDataPacketExt *)mb->base();
   if (unlikely(!md5filelist->guard()))
-    return ER_OK;
+  {
+    MyPooledMemGuard info;
+    info_string(info);
+    MY_ERROR("bad ftp reply packet from %s\n", info.data());
+    return ER_ERROR;
+  }
 
   MyServerAppX::instance()->dist_put_to_service(mb);
   return ER_OK;
@@ -827,6 +839,35 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_adv_click_req(ACE_Message
 {
   MyMessageBlockGuard guard(mb);
   //todo: add adv click submitter here
+  MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+  if (unlikely(!dpe->guard()))
+  {
+    MyPooledMemGuard info;
+    info_string(info);
+    MY_ERROR("bad adv click packet from %s\n", info.data());
+    return ER_ERROR;
+  }
+
+  const char record_separator[] = {MyDataPacketHeader::FINISH_SEPARATOR, 0};
+  MyStringTokenizer tknz(dpe->data, record_separator);
+  char * record;
+  while ((record = tknz.get_token()) != NULL)
+  {
+    const char separator[] = {MyDataPacketHeader::ITEM_SEPARATOR, 0};
+    MyStringTokenizer tknz_x(record, separator);
+    const char * chn = tknz_x.get_token();
+    const char * pcode = tknz_x.get_token();
+    const char * number;
+    if (unlikely(!pcode))
+      continue;
+    number = tknz_x.get_token();
+    if (unlikely(!number))
+      continue;
+    if (ACE_OS::strlen(number) >= 12)
+      continue;
+    m_adv_click_submitter->add_data(m_client_id.as_string(), m_client_id_length, chn, pcode, number);
+  }
+
   return ER_OK;
 }
 
@@ -1055,6 +1096,36 @@ const char * MyIPVerSubmitter::get_command() const
 }
 
 
+//MyAdvClickSubmitter//
+
+MyAdvClickSubmitter::MyAdvClickSubmitter() : m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
+    m_chn_block(BLOCK_SIZE, 50, this), m_pcode_block(BLOCK_SIZE, 50, this), m_number_block(BLOCK_SIZE, 24, this)
+{
+
+}
+
+void MyAdvClickSubmitter::add_data(const char * client_id, int id_len, const char * chn, const char * pcode, const char * number)
+{
+  bool ret = true;
+  if (!m_id_block.add(client_id, id_len))
+    ret = false;
+  if (!m_chn_block.add(chn, 0))
+    ret = false;
+  if (!m_pcode_block.add(pcode, 0))
+    ret = false;
+  if (!m_number_block.add(number, 0))
+    ret = false;
+
+  if (!ret)
+    submit();
+}
+
+const char * MyAdvClickSubmitter::get_command() const
+{
+  return MY_BS_ADV_CLICK_CMD;
+}
+
+
 //MyHeartBeatHandler//
 
 MyHeartBeatHandler::MyHeartBeatHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
@@ -1187,6 +1258,8 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
     char buff[32];
     mycomutil_generate_time_string(buff, 32);
     ((MyHeartBeatModule *)module_x())->ftp_feedback_submitter().add(dist_id, ftype, client_id.as_string(), step, ok, buff);
+    if (step == '3')
+      ((MyHeartBeatModule *)module_x())->ftp_feedback_submitter().add(dist_id, ftype, client_id.as_string(), '4', ok, buff);
   }
   if (recv_status == '9')
     return;
@@ -1314,13 +1387,20 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
   } else if ((long)act == TIMER_ID_IP_VER)
   {
     MyHeartBeatProcessor::m_ip_ver_submitter->check_time_out();
-  } else if ((long)act == TIMER_ID_DIST_SERVICE)
+  } else if ((long)act == TIMER_ID_FTP_FEEDBACK)
+  {
+    MyHeartBeatProcessor::m_ftp_feedback_submitter->check_time_out();
+  }
+  else if ((long)act == TIMER_ID_DIST_SERVICE)
   {
     ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(int));
     *(int*)mb->base() = MyHeartBeatService::TIMED_DIST_TASK;
     ACE_Time_Value tv(ACE_Time_Value::zero);
     if (((MyHeartBeatModule*)module_x())->service()->putq(mb, &tv) < 0)
       mb->release();
+  } else if ((long)act == TIMER_ID_ADV_CLICK)
+  {
+    MyHeartBeatProcessor::m_adv_click_submitter->check_time_out();
   }
   return 0;
 }
@@ -1360,10 +1440,28 @@ bool MyHeartBeatDispatcher::on_start()
   }
 
   {
+    ACE_Time_Value interval(CLOCK_TICK_FTP_FEEDBACK);
+    if (reactor()->schedule_timer(this, (const void*)TIMER_ID_FTP_FEEDBACK, interval, interval) < 0)
+    {
+      MY_ERROR("setup ftp feedback timer failed %s %s\n", name(), (const char*)MyErrno());
+      return false;
+    }
+  }
+
+  {
     ACE_Time_Value interval(CLOCK_TICK_DIST_SERVICE * 60);
     if (reactor()->schedule_timer(this, (const void*)TIMER_ID_DIST_SERVICE, interval, interval) < 0)
     {
       MY_ERROR("setup heart beat timer failed %s %s\n", name(), (const char*)MyErrno());
+      return false;
+    }
+  }
+
+  {
+    ACE_Time_Value interval(CLOCK_TICK_ADV_CLICK * 60);
+    if (reactor()->schedule_timer(this, (const void*)TIMER_ID_ADV_CLICK, interval, interval) < 0)
+    {
+      MY_ERROR("setup adv click timer failed %s %s\n", name(), (const char*)MyErrno());
       return false;
     }
   }
@@ -1380,6 +1478,8 @@ MyHeartBeatModule::MyHeartBeatModule(MyBaseApp * app): MyBaseModule(app)
   m_dispatcher = NULL;
   MyHeartBeatProcessor::m_heart_beat_submitter = &m_ping_sumbitter;
   MyHeartBeatProcessor::m_ip_ver_submitter = &m_ip_ver_submitter;
+  MyHeartBeatProcessor::m_ftp_feedback_submitter = &m_ftp_feedback_submitter;
+  MyHeartBeatProcessor::m_adv_click_submitter = &m_adv_click_submitter;
 }
 
 MyHeartBeatModule::~MyHeartBeatModule()
