@@ -396,10 +396,18 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
   if (cfg->run_as_demon)
     MyBaseApp::app_demonize();
 
+  MyClientToMiddleHandler::init_mem_pool(20);
+  MyMemPoolFactoryX::instance()->init(cfg);
+
   if (g_test_mode)
   {
     std::string idfile = cfg->app_path + "/config/id.file";
     std::ifstream ifs(idfile.c_str(), std::ifstream::in);
+    if (!ifs || ifs.bad())
+    {
+      MY_ERROR("can not open file %s %s\n", idfile.c_str(), (const char *)MyErrno());
+      exit(6);
+    }
     char id[64];
     while (!ifs.eof())
     {
@@ -440,12 +448,9 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
         MY_ERROR("restore of previous data failed\n");
       }
     }
-
     MyClientToDistHandler::init_mem_pool(100);
   }
 
-  MyClientToMiddleHandler::init_mem_pool(20);
-  MyMemPoolFactoryX::instance()->init(cfg);
   return app->do_constructor();
 }
 
