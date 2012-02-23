@@ -110,10 +110,10 @@ public class RequestProcessor implements Runnable
     String s_cmd = request.substring(12, 12 + 2);
     int data_len = request.length() - 15;
     String s_data = request.substring(14, 14 + data_len);
-    System.out.println("cmd=" + s_cmd + "data=" + s_data);
+//    System.out.println("cmd=" + s_cmd + "data=" + s_data);
     if (s_cmd.compareTo("01") == 0) //ip ver
     {
-      return send_reply(out, s_cmd, "1");
+      return handle_ip_ver(s_data, out);
     } else if (s_cmd.compareTo("06") == 0) //patch file
     {
       
@@ -123,6 +123,25 @@ public class RequestProcessor implements Runnable
     }
     
     return true;
+  }
+  
+  private boolean handle_ip_ver(String s_data, Writer out)
+  {
+    StringTokenizer tk = new StringTokenizer(s_data, "#");
+    String s_client_ids = tk.nextToken();
+    StringTokenizer tk_ids = new StringTokenizer(s_client_ids, ";");
+    StringBuffer reply = new StringBuffer();
+    boolean first = true;
+    while (tk_ids.hasMoreTokens())
+    {
+      if (!first)
+        reply.append(";");      
+      reply.append(tk_ids.nextToken());
+      reply.append(":06201200:06201300:05002200::3");
+      first = false;
+    }
+    String s_result = reply.toString();
+    return send_reply(out, "01", s_result);
   }
 
   private boolean send_reply(Writer out, String s_cmd, String s_reply_data)

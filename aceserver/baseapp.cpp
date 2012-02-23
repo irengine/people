@@ -438,15 +438,18 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
 
   u_int ival;
 
-  if (cfgHeap.get_integer_value (section,  CONFIG_client_heart_beat_interval, ival) == 0)
+  if (g_test_mode)
   {
-    if (ival == 0 || ival > 0xFFFF )
+    if (cfgHeap.get_integer_value (section,  CONFIG_client_heart_beat_interval, ival) == 0)
     {
-      MY_WARNING(ACE_TEXT("Invalid %s value (= %d), using default value = %d\n"),
-          CONFIG_module_heart_beat_mem_pool_size, ival, DEFAULT_client_heart_beat_interval);
+      if (ival == 0 || ival > 0xFFFF )
+      {
+        MY_WARNING(ACE_TEXT("Invalid %s value (= %d), using default value = %d\n"),
+            CONFIG_module_heart_beat_mem_pool_size, ival, DEFAULT_client_heart_beat_interval);
+      }
+      else
+        client_heart_beat_interval = ival;
     }
-    else
-      client_heart_beat_interval = ival;
   }
 
   if (g_test_mode)
@@ -680,7 +683,7 @@ void MyConfig::dump_config_info()
   }
 
   //client only
-  if (is_client())
+  if (is_client() && g_test_mode)
   {
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_heart_beat_interval, client_heart_beat_interval));
   }

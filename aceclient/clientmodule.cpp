@@ -1366,6 +1366,90 @@ void MyWatchDog::start()
 }
 
 
+//MyIpVerReply//
+
+const char * default_time = "06302200";
+
+MyIpVerReply::MyIpVerReply()
+{
+  m_heart_beat_interval = DEFAULT_HEART_BEAT_INTERVAL;
+  init_time_str(m_lcd, NULL);
+  init_time_str(m_led, NULL);
+  init_time_str(m_pc, NULL);
+}
+
+void MyIpVerReply::init_time_str(MyPooledMemGuard & g, const char * s)
+{
+  const char * ptr = (s && *s)? s: default_time;
+  g.init_from_string("*", ptr, "1");
+}
+
+void MyIpVerReply::init(char * data)
+{
+  ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
+  if (unlikely(!data || !*data))
+    return;
+
+  char * value = data;
+  char * ptr = ACE_OS::strchr(data, ':');
+  if (unlikely(!ptr))
+    return;
+  *ptr ++ = 0;
+  init_time_str(m_lcd, value);
+
+  value = ptr;
+  ptr = ACE_OS::strchr(value, ':');
+  if (unlikely(!ptr))
+    return;
+  *ptr ++ = 0;
+  init_time_str(m_led, value);
+
+  value = ptr;
+  ptr = ACE_OS::strchr(value, ':');
+  if (unlikely(!ptr))
+    return;
+  *ptr ++ = 0;
+  init_time_str(m_pc, value);
+
+  value = ptr; //policy
+  ptr = ACE_OS::strchr(value, ':');
+  if (unlikely(!ptr))
+    return;
+  *ptr ++ = 0;
+
+  m_heart_beat_interval = atoi(ptr);
+  if (unlikely(m_heart_beat_interval < 0 || m_heart_beat_interval > 100))
+  {
+    MY_ERROR("invalid heart beat interval (%d) received \n", m_heart_beat_interval);
+    m_heart_beat_interval = DEFAULT_HEART_BEAT_INTERVAL;
+  }
+}
+
+const char * MyIpVerReply::lcd()
+{
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, NULL);
+  return m_lcd.data();
+}
+
+const char * MyIpVerReply::led()
+{
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, NULL);
+  return m_led.data();
+}
+
+const char * MyIpVerReply::pc()
+{
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, NULL);
+  return m_pc.data();
+}
+
+int MyIpVerReply::heart_beat_interval()
+{
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, NULL);
+  return m_heart_beat_interval;
+}
+
+
 //MyClientToDistProcessor//
 
 MyClientToDistProcessor::MyClientToDistProcessor(MyBaseHandler * handler): MyBaseClientProcessor(handler)
@@ -1452,6 +1536,16 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
     return ER_OK;
   }
 
+  if (m_packet_header.command == MyDataPacketHeader::CMD_IP_VER_REQ)
+  {
+    if (m_packet_header.length <= (int)sizeof(MyDataPacketHeader) || m_packet_header.length >= 512
+        || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    {
+      MY_ERROR("failed to validate header for ip ver reply\n");
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
 
   MY_ERROR("unexpected packet header from dist server, header.command = %d\n", m_packet_header.command);
   return ER_ERROR;
@@ -1465,15 +1559,16 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
   if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY)
   {
     MyBaseProcessor::EVENT_RESULT result = do_version_check_reply(mb);
+
     if (result == ER_OK)
     {
-      ((MyClientToDistHandler*)m_handler)->setup_timer(1 * 60);
       client_id_verified(true);
-    }
+      ((MyClientToDistHandler*)m_handler)->setup_timer();
 
-    if (g_test_mode)
-    {
-      if (unlikely(m_client_id_index == 0))
+      if (g_test_mode && m_client_id_index != 0)
+      {
+        ((MyClientToDistHandler*)m_handler)->setup_heart_beat_timer(1 * 60);
+      } else
       {
         MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
         if (!mod->click_sent())
@@ -1487,21 +1582,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
             mod->click_sent_done(m_client_id.as_string());
         }
       }
-    } else
-    {
-      MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
-      if (!mod->click_sent())
-      {
-        ACE_Message_Block * mb = mod->get_click_infos(m_client_id.as_string());
-        if (!mb)
-          mod->click_sent_done(m_client_id.as_string());
-        else if (m_handler->send_data(mb) < 0)
-          return ER_ERROR;
-        else
-          mod->click_sent_done(m_client_id.as_string());
-      }
     }
-
     return result;
   }
 
@@ -1510,6 +1591,9 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
 
   if (header->command == MyDataPacketHeader::CMD_FTP_FILE)
     return do_ftp_file_request(mb);
+
+  if (header->command == MyDataPacketHeader::CMD_IP_VER_REQ)
+    return do_ip_ver_reply(mb);
 
   MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyClientToDistProcessor::on_recv_packet_i(), command = %d\n",
@@ -1632,6 +1716,20 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_M
   }
 
   return ER_OK;
+}
+
+MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ip_ver_reply(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  if (g_test_mode && m_client_id_index != 0)
+    return ER_OK;
+
+  MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
+  MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
+  mod->ip_ver_reply().init(dpe->data);
+  MY_INFO("setup heart beat late timer as %d\n", mod->ip_ver_reply().heart_beat_interval());
+  return ((MyClientToDistHandler*)m_handler)->setup_heart_beat_timer(mod->ip_ver_reply().heart_beat_interval() * 60) ?
+          ER_OK: ER_ERROR;
 }
 
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(ACE_Message_Block * mb)
@@ -1870,18 +1968,11 @@ bool MyDistServerAddrList::valid_addr(const char * addr) const
 MyClientToDistHandler::MyClientToDistHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
 {
   m_processor = new MyClientToDistProcessor(this);
+  m_heart_beat_timer = -1;
 }
 
-bool MyClientToDistHandler::setup_timer(int heart_beat_interval)
+bool MyClientToDistHandler::setup_timer()
 {
-    //ACE_Time_Value interval1(MyConfigX::instance()->client_heart_beat_interval);
-  ACE_Time_Value interval1(heart_beat_interval);
-  if (reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval1, interval1) < 0)
-  {
-    MY_ERROR(ACE_TEXT("MyClientToDistHandler setup heart beat timer failed, %s"), (const char*)MyErrno());
-    return false;
-  }
-
   ACE_Time_Value interval(IP_VER_TIMER * 60);
   if (reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval, interval) < 0)
   {
@@ -1890,6 +1981,21 @@ bool MyClientToDistHandler::setup_timer(int heart_beat_interval)
   }
 
   return true;
+}
+
+bool MyClientToDistHandler::setup_heart_beat_timer(int heart_beat_interval)
+{
+  if (m_heart_beat_timer >= 0)
+    return true;
+
+  ACE_Time_Value interval1(heart_beat_interval);
+  m_heart_beat_timer = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval1, interval1);
+  if (m_heart_beat_timer < 0)
+  {
+    MY_ERROR(ACE_TEXT("MyClientToDistHandler setup heart beat timer failed, %s"), (const char*)MyErrno());
+    return false;
+  } else
+    return true;
 }
 
 MyClientToDistModule * MyClientToDistHandler::module_x() const
@@ -2479,6 +2585,11 @@ MyWatchDog & MyClientToDistModule::watch_dog()
   return m_watch_dog;
 }
 
+MyIpVerReply & MyClientToDistModule::ip_ver_reply()
+{
+  return m_ip_ver_reply;
+}
+
 const char * MyClientToDistModule::name() const
 {
   return "MyClientToDistModule";
@@ -2886,12 +2997,13 @@ int MyHttp1991Processor::handle_input()
   const char const_plc_str[] = "http://localhost:1991/ctrl?type=";
   const int const_plc_str_len = sizeof(const_plc_str) / sizeof(char) - 1;
 
-  if (ACE_OS::strcmp(ptr, "http://127.0.0.1:1991/op") == 0)
+  char * value;
+  if (ACE_OS::strstr(ptr, "http://127.0.0.1:1991/op") != NULL)
     do_command_watch_dog();
-  else if (ACE_OS::strncmp(ptr, const_click_str, const_click_str_len) == 0)
-    do_command_adv_click(ptr + const_click_str_len);
-  else if (ACE_OS::strncmp(ptr, const_plc_str, const_plc_str_len) == 0)
-    do_command_plc(ptr + const_plc_str_len);
+  else if ((value = ACE_OS::strstr(ptr, const_click_str)) != NULL)
+    do_command_adv_click(value + const_click_str_len);
+  else if ((value = ACE_OS::strstr(ptr, const_plc_str)) != NULL)
+    do_command_plc(value + const_plc_str_len);
 
   return -1;
 }
@@ -2918,6 +3030,13 @@ void MyHttp1991Processor::do_command_adv_click(char * parameter)
     return;
   }
 
+  char * ptr = ACE_OS::strchr(pcode, '\n');
+  if (ptr)
+    ptr = 0;
+  ptr = ACE_OS::strchr(pcode, '\r');
+  if (ptr)
+    ptr = 0;
+
   MyClientDBGuard dbg;
   if (dbg.db().open_db(m_client_id.as_string()))
     dbg.db().save_click_info(parameter, pcode);
@@ -2925,6 +3044,13 @@ void MyHttp1991Processor::do_command_adv_click(char * parameter)
 
 void MyHttp1991Processor::do_command_plc(char * parameter)
 {
+  char * ptr = ACE_OS::strchr(parameter, '\n');
+  if (ptr)
+    ptr = 0;
+  ptr = ACE_OS::strchr(parameter, '\r');
+  if (ptr)
+    ptr = 0;
+
   char * y = ACE_OS::strstr(parameter, "&value=");
   if (unlikely(y == parameter))
   {
@@ -2941,16 +3067,23 @@ void MyHttp1991Processor::do_command_plc(char * parameter)
   }
 
   int x = atoi(parameter);
+  MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
 
   if (x == 5) //lcd
   {
-
+    send_string(mod->ip_ver_reply().lcd());
   } else if (x == 6) //led
   {
-
+    send_string(mod->ip_ver_reply().led());
   } else if (x == 7) //pc
   {
-
+    send_string(mod->ip_ver_reply().pc());
+  } else if ( x == 1 || x == 2 || x == 11 || x == 12)
+    send_string("*1");
+  else
+  {
+    MY_ERROR("unknown command(%d) @MyHttp1991Processor::do_command_plc()\n", x);
+    send_string("error: unknown command received.");
   }
 }
 

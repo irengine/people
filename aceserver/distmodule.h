@@ -186,6 +186,7 @@ private:
   MyBaseProcessor::EVENT_RESULT do_md5_file_list(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_ftp_reply(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_ip_ver_req(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_adv_click_req(ACE_Message_Block * mb);
 };
 
 class MyBaseSubmitter;

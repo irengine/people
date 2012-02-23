@@ -1623,6 +1623,10 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE
   int client_id_index = client_id_table.index_of(vcr.data()->client_id);
   bool valid = false;
 
+  m_client_id_index = client_id_index;
+  m_client_id = vcr.data()->client_id;
+  m_client_id_length = strlen(m_client_id.as_string());
+
   if (client_id_index >= 0)
   {
     MyClientInfo client_info;
@@ -1644,9 +1648,6 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE
       return ER_OK;
   }
 
-  m_client_id_index = client_id_index;
-  m_client_id = vcr.data()->client_id;
-  m_client_id_length = strlen(m_client_id.as_string());
   m_handler->connection_manager()->set_connection_client_id_index(m_handler, client_id_index, g_client_id_table);
   return ER_CONTINUE;
 }

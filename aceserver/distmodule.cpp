@@ -696,6 +696,20 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
     return ER_OK;
   }
 
+  if (m_packet_header.command == MyDataPacketHeader::CMD_UI_CLICK)
+  {
+    if (m_packet_header.length <= (int)sizeof(MyIpVerRequest)
+        || m_packet_header.length >= 1 * 1024 * 1024
+        || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    {
+      MyPooledMemGuard info;
+      info_string(info);
+      MY_ERROR("bad adv click request packet received from %s\n", info.data());
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
   MY_ERROR(ACE_TEXT("unexpected packet header received @MyHeartBeatProcessor.on_recv_header, cmd = %d\n"),
       m_packet_header.command);
 
@@ -719,6 +733,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
   if (header->command == MyDataPacketHeader::CMD_IP_VER_REQ)
     return do_ip_ver_req(mb);
 
+  if (header->command == MyDataPacketHeader::CMD_UI_CLICK)
+    return do_adv_click_req(mb);
+
   MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyHeartBeatProcessor::on_recv_packet_i, command = %d\n",
       header->command);
@@ -738,10 +755,10 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
   MyClientIDTable & client_id_table = MyServerAppX::instance()->client_id_table();
 
   MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, client_id_table);
+  m_ip_ver_submitter->add_data(m_client_id.as_string(), m_client_id_length, m_peer_addr, m_client_version.to_string());
+
   if (ret != ER_CONTINUE)
     return ret;
-
-  m_ip_ver_submitter->add_data(m_client_id.as_string(), m_client_id_length, m_peer_addr, m_client_version.to_string());
 
   MyClientInfo client_info;
   client_id_table.value_all(m_client_id_index, client_info);
@@ -803,6 +820,13 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ip_ver_req(ACE_Message_Bl
 {
   MyMessageBlockGuard guard(mb);
   m_ip_ver_submitter->add_data(m_client_id.as_string(), m_client_id_length, m_peer_addr, m_client_version.to_string());
+  return ER_OK;
+}
+
+MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_adv_click_req(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  //todo: add adv click submitter here
   return ER_OK;
 }
 
@@ -1297,7 +1321,6 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
     ACE_Time_Value tv(ACE_Time_Value::zero);
     if (((MyHeartBeatModule*)module_x())->service()->putq(mb, &tv) < 0)
       mb->release();
-
   }
   return 0;
 }
@@ -1423,7 +1446,7 @@ MyBaseProcessor::EVENT_RESULT MyDistToBSProcessor::on_recv_packet_i(ACE_Message_
   if (super::on_recv_packet_i(mb) != ER_OK)
     return ER_ERROR;
   MyBSBasePacket * bspacket = (MyBSBasePacket *) mb->base();
-  if (ACE_OS::memcmp(bspacket->cmd, MY_BS_IP_VER_CMD, sizeof(bspacket->cmd)))
+  if (ACE_OS::memcmp(bspacket->cmd, MY_BS_IP_VER_CMD, sizeof(bspacket->cmd)) == 0)
     process_ip_ver_reply(bspacket);
 //  MY_INFO("got a bs reply packet:%s\n", mb->base());
 
@@ -1464,7 +1487,7 @@ void MyDistToBSProcessor::process_ip_ver_reply_one(char * item)
     ACE_Time_Value tv(ACE_Time_Value::zero);
     if (MyServerAppX::instance()->heart_beat_module()->dispatcher()->putq(mb, &tv) == -1)
       mb->release();
-  } else //todo: disconnect client
+  } else
   {
     if (index >= 0)
     {

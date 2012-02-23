@@ -241,11 +241,12 @@ MyBaseProcessor::EVENT_RESULT MyLocationProcessor::do_version_check(ACE_Message_
 {
   MyMessageBlockGuard guard(mb);
 
-  MyClientIDTable & client_id_table = MyServerAppX::instance()->client_id_table();
-
-  MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, client_id_table);
-  if (ret != ER_CONTINUE)
-    return ret;
+//  MyClientIDTable & client_id_table = MyServerAppX::instance()->client_id_table();
+//
+//  MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, client_id_table);
+//  if (ret != ER_CONTINUE)
+//    return ret;
+  m_client_id = "dummy";
 
   char server_list[MyDistLoads::SERVER_LIST_LENGTH];
   int len = m_dist_loads->get_server_list(server_list, MyDistLoads::SERVER_LIST_LENGTH); //double copy

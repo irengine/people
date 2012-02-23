@@ -323,6 +323,28 @@ private:
   time_t m_time;
 };
 
+class MyIpVerReply
+{
+public:
+  MyIpVerReply();
+  void init(char * data);
+  const char * lcd();
+  const char * led();
+  const char * pc();
+  int heart_beat_interval();
+
+private:
+  enum { DEFAULT_HEART_BEAT_INTERVAL = 1};
+
+  void init_time_str(MyPooledMemGuard & g, const char * s);
+
+  MyPooledMemGuard m_lcd;
+  MyPooledMemGuard m_led;
+  MyPooledMemGuard m_pc;
+  int m_heart_beat_interval;
+  ACE_Thread_Mutex m_mutex;
+};
+
 class MyClientToDistProcessor: public MyBaseClientProcessor
 {
 public:
@@ -342,6 +364,7 @@ private:
   MyBaseProcessor::EVENT_RESULT do_ftp_file_request(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_md5_list_request(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_ip_ver_reply(ACE_Message_Block * mb);
 
   bool m_version_check_reply_done;
   MyPooledMemGuard m_ftp_password;
@@ -382,7 +405,8 @@ class MyClientToDistHandler: public MyBaseHandler
 public:
   MyClientToDistHandler(MyBaseConnectionManager * xptr = NULL);
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
-  bool setup_timer(int heart_beat_interval);
+  bool setup_timer();
+  bool setup_heart_beat_timer(int heart_beat_interval);
   MyClientToDistModule * module_x() const;
   DECLARE_MEMORY_POOL__NOTHROW(MyClientToDistHandler, ACE_Thread_Mutex);
 
@@ -393,6 +417,8 @@ protected:
 private:
   enum { HEART_BEAT_PING_TIMER = 1, IP_VER_TIMER };
   enum { IP_VER_INTERVAL = 1 }; //in minutes
+
+  long m_heart_beat_timer;
 };
 
 class MyClientToDistService: public MyBaseService
@@ -500,6 +526,7 @@ public:
   bool click_sent() const;
   void click_sent_done(const char * client_id);
   MyWatchDog & watch_dog();
+  MyIpVerReply & ip_ver_reply();
 
   MyTestClientIDGenerator & id_generator()
   {
@@ -521,6 +548,7 @@ private:
   MyClickInfos m_click_infos;
   bool m_click_sent;
   MyWatchDog m_watch_dog;
+  MyIpVerReply m_ip_ver_reply;
 
   MyTestClientIDGenerator m_id_generator;
 };

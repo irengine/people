@@ -321,7 +321,12 @@ bool MyClientApp::on_construct()
         int n = ::read(fh.handle(), buff, 64);
         if (n > 0)
         {
-          buff[std::min(n, 63)] = 0;
+          n = std::min(n, 63);
+          buff[n] = 0;
+          while (--n >= 0 && (buff[n] == '\r' || buff[n] == '\n' || buff[n] == ' ' || buff[n] == '\t'))
+            buff[n] = 0;
+          if (n == 0)
+            continue;
           m_client_id = buff;
           m_client_id_table.add(buff);
           break;
