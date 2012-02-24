@@ -177,6 +177,7 @@ protected:
   typedef std::vector<MyBaseModule *> MyModules;
 
   virtual void do_dump_info();
+  virtual bool do_sigchild();
 
   void on_sig_event(int signum);
   void do_event_loop();
@@ -199,6 +200,7 @@ private:
   MyClock m_clock;
   bool m_is_running;
   bool m_sighup;
+  bool m_sigchld;
   bool m_sigterm;
   bool m_status_file_ok;
   bool m_status_file_checking;

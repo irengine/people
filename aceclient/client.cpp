@@ -12,6 +12,42 @@
 #include "clientmodule.h"
 
 
+//MyProgramLauncher//
+
+MyProgramLauncher::MyProgramLauncher()
+{
+  m_pid = INVALID_PID;
+}
+
+bool MyProgramLauncher::launch(const char * program)
+{
+  if (m_pid != INVALID_PID)
+  {
+    kill(m_pid, SIGTERM);
+  }
+  ACE_Process_Options options;
+  options.command_line(program);
+  ACE_Process child;
+  pid_t pid = child.spawn(options);
+  if (pid == -1)
+  {
+    MY_ERROR("failed to launch program %s %s\n", program, (const char *)MyErrno());
+    return false;
+  } else
+  {
+    m_pid = pid;
+    MY_INFO("launch program OK: %s\n", program);
+    return true;
+  }
+}
+
+void MyProgramLauncher::on_terminated(pid_t pid)
+{
+  if (likely(pid == m_pid))
+    m_pid = INVALID_PID;
+}
+
+
 //MyClientApp//
 
 MyClientApp::MyClientApp()

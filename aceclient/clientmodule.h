@@ -193,6 +193,7 @@ public:
 
 protected:
   int load_header_from_string(char * src);
+  bool calc_update_ini_value(MyPooledMemGuard & value);
 };
 
 class MyDistInfoMD5: public MyDistInfoHeader
@@ -256,6 +257,7 @@ public:
   void calc_local_file_name();
   void post_status_message(int _status = -1) const;
   bool update_db_status() const;
+  void generate_update_ini();
 
   static ACE_Message_Block * make_ftp_dist_message(const char * dist_id, int status, bool ok = true, char ftype = 'x');
 
@@ -273,6 +275,7 @@ public:
 
 private:
   enum { FAILED_PENALTY = 4, MAX_FAILED_COUNT = 20 };
+
   time_t last_update;
   int  failed_count;
 };

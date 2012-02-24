@@ -8,6 +8,7 @@
 #include <ace/FILE_Addr.h>
 #include <ace/FILE_Connector.h>
 #include <ace/FILE_IO.h>
+#include <ace/Process.h>
 
 #include "clientmodule.h"
 #include "baseapp.h"
@@ -851,6 +852,27 @@ bool MyDistInfoHeader::calc_target_path(const char * target_parent_path, MyPoole
   return true;
 }
 
+bool MyDistInfoHeader::calc_update_ini_value(MyPooledMemGuard & value)
+{
+  if (ftype_is_chn(ftype))
+    value.init_from_string(adir.data());
+  else if (ftype_is_adv(ftype))
+    value.init_from_string("g");
+  else if (ftype_is_led(ftype))
+    value.init_from_string("l");
+  else if (ftype_is_frame(ftype))
+    value.init_from_string("k");
+  else if (ftype_is_backgnd(ftype))
+    value.init_from_string("d");
+  else
+  {
+    MY_ERROR("invalid dist ftype = %c\n", ftype);
+    return false;
+  }
+
+  return true;
+}
+
 
 //MyDistInfoFtp//
 
@@ -991,6 +1013,26 @@ bool MyDistInfoFtp::update_db_status() const
   return false;
 }
 
+void MyDistInfoFtp::generate_update_ini()
+{
+  MyPooledMemGuard value;
+  if (unlikely(!calc_update_ini_value(value)))
+    return;
+
+  MyPooledMemGuard path, file;
+  calc_target_parent_path(path, false);
+  file.init_from_string(path.data(), "/update.ini");
+  MyUnixHandleGuard h;
+  if (unlikely(!h.open_write(file.data(), true, true, false, false)))
+    return;
+
+  time_t now = time(NULL);
+  struct tm _tm;
+  localtime_r(&now, &_tm);
+  char buff[100];
+  ACE_OS::snprintf(buff, 100, "%02d:%02d;%s", _tm.tm_hour, _tm.tm_min, value.data());
+  ::write(h.handle(), buff, ACE_OS::strlen(buff));
+}
 
 //MyDistInfoFtps//
 
@@ -1082,6 +1124,7 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
   else
   {
     MY_INFO("apply update OK for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
+    dist_info->generate_update_ini();
     MyClientApp::full_backup(dist_info->dist_id.data(), dist_info->client_id.as_string());
   }
   MyFilePaths::remove_path(target_parent_path.data(), true);
@@ -1445,7 +1488,7 @@ const char * MyIpVerReply::pc()
 
 int MyIpVerReply::heart_beat_interval()
 {
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, NULL);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, 1);
   return m_heart_beat_interval;
 }
 
@@ -1583,6 +1626,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
         }
       }
     }
+
     return result;
   }
 

@@ -13,6 +13,19 @@
 
 class MyClientToDistModule;
 
+class MyProgramLauncher
+{
+public:
+  MyProgramLauncher();
+
+  bool launch(const char * program);
+  void on_terminated(pid_t pid);
+
+private:
+  enum { INVALID_PID = 0 };
+  pid_t m_pid;
+};
+
 class MyClientApp: public MyBaseApp
 {
 public:

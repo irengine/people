@@ -774,6 +774,7 @@ MyBaseApp::MyBaseApp(): m_sig_handler(this), m_status_file_checker(this), m_info
   //This is Ugly, but works right now
   m_sighup = false;
   m_sigterm = false;
+  m_sigchld = false;
   m_status_file_ok = true;
   m_status_file_checking = false;
   srandom(time(NULL));
@@ -807,6 +808,7 @@ bool MyBaseApp::do_constructor()
 
   m_ace_sig_handler.register_handler(SIGHUP, &m_sig_handler);
   m_ace_sig_handler.register_handler(SIGTERM, &m_sig_handler);
+  m_ace_sig_handler.register_handler(SIGCHLD, &m_sig_handler);
   if (MyConfigX::instance()->status_file_check_interval != 0)
   {
     int fd = open(MyConfigX::instance()->status_file_name.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
@@ -978,6 +980,9 @@ void MyBaseApp::on_sig_event(int signum)
   case SIGHUP:
     m_sighup = true;
     break;
+  case SIGCHLD:
+    m_sigchld = true;
+    break;
   default:
     MY_ERROR("unexpected signal caught %d\n", signum);
     break;
@@ -1012,6 +1017,12 @@ bool MyBaseApp::do_sighup()
 {
   m_sighup = false;
   dump_info();
+  return true;
+}
+
+bool MyBaseApp::do_sigchild()
+{
+  m_sigchld = false;
   return true;
 }
 
