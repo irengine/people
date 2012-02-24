@@ -11,9 +11,19 @@ class http
     {
       System.out.print("usage: http host url\n");
       return;
-    }   
-
-    int len = args[1].length() + 4;
+    } 
+    byte[] utf8Bytes = null;  
+    try
+    {
+      utf8Bytes = args[1].getBytes("UTF8");
+    } catch ( UnsupportedEncodingException e)
+    {
+      System.out.print(e.getMessage());
+    }
+      
+    System.out.println("args[1].length = " + utf8Bytes.length);
+    int len = utf8Bytes.length + 4;
+    //int len = args[1].length() + 4;
     len = Integer.reverseBytes(len);
     try 
     {
@@ -22,7 +32,9 @@ class http
       DataOutputStream out = new DataOutputStream(skt.getOutputStream());
       System.out.println("Sending url...");
       out.writeInt(len);
-      out.writeBytes(args[1]);
+      //out.writeUTF(args[1]); 
+      //out.writeBytes(args[1]);
+      out.write(utf8Bytes, 0, utf8Bytes.length);
       out.flush();
       System.out.print("Received string: '");
       while (!in.ready()) 

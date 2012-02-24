@@ -8,7 +8,6 @@
 #include <ace/FILE_Addr.h>
 #include <ace/FILE_Connector.h>
 #include <ace/FILE_IO.h>
-#include <ace/Process.h>
 
 #include "clientmodule.h"
 #include "baseapp.h"
@@ -2168,6 +2167,7 @@ void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
 
   {
     MyPooledMemGuard md5_client;
+    client_md5s.sort();
     int len = client_md5s.total_size(true);
     MyMemPoolFactoryX::instance()->get_mem(len, &md5_client);
     client_md5s.to_buffer(md5_client.data(), len, true);

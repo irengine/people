@@ -193,13 +193,14 @@ void MyDistCompressor::get_all_in_one_mbz_file_name(const char * dist_id, MyPool
 
 bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
 {
-  bool result = false;;
+  bool result = false;
   int prefix_len = ACE_OS::strlen(http_dist_request.fdir) - 1;
   MyPooledMemGuard destdir;
   MyPooledMemGuard composite_dir;
   MyPooledMemGuard all_in_one;
   MyPooledMemGuard mfile;
   MyPooledMemGuard mdestfile;
+//  MyPooledMemGuard destdir_mfile;
   destdir.init_from_string(MyConfigX::instance()->compressed_store_path.c_str(), "/", http_dist_request.ver);
   if (!MyFilePaths::make_path(destdir.data(), false))
   {
@@ -245,6 +246,7 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
     goto __exit__;
   }
 
+//  destdir_mfile.init_from_string(destdir.data(), mfile.data() + prefix_len);
   result = do_generate_compressed_files(mfile.data(), destdir.data(), prefix_len, http_dist_request.password);
   m_compositor.close();
 
@@ -334,8 +336,12 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
     }
     else if(entry->d_type == DT_DIR)
     {
-      ACE_OS::sprintf(mdest.data(), "%s/%s", dest_path, entry->d_name);
-      if (!do_generate_compressed_files(msrc.data(), mdest.data(), prefix_len, password))
+      if (dest_middle_leading_path_len > 0)
+        ACE_OS::sprintf(mdest.data(), "%s%s/%s", dest_path, src_path + prefix_len, entry->d_name);
+      else
+        ACE_OS::sprintf(mdest.data(), "%s/%s", dest_path, entry->d_name);
+
+      if (!do_generate_compressed_files(msrc.data(), dest_path, prefix_len, password))
       {
         closedir(dir);
         return false;

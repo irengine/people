@@ -10,6 +10,7 @@
 
 #include <ace/Malloc_T.h>
 #include <new>
+#include <ace/Process.h>
 
 #include "common.h"
 #include "baseapp.h"

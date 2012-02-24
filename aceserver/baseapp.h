@@ -177,8 +177,9 @@ protected:
   typedef std::vector<MyBaseModule *> MyModules;
 
   virtual void do_dump_info();
-  virtual bool do_sigchild();
+  virtual bool on_sigchild(pid_t pid);
 
+  bool do_sigchild();
   void on_sig_event(int signum);
   void do_event_loop();
   bool do_sighup();

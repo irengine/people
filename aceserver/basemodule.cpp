@@ -1076,7 +1076,7 @@ bool MyBZCompressor::compress(const char * srcfn, int prefix_len, const char * d
   writer.set_key(key);
   if (!writer.start(srcfn + prefix_len))
     return false;
-
+//  MY_DEBUG("MyBZCompressor::compress, srcfn=%s, destfn=%d, save_as=%s\n", srcfn, destfn, srcfn + prefix_len);
   prepare_buffers();
   int ret = BZ2_bzCompressInit(&m_bz_stream, COMPRESS_100k, 0, 30);
   if (ret != BZ_OK)

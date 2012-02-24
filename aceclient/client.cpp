@@ -24,6 +24,7 @@ bool MyProgramLauncher::launch(const char * program)
   if (m_pid != INVALID_PID)
   {
     kill(m_pid, SIGTERM);
+    m_pid = INVALID_PID;
   }
   ACE_Process_Options options;
   options.command_line(program);

@@ -1022,7 +1022,20 @@ bool MyBaseApp::do_sighup()
 
 bool MyBaseApp::do_sigchild()
 {
+  int status;
+  pid_t pid;
   m_sigchld = false;
+  while ((pid = ::waitpid(-1, &status, WNOHANG)) > 0)
+  {
+    if (!on_sigchild(pid))
+      return false;
+  }
+  return true;
+}
+
+bool MyBaseApp::on_sigchild(pid_t pid)
+{
+  ACE_UNUSED_ARG(pid);
   return true;
 }
 
