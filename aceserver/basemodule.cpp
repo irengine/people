@@ -2414,6 +2414,10 @@ int MyBaseConnector::connect_ready()
     return 0;
 }
 
+void MyBaseConnector::reset_retry_count()
+{
+  m_reconnect_retry_count = 0;
+}
 
 int MyBaseConnector::do_connect(int count, bool bNew)
 {

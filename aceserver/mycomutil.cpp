@@ -247,6 +247,15 @@ size_t mycomutil_string_hash(const char * str)
   return size_t(__h);
 }
 
+bool mycomutil_string_end_with(const char * src, const char * key)
+{
+  int len1 = ACE_OS::strlen(src);
+  int len2 = ACE_OS::strlen(key);
+  if (len1 < len2)
+    return false;
+  return ACE_OS::memcmp(src + len1 - len2, key, len2) == 0;
+}
+
 
 int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
 
@@ -750,6 +759,13 @@ bool MyFilePaths::remove(const char *pathfile)
   return result;
 }
 
+bool MyFilePaths::stat(const char *pathfile, struct stat * _stat)
+{
+  return (::stat(pathfile, _stat) == 0);
+}
+
+
+//MyTestClientPathGenerator//
 
 void MyTestClientPathGenerator::make_paths(const char * app_data_path, int64_t _start, int _count)
 {

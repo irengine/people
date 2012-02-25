@@ -616,6 +616,7 @@ public:
   static bool get_correlate_path(MyPooledMemGuard & pathfile, int skip);
   static bool remove(const char *pathfile);
   static bool rename(const char *old_path, const char * new_path, bool ignore_eror);
+  static bool stat(const char *pathfile, struct stat * _stat);
 };
 
 class MyStringTokenizer
@@ -648,6 +649,7 @@ bool mycomutil_find_tag_value(char * & ptr, const char * tag, char * & value, ch
 bool mycomutil_calculate_file_md5(const char * _file, MyPooledMemGuard & md5_result);
 bool mycomutil_generate_time_string(char * result_buff, int buff_len, time_t t = time(NULL));
 size_t mycomutil_string_hash(const char * str);
+bool mycomutil_string_end_with(const char * src, const char * key);
 
 int mycomutil_translate_tcp_result(ssize_t transfer_return_value);
 int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);

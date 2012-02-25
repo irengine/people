@@ -10,6 +10,7 @@
 
 #include "common.h"
 #include "baseapp.h"
+#include <ace/Process.h>
 
 class MyClientToDistModule;
 
@@ -17,13 +18,40 @@ class MyProgramLauncher
 {
 public:
   MyProgramLauncher();
+  virtual ~MyProgramLauncher();
 
-  bool launch(const char * program);
+  bool launch();
   void on_terminated(pid_t pid);
+  bool running() const;
+  virtual bool ready() const;
+
+protected:
+  virtual bool on_launch(ACE_Process_Options & options) = 0;
 
 private:
   enum { INVALID_PID = 0 };
   pid_t m_pid;
+  ACE_Process_Options m_options;
+};
+
+class MyVLCLauncher: public MyProgramLauncher
+{
+public:
+  virtual bool ready() const;
+
+protected:
+  virtual bool on_launch(ACE_Process_Options & options);
+
+};
+
+class MyOperaLauncher: public MyProgramLauncher
+{
+public:
+  virtual bool ready() const;
+
+protected:
+  virtual bool on_launch(ACE_Process_Options & options);
+
 };
 
 class MyClientApp: public MyBaseApp
@@ -36,6 +64,8 @@ public:
   bool send_mb_to_dist(ACE_Message_Block * mb);
   const MyClientVerson & client_version() const;
   const char * client_id() const;
+  MyVLCLauncher & vlc_launcher();
+  MyOperaLauncher & opera_launcher();
 
   MyClientIDTable & client_id_table()
     { return m_client_id_table; }
@@ -56,12 +86,15 @@ protected:
   virtual bool on_construct();
   virtual void on_stop();
   virtual void do_dump_info();
+  virtual bool on_sigchild(pid_t pid);
 
 private:
   MyClientToDistModule * m_client_to_dist_module;
   MyClientVerson m_client_version;
   std::string m_client_id;
   MyClientIDTable m_client_id_table;
+  MyVLCLauncher m_vlc_launcher;
+  MyOperaLauncher m_opera_launcher;
 };
 
 typedef ACE_Unmanaged_Singleton<MyClientApp, ACE_Null_Mutex> MyClientAppX;

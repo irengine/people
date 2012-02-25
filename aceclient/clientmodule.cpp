@@ -1525,6 +1525,8 @@ int MyClientToDistProcessor::on_open()
     client_id(MyClientAppX::instance()->client_id());
     m_client_id_index = 0;
   }
+  if (!g_test_mode || m_client_id_index == 0)
+    MY_INFO("sending handshake request to dist server...\n");
   return send_version_check_req();
 }
 
@@ -1780,18 +1782,19 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
   MyMessageBlockGuard guard(mb);
   m_version_check_reply_done = true;
 
-  const char * prefix_msg = "dist server version check reply:";
   MyClientVersionCheckReply * vcr;
   vcr = (MyClientVersionCheckReply *)mb->base();
   switch (vcr->reply_code)
   {
   case MyClientVersionCheckReply::VER_OK:
- //   MY_INFO("%s OK\n", prefix_msg);
+    if (!g_test_mode || m_client_id_index == 0)
+      MY_INFO("handshake response from dist server: OK\n");
     if (vcr->length > (int)sizeof(MyClientVersionCheckReply) + 1)
     {
       MyServerID::save(m_client_id.as_string(), (int)(u_int8_t)vcr->data[0]);
       m_ftp_password.init_from_string(vcr->data + 1);
     }
+    m_handler->connector()->reset_retry_count();
     return MyBaseProcessor::ER_OK;
 
   case MyClientVersionCheckReply::VER_OK_CAN_UPGRADE:
@@ -1800,27 +1803,36 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
       MyServerID::save(m_client_id.as_string(), (int)(u_int8_t)vcr->data[0]);
       m_ftp_password.init_from_string(vcr->data + 1);
     }
-    MY_INFO("%s get version can upgrade response\n", prefix_msg);
+    m_handler->connector()->reset_retry_count();
+    if (!g_test_mode || m_client_id_index == 0)
+      MY_INFO("handshake response from dist server: OK Can Upgrade\n");
     //todo: notify app to upgrade
     return MyBaseProcessor::ER_OK;
 
   case MyClientVersionCheckReply::VER_MISMATCH:
     if (vcr->length > (int)sizeof(MyClientVersionCheckReply) + 1)
       m_ftp_password.init_from_string(vcr->data);
-    MY_ERROR("%s get version mismatch response\n", prefix_msg);
+    m_handler->connector()->reset_retry_count();
+    if (!g_test_mode || m_client_id_index == 0)
+      MY_ERROR("handshake response from dist server: Version Mismatch\n");
     //todo: notify app to upgrade
     return MyBaseProcessor::ER_ERROR;
 
   case MyClientVersionCheckReply::VER_ACCESS_DENIED:
-    MY_ERROR("%s get access denied response\n", prefix_msg);
+    m_handler->connector()->reset_retry_count();
+    if (!g_test_mode || m_client_id_index == 0)
+      MY_ERROR("handshake response from dist server: Access Denied\n");
     return MyBaseProcessor::ER_ERROR;
 
   case MyClientVersionCheckReply::VER_SERVER_BUSY:
-    MY_ERROR("%s get server busy response\n", prefix_msg);
+    if (!g_test_mode || m_client_id_index == 0)
+      MY_INFO("handshake response from dist server: Server Busy\n");
+
     return MyBaseProcessor::ER_ERROR;
 
   default: //server_list
-    MY_ERROR("%s get unknown reply code = %d\n", prefix_msg, vcr->reply_code);
+    if (!g_test_mode || m_client_id_index == 0)
+      MY_INFO("handshake response from dist server: unknown code = %d\n", vcr->reply_code);
     return MyBaseProcessor::ER_ERROR;
   }
 }

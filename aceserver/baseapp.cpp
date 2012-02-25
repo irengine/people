@@ -841,6 +841,7 @@ bool MyBaseApp::do_constructor()
     MY_FATAL("can not setup clock timer\n");
     return false;
   }
+
   return true;
 }
 
@@ -1003,6 +1004,11 @@ void MyBaseApp::do_event_loop()
     if (m_sighup && !do_sighup())
     {
       MY_INFO("signal sighup caught, quitting...\n");
+      return;
+    }
+    if (m_sigchld && !do_sigchild())
+    {
+      MY_INFO("signal sigchild caught, quitting...\n");
       return;
     }
     if (!m_status_file_ok)

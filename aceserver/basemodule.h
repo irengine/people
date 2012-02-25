@@ -816,6 +816,7 @@ public:
   void dump_info();
   virtual const char * name() const;
   int connect_ready();
+  void reset_retry_count();
 
 protected:
   enum

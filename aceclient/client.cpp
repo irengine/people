@@ -19,7 +19,12 @@ MyProgramLauncher::MyProgramLauncher()
   m_pid = INVALID_PID;
 }
 
-bool MyProgramLauncher::launch(const char * program)
+MyProgramLauncher::~MyProgramLauncher()
+{
+
+}
+
+bool MyProgramLauncher::launch()
 {
   if (m_pid != INVALID_PID)
   {
@@ -27,17 +32,18 @@ bool MyProgramLauncher::launch(const char * program)
     m_pid = INVALID_PID;
   }
   ACE_Process_Options options;
-  options.command_line(program);
+  if (!on_launch(options))
+    return false;
   ACE_Process child;
   pid_t pid = child.spawn(options);
   if (pid == -1)
   {
-    MY_ERROR("failed to launch program %s %s\n", program, (const char *)MyErrno());
+    MY_ERROR("failed to launch program %s %s\n", options.command_line_buf(NULL), (const char *)MyErrno());
     return false;
   } else
   {
     m_pid = pid;
-    MY_INFO("launch program OK: %s\n", program);
+    MY_INFO("launch program OK: %s\n", options.command_line_buf(NULL));
     return true;
   }
 }
@@ -46,6 +52,138 @@ void MyProgramLauncher::on_terminated(pid_t pid)
 {
   if (likely(pid == m_pid))
     m_pid = INVALID_PID;
+}
+
+bool MyProgramLauncher::running() const
+{
+  return m_pid != INVALID_PID;
+}
+
+bool MyProgramLauncher::ready() const
+{
+  return true;
+}
+
+
+//MyVLCLauncher//
+
+bool MyVLCLauncher::on_launch(ACE_Process_Options & options)
+{
+  const char * adv = "/tmp/daily/5/adv.txt";
+  const char * gasket = "/tmp/daily/8/gasket.avi";
+  const char * vlc = "vlc --fullscreen";
+
+  std::vector<std::string> advlist;
+
+  if (MyFilePaths::exist(adv))
+  {
+    MyPooledMemGuard cmdline, line;
+    MyMemPoolFactoryX::instance()->get_mem(32000, &cmdline);
+    MyMemPoolFactoryX::instance()->get_mem(16000, &line);
+    std::ifstream ifs(adv);
+    if (!ifs || ifs.bad())
+    {
+      MY_WARNING("failed to open %s: %s\n", adv, (const char*)MyErrno());
+      goto __next__;
+    }
+
+    while (!ifs.eof())
+    {
+      ifs.getline(line.data(), 16000 - 1);
+      line.data()[32000 - 1] = 0;
+      char * ptr = ACE_OS::strchr(line.data(), ':');
+      if (!ptr)
+        continue;
+      *ptr ++ = 0;
+
+      bool fake = false;
+      const char separators[2] = {' ', 0 };
+      MyStringTokenizer tkn(ptr, separators);
+      char * token;
+      while ((token = tkn.get_token()) != NULL)
+      {
+        if (mycomutil_string_end_with(token, ".bmp") || mycomutil_string_end_with(token, ".jpg") ||
+            mycomutil_string_end_with(token, ".gif") || mycomutil_string_end_with(token, ".png"))
+        {
+          ACE_OS::strcat(cmdline.data(), " fake://");
+          fake = true;
+        } else
+          ACE_OS::strcat(cmdline.data(), " ");
+        ACE_OS::strcat(cmdline.data(), token);
+      }
+
+      if (cmdline.data()[0] == 0)
+        continue;
+
+      options.command_line("%s %s %s", vlc, (fake ? " --fake-duration 10000" : ""), cmdline.data());
+      return true;
+    }
+  }
+
+__next__:
+
+  MY_INFO("%s not exist or content empty, trying %s\n", adv, gasket);
+
+  if (!MyFilePaths::exist(gasket))
+  {
+    MY_ERROR("no %s file\n", gasket);
+    return false;
+  }
+  options.command_line("%s %s", vlc, gasket);
+  return true;
+}
+
+bool MyVLCLauncher::ready() const
+{
+  const char * adv = "/tmp/daily/5/adv.txt";
+  const char * gasket = "/tmp/daily/8/gasket.avi";
+
+  return (MyFilePaths::exist(adv) || MyFilePaths::exist(gasket));
+}
+
+
+//MyOperaLauncher//
+
+bool MyOperaLauncher::on_launch(ACE_Process_Options & options)
+{
+  const char * indexhtml = "/tmp/daily/index.html";
+  const char * indexfile = "/tmp/daily/indexfile";
+
+  const char * fn = indexhtml;
+  char buff[1024];
+  if (!MyFilePaths::exist(indexhtml))
+  {
+    MY_INFO("file %s not exist, trying %s instead\n", indexhtml, indexfile);
+    std::ifstream ifs(indexfile);
+    if (!ifs || ifs.bad())
+    {
+      MY_ERROR("failed to open %s: %s\n", indexfile, (const char*)MyErrno());
+      return false;
+    }
+    if (ifs.eof())
+    {
+      MY_ERROR("file %s is empty\n", indexfile);
+      return false;
+    }
+    char line[500];
+    ifs.getline(line, 500);
+    line[500 - 1] = 0;
+    ACE_OS::snprintf(buff, 1024, "/tmp/daily/%s", line);
+    fn = buff;
+  }
+
+  options.command_line("opera --fullscreen %s", fn);
+  return true;
+}
+
+bool MyOperaLauncher::ready() const
+{
+  if (MyFilePaths::exist("/tmp/daily/index.html"))
+    return true;
+  struct stat  _stat;
+  if (!MyFilePaths::stat("/tmp/daily/indexfile", &_stat))
+    return false;
+  return _stat.st_size > 1;
 }
 
 
@@ -95,6 +233,16 @@ const MyClientVerson & MyClientApp::client_version() const
 const char * MyClientApp::client_id() const
 {
   return m_client_id.c_str();
+}
+
+MyVLCLauncher & MyClientApp::vlc_launcher()
+{
+  return m_vlc_launcher;
+}
+
+MyOperaLauncher & MyClientApp::opera_launcher()
+{
+  return m_opera_launcher;
 }
 
 void MyClientApp::data_path(MyPooledMemGuard & _data_path, const char * client_id)
@@ -345,7 +493,6 @@ bool MyClientApp::on_construct()
 {
   if (!g_test_mode)
   {
-
     const char * const_id_ini = "/tmp/daily/id.ini";
     MY_INFO("trying to read client id from %s\n", const_id_ini);
     while (true)
@@ -385,12 +532,25 @@ bool MyClientApp::on_construct()
   }
 
   add_module(m_client_to_dist_module = new MyClientToDistModule(this));
+
+  if (!g_test_mode)
+  {
+    m_vlc_launcher.launch();
+    m_opera_launcher.launch();
+  }
   return true;
 }
 
 void MyClientApp::do_dump_info()
 {
   MyClientApp::dump_mem_pool_info();
+}
+
+bool MyClientApp::on_sigchild(pid_t pid)
+{
+  m_opera_launcher.on_terminated(pid);
+  m_vlc_launcher.on_terminated(pid);
+  return true;
 }
 
 void MyClientApp::dump_mem_pool_info()
