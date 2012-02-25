@@ -638,6 +638,7 @@ private:
   void do_command_plc(char * parameter);
   void do_command_watch_dog();
   void send_string(const char * s);
+  ACE_Message_Block * make_pc_on_off_mb(bool on, const char * sdata);
 
   ACE_Message_Block * m_mb;
 };

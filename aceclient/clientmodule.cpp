@@ -3126,21 +3126,46 @@ void MyHttp1991Processor::do_command_plc(char * parameter)
   MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
 
   if (x == 5) //lcd
-  {
     send_string(mod->ip_ver_reply().lcd());
-  } else if (x == 6) //led
-  {
+  else if (x == 6) //led
     send_string(mod->ip_ver_reply().led());
-  } else if (x == 7) //pc
-  {
+  else if (x == 7) //pc
     send_string(mod->ip_ver_reply().pc());
-  } else if ( x == 1 || x == 2 || x == 11 || x == 12)
+  else if ( x == 1 || x == 2)
     send_string("*1");
+  else if (x == 11 || x == 12)
+  {
+    send_string("*1");
+    if (!y || ACE_OS::strlen(y) < 15)
+    {
+      MY_ERROR("invalid plc y(%s) for x(%d)\n", x, y);
+      return;
+    }
+    *(y + 15) = 0;
+    *(y + 8) = ' ';
+    ACE_Message_Block * mb = make_pc_on_off_mb(x == 11, y);
+    ACE_Time_Value tv(ACE_Time_Value::zero);
+    if (MyClientAppX::instance()->client_to_dist_module()->dispatcher()->putq(mb, &tv) < 0)
+      mb->release();
+  }
   else
   {
     MY_ERROR("unknown command(%d) @MyHttp1991Processor::do_command_plc()\n", x);
     send_string("error: unknown command received.");
   }
+}
+
+ACE_Message_Block * MyHttp1991Processor::make_pc_on_off_mb(bool on, const char * sdata)
+{
+  int len = ACE_OS::strlen(sdata);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyDataPacketHeader) + len + 1 + 1,
+      MyDataPacketHeader::CMD_PC_ON_OFF);
+  if (g_test_mode)
+    ((MyDataPacketHeader *)mb->base())->magic = 0;
+  MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+  dpe->data[0] = on ? '1' : '2';
+  ACE_OS::memcpy(dpe->data + 1, sdata, len + 1);
+  return mb;
 }
 
 void MyHttp1991Processor::send_string(const char * s)

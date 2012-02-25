@@ -154,6 +154,7 @@ public:
     CMD_FTP_FILE,
     CMD_IP_VER_REQ,
     CMD_UI_CLICK,
+    CMD_PC_ON_OFF,
     CMD_END,
     CMD_DISCONNECT_INTERNAL
   };

@@ -22,6 +22,7 @@ class MyPingSubmitter;
 class MyIPVerSubmitter;
 class MyFtpFeedbackSubmitter;
 class MyAdvClickSubmitter;
+class MyPcOnOffSubmitter;
 class MyHeartBeatAcceptor;
 class MyDistClients;
 class MyDistClientOne;
@@ -180,6 +181,7 @@ public:
   static MyIPVerSubmitter * m_ip_ver_submitter;
   static MyFtpFeedbackSubmitter * m_ftp_feedback_submitter;
   static MyAdvClickSubmitter * m_adv_click_submitter;
+  static MyPcOnOffSubmitter * m_pc_on_off_submitter;
 
 protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
@@ -191,6 +193,7 @@ private:
   MyBaseProcessor::EVENT_RESULT do_ftp_reply(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_ip_ver_req(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_adv_click_req(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_pc_on_off_req(ACE_Message_Block * mb);
 };
 
 class MyBaseSubmitter;
@@ -292,6 +295,24 @@ private:
   MyAccumulatorBlock m_ver_block;
 };
 
+class MyPcOnOffSubmitter: public MyBaseSubmitter
+{
+public:
+  enum {ID_SEPARATOR = ';' };
+  MyPcOnOffSubmitter();
+  void add_data(const char * client_id, int id_len, const char c_on, const char * datetime);
+
+protected:
+  virtual const char * get_command() const;
+
+private:
+  enum { BLOCK_SIZE = 2048 };
+  MyAccumulatorBlock m_id_block;
+  MyAccumulatorBlock m_on_off_block;
+  MyAccumulatorBlock m_datetime_block;
+};
+
+
 class MyAdvClickSubmitter: public MyBaseSubmitter
 {
 public:
@@ -392,6 +413,7 @@ private:
   MyIPVerSubmitter m_ip_ver_submitter;
   MyFtpFeedbackSubmitter m_ftp_feedback_submitter;
   MyAdvClickSubmitter m_adv_click_submitter;
+  MyPcOnOffSubmitter m_pc_on_off_submitter;
   MyHeartBeatService * m_service;
   MyHeartBeatDispatcher * m_dispatcher;
 };

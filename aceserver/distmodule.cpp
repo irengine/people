@@ -612,6 +612,7 @@ MyPingSubmitter * MyHeartBeatProcessor::m_heart_beat_submitter = NULL;
 MyIPVerSubmitter * MyHeartBeatProcessor::m_ip_ver_submitter = NULL;
 MyFtpFeedbackSubmitter * MyHeartBeatProcessor::m_ftp_feedback_submitter = NULL;
 MyAdvClickSubmitter * MyHeartBeatProcessor::m_adv_click_submitter = NULL;
+MyPcOnOffSubmitter * MyHeartBeatProcessor::m_pc_on_off_submitter = NULL;
 
 MyHeartBeatProcessor::MyHeartBeatProcessor(MyBaseHandler * handler): MyBaseServerProcessor(handler)
 {
@@ -712,6 +713,20 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
     return ER_OK;
   }
 
+  if (m_packet_header.command == MyDataPacketHeader::CMD_PC_ON_OFF)
+  {
+    if (m_packet_header.length != (int)sizeof(MyDataPacketHeader) + 15 + 1 + 1
+        || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    {
+      MyPooledMemGuard info;
+      info_string(info);
+      MY_ERROR("bad adv click request packet received from %s\n", info.data());
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
+
   MY_ERROR(ACE_TEXT("unexpected packet header received @MyHeartBeatProcessor.on_recv_header, cmd = %d\n"),
       m_packet_header.command);
 
@@ -737,6 +752,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
 
   if (header->command == MyDataPacketHeader::CMD_UI_CLICK)
     return do_adv_click_req(mb);
+
+  if (header->command == MyDataPacketHeader::CMD_PC_ON_OFF)
+    return do_pc_on_off_req(mb);
 
   MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyHeartBeatProcessor::on_recv_packet_i, command = %d\n",
@@ -838,7 +856,6 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ip_ver_req(ACE_Message_Bl
 MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_adv_click_req(ACE_Message_Block * mb)
 {
   MyMessageBlockGuard guard(mb);
-  //todo: add adv click submitter here
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
   if (unlikely(!dpe->guard()))
   {
@@ -868,6 +885,28 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_adv_click_req(ACE_Message
     m_adv_click_submitter->add_data(m_client_id.as_string(), m_client_id_length, chn, pcode, number);
   }
 
+  return ER_OK;
+}
+
+MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_pc_on_off_req(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+  if (unlikely(!dpe->guard()))
+  {
+    MyPooledMemGuard info;
+    info_string(info);
+    MY_ERROR("bad pc on/off packet from %s\n", info.data());
+    return ER_ERROR;
+  }
+
+  if (unlikely(dpe->data[0] != '1' && dpe->data[0] != '2'))
+  {
+    MY_ERROR("invalid pc on/off flag (%c)\n", dpe->data[0]);
+    return ER_ERROR;
+  }
+
+  m_pc_on_off_submitter->add_data(m_client_id.as_string(), m_client_id_length, dpe->data[0], dpe->data + 1);
   return ER_OK;
 }
 
@@ -1096,6 +1135,36 @@ const char * MyIPVerSubmitter::get_command() const
 }
 
 
+//MyPcOnOffSubmitter//
+
+MyPcOnOffSubmitter::MyPcOnOffSubmitter():
+    m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
+    m_on_off_block(BLOCK_SIZE / 10, 1, this),
+    m_datetime_block(BLOCK_SIZE, 25, this)
+{
+
+}
+
+void MyPcOnOffSubmitter::add_data(const char * client_id, int id_len, const char c_on, const char * datetime)
+{
+  bool ret = true;
+  if (!m_id_block.add(client_id, id_len))
+    ret = false;
+  if (!m_on_off_block.add(c_on))
+    ret = false;
+  if (!m_datetime_block.add(datetime, 0))
+    ret = false;
+
+  if (!ret)
+    submit();
+}
+
+const char * MyPcOnOffSubmitter::get_command() const
+{
+  return MY_BS_POWERON_LINK_CMD;
+}
+
+
 //MyAdvClickSubmitter//
 
 MyAdvClickSubmitter::MyAdvClickSubmitter() : m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
@@ -1245,6 +1314,7 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
     MY_DEBUG("dist extract failed client_id(%s) dist_id(%s)\n", client_id.as_string(), dist_id);
   } else if (recv_status == '9')
   {
+    MY_DEBUG("dist download started client_id(%s) dist_id(%s)\n", client_id.as_string(), dist_id);
     step = '2';
   }
   else
@@ -1401,6 +1471,7 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
   } else if ((long)act == TIMER_ID_ADV_CLICK)
   {
     MyHeartBeatProcessor::m_adv_click_submitter->check_time_out();
+    MyHeartBeatProcessor::m_pc_on_off_submitter->check_time_out();
   }
   return 0;
 }
@@ -1480,6 +1551,7 @@ MyHeartBeatModule::MyHeartBeatModule(MyBaseApp * app): MyBaseModule(app)
   MyHeartBeatProcessor::m_ip_ver_submitter = &m_ip_ver_submitter;
   MyHeartBeatProcessor::m_ftp_feedback_submitter = &m_ftp_feedback_submitter;
   MyHeartBeatProcessor::m_adv_click_submitter = &m_adv_click_submitter;
+  MyHeartBeatProcessor::m_pc_on_off_submitter = &m_pc_on_off_submitter;
 }
 
 MyHeartBeatModule::~MyHeartBeatModule()
