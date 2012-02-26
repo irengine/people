@@ -8,6 +8,7 @@
 #include <ace/FILE_Addr.h>
 #include <ace/FILE_Connector.h>
 #include <ace/FILE_IO.h>
+#include <fstream>
 
 #include "clientmodule.h"
 #include "baseapp.h"
@@ -65,6 +66,90 @@ void MyServerID::save(const char * client_id, int server_id)
 }
 
 
+//MyAdvCleaner//
+
+void MyAdvCleaner::do_clean(const MyPooledMemGuard & path, const char * client_id, int expire_days)
+{
+  MyClientDBGuard dbg;
+  if (!dbg.db().open_db(client_id))
+    return;
+  time_t deadline = time(NULL) - expire_days * const_one_day;
+  process_adv_txt(path, dbg.db());
+  dbg.db().delete_old_adv(deadline);
+  if (dbg.db().adv_db_is_older(deadline))
+    process_files(path, dbg.db());
+}
+
+void MyAdvCleaner::process_adv_txt(const MyPooledMemGuard & path, MyClientDB & db)
+{
+  MyPooledMemGuard adv_txt;
+  adv_txt.init_from_string(path.data(), "/5/adv.txt");
+  std::ifstream ifs(adv_txt.data());
+  if (!ifs || ifs.bad())
+    return;
+
+  MyPooledMemGuard line;
+  MyMemPoolFactoryX::instance()->get_mem(16000, &line);
+  time_t t = time(NULL);
+  char * ptr;
+  while (!ifs.eof())
+  {
+    ifs.getline(line.data(), 16000);
+    line.data()[16000 - 1] = 0;
+    ptr = ACE_OS::strchr(line.data(), ':');
+    if (!ptr)
+      continue;
+    *ptr ++ = 0;
+
+    const char separators[2] = {' ', 0 };
+    MyStringTokenizer tkn(ptr, separators);
+    char * token;
+    while ((token = tkn.get_token()) != NULL)
+    {
+      db.update_adv_time(token, t);
+    }
+  }
+}
+
+void MyAdvCleaner::process_files(const MyPooledMemGuard & _path, MyClientDB & db)
+{
+  MyPooledMemGuard path;
+  path.init_from_string(_path.data(), "/5");
+
+  DIR * dir = opendir(path.data());
+  if (!dir)
+  {
+    MY_ERROR("can not open directory: %s %s\n", path.data(), (const char*)MyErrno());
+    return;
+  }
+
+  int len1 = ACE_OS::strlen(path.data());
+  MyPooledMemGuard msrc;
+
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != NULL)
+  {
+    if (!entry->d_name)
+      continue;
+    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..") || !strcmp(entry->d_name, "adv.txt"))
+      continue;
+
+    if(entry->d_type == DT_REG)
+    {
+      if (!db.adv_has_file(entry->d_name))
+      {
+        int len = ACE_OS::strlen(entry->d_name);
+        MyMemPoolFactoryX::instance()->get_mem(len1 + len + 2, &msrc);
+        ACE_OS::sprintf(msrc.data(), "%s/%s", path.data(), entry->d_name);
+        MY_INFO("removing obsolete adv file: %s\n", msrc.data());
+        MyFilePaths::remove(msrc.data());
+      }
+    }
+  };
+
+  closedir(dir);
+}
+
 
 //MyClientDB//
 
@@ -90,9 +175,18 @@ bool MyClientDB::init_db()
       "create table if not exists tb_ftp_info(ftp_dist_id text PRIMARY KEY, ftp_str text, ftp_status integer, ftp_recv_time integer, md5_client text, md5_server text)";
   const char * const_sql_tb_click =
       "create table if not exists tb_click(channel_id text, point_code text, click_num, primary key(channel_id, point_code))";
+  const char * const_sql_tb_adv =
+      "create table if not exists tb_adv(filename text, last_access, primary key(filename))";
+  const char * const_sql_fist_record_tpl =
+      "insert into tb_adv(filename, last_access) values('_Xx001_', %d)";
 
   do_exec(const_sql_tb_ftp_info, false);
-  return do_exec(const_sql_tb_click, false);
+  do_exec(const_sql_tb_adv, false);
+  bool result = do_exec(const_sql_tb_click, false);
+  char sql[200];
+  ACE_OS::snprintf(sql, 200, const_sql_fist_record_tpl, (int)time(NULL));
+  do_exec(sql, false);
+  return result;
 }
 
 bool MyClientDB::open_db(const char * client_id, bool do_init)
@@ -321,6 +415,102 @@ bool MyClientDB::get_click_infos(MyClickInfos & infos)
   if (zErrMsg)
     sqlite3_free(zErrMsg);
   return true;
+}
+
+bool MyClientDB::update_adv_time(const char * filename, time_t t)
+{
+  if (unlikely(!filename || !*filename))
+    return true;
+
+  char sql[1024];
+  int num = 0;
+
+  {
+    const char * const_sql_template = "select count(*) from tb_adv where filename='%s'";
+    ACE_OS::snprintf(sql, 1024, const_sql_template, filename);
+
+    char *zErrMsg = 0;
+    if (sqlite3_exec(m_db, sql, get_one_integer_value_callback, &num, &zErrMsg) != SQLITE_OK)
+    {
+      MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
+      if (zErrMsg)
+        sqlite3_free(zErrMsg);
+      return false;
+    }
+    if (zErrMsg)
+      sqlite3_free(zErrMsg);
+  }
+
+  if (num > 0)
+  {
+    const char * const_sql_template = "update tb_adv set last_access = '%d' where filename='%s'";
+    ACE_OS::snprintf(sql, 800, const_sql_template, (int)t, filename);
+    return do_exec(sql);
+  } else
+  {
+    const char * const_sql_template = "insert into tb_adv(filename, last_access) values('%s', %d)";
+    ACE_OS::snprintf(sql, 800, const_sql_template, filename, (int)t);
+    return do_exec(sql);
+  }
+}
+
+bool MyClientDB::delete_old_adv(time_t deadline)
+{
+  const char * const_sql_template = "delete from tb_adv where last_access < %d and filename <> '_Xx001_'";
+  char sql[200];
+  ACE_OS::snprintf(sql, 200, const_sql_template, (int)deadline);
+  return do_exec(sql);
+}
+
+bool MyClientDB::adv_db_is_older(time_t deadline)
+{
+  char sql[200];
+  int num = 0;
+
+  {
+    const char * const_sql_template = "select count(*) from tb_adv where filename = '_Xx001_' and last_access < %d";
+    ACE_OS::snprintf(sql, 200, const_sql_template, (int)deadline);
+
+    char *zErrMsg = 0;
+    if (sqlite3_exec(m_db, sql, get_one_integer_value_callback, &num, &zErrMsg) != SQLITE_OK)
+    {
+      MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
+      if (zErrMsg)
+        sqlite3_free(zErrMsg);
+      return false;
+    }
+    if (zErrMsg)
+      sqlite3_free(zErrMsg);
+  }
+
+  return num >= 1;
+}
+
+bool MyClientDB::adv_has_file(const char * filename)
+{
+  if (unlikely(!filename || !*filename))
+    return false;
+
+  char sql[800];
+  int num = 0;
+
+  {
+    const char * const_sql_template = "select count(*) from tb_adv where filename='%s'";
+    ACE_OS::snprintf(sql, 800, const_sql_template, filename);
+
+    char *zErrMsg = 0;
+    if (sqlite3_exec(m_db, sql, get_one_integer_value_callback, &num, &zErrMsg) != SQLITE_OK)
+    {
+      MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
+      if (zErrMsg)
+        sqlite3_free(zErrMsg);
+      return false;
+    }
+    if (zErrMsg)
+      sqlite3_free(zErrMsg);
+  }
+
+  return num >= 1;
 }
 
 void MyClientDB::remove_outdated_ftp_command(time_t deadline)
@@ -1115,11 +1305,28 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
 {
   MY_ASSERT_RETURN(dist_info, "parameter dist_info null pointer\n", false);
 
+  MyClientIDTable & idtable = MyClientAppX::instance()->client_id_table();
+  MyClientInfo client_info;
+  if (!idtable.value_all(dist_info->client_id_index, client_info))
+  {
+    MY_ERROR("invalid client_id_index @MyDistFtpFileExtractor::extract()");
+    return false;
+  }
+
+  if (client_info.expired)
+  {
+    MY_INFO("skipping extract due to previous errors client_id(%s) dist_id(%s)\n", dist_info->client_id.as_string(), dist_info->dist_id.data());
+    return false;
+  }
+
   MyPooledMemGuard target_parent_path;
   dist_info->calc_target_parent_path(target_parent_path, true);
   bool result = do_extract(dist_info, target_parent_path);
   if (!result)
+  {
     MY_ERROR("apply update failed for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
+//    idtable.expired(dist_info->client_id_index, true);
+  }
   else
   {
     MY_INFO("apply update OK for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
@@ -1195,15 +1402,41 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
   if (result)
   {
 //    MY_INFO("extract mbz ok: %s to %s\n", dist_info->local_file_name.data(), target_path.data());
-    if (type_is_single(dist_info->type))
+    if (ftype_is_frame(dist_info->ftype))
     {
-      if (!MyFilePaths::copy_path(target_path.data(), true_dest_path.data(), true))
-        result = false;
-    } else if (type_is_all(dist_info->type) || type_is_multi(dist_info->type))
+      MyPooledMemGuard mfile;
+      if (MyClientApp::get_mfile(true_dest_path, mfile))
+      {
+        MyPooledMemGuard mfilex;
+        mfilex.init_from_string(true_dest_path.data(), "/", mfile.data());
+        MyFilePaths::remove(mfilex.data());
+        MyFilePaths::get_correlate_path(mfilex, 0);
+        MyFilePaths::remove_path(mfilex.data(), true);
+      }
+    }
+
+    if (type_is_valid(dist_info->type))
     {
-      if (!MyFilePaths::copy_path_zap(target_path.data(), true_dest_path.data(), true, false))
-        result = false;
-    } else
+      if (type_is_single(dist_info->type))
+      {
+        if (!MyFilePaths::copy_path(target_path.data(), true_dest_path.data(), true))
+          result = false;
+      } else if (type_is_all(dist_info->type) || type_is_multi(dist_info->type))
+      {
+        if (!MyFilePaths::copy_path_zap(target_path.data(), true_dest_path.data(), true, false))
+          result = false;
+      }
+
+      if (!result)
+      {
+        MY_WARNING("doing restore due to deployment error client_id(%s)\n", dist_info->client_id.as_string());
+        if (!MyClientApp::full_restore(NULL, true, true, dist_info->client_id.as_string()))
+        {
+          MY_FATAL("locking update on client_id(%s)\n", dist_info->client_id.as_string());
+          MyClientAppX::instance()->client_id_table().expired(dist_info->client_id_index, true);
+        }
+      }
+    }else
     {
       MY_ERROR("unknown dist type(%d) for dist_id(%s)\n", dist_info->type, dist_info->dist_id.data());
       result = false;
@@ -1211,7 +1444,17 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
   }
 
   if (result)
+  {
+    if (ftype_is_frame(dist_info->ftype))
+    {
+      MyPooledMemGuard indexfile;
+      indexfile.init_from_string(true_dest_path.data(), "/", MyClientApp::index_frame_file());
+      MyUnixHandleGuard fh;
+      if (fh.open_write(indexfile.data(), true, true, false, true))
+        ::write(fh.handle(), dist_info->aindex.data(), ACE_OS::strlen(dist_info->aindex.data()));
+    }
     MyFilePaths::remove(dist_info->local_file_name.data());
+  }
   return result;
 }
 
@@ -1763,6 +2006,35 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_M
   return ER_OK;
 }
 
+void MyClientToDistProcessor::check_offline_report()
+{
+  time_t t = ((MyClientToDistConnector *)m_handler->connector())->reset_last_connect_time();
+  time_t now = time(NULL);
+  if (now <= t + OFFLINE_THREASH_HOLD * 60)
+    return;
+
+  char buff[32], buff2[32];
+  if (unlikely(!mycomutil_generate_time_string(buff, 32, now) || ! mycomutil_generate_time_string(buff2, 32, t)))
+  {
+    MY_ERROR("mycomutil_generate_time_string failed @MyClientToDistProcessor::check_offline_report()\n");
+    return;
+  }
+  ACE_OS::strncat(buff, "-", 32 - 1);
+  ACE_OS::strncat(buff, buff2 + 8, 32 -1);
+  int len = ACE_OS::strlen(buff);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyDataPacketHeader) + len + 1 + 1,
+      MyDataPacketHeader::CMD_PC_ON_OFF);
+  if (g_test_mode)
+    ((MyDataPacketHeader *)mb->base())->magic = 0;
+  MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+  dpe->data[0] = '3';
+  ACE_OS::memcpy(dpe->data + 1, buff, len + 1);
+
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (MyClientAppX::instance()->client_to_dist_module()->dispatcher()->putq(mb, &tv) < 0)
+    mb->release();
+}
+
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ip_ver_reply(ACE_Message_Block * mb)
 {
   MyMessageBlockGuard guard(mb);
@@ -1795,6 +2067,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
       m_ftp_password.init_from_string(vcr->data + 1);
     }
     m_handler->connector()->reset_retry_count();
+    check_offline_report();
     return MyBaseProcessor::ER_OK;
 
   case MyClientVersionCheckReply::VER_OK_CAN_UPGRADE:
@@ -1806,6 +2079,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
     m_handler->connector()->reset_retry_count();
     if (!g_test_mode || m_client_id_index == 0)
       MY_INFO("handshake response from dist server: OK Can Upgrade\n");
+    check_offline_report();
     //todo: notify app to upgrade
     return MyBaseProcessor::ER_OK;
 
@@ -2422,6 +2696,7 @@ MyClientToDistConnector::MyClientToDistConnector(MyBaseDispatcher * _dispatcher,
   m_reconnect_interval = RECONNECT_INTERVAL;
   if (g_test_mode)
     m_num_connection = MyClientAppX::instance()->client_id_table().count();
+  m_last_connect_time = 0;
 }
 
 const char * MyClientToDistConnector::name() const
@@ -2433,6 +2708,13 @@ void MyClientToDistConnector::dist_server_addr(const char * addr)
 {
   if (likely(addr != NULL))
     m_tcp_addr = addr;
+}
+
+time_t MyClientToDistConnector::reset_last_connect_time()
+{
+  time_t result = m_last_connect_time;
+  m_last_connect_time = 0;
+  return result;
 }
 
 int MyClientToDistConnector::make_svc_handler(MyBaseHandler *& sh)
@@ -2451,6 +2733,8 @@ int MyClientToDistConnector::make_svc_handler(MyBaseHandler *& sh)
 
 bool MyClientToDistConnector::before_reconnect()
 {
+  if (m_last_connect_time == 0)
+    m_last_connect_time = time(NULL);
   if (m_reconnect_retry_count <= 3)
     return true;
 

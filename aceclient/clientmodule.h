@@ -103,6 +103,10 @@ public:
   bool reset_ftp_command_status();
   void remove_outdated_ftp_command(time_t deadline);
   bool load_ftp_commands(MyDistInfoFtps * dist_ftps);
+  bool update_adv_time(const char * filename, time_t t);
+  bool delete_old_adv(time_t deadline);
+  bool adv_has_file(const char * filename);
+  bool adv_db_is_older(time_t deadline);
 
 protected:
   friend class MyClientDBGuard;
@@ -143,6 +147,17 @@ public:
 private:
   MyClientDB m_db;
 };
+
+class MyAdvCleaner
+{
+public:
+  void do_clean(const MyPooledMemGuard & path, const char * client_id, int expire_days);
+
+private:
+  void process_adv_txt(const MyPooledMemGuard & path, MyClientDB & db);
+  void process_files(const MyPooledMemGuard & path, MyClientDB & db);
+};
+
 
 class MyFTPClient
 {
@@ -364,11 +379,14 @@ protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
+  enum { OFFLINE_THREASH_HOLD = 3 }; //in minutes
+
   int send_version_check_req();
   MyBaseProcessor::EVENT_RESULT do_ftp_file_request(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_md5_list_request(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_ip_ver_reply(ACE_Message_Block * mb);
+  void check_offline_report();
 
   bool m_version_check_reply_done;
   MyPooledMemGuard m_ftp_password;
@@ -500,10 +518,14 @@ public:
   virtual int make_svc_handler(MyBaseHandler *& sh);
   virtual const char * name() const;
   void dist_server_addr(const char * addr);
+  time_t reset_last_connect_time();
 
 protected:
   enum { RECONNECT_INTERVAL = 3 }; //time in minutes
   virtual bool before_reconnect();
+
+private:
+  time_t m_last_connect_time;
 };
 
 class MyClientToDistModule: public MyBaseModule

@@ -78,6 +78,8 @@ public:
   static bool full_restore(const char * dist_id, bool remove_existing, bool is_new = true, const char * client_id = NULL);
   static bool app_init(const char * app_home_path = NULL, MyConfig::RUNNING_MODE mode = MyConfig::RM_UNKNOWN);
   static void app_fini();
+  static const char * index_frame_file();
+  static bool get_mfile(const MyPooledMemGuard & parent_path, MyPooledMemGuard & mfile);
 
   static void dump_mem_pool_info();
 
@@ -89,6 +91,9 @@ protected:
   virtual bool on_sigchild(pid_t pid);
 
 private:
+  static bool do_backup_restore(const MyPooledMemGuard & src_parent_path, const MyPooledMemGuard & dest_path, bool remove_existing);
+  static bool get_mfile_from_file(const MyPooledMemGuard & parent_path, MyPooledMemGuard & mfile);
+
   MyClientToDistModule * m_client_to_dist_module;
   MyClientVerson m_client_version;
   std::string m_client_id;

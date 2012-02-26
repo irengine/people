@@ -114,6 +114,7 @@ public:
   bool active(int index);
   void active(int index, bool _active);
   void switched(int index, bool _switched);
+  void expired(int index, bool _expired);
   bool mark_valid(const MyClientID & id, bool valid, int & idx);
 
   //APIs used only by db-layer

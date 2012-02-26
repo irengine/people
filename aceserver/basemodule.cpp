@@ -301,6 +301,14 @@ void MyClientIDTable::switched(int index, bool _switched)
   m_table[index].switched = _switched;
 }
 
+void MyClientIDTable::expired(int index, bool _expired)
+{
+  ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
+  if (unlikely(index < 0 || index > (int)m_table.size()))
+    return;
+  m_table[index].expired = _expired;
+}
+
 bool MyClientIDTable::mark_valid(const MyClientID & id, bool valid, int & index)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, true);

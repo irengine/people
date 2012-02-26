@@ -147,22 +147,23 @@ bool MyVLCLauncher::ready() const
 bool MyOperaLauncher::on_launch(ACE_Process_Options & options)
 {
   const char * indexhtml = "/tmp/daily/index.html";
-  const char * indexfile = "/tmp/daily/indexfile";
+  std::string indexfile("/tmp/daily/");
+  indexfile += MyClientApp::index_frame_file();
 
   const char * fn = indexhtml;
   char buff[1024];
   if (!MyFilePaths::exist(indexhtml))
   {
-    MY_INFO("file %s not exist, trying %s instead\n", indexhtml, indexfile);
-    std::ifstream ifs(indexfile);
+    MY_INFO("file %s not exist, trying %s instead\n", indexhtml, indexfile.c_str());
+    std::ifstream ifs(indexfile.c_str());
     if (!ifs || ifs.bad())
     {
-      MY_ERROR("failed to open %s: %s\n", indexfile, (const char*)MyErrno());
+      MY_ERROR("failed to open %s: %s\n", indexfile.c_str(), (const char*)MyErrno());
       return false;
     }
     if (ifs.eof())
     {
-      MY_ERROR("file %s is empty\n", indexfile);
+      MY_ERROR("file %s is empty\n", indexfile.c_str());
       return false;
     }
     char line[500];
@@ -181,7 +182,9 @@ bool MyOperaLauncher::ready() const
   if (MyFilePaths::exist("/tmp/daily/index.html"))
     return true;
   struct stat  _stat;
-  if (!MyFilePaths::stat("/tmp/daily/indexfile", &_stat))
+  MyPooledMemGuard indexfile;
+  indexfile.init_from_string("/tmp/daily/", MyClientApp::index_frame_file());
+  if (!MyFilePaths::stat(indexfile.data(), &_stat))
     return false;
   return _stat.st_size > 1;
 }
@@ -299,65 +302,12 @@ bool MyClientApp::full_backup(const char * dist_id, const char * client_id)
     return false;
   }
 
-  MyPooledMemGuard src_path, dest_path;
-
-  src_path.init_from_string(src_parent_path.data(), "/index.html");
-  if (MyFilePaths::exist(src_path.data()))
-  {
-    dest_path.init_from_string(tmp.data(), "/index.html");
-    if (!MyFilePaths::copy_file(src_path.data(), dest_path.data(), true))
-    {
-      MY_ERROR("failed to copy file (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
-      return false;
-    }
-  }
-
-  src_path.init_from_string(src_parent_path.data(), "/index");
-  if (MyFilePaths::exist(src_path.data()))
-  {
-    dest_path.init_from_string(tmp.data(), "/index");
-    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
-    {
-      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
-      return false;
-    }
-  }
-
-  src_path.init_from_string(src_parent_path.data(), "/7");
-  if (MyFilePaths::exist(src_path.data()))
-  {
-    dest_path.init_from_string(tmp.data(), "/7");
-    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
-    {
-      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
-      return false;
-    }
-  }
-
-  src_path.init_from_string(src_parent_path.data(), "/8");
-  if (MyFilePaths::exist(src_path.data()))
-  {
-    dest_path.init_from_string(tmp.data(), "/8");
-    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
-    {
-      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
-      return false;
-    }
-  }
-
-  src_path.init_from_string(src_parent_path.data(), "/5");
-  if (MyFilePaths::exist(src_path.data()))
-  {
-    dest_path.init_from_string(tmp.data(), "/5");
-    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
-    {
-      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
-      return false;
-    }
-  }
+  if (!do_backup_restore(src_parent_path, tmp, false))
+    return false;
 
   if (dist_id && *dist_id)
   {
+    MyPooledMemGuard dest_path;
     dest_path.init_from_string(tmp.data(), "/dist_id.txt");
     MyUnixHandleGuard fh;
     if (fh.open_write(dest_path.data(), true, true, false, true))
@@ -379,8 +329,6 @@ bool MyClientApp::full_backup(const char * dist_id, const char * client_id)
 
 bool MyClientApp::full_restore(const char * dist_id, bool remove_existing, bool is_new, const char * client_id)
 {
-  ACE_UNUSED_ARG(dist_id);
-
   MyPooledMemGuard dest_parent_path;
   calc_display_parent_path(dest_parent_path, client_id);
 
@@ -404,19 +352,42 @@ bool MyClientApp::full_restore(const char * dist_id, bool remove_existing, bool 
       return false;
     char buff[64];
     int n = ::read(fh.handle(), buff, 64);
-    if (n <= 0)
+    if (n <= 1)
       return false;
     buff[n - 1] = 0;
     if (ACE_OS::memcmp(buff, dist_id, ACE_OS::strlen(dist_id)) != 0)
       return false;
   }
 
-  src_path.init_from_string(src_parent_path.data(), "/index.html");
+  return do_backup_restore(src_parent_path, dest_parent_path, remove_existing);
+}
+
+bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, const MyPooledMemGuard & dest_parent_path, bool remove_existing)
+{
+  MyPooledMemGuard src_path, dest_path;
+  MyPooledMemGuard mfile;
+  if (!get_mfile(src_parent_path, mfile))
+  {
+    MY_ERROR("no main index file found @MyClientApp::do_backup_restore() in path: %s\n", src_parent_path.data());
+    return false;
+  }
+
+  if (remove_existing)
+  {
+    MyPooledMemGuard mfile_dest;
+    if (get_mfile(dest_parent_path, mfile_dest))
+    {
+      dest_path.init_from_string(dest_parent_path.data(), "/", mfile_dest.data());
+      MyFilePaths::remove(dest_path.data());
+      MyFilePaths::get_correlate_path(dest_path, 0);
+      MyFilePaths::remove_path(dest_path.data(), true);
+    }
+  }
+
+  src_path.init_from_string(src_parent_path.data(), "/", mfile.data());
   if (MyFilePaths::exist(src_path.data()))
   {
-    dest_path.init_from_string(dest_parent_path.data(), "/index.html");
-    if (remove_existing)
-      MyFilePaths::remove_path(dest_path.data(), true);
+    dest_path.init_from_string(dest_parent_path.data(), "/", mfile.data());
     if (!MyFilePaths::copy_file(src_path.data(), dest_path.data(), true))
     {
       MY_ERROR("failed to copy file (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
@@ -424,10 +395,10 @@ bool MyClientApp::full_restore(const char * dist_id, bool remove_existing, bool 
     }
   }
 
-  src_path.init_from_string(src_parent_path.data(), "/index");
+  MyFilePaths::get_correlate_path(src_path, 0);
   if (MyFilePaths::exist(src_path.data()))
   {
-    dest_path.init_from_string(dest_parent_path.data(), "/index");
+    MyFilePaths::get_correlate_path(dest_path, 0);
     if (remove_existing)
       MyFilePaths::remove_path(dest_path.data(), true);
     if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
@@ -476,7 +447,54 @@ bool MyClientApp::full_restore(const char * dist_id, bool remove_existing, bool 
     }
   }
 
+  src_path.init_from_string(src_parent_path.data(), "/", index_frame_file());
+  dest_path.init_from_string(dest_parent_path.data(), "/", index_frame_file());
+  MyFilePaths::copy_file(src_path.data(), dest_path.data(), true);
   return true;
+}
+
+bool MyClientApp::get_mfile(const MyPooledMemGuard & parent_path, MyPooledMemGuard & mfile)
+{
+  if (get_mfile_from_file(parent_path, mfile))
+    return true;
+
+  mfile.init_from_string("index.html");
+  MyPooledMemGuard tmp;
+  tmp.init_from_string(parent_path.data(), "/", mfile.data());
+  if (MyFilePaths::exist(tmp.data()))
+  {
+    MyFilePaths::get_correlate_path(tmp, 0);
+    if (MyFilePaths::exist(tmp.data()))
+      return true;
+  }
+  return false;
+}
+
+bool MyClientApp::get_mfile_from_file(const MyPooledMemGuard & parent_path, MyPooledMemGuard & mfile)
+{
+  MyPooledMemGuard index_file_name;
+  MyPooledMemGuard tmp;
+  index_file_name.init_from_string(parent_path.data(), "/", index_frame_file());
+  MyUnixHandleGuard fh;
+  char buff[512];
+  if (!fh.open_read(index_file_name.data()))
+    return false;
+  int n = ::read(fh.handle(), buff, 511);
+  if (n <= 1)
+    return false;
+  buff[n] = 0;
+  while (--n >= 0 && (buff[n] == '\r' || buff[n] == '\t' || buff[n] == '\n' || buff[n] == ' '))
+    buff[n] = 0;
+  mfile.init_from_string(buff);
+  tmp.init_from_string(parent_path.data(), "/", mfile.data());
+  if (MyFilePaths::exist(tmp.data()))
+  {
+    if (!MyFilePaths::get_correlate_path(tmp, 0))
+      return false;
+    if (MyFilePaths::exist(tmp.data()))
+      return true;
+  }
+  return false;
 }
 
 bool MyClientApp::on_start()
@@ -579,6 +597,11 @@ void MyClientApp::dump_mem_pool_info()
 
 _exit_:
   ACE_DEBUG((LM_INFO, "  !!! Memory Dump End !!!\n"));
+}
+
+const char * MyClientApp::index_frame_file()
+{
+  return "indexfile";
 }
 
 bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mode)
