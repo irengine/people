@@ -597,7 +597,7 @@ bool MyFileMD5s::calculate(const char * dirname, const char * mfile, bool single
     MyPooledMemGuard mfile_name;
     int n = MyFilePaths::cat_path(dirname, mfile, mfile_name);
     if (unlikely(!add_file(mfile_name.data(), NULL, n)))
-      return false;
+      return true;
     if (single)
       return true;
     if (unlikely(!MyFilePaths::get_correlate_path(mfile_name, n)))
@@ -619,8 +619,12 @@ bool MyFileMD5s::do_scan_directory(const char * dirname, int start_len)
   DIR * dir = opendir(dirname);
   if (!dir)
   {
-    MY_ERROR("can not open directory: %s %s\n", dirname, (const char*)MyErrno());
-    return false;
+    if (ACE_OS::last_error() != ENOENT)
+    {
+      MY_ERROR("can not open directory: %s %s\n", dirname, (const char*)MyErrno());
+      return false;
+    } else
+      return true;
   }
 
   struct dirent *entry;

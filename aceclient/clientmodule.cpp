@@ -1435,9 +1435,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
 
   if (type_is_multi(dist_info->type))
   {
-    int len = ACE_OS::strlen(dist_info->local_file_name.data());
-    int all_in_one_len = ACE_OS::strlen("all_in_one.mbz");
-    if (len < all_in_one_len || strcmp(dist_info->local_file_name.data() + len - all_in_one_len, "all_in_one.mbz") != 0)
+    if (!mycomutil_string_end_with(dist_info->local_file_name.data(), "/all_in_one.mbz"))
     {
       if (!MyFilePaths::copy_path(true_dest_path.data(), target_path.data(), true))
       {
@@ -1445,9 +1443,11 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
         return false;
       }
 
-      MyClientDBGuard dbg;
-      if (dbg.db().open_db(dist_info->client_id.as_string()))
-        dbg.db().load_ftp_md5_for_diff(*dist_info);
+      {
+        MyClientDBGuard dbg;
+        if (dbg.db().open_db(dist_info->client_id.as_string()))
+          dbg.db().load_ftp_md5_for_diff(*dist_info);
+      }
 
       if (unlikely(!dist_info->server_md5.data() || !dist_info->server_md5.data()[0]))
       {
@@ -1455,9 +1455,14 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
         return false;
       }
 
+      if (ftype_is_chn(dist_info->ftype))
+        MyFilePaths::zap_path_except_mfile(target_path, dist_info->aindex, true);
+
       MyMfileSplitter spl;
       spl.init(dist_info->aindex.data());
       MyFileMD5s server_md5s, client_md5s;
+//    MY_DEBUG("cmp md5 server: %s\n", dist_info->server_md5.data());
+//    MY_DEBUG("cmp md5 client: %s\n", dist_info->client_md5.data());
       if (!server_md5s.from_buffer(dist_info->server_md5.data(), &spl) ||
           !client_md5s.from_buffer(dist_info->client_md5.data()))
       {
@@ -1466,6 +1471,14 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
       }
       client_md5s.base_dir(target_path.data());
       server_md5s.minus(client_md5s, NULL, true);
+
+      if (ftype_is_frame(dist_info->ftype))
+      {
+        MyPooledMemGuard index_path;
+        index_path.init_from_string(target_path.data(), "/", dist_info->aindex.data());
+        MyFilePaths::get_correlate_path(index_path, 0);
+        MyFilePaths::zap_empty_paths(index_path);
+      }
     }
   }
 
@@ -1495,7 +1508,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
           result = false;
       } else if (type_is_all(dist_info->type) || type_is_multi(dist_info->type))
       {
-        if (!MyFilePaths::copy_path_zap(target_path.data(), true_dest_path.data(), true, false))
+        if (!MyFilePaths::copy_path_zap(target_path.data(), true_dest_path.data(), true, ftype_is_chn(dist_info->ftype)))
           result = false;
       }
 
@@ -1678,7 +1691,8 @@ bool MyDistInfoMD5Comparer::compute(MyDistInfoHeader * dist_info_header, MyFileM
     return false;
   }
 
-  return md5list.calculate(target_path.data(), dist_info_header->aindex.data(),
+  //const char * aindex = ftype_is_chn(dist_info_header->ftype)? NULL: dist_info_header->aindex.data();
+  return md5list.calculate(target_path.data(), /*aindex,*/ dist_info_header->aindex.data(),
          type_is_single(dist_info_header->type));
 }
 
@@ -2551,86 +2565,6 @@ void MyClientToDistService::do_extract_task(MyDistInfoFtp * dist_info)
     dist_info->post_status_message();
   }
   return_back(dist_info);
-}
-
-void MyClientToDistService::do_server_file_md5_list(ACE_Message_Block * mb)
-{
-  MyMessageBlockGuard guard(mb);
-/*
-  MyServerFileMD5ListProc proc;
-  proc.attach(mb->base());
-  const char * client_path;
-
-#ifdef MY_client_test
-  MyClientID client_id;
-
-  if (!MyClientAppX::instance()->client_id_table().value(proc.data()->magic, &client_id))
-  {
-    MY_ERROR("can not find client_id @MyClientToDistService::do_server_file_md5_list(), index = %d\n",
-        proc.data()->magic);
-    return;
-  }
-
-//  MY_DEBUG("do_server_file_md5_list: client_id =%s\n", client_id.as_string());
-
-  char client_path_by_id[PATH_MAX];
-  ACE_OS::strsncpy(client_path_by_id, MyConfigX::instance()->app_test_data_path.c_str(), PATH_MAX);
-  int len = ACE_OS::strlen(client_path_by_id);
-  if (unlikely(len + sizeof(MyClientID) + 10 > PATH_MAX))
-  {
-    MY_ERROR("name too long for client sub path\n");
-    return;
-  }
-  client_path_by_id[len++] = '/';
-  client_path_by_id[len] = '0';
-  MyTestClientPathGenerator::client_id_to_path(client_id.as_string(), client_path_by_id + len, PATH_MAX - 1 - len);
-  client_path = client_path_by_id;
-#else
-  //todo: calculate client path here
-#endif
-  MyFileMD5s md5s_server;
-  md5s_server.base_dir(client_path);
-  md5s_server.from_buffer(proc.data()->data);
-
-  MyFileMD5s md5s_client;
-  md5s_client.calculate(client_path, NULL, false);
-  md5s_client.sort();
-
-  md5s_server.minus(md5s_client);
-  int buff_size = md5s_server.total_size(false);
-
-//  MyPooledMemGuard mem_guard;
-//  if (!MyMemPoolFactoryX::instance()->get_mem(buff_size, &mem_guard))
-//  {
-//    MY_ERROR("can not alloc output memory of size = %d @%s::do_server_file_md5_list()\n", buff_size, name());
-//    return;
-//  }
-//  if (md5s_server.to_buffer(mem_guard.data(), buff_size, false))
-//    MY_INFO("dist files by md5 for client_id: [%s] = %s\n", client_id.as_string(), mem_guard.data());
-
-  ACE_Message_Block * reply_mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyServerFileMD5List) + buff_size);
-  MyServerFileMD5ListProc vcr;
-  vcr.attach(reply_mb->base());
-  vcr.init_header();
-  vcr.data()->length = sizeof(MyServerFileMD5List) + buff_size;
-#ifdef MY_client_test
-  vcr.data()->magic = proc.data()->magic;
-#endif
-  reply_mb->wr_ptr(reply_mb->capacity());
-  if (!md5s_server.to_buffer(vcr.data()->data, buff_size, false))
-  {
-    MY_ERROR("md5 file list .to_buffer() failed\n");
-    reply_mb->release();
-  } else
-  {
-    MY_INFO("sending md5 file list to dist server for client_id [%s]: = %s\n", client_id.as_string(), vcr.data()->data);
-    ACE_Time_Value tv(ACE_Time_Value::zero);
-    if (((MyClientToDistModule*)module_x())->dispatcher()->putq(reply_mb, &tv) == -1)
-    {
-      MY_ERROR("failed to send md5 file list to dispatcher target queue\n");
-      reply_mb->release();
-    }
-  }*/
 }
 
 

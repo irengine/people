@@ -764,6 +764,71 @@ bool MyFilePaths::stat(const char *pathfile, struct stat * _stat)
   return (::stat(pathfile, _stat) == 0);
 }
 
+bool MyFilePaths::zap_path_except_mfile(const MyPooledMemGuard & path, const MyPooledMemGuard & mfile, bool ignore_error)
+{
+  MyPooledMemGuard mfile_path;
+  mfile_path.init_from_string(mfile.data());
+  char * ptr = ACE_OS::strrchr(mfile_path.data(), '.');
+  if (ptr)
+    *ptr = 0;
+
+  DIR * dir = opendir(path.data());
+  if (!dir)
+  {
+    if (!ignore_error)
+      MY_ERROR("can not open directory: %s %s\n", path.data(), (const char*)MyErrno());
+    return false;
+  }
+
+  struct dirent *entry;
+  bool ret = true;
+  while ((entry = readdir(dir)) != NULL)
+  {
+    if (!entry->d_name)
+      continue;
+    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..") || !strcmp(entry->d_name, mfile.data())
+        || !strcmp(entry->d_name, mfile_path.data()) )
+      continue;
+
+    MyPooledMemGuard msrc;
+    msrc.init_from_string(path.data(), "/", entry->d_name);
+
+    if(entry->d_type == DT_DIR)
+    {
+      if (!remove_path(msrc.data(), ignore_error))
+        ret =  false;
+    } else if (!remove(msrc.data(), ignore_error))
+      ret = false;
+  };
+
+  closedir(dir);
+  return ret;
+}
+
+void MyFilePaths::zap_empty_paths(const MyPooledMemGuard & path)
+{
+  DIR * dir = opendir(path.data());
+  if (!dir)
+    return;
+
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != NULL)
+  {
+    if (!entry->d_name)
+      continue;
+    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+      continue;
+
+    if(entry->d_type == DT_DIR)
+    {
+      MyPooledMemGuard msrc;
+      msrc.init_from_string(path.data(), "/", entry->d_name);
+      zap_empty_paths(msrc);
+    }
+  };
+  closedir(dir);
+  remove(path.data(), true);
+}
 
 //MyTestClientPathGenerator//
 

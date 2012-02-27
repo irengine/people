@@ -460,7 +460,6 @@ private:
 
   void return_back(MyDistInfoFtp * dist_info);
   void return_back_md5(MyDistInfoMD5 * p);
-  void do_server_file_md5_list(ACE_Message_Block * mb);
   void do_md5_task(MyDistInfoMD5 * p);
   void do_extract_task(MyDistInfoFtp * p);
 };

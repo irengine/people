@@ -76,19 +76,19 @@ void MyDistClient::dist_ftp_md5_reply(const char * md5list)
         dist_info->ver.data(),
         dist_info->ftype[0],
         client_id(),
-        2, '1', buff);
+        '2', '1', buff);
 
     MyServerAppX::instance()->heart_beat_module()->ftp_feedback_submitter().add(
         dist_info->ver.data(),
         dist_info->ftype[0],
         client_id(),
-        3, '1', buff);
+        '3', '1', buff);
 
     MyServerAppX::instance()->heart_beat_module()->ftp_feedback_submitter().add(
         dist_info->ver.data(),
         dist_info->ftype[0],
         client_id(),
-        4, '1', buff);
+        '4', '1', buff);
 
     dist_one->delete_dist_client(this);
 //    MyServerAppX::instance()->db().set_dist_client_status(*this, 5);
@@ -1361,7 +1361,8 @@ void MyHeartBeatService::do_file_md5_reply(ACE_Message_Block * mb)
   }
   *md5list ++ = 0;
   const char * dist_id = dpe->data;
-  MY_DEBUG("file md5 list value from client_id(%s) dist_id(%s): %s\n", client_id.as_string(), dist_id, md5list);
+  MY_DEBUG("file md5 list value from client_id(%s) dist_id(%s): %s\n", client_id.as_string(),
+      dist_id, (*md5list? md5list: "(empty)"));
   m_distributor.dist_ftp_md5_reply(client_id.as_string(), dist_id, md5list);
 }
 
