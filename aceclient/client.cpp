@@ -555,7 +555,9 @@ bool MyClientApp::on_construct()
   {
     m_vlc_launcher.launch();
     m_opera_launcher.launch();
+    check_prev_extract_task(client_id());
   }
+
   return true;
 }
 
@@ -660,6 +662,14 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
     path_x = cfg->app_path + "/data/backup";
     MyFilePaths::make_path(path_x.c_str(), true);
 
+    if(cfg->adv_expire_days > 0)
+    {
+      MyPooledMemGuard mpath;
+      mpath.init_from_string(cfg->app_path.c_str(), "/data/backup/new");
+      MyAdvCleaner cleaner;
+      cleaner.do_clean(mpath, app->client_id(), cfg->adv_expire_days);
+    }
+
     if (!full_restore(NULL, true))
     {
       MY_WARNING("restore of latest data failed, now restoring previous data...\n");
@@ -672,6 +682,54 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
   }
 
   return app->do_constructor();
+}
+
+void MyClientApp::check_prev_extract_task(const char * client_id)
+{
+  MyPooledMemGuard path;
+  calc_backup_parent_path(path, client_id);
+
+  DIR * dir = opendir(path.data());
+  if (!dir)
+  {
+    MY_ERROR("can not open directory: %s %s\n", path.data(), (const char*)MyErrno());
+    return;
+  }
+
+  MyPooledMemGuard msrc;
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != NULL)
+  {
+    if (!entry->d_name)
+      continue;
+    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+      continue;
+
+    if (likely(mycomutil_string_end_with(entry->d_name, ".mbz")))
+    {
+      msrc.init_from_string(entry->d_name);
+      msrc.data()[ACE_OS::strlen(msrc.data()) - 1 - ACE_OS::strlen(".mbz")] = 0;
+      MyDistInfoFtp dist_info;
+      {
+        MyClientDBGuard dbg;
+        if (dbg.db().open_db(client_id))
+          dbg.db().load_ftp_command(dist_info, msrc.data());
+      }
+      if (dist_info.status == 3 && dist_info.validate())
+      {
+        MyDistFtpFileExtractor extractor;
+        dist_info.status = extractor.extract(&dist_info) ? 4:5;
+        dist_info.update_db_status();
+      }
+    }
+
+    msrc.init_from_string(path.data(), "/", "");
+    MyFilePaths::remove(msrc.data(), true);
+  };
+
+  closedir(dir);
+
+
 }
 
 void MyClientApp::app_fini()

@@ -179,13 +179,18 @@ bool MyClientDB::init_db()
       "create table if not exists tb_adv(filename text, last_access, primary key(filename))";
   const char * const_sql_fist_record_tpl =
       "insert into tb_adv(filename, last_access) values('_Xx001_', %d)";
+  const char * const_sql_delete_adv_tpl = "delete from tb_adv";
 
   do_exec(const_sql_tb_ftp_info, false);
   do_exec(const_sql_tb_adv, false);
   bool result = do_exec(const_sql_tb_click, false);
-  char sql[200];
-  ACE_OS::snprintf(sql, 200, const_sql_fist_record_tpl, (int)time(NULL));
-  do_exec(sql, false);
+  if (MyConfigX::instance()->adv_expire_days > 0)
+  {
+    char sql[200];
+    ACE_OS::snprintf(sql, 200, const_sql_fist_record_tpl, (int)time(NULL));
+    do_exec(sql, false);
+  } else
+    do_exec(const_sql_delete_adv_tpl);
   return result;
 }
 
@@ -539,6 +544,26 @@ bool MyClientDB::load_ftp_commands(MyDistInfoFtps * dist_ftps)
   return true;
 }
 
+bool MyClientDB::load_ftp_command(MyDistInfoFtp & dist_ftp, const char * dist_id)
+{
+  if (unlikely(!dist_id || !*dist_id))
+    return false;
+  const char * sql_tpl = "select ftp_dist_id, ftp_str, ftp_status, ftp_recv_time from tb_ftp_info where ftp_dist_id = '%s'";
+  char sql[200];
+  ACE_OS::snprintf(sql, 200, sql_tpl, dist_id);
+  char *zErrMsg = 0;
+  if (sqlite3_exec(m_db, sql, load_ftp_command_callback, &dist_ftp, &zErrMsg) != SQLITE_OK)
+  {
+    MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
+    if (zErrMsg)
+      sqlite3_free(zErrMsg);
+    return false;
+  }
+  if (zErrMsg)
+    sqlite3_free(zErrMsg);
+  return true;
+}
+
 int MyClientDB::load_ftp_commands_callback(void * p, int argc, char **argv, char **azColName)
 {
   ACE_UNUSED_ARG(azColName);
@@ -584,6 +609,38 @@ int MyClientDB::load_ftp_commands_callback(void * p, int argc, char **argv, char
   }
 
   dist_ftps->add(dist_ftp);
+  return 0;
+}
+
+int MyClientDB::load_ftp_command_callback(void * p, int argc, char **argv, char **azColName)
+{
+  ACE_UNUSED_ARG(azColName);
+
+  MyDistInfoFtp * dist_ftp = (MyDistInfoFtp *)p;
+  if (unlikely(!dist_ftp))
+  {
+    MY_ERROR("NULL dist_ftp parameter @load_ftp_command_callback\n");
+    return -1;
+  }
+  if (unlikely(argc != 4))
+  {
+    MY_ERROR("unexpected parameter number (=%d) @load_ftp_commands_callback\n", argc);
+    return -1;
+  }
+
+  //ftp_dist_id, ftp_str, ftp_status, ftp_recv_time
+  if (unlikely(!dist_ftp->load_from_string(argv[1])))
+    return 0;
+
+  if (unlikely(!argv[2] || !*argv[2]))
+    return 0;
+
+  dist_ftp->status = atoi(argv[2]);
+
+  if (unlikely(!argv[3] || !*argv[3]))
+    return 0;
+
+  dist_ftp->recv_time = atoi(argv[2]);
   return 0;
 }
 
@@ -1069,7 +1126,8 @@ MyDistInfoFtp::MyDistInfoFtp()
 {
   failed_count = 2;
   last_update = time(NULL);
-  first_download = true;;
+  first_download = true;
+  recv_time = 0;
 }
 
 bool MyDistInfoFtp::validate()
@@ -1310,12 +1368,14 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
   if (!idtable.value_all(dist_info->client_id_index, client_info))
   {
     MY_ERROR("invalid client_id_index @MyDistFtpFileExtractor::extract()");
+    MyFilePaths::remove(dist_info->local_file_name.data());
     return false;
   }
 
   if (client_info.expired)
   {
     MY_INFO("skipping extract due to previous errors client_id(%s) dist_id(%s)\n", dist_info->client_id.as_string(), dist_info->dist_id.data());
+    MyFilePaths::remove(dist_info->local_file_name.data());
     return false;
   }
 
@@ -1331,9 +1391,21 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
   {
     MY_INFO("apply update OK for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
     dist_info->generate_update_ini();
+    if (!g_test_mode && ftype_is_adv_list(dist_info->ftype))
+    {
+      MyConfig * cfg = MyConfigX::instance();
+      if(cfg->adv_expire_days > 0)
+      {
+        MyPooledMemGuard mpath;
+        MyClientApp::calc_display_parent_path(mpath, MyClientAppX::instance()->client_id());
+        MyAdvCleaner cleaner;
+        cleaner.do_clean(mpath, MyClientAppX::instance()->client_id(), cfg->adv_expire_days);
+      }
+    }
     MyClientApp::full_backup(dist_info->dist_id.data(), dist_info->client_id.as_string());
   }
   MyFilePaths::remove_path(target_parent_path.data(), true);
+  MyFilePaths::remove(dist_info->local_file_name.data());
   return result;
 }
 
@@ -1453,7 +1525,6 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
       if (fh.open_write(indexfile.data(), true, true, false, true))
         ::write(fh.handle(), dist_info->aindex.data(), ACE_OS::strlen(dist_info->aindex.data()));
     }
-    MyFilePaths::remove(dist_info->local_file_name.data());
   }
   return result;
 }
@@ -1969,7 +2040,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_M
       int ftp_status;
       if (dbg.db().get_ftp_command_status(dist_id, ftp_status))
       {
-        if (ftp_status >= 2)
+        if (ftp_status >= 3)
         {
           ACE_Message_Block * reply_mb = MyDistInfoFtp::make_ftp_dist_message(dist_id, ftp_status);
           MY_INFO("dist ftp command already finished, dist_id(%s) client_id(%s)\n", dist_id, m_client_id.as_string());
@@ -2014,13 +2085,13 @@ void MyClientToDistProcessor::check_offline_report()
     return;
 
   char buff[32], buff2[32];
-  if (unlikely(!mycomutil_generate_time_string(buff, 32, now) || ! mycomutil_generate_time_string(buff2, 32, t)))
+  if (unlikely(!mycomutil_generate_time_string(buff2, 32, now) || ! mycomutil_generate_time_string(buff, 32, t)))
   {
     MY_ERROR("mycomutil_generate_time_string failed @MyClientToDistProcessor::check_offline_report()\n");
     return;
   }
   ACE_OS::strncat(buff, "-", 32 - 1);
-  ACE_OS::strncat(buff, buff2 + 8, 32 -1);
+  ACE_OS::strncat(buff, buff2 + 9, 32 -1);
   int len = ACE_OS::strlen(buff);
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyDataPacketHeader) + len + 1 + 1,
       MyDataPacketHeader::CMD_PC_ON_OFF);
@@ -2067,7 +2138,8 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
       m_ftp_password.init_from_string(vcr->data + 1);
     }
     m_handler->connector()->reset_retry_count();
-    check_offline_report();
+    if (!g_test_mode)
+      check_offline_report();
     return MyBaseProcessor::ER_OK;
 
   case MyClientVersionCheckReply::VER_OK_CAN_UPGRADE:
@@ -2079,7 +2151,8 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
     m_handler->connector()->reset_retry_count();
     if (!g_test_mode || m_client_id_index == 0)
       MY_INFO("handshake response from dist server: OK Can Upgrade\n");
-    check_offline_report();
+    if (!g_test_mode)
+      check_offline_report();
     //todo: notify app to upgrade
     return MyBaseProcessor::ER_OK;
 

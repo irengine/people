@@ -79,6 +79,7 @@ public:
   //client only
   int client_heart_beat_interval;
   int test_client_ftp_thread_number;
+  int adv_expire_days;
 
   //dist only
   int module_heart_beat_mem_pool_size;

@@ -95,6 +95,7 @@ const ACE_TCHAR * CONFIG_server_id = ACE_TEXT("server_id");
 
 //client specific
 const ACE_TCHAR * CONFIG_client_heart_beat_interval = ACE_TEXT("module.client_heart_beat_interval");
+const ACE_TCHAR * CONFIG_adv_expire_days = ACE_TEXT("module.adv_expire_days");
 
 
 MyConfig::MyConfig()
@@ -131,6 +132,7 @@ MyConfig::MyConfig()
   //client only
   client_heart_beat_interval = DEFAULT_client_heart_beat_interval;
   test_client_ftp_thread_number = DEFAULT_test_client_ftp_thread_number;
+  adv_expire_days = 0;
 
   //middle only
   http_port = DEFAULT_http_port;
@@ -466,6 +468,17 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
     }
   }
 
+  if (cfgHeap.get_integer_value (section,  CONFIG_adv_expire_days, ival) == 0)
+  {
+    if (ival > 365 )
+    {
+      MY_WARNING(ACE_TEXT("Invalid %s value (%d), using default value = %d\n"),
+          CONFIG_adv_expire_days, ival, 0);
+    }
+    else
+      adv_expire_days = ival;
+  }
+
   return true;
 }
 
@@ -683,9 +696,11 @@ void MyConfig::dump_config_info()
   }
 
   //client only
-  if (is_client() && g_test_mode)
+  if (is_client())
   {
-    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_heart_beat_interval, client_heart_beat_interval));
+    if (g_test_mode)
+      ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_heart_beat_interval, client_heart_beat_interval));
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_adv_expire_days, adv_expire_days));
   }
 
   //dist only

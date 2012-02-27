@@ -103,6 +103,7 @@ public:
   bool reset_ftp_command_status();
   void remove_outdated_ftp_command(time_t deadline);
   bool load_ftp_commands(MyDistInfoFtps * dist_ftps);
+  bool load_ftp_command(MyDistInfoFtp & dist_ftp, const char * dist_id);
   bool update_adv_time(const char * filename, time_t t);
   bool delete_old_adv(time_t deadline);
   bool adv_has_file(const char * filename);
@@ -115,6 +116,7 @@ protected:
 
 private:
   static int load_ftp_commands_callback(void * p, int argc, char **argv, char **azColName);
+  static int load_ftp_command_callback(void * p, int argc, char **argv, char **azColName);
   static int get_one_integer_value_callback(void * p, int argc, char **argv, char **azColName);
   static int get_click_infos_callback(void * p, int argc, char **argv, char **azColName);
   static int get_ftp_md5_for_diff_callback(void * p, int argc, char **argv, char **azColName);

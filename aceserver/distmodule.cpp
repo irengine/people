@@ -715,17 +715,18 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_PC_ON_OFF)
   {
-    if (m_packet_header.length != (int)sizeof(MyDataPacketHeader) + 15 + 1 + 1
+    if (m_packet_header.length < (int)sizeof(MyDataPacketHeader) + 15 + 1 + 1
+        || m_packet_header.length > (int)sizeof(MyDataPacketHeader) + 30
         || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
     {
       MyPooledMemGuard info;
       info_string(info);
-      MY_ERROR("bad adv click request packet received from %s\n", info.data());
+      MY_ERROR("bad pc on off request packet received from %s\n", info.data());
       return ER_ERROR;
     }
+    MY_DEBUG("get pc on off packet from %s\n", m_client_id.as_string());
     return ER_OK;
   }
-
 
   MY_ERROR(ACE_TEXT("unexpected packet header received @MyHeartBeatProcessor.on_recv_header, cmd = %d\n"),
       m_packet_header.command);
@@ -900,7 +901,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_pc_on_off_req(ACE_Message
     return ER_ERROR;
   }
 
-  if (unlikely(dpe->data[0] != '1' && dpe->data[0] != '2'))
+  if (unlikely(dpe->data[0] != '1' && dpe->data[0] != '2' && dpe->data[0] != '3'))
   {
     MY_ERROR("invalid pc on/off flag (%c)\n", dpe->data[0]);
     return ER_ERROR;

@@ -614,7 +614,7 @@ public:
   static bool copy_file(const char * src, const char * dest, bool self_only);
   static int  cat_path(const char * path, const char * subpath, MyPooledMemGuard & result);
   static bool get_correlate_path(MyPooledMemGuard & pathfile, int skip);
-  static bool remove(const char *pathfile);
+  static bool remove(const char *pathfile, bool ignore_error = false);
   static bool rename(const char *old_path, const char * new_path, bool ignore_eror);
   static bool stat(const char *pathfile, struct stat * _stat);
 };
@@ -633,6 +633,7 @@ private:
 
 #define ftype_is_led(ftype) ((ftype) == '7' || (ftype) == '9')
 #define ftype_is_adv(ftype) ((ftype) == '3' || (ftype) == '5' || (ftype) == '6')
+#define ftype_is_adv_list(ftype) ((ftype) == '6')
 #define ftype_is_chn(ftype) ((ftype) == '1' || (ftype) == '2' || (ftype) == '4')
 #define ftype_is_frame(ftype) ((ftype) == '0')
 #define ftype_is_backgnd(ftype) ((ftype) == '8')

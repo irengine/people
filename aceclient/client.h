@@ -93,6 +93,7 @@ protected:
 private:
   static bool do_backup_restore(const MyPooledMemGuard & src_parent_path, const MyPooledMemGuard & dest_path, bool remove_existing);
   static bool get_mfile_from_file(const MyPooledMemGuard & parent_path, MyPooledMemGuard & mfile);
+  static void check_prev_extract_task(const char * client_id);
 
   MyClientToDistModule * m_client_to_dist_module;
   MyClientVerson m_client_version;

@@ -751,10 +751,10 @@ bool MyFilePaths::rename(const char *old_path, const char * new_path, bool ignor
   return result;
 }
 
-bool MyFilePaths::remove(const char *pathfile)
+bool MyFilePaths::remove(const char *pathfile, bool ignore_error)
 {
   bool result = (::remove(pathfile) == 0);
-  if (!result)
+  if (!result && !ignore_error)
     MY_ERROR("remove %s failed %s\n", pathfile, (const char*)MyErrno());
   return result;
 }
