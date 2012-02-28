@@ -401,7 +401,6 @@ public:
   MyBaseHandler * find_handler_by_index(int index);
   void set_connection_state(MyBaseHandler * handler, Connection_State state);
   void remove_connection(MyBaseHandler * handler, MyClientIDTable * id_table);
-  void remove_from_handler_map(MyBaseHandler * handler, MyClientIDTable * id_table);
 
   void detect_dead_connections(int timeout);
   void lock();
@@ -425,6 +424,7 @@ private:
   MyIndexHandlerMapPtr find_handler_by_index_i(int index);
   void do_send(ACE_Message_Block * mb, bool broadcast);
   void remove_from_active_table(MyBaseHandler * handler);
+  void remove_from_handler_map(MyBaseHandler * handler, MyClientIDTable * id_table);
 
   int  m_num_connections;
   int  m_total_connections;

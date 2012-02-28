@@ -2004,9 +2004,6 @@ void MyBaseConnectionManager::remove_from_active_table(MyBaseHandler * handler)
 
 void MyBaseConnectionManager::remove_from_handler_map(MyBaseHandler * handler, MyClientIDTable * id_table)
 {
-  if (unlikely(m_locked))
-    return;
-
   int index = handler->processor()->client_id_index();
   if (index < 0)
     return;
