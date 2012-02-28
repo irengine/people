@@ -677,6 +677,7 @@ int MyClientDB::get_ftp_md5_for_diff_callback(void * p, int argc, char **argv, c
   return 0;
 }
 
+
 //MyFTPClient//
 
 MyFTPClient::MyFTPClient(const std::string &remote_ip, const u_short remote_port,
@@ -734,11 +735,15 @@ bool MyFTPClient::recv()
     {
     case   0:
     case  -1:
+      line[i] = 0;
+      m_response.init_from_string(line);
       return false;
     default:
       if (unlikely(i >= BUFF_SIZE - 2))
       {
         MY_ERROR("ftp unexpected too long response line from server %s\n", m_ftp_server_addr.data());
+        line[i] = 0;
+        m_response.init_from_string(line);
         return false;
       }
       line[i++] = c;
@@ -747,10 +752,10 @@ bool MyFTPClient::recv()
 
     if ('\n' == c)
     {
-      if (i < 3)
-        return false;
       line[i] = 0;
       m_response.init_from_string(line);
+      if (i < 3)
+        return false;
       break;
     }
   }
@@ -794,7 +799,7 @@ bool MyFTPClient::login()
 
   if (!this->recv() || !is_response("220"))
   {
-    MY_ERROR("ftp no/bad response after connecting to server %s\n", m_ftp_server_addr.data());
+    MY_ERROR("ftp no/bad response after connecting to server (%s): %s\n", m_ftp_server_addr.data(), m_response.data());
     return false;
   }
 
@@ -803,7 +808,8 @@ bool MyFTPClient::login()
   {
     if (!this->recv() || !is_response("331"))
     {
-      MY_ERROR("ftp no/bad response on USER command to server %s, user=%s\n", m_ftp_server_addr.data(), this->m_user_name.c_str());
+      MY_ERROR("ftp no/bad response on USER command to server (%s), user=(%s): %s\n",
+          m_ftp_server_addr.data(), this->m_user_name.c_str(), m_response.data());
       return false;
     }
   }
@@ -813,7 +819,8 @@ bool MyFTPClient::login()
   {
     if (!this->recv() || !is_response("230"))
     {
-      MY_ERROR("ftp no/bad response on PASS command to server %s, user=%s\n", m_ftp_server_addr.data(), this->m_user_name.c_str());
+      MY_ERROR("ftp no/bad response on PASS command to server (%s), user=(%s): %s\n",
+          m_ftp_server_addr.data(), this->m_user_name.c_str(), m_response.data());
       return false;
     }
   }
@@ -881,7 +888,7 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
   {
     if (!this->recv() || !is_response("227"))
     {
-      MY_ERROR("ftp no/bad response on PASV command to server %s\n", m_ftp_server_addr.data());
+      MY_ERROR("ftp no/bad response on PASV command to server (%s): %s\n", m_ftp_server_addr.data(), m_response.data());
       return false;
     }
   }
@@ -892,7 +899,7 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
     ptr2 = ACE_OS::strrchr(ptr1, ')');
   if (unlikely(!ptr1 || !ptr2))
   {
-    MY_ERROR("ftp bad response data format on PASV command to server %s\n", m_ftp_server_addr.data());
+    MY_ERROR("ftp bad response data format on PASV command to server (%s): %s\n", m_ftp_server_addr.data(), m_response.data());
     return false;
   }
   *ptr1 ++ = 0;
@@ -920,7 +927,8 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
   {
     if (!this->recv() || !is_response("150"))
     {
-      MY_ERROR("ftp no/bad response on RETR command to server %s\n", m_ftp_server_addr.data());
+      MY_ERROR("ftp no/bad response on RETR (%s) command to server (%s): %s\n",
+          filename, m_ftp_server_addr.data(), m_response.data());
       return false;
     }
   }
@@ -1124,7 +1132,7 @@ bool MyDistInfoHeader::calc_update_ini_value(MyPooledMemGuard & value)
 
 MyDistInfoFtp::MyDistInfoFtp()
 {
-  failed_count = 2;
+  failed_count = 0;
   last_update = time(NULL);
   first_download = true;
   recv_time = 0;
@@ -1214,7 +1222,12 @@ void MyDistInfoFtp::touch()
 
 void MyDistInfoFtp::inc_failed()
 {
-  ++ failed_count;
+  if (++ failed_count >= MAX_FAILED_COUNT)
+  {
+    status = 7;
+    update_db_status();
+    post_status_message();
+  }
 }
 
 void MyDistInfoFtp::calc_local_file_name()
@@ -1229,8 +1242,8 @@ void MyDistInfoFtp::calc_local_file_name()
 ACE_Message_Block * MyDistInfoFtp::make_ftp_dist_message(const char * dist_id, int status, bool ok, char ftype)
 {
   int dist_id_len = ACE_OS::strlen(dist_id);
-  int total_len = sizeof(MyDataPacketHeader) + dist_id_len + 1 + 2 + 2;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_FTP_FILE);
+  int total_len = dist_id_len + 1 + 2 + 2;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(total_len, MyDataPacketHeader::CMD_FTP_FILE);
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
   ACE_OS::memcpy(dpe->data, dist_id, dist_id_len);
   dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
@@ -1241,10 +1254,10 @@ ACE_Message_Block * MyDistInfoFtp::make_ftp_dist_message(const char * dist_id, i
   return mb;
 }
 
-void MyDistInfoFtp::post_status_message(int _status) const
+void MyDistInfoFtp::post_status_message(int _status, bool result_ok) const
 {
   int m = _status < 0 ? status: _status;
-  ACE_Message_Block * mb = make_ftp_dist_message(dist_id.data(), m, true, ftype);
+  ACE_Message_Block * mb = make_ftp_dist_message(dist_id.data(), m, result_ok, ftype);
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
   if (g_test_mode)
     dpe->magic = client_id_index;
@@ -1569,8 +1582,8 @@ void MyDistInfoMD5::post_md5_message()
 {
   int dist_id_len = ACE_OS::strlen(dist_id.data());
   int md5_len = m_md5list.total_size(false);
-  int total_len = sizeof(MyDataPacketHeader) + dist_id_len + 1 + md5_len;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
+  int total_len = dist_id_len + 1 + md5_len;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(total_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
   if (g_test_mode)
     dpe->magic = client_id_index;
@@ -1978,7 +1991,7 @@ int MyClientToDistProcessor::send_heart_beat()
 {
   if (!m_version_check_reply_done)
     return 0;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyDataPacketHeader), MyDataPacketHeader::CMD_HEARTBEAT_PING);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(0, MyDataPacketHeader::CMD_HEARTBEAT_PING);
   int ret = (m_handler->send_data(mb) < 0? -1: 0);
 //  MY_DEBUG("send_heart_beat = %d\n", ret);
   return ret;
@@ -2107,7 +2120,7 @@ void MyClientToDistProcessor::check_offline_report()
   ACE_OS::strncat(buff, "-", 32 - 1);
   ACE_OS::strncat(buff, buff2 + 9, 32 -1);
   int len = ACE_OS::strlen(buff);
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyDataPacketHeader) + len + 1 + 1,
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(len + 1 + 1,
       MyDataPacketHeader::CMD_PC_ON_OFF);
   if (g_test_mode)
     ((MyDataPacketHeader *)mb->base())->magic = 0;
@@ -2212,7 +2225,7 @@ int MyClientToDistProcessor::send_version_check_req()
 
 int MyClientToDistProcessor::send_ip_ver_req()
 {
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyClientVersionCheckRequest), MyDataPacketHeader::CMD_IP_VER_REQ);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd_direct(sizeof(MyClientVersionCheckRequest), MyDataPacketHeader::CMD_IP_VER_REQ);
   MyIpVerRequest * ivr = (MyIpVerRequest *) mb->base();
   ivr->client_version_major = const_client_version_major;
   ivr->client_version_minor = const_client_version_minor;
@@ -3021,7 +3034,7 @@ ACE_Message_Block * MyClientToDistModule::get_click_infos(const char * client_id
   }
 
   ++len;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(len + sizeof(MyDataPacketHeader), MyDataPacketHeader::CMD_UI_CLICK, true);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(len, MyDataPacketHeader::CMD_UI_CLICK, true);
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
   char * ptr = dpe->data;
   for (it = click_infos.begin(); it != click_infos.end(); ++it)
@@ -3449,7 +3462,7 @@ void MyHttp1991Processor::do_command_plc(char * parameter)
 ACE_Message_Block * MyHttp1991Processor::make_pc_on_off_mb(bool on, const char * sdata)
 {
   int len = ACE_OS::strlen(sdata);
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyDataPacketHeader) + len + 1 + 1,
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(len + 1 + 1,
       MyDataPacketHeader::CMD_PC_ON_OFF);
   if (g_test_mode)
     ((MyDataPacketHeader *)mb->base())->magic = 0;

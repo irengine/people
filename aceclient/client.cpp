@@ -583,16 +583,19 @@ void MyClientApp::dump_mem_pool_info()
     goto _exit_;
   }
 
+  int chunks;
   if (likely(MyClientToDistHandler::mem_pool() != NULL))
   {
+    chunks = MyClientToDistHandler::mem_pool()->chunks();
     MyClientToDistHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyClientToDistHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToDistHandler));
+    MyBaseApp::mem_pool_dump_one("MyClientToDistHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToDistHandler), chunks);
   }
 
   if (likely(MyClientToMiddleHandler::mem_pool() != NULL))
   {
+    chunks = MyClientToMiddleHandler::mem_pool()->chunks();
     MyClientToMiddleHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyClientToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToMiddleHandler));
+    MyBaseApp::mem_pool_dump_one("MyClientToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToMiddleHandler), chunks);
   }
 
   MyMemPoolFactoryX::instance()->dump_info();

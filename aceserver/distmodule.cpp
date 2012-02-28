@@ -224,8 +224,7 @@ bool MyDistClient::send_md5()
 
   int md5_len = dist_info->md5_len + 1;
   int data_len = dist_out_leading_length() + md5_len;
-  int total_len = sizeof(MyServerFileMD5List) + data_len;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(data_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
   MyServerFileMD5List * md5_packet = (MyServerFileMD5List *)mb->base();
   md5_packet->magic = client_id_index();
   dist_out_leading_data(md5_packet->data);
@@ -302,8 +301,7 @@ bool MyDistClient::send_ftp()
   int leading_length = dist_out_leading_length();
   int ftp_file_name_len = ACE_OS::strlen(ftp_file_name) + 1;
   int data_len = leading_length + ftp_file_name_len + dist_info->password_len + 1 + _mbz_md5_len;
-  int total_len = sizeof(MyFtpFile) + data_len;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_FTP_FILE);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(data_len, MyDataPacketHeader::CMD_FTP_FILE);
   MyFtpFile * packet = (MyFtpFile *)mb->base();
   packet->magic = client_id_index();
   dist_out_leading_data(packet->data);
@@ -549,7 +547,7 @@ bool MyClientFileDistributor::distribute(bool check_reload)
   bool reload = false;
   if (check_reload)
     reload = m_dist_infos.need_reload();
-  else if (now - m_last_end < 5 * 60)
+  else if (now - m_last_end < IDLE_TIME * 60)
     return false;
 
   m_last_begin = now;
@@ -1317,6 +1315,11 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
   {
     MY_DEBUG("dist download started client_id(%s) dist_id(%s)\n", client_id.as_string(), dist_id);
     step = '2';
+  } else if (recv_status == '7')
+  {
+    MY_DEBUG("dist download failed client_id(%s) dist_id(%s)\n", client_id.as_string(), dist_id);
+    step = '3';
+    status = 5;
   }
   else
   {
@@ -1329,7 +1332,7 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
     char buff[32];
     mycomutil_generate_time_string(buff, 32);
     ((MyHeartBeatModule *)module_x())->ftp_feedback_submitter().add(dist_id, ftype, client_id.as_string(), step, ok, buff);
-    if (step == '3')
+    if (step == '3' && ok == '1')
       ((MyHeartBeatModule *)module_x())->ftp_feedback_submitter().add(dist_id, ftype, client_id.as_string(), '4', ok, buff);
   }
   if (recv_status == '9')
@@ -1654,7 +1657,7 @@ void MyDistToBSProcessor::process_ip_ver_reply_one(char * item)
   if (likely(client_valid))
   {
     int len = ACE_OS::strlen(data) + 1;
-    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(len + sizeof(MyDataPacketHeader), MyDataPacketHeader::CMD_IP_VER_REQ);
+    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(len, MyDataPacketHeader::CMD_IP_VER_REQ);
     MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
     ACE_OS::memcpy(dpe->data, data, len);
     dpe->magic = index;
@@ -1665,7 +1668,7 @@ void MyDistToBSProcessor::process_ip_ver_reply_one(char * item)
   {
     if (index >= 0)
     {
-      ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyDataPacketHeader), MyDataPacketHeader::CMD_DISCONNECT_INTERNAL);
+      ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(0, MyDataPacketHeader::CMD_DISCONNECT_INTERNAL);
       MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
       dpe->magic = index;
       ACE_Time_Value tv(ACE_Time_Value::zero);
@@ -2029,7 +2032,7 @@ int MyDistToMiddleProcessor::send_server_load()
   if (!m_version_check_reply_done)
     return 0;
 
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyLoadBalanceRequest), MyDataPacketHeader::CMD_LOAD_BALANCE_REQ);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd_direct(sizeof(MyLoadBalanceRequest), MyDataPacketHeader::CMD_LOAD_BALANCE_REQ);
   MyLoadBalanceRequestProc proc;
   proc.attach(mb->base());
   proc.ip_addr(m_local_addr);
@@ -2077,9 +2080,9 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_version_check_reply(AC
 MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_have_dist_task(ACE_Message_Block * mb)
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (MyServerAppX::instance()->heart_beat_module()->service()->putq(mb, &tv) == -1)
+  if (MyServerAppX::instance()->heart_beat_module()->service()->msg_queue()->enqueue_head(mb, &tv) == -1)
   {
-    MY_ERROR("can not put file md5 list message to disatcher's queue\n");
+    MY_ERROR("can not put new dist task message to dispatcher's queue @MyDistToMiddleProcessor::do_have_dist_task\n");
     mb->release();
   }
   return ER_OK;

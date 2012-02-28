@@ -1547,10 +1547,9 @@ MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_packet_i(ACE_Messag
 
 ACE_Message_Block * MyBasePacketProcessor::make_version_check_request_mb()
 {
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyClientVersionCheckRequest), MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd_direct(sizeof(MyClientVersionCheckRequest), MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
   return mb;
 }
-
 
 
 //MyBSBasePacketProcessor//
@@ -1668,7 +1667,7 @@ ACE_Message_Block * MyBaseServerProcessor::make_version_check_reply_mb
    (MyClientVersionCheckReply::REPLY_CODE code, int extra_len)
 {
   int total_len = sizeof(MyClientVersionCheckReply) + extra_len;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(total_len, MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd_direct(total_len, MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY);
   MyClientVersionCheckReply * vcr = (MyClientVersionCheckReply *) mb->base();
   vcr->reply_code = code;
   return mb;

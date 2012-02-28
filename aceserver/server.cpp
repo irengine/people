@@ -102,48 +102,56 @@ void MyServerApp::dump_mem_pool_info()
     ACE_DEBUG((LM_INFO, "    Memory Pool Disabled\n"));
     goto _exit_;
   }
+  int chunks;
   //start of dist server stuff
   if (MyHeartBeatHandler::mem_pool())
   {
+    chunks = MyHeartBeatHandler::mem_pool()->chunks();
     MyHeartBeatHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyHeartBeatHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatHandler));
+    MyBaseApp::mem_pool_dump_one("MyHeartBeatHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatHandler), chunks);
   }
 
   if (MyDistToBSHandler::mem_pool())
   {
+    chunks = MyDistToBSHandler::mem_pool()->chunks();
     MyDistToBSHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyDistToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToBSHandler));
+    MyBaseApp::mem_pool_dump_one("MyDistToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToBSHandler), chunks);
   }
 
   if (MyDistToMiddleHandler::mem_pool())
   {
+    chunks = MyDistToMiddleHandler::mem_pool()->chunks();
     MyDistToMiddleHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyDistToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToMiddleHandler));
+    MyBaseApp::mem_pool_dump_one("MyDistToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToMiddleHandler), chunks);
   }
 
   //start of middle server stuff
   if (MyLocationHandler::mem_pool())
   {
+    chunks = MyLocationHandler::mem_pool()->chunks();
     MyLocationHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyLocationHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationHandler));
+    MyBaseApp::mem_pool_dump_one("MyLocationHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationHandler), chunks);
   }
 
   if (MyHttpHandler::mem_pool())
   {
+    chunks = MyHttpHandler::mem_pool()->chunks();
     MyHttpHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyHttpHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpHandler));
+    MyBaseApp::mem_pool_dump_one("MyHttpHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpHandler), chunks);
   }
 
   if (MyDistLoadHandler::mem_pool())
   {
+    chunks = MyDistLoadHandler::mem_pool()->chunks();
     MyDistLoadHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyDistLoadHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistLoadHandler));
+    MyBaseApp::mem_pool_dump_one("MyDistLoadHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistLoadHandler), chunks);
   }
 
   if (MyMiddleToBSHandler::mem_pool())
   {
+    chunks = MyMiddleToBSHandler::mem_pool()->chunks();
     MyMiddleToBSHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyMiddleToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyMiddleToBSHandler));
+    MyBaseApp::mem_pool_dump_one("MyMiddleToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyMiddleToBSHandler), chunks);
   }
 
   MyMemPoolFactoryX::instance()->dump_info();

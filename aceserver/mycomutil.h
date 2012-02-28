@@ -266,8 +266,7 @@ public:
     return result;
   }
 
-  virtual void *calloc (size_t nbytes,
-                          char initial_value = '\0')
+  virtual void *calloc (size_t nbytes, char initial_value = '\0')
   {
     void * result = super::calloc(nbytes, initial_value);
     {
@@ -311,6 +310,11 @@ public:
   size_t chunk_size() const
   {
     return m_chunk_size;
+  }
+
+  int chunks() const
+  {
+    return m_chunks;
   }
 
 private:
@@ -450,7 +454,8 @@ public:
   ~MyMemPoolFactory();
   void init(MyConfig * config);
   ACE_Message_Block * get_message_block(int capacity);
-  ACE_Message_Block * get_message_block(int capacity, int command, bool is_send = true);
+  ACE_Message_Block * get_message_block_cmd(int extra, int command, bool is_send = true);
+  ACE_Message_Block * get_message_block_cmd_direct(int capacity, int command, bool is_send = true);
   ACE_Message_Block * get_message_block_bs(int data_len, const char * cmd);
   bool get_mem(int size, MyPooledMemGuard * guard);
   void * get_mem_x(int size);
@@ -462,12 +467,14 @@ private:
   enum { INVALID_INDEX = 9999 };
   typedef My_Cached_Allocator<ACE_Thread_Mutex> MyMemPool;
   typedef std::vector<MyMemPool *> MyMemPools;
+  typedef std::vector<int> MyPoolSizes;
   typedef ACE_Atomic_Op<ACE_Thread_Mutex, long> COUNTER;
 
   int find_first_index(int capacity);
   int find_pool(void * ptr);
   My_Cached_Allocator<ACE_Thread_Mutex> *m_message_block_pool;
   My_Cached_Allocator<ACE_Thread_Mutex> *m_data_block_pool;
+  MyPoolSizes m_pool_sizes;
   MyMemPools m_pools;
   COUNTER m_global_alloc_count;
 };

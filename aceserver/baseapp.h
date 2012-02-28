@@ -169,7 +169,7 @@ public:
   void start();
   void stop();
   void dump_info();
-  static void mem_pool_dump_one(const char * poolname, long nAlloc, long nFree, long nMaxUse, long nAllocFull, int block_size);
+  static void mem_pool_dump_one(const char * poolname, long nAlloc, long nFree, long nMaxUse, long nAllocFull, int block_size, int chunks);
 
 protected:
   friend class MySigHandler;

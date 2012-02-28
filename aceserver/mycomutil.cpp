@@ -948,33 +948,85 @@ MyMemPoolFactory::~MyMemPoolFactory()
 
 void MyMemPoolFactory::init(MyConfig * config)
 {
-  if (!g_use_mem_pool)
-    return;
+  if(!g_use_mem_pool)
+      return;
 
-  const int pool_size[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096};
+  const int KB = 1024;
+  const int MB = 1024 * 1024;
+  const int pool_size[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8 * KB, 16 * KB, 32 * KB,
+                           64 * KB, 128 * KB, 256 * KB, 512 * KB, 2 * MB};
   //todo: change default pool size
-  int count = sizeof(pool_size) / sizeof(int);
+  int count = sizeof (pool_size) / sizeof (int);
   m_pools.reserve(count);
-  for (size_t i = 0; i < sizeof(pool_size) / sizeof(int); ++i)
+  m_pool_sizes.reserve(count);
+
+  if (config->is_client())
   {
-    m_pools.push_back(new My_Cached_Allocator<ACE_Thread_Mutex>
-          (/*config->module_heart_beat_mem_pool_size*/ 3000, pool_size[i]));
-    m_pools[i]->setup();
+    for(size_t i = 0;i < sizeof (pool_size) / sizeof (int);++i)
+    {
+      int m;
+      if (pool_size[i] <= 8 * KB)
+        m = 200;
+      else if (pool_size[i] < 512 * KB)
+        m = 20;
+      else
+        m = 4;
+      m_pool_sizes.push_back(pool_size[i]);
+      m_pools.push_back(new My_Cached_Allocator<ACE_Thread_Mutex>(m, pool_size[i]));
+      m_pools[i]->setup();
+    }
+  }
+  else if (MyConfigX::instance()->is_dist_server())
+  {
+    int m;
+
+    for(size_t i = 0;i < sizeof (pool_size) / sizeof (int);++i)
+    {
+      if (pool_size[i] <= 8 * KB)
+        m = std::max((int)((config->max_clients * 1.2)), 3000);
+      else if (pool_size[i] < 512 * KB)
+        m = 2 * MB / pool_size[i];
+      else
+        m = 4;
+      m_pool_sizes.push_back(pool_size[i]);
+      m_pools.push_back(new My_Cached_Allocator<ACE_Thread_Mutex>(m, pool_size[i]));
+      m_pools[i]->setup();
+    }
+  }
+  else if (config->is_middle_server())
+  {
+    for(size_t i = 0;i < sizeof (pool_size) / sizeof (int);++i)
+    {
+      int m;
+      if (pool_size[i] <= 8 * KB)
+        m = 2000;
+      else if (pool_size[i] < 512 * KB)
+        m = MB / pool_size[i];
+      else
+        m = 4;
+      m_pool_sizes.push_back(pool_size[i]);
+      m_pools.push_back(new My_Cached_Allocator<ACE_Thread_Mutex>(m, pool_size[i]));
+      m_pools[i]->setup();
+    }
   }
 
-//todo: change default pool's chunk number
-  m_message_block_pool = new My_Cached_Allocator<ACE_Thread_Mutex>
-    (config->message_control_block_mem_pool_size, sizeof(ACE_Message_Block));
-  m_data_block_pool = new My_Cached_Allocator<ACE_Thread_Mutex>
-    (config->message_control_block_mem_pool_size, sizeof(ACE_Data_Block));
+  int mb_number;
+  if (config->is_client())
+    mb_number = 200;
+  else if (config->is_dist_server())
+    mb_number = std::max((int)((config->max_clients * 4)), 4000);
+  else
+    mb_number = std::max((int)((config->max_clients * 2)), 2000);
+  m_message_block_pool = new My_Cached_Allocator<ACE_Thread_Mutex>(mb_number, sizeof (ACE_Message_Block));
+  m_data_block_pool = new My_Cached_Allocator<ACE_Thread_Mutex>(mb_number, sizeof (ACE_Data_Block));
 }
 
 int MyMemPoolFactory::find_first_index(int capacity)
 {
-  int count = m_pools.size();
+  int count = m_pool_sizes.size();
   for (int i = 0; i < count; ++i)
   {
-    if (size_t(capacity) <= m_pools[i]->chunk_size())
+    if (capacity <= m_pool_sizes[i])
       return i;
   }
   return INVALID_INDEX;
@@ -993,7 +1045,7 @@ int MyMemPoolFactory::find_pool(void * ptr)
 
 ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
 {
-  if (capacity <= 0)
+  if (unlikely(capacity <= 0))
   {
     MY_ERROR(ACE_TEXT("calling MyMemPoolFactory::get_message_block() with invalid capacity = %d\n"), capacity);
     return NULL;
@@ -1027,6 +1079,7 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
       } else
       {
         ++ m_global_alloc_count;
+        MY_DEBUG("global alloc of size(%d)\n", capacity);
         return new ACE_Message_Block(capacity);
       }
     } else
@@ -1036,19 +1089,24 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
   return new ACE_Message_Block(capacity);
 }
 
-ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity, int command, bool _send)
+ACE_Message_Block * MyMemPoolFactory::get_message_block_cmd_direct(int capacity, int command, bool is_send)
 {
-  if (unlikely(capacity < (int)sizeof(MyDataPacketHeader)))
+  return get_message_block_cmd(capacity - sizeof(MyDataPacketHeader), command, is_send);
+}
+
+ACE_Message_Block * MyMemPoolFactory::get_message_block_cmd(int capacity, int command, bool _send)
+{
+  if (unlikely(capacity < 0))
   {
     MY_FATAL("too samll capacity value (=%d) @MyMemPoolFactory::get_message_block(command)\n", capacity);
     return NULL;
   }
-  ACE_Message_Block * mb = get_message_block(capacity);
+  ACE_Message_Block * mb = get_message_block(capacity + (int)sizeof(MyDataPacketHeader));
   if (likely(_send))
     mb->wr_ptr(mb->capacity());
   MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
   dph->command = command;
-  dph->length = capacity;
+  dph->length = capacity + (int)sizeof(MyDataPacketHeader);
   dph->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
   return mb;
 }
@@ -1087,6 +1145,8 @@ bool MyMemPoolFactory::get_mem(int size, MyPooledMemGuard * guard)
   int idx = g_use_mem_pool? find_first_index(size): INVALID_INDEX;
   if (idx == INVALID_INDEX || (p = (char*)m_pools[idx]->malloc()) == NULL)
   {
+    if (g_use_mem_pool)
+      MY_DEBUG("global alloc of size(%d)\n", size);
     ++ m_global_alloc_count;
     p = new char[size];
     guard->data(p, INVALID_INDEX, size);
@@ -1102,6 +1162,8 @@ void * MyMemPoolFactory::get_mem_x(int size)
   int idx = g_use_mem_pool? find_first_index(size): INVALID_INDEX;
   if (idx == INVALID_INDEX || (p = m_pools[idx]->malloc()) == NULL)
   {
+    if (g_use_mem_pool)
+      MY_DEBUG("global alloc of size(%d)\n", size);
     ++ m_global_alloc_count;
     p = (void*)new char[size];
   }
@@ -1146,12 +1208,15 @@ void MyMemPoolFactory::dump_info()
     return;
 
   long nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
+  int chunks;
   m_message_block_pool->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-  MyBaseApp::mem_pool_dump_one("MessageBlockCtrlPool", nAlloc, nFree, nMaxUse, nAllocFull, m_message_block_pool->chunk_size());
+  chunks = m_message_block_pool->chunks();
+  MyBaseApp::mem_pool_dump_one("MessageBlockCtrlPool", nAlloc, nFree, nMaxUse, nAllocFull, m_message_block_pool->chunk_size(), chunks);
 
   nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
   m_data_block_pool->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-  MyBaseApp::mem_pool_dump_one("DataBlockCtrlPool", nAlloc, nFree, nMaxUse, nAllocFull, m_data_block_pool->chunk_size());
+  chunks = m_data_block_pool->chunks();
+  MyBaseApp::mem_pool_dump_one("DataBlockCtrlPool", nAlloc, nFree, nMaxUse, nAllocFull, m_data_block_pool->chunk_size(), chunks);
 
   const int BUFF_LEN = 64;
   char buff[BUFF_LEN];
@@ -1159,10 +1224,12 @@ void MyMemPoolFactory::dump_info()
   {
     nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
     m_pools[i]->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+    chunks = m_pools[i]->chunks();
     ACE_OS::snprintf(buff, BUFF_LEN, "DataPool.%02d", i + 1);
-    MyBaseApp::mem_pool_dump_one(buff, nAlloc, nFree, nMaxUse, nAllocFull, m_pools[i]->chunk_size());
+    MyBaseApp::mem_pool_dump_one(buff, nAlloc, nFree, nMaxUse, nAllocFull, m_pools[i]->chunk_size(), chunks);
   }
 }
+
 
 //MyStringTokenizer//
 

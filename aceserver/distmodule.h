@@ -160,6 +160,8 @@ public:
   void dist_ftp_md5_reply(const char * client_id, const char * dist_id, const char * md5list);
 
 private:
+  enum { IDLE_TIME = 5 }; //in minutes
+
   bool check_dist_info(bool reload);
   bool check_dist_clients(bool reload);
 
@@ -564,7 +566,7 @@ protected:
 
 private:
   enum { LOAD_BALANCE_REQ_TIMER = 1 };
-  enum { LOAD_BALANCE_REQ_INTERVAL = 3 }; //in minutes
+  enum { LOAD_BALANCE_REQ_INTERVAL = 2 }; //in minutes
   long m_load_balance_req_timer_id;
 };
 
