@@ -1201,6 +1201,11 @@ MyHeartBeatHandler::MyHeartBeatHandler(MyBaseConnectionManager * xptr): MyBaseHa
   m_processor = new MyHeartBeatProcessor(this);
 }
 
+MyClientIDTable * MyHeartBeatHandler::client_id_table() const
+{
+  return g_client_id_table;
+}
+
 PREPARE_MEMORY_POOL(MyHeartBeatHandler);
 
 
@@ -1454,7 +1459,7 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
       ((MyDataPacketHeader*)mb->base())->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
 
       if (handler->send_data(mb) < 0)
-        handler->handle_close(handler->get_handle(), 0);
+        handler->handle_close(ACE_INVALID_HANDLE, 0);
     }
   } else if ((long)act == TIMER_ID_HEART_BEAT)
   {
@@ -1733,201 +1738,6 @@ int MyDistToBSConnector::make_svc_handler(MyBaseHandler *& sh)
   return 0;
 }
 
-
-/////////////////////////////////////
-//remote access module
-/////////////////////////////////////
-
-
-//MyDistRemoteAccessProcessor//
-
-MyDistRemoteAccessProcessor::MyDistRemoteAccessProcessor(MyBaseHandler * handler):
-    MyBaseRemoteAccessProcessor(handler)
-{
-
-}
-
-int MyDistRemoteAccessProcessor::on_command(const char * cmd, char * parameter)
-{
-
-  if (!ACE_OS::strcmp(cmd, "dist"))
-    return on_command_dist_file_md5(parameter);
-  if (!ACE_OS::strcmp(cmd, "dist_batch"))
-    return on_command_dist_batch_file_md5(parameter);
-
-  return on_unsupported_command(cmd);
-}
-
-int MyDistRemoteAccessProcessor::on_command_help()
-{
-  const char * help_msg = "the following commands are supported:\n"
-                          "  help\n"
-                          "  exit (or quit)\n"
-                          "  dist client_id1 [client_id2] [client_id3] ...\n"
-                          "  dist_batch start_client_id number_of_clients\n>";
-  return send_string(help_msg);
-}
-
-int MyDistRemoteAccessProcessor::on_command_dist_file_md5(char * parameter)
-{
-  if (!*parameter)
-    return send_string("  usage: dist client_id1 [client_id2] [client_id3] ...\n>");
-
-  const char * CONST_seperator = ",\t ";
-  char *str, *token, *saveptr;
-
-  std::vector<MyClientID> vec;
-
-  for (str = parameter; ; str = NULL)
-  {
-    token = strtok_r(str, CONST_seperator, &saveptr);
-    if (token == NULL)
-      break;
-    if (!*token)
-      continue;
-    vec.push_back(MyClientID(token));
-  }
-  if (vec.empty())
-    return send_string("  usage: dist client_id1 [client_id2] [client_id3] ...\n>");
-
-  std::sort(vec.begin(), vec.end());
-  vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
-
-  const int BUFF_SIZE = 5000;
-  char buff[BUFF_SIZE];
-
-  if (send_string("  user requested client_id(s):") < 0)
-    return -1;
-  std::vector<MyClientID>::iterator it;
-  buff[0] = 0;
-  for (it = vec.begin(); it != vec.end(); ++it)
-  {
-    int len = strlen(buff);
-    ACE_OS::snprintf(buff + len, BUFF_SIZE - 1 - len, " %s", it->client_id.as_string);
-  }
-  ACE_OS::strncat(buff, "\n",  BUFF_SIZE - 1);
-  if (send_string(buff) < 0)
-    return -1;
-
-  for (it = vec.begin(); it != vec.end();)
-  {
-    if (!MyServerAppX::instance()->client_id_table().contains(it->client_id.as_string))
-      it = vec.erase(it);
-    else
-      ++it;
-  }
-
-  if (vec.empty())
-    return send_string("  no valid client_id(s) found\n>");
-
-  if (send_string("  processing valid client_id(s):") < 0)
-    return -1;
-  buff[0] = 0;
-  for (it = vec.begin(); it != vec.end(); ++it)
-  {
-    int len = strlen(buff);
-    ACE_OS::snprintf(buff + len, BUFF_SIZE - 1 - len, " %s", it->client_id.as_string);
-  }
-
-  int message_len = strlen(buff) + 1;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(message_len);
-  mb->copy(buff, message_len);
-
-
-  ACE_OS::strncat(buff, "\n",  BUFF_SIZE - 1);
-  if (send_string(buff) < 0)
-    return -1;
-
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (MyServerAppX::instance()->heart_beat_module()->service()->putq(mb, &tv) == -1)
-  {
-    mb->release();
-    return send_string("  Error: can not place the request message to target.\n>");
-  }
-
-  return send_string("  OK: request placed into target for later processing\n>");
-}
-
-int MyDistRemoteAccessProcessor::on_command_dist_batch_file_md5(char * /*parameter*/)
-{
-  return 0;
-}
-
-//MyDistRemoteAccessHandler//
-
-MyDistRemoteAccessHandler::MyDistRemoteAccessHandler(MyBaseConnectionManager * xptr)
-  : MyBaseHandler(xptr)
-{
-  m_processor = new MyDistRemoteAccessProcessor(this);
-}
-
-
-//MyDistRemoteAccessAcceptor//
-
-MyDistRemoteAccessAcceptor::MyDistRemoteAccessAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager)
-  : MyBaseAcceptor(_dispatcher, manager)
-{
-  m_tcp_port = MyConfigX::instance()->remote_access_port;
-  m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
-}
-
-int MyDistRemoteAccessAcceptor::make_svc_handler(MyBaseHandler *& sh)
-{
-  sh = new MyDistRemoteAccessHandler(m_connection_manager);
-  if (!sh)
-  {
-    MY_ERROR("can not alloc MyHeartBeatHandler from %s\n", name());
-    return -1;
-  }
-  sh->parent((void*)this);
-  sh->reactor(reactor());
-  return 0;
-}
-
-const char * MyDistRemoteAccessAcceptor::name() const
-{
-  return "MyDistRemoteAccessAcceptor";
-}
-
-
-//MyDistRemoteAccessDispatcher//
-
-MyDistRemoteAccessDispatcher::MyDistRemoteAccessDispatcher(MyBaseModule * pModule)
-    : MyBaseDispatcher(pModule, 1)
-{
-
-}
-
-const char * MyDistRemoteAccessDispatcher::name() const
-{
-  return "MyDistRemoteAccessDispatcher";
-}
-
-
-bool MyDistRemoteAccessDispatcher::on_start()
-{
-  add_acceptor(new MyDistRemoteAccessAcceptor(this, new MyBaseConnectionManager()));
-  return true;
-}
-
-
-//MyDistRemoteAccessModule//
-
-MyDistRemoteAccessModule::MyDistRemoteAccessModule(MyBaseApp * app) : MyBaseModule(app)
-{
-
-}
-
-const char * MyDistRemoteAccessModule::name() const
-{
-  return "MyDistRemoteAccessModule";
-}
-
-bool MyDistRemoteAccessModule::on_start()
-{
-  add_dispatcher(new MyDistRemoteAccessDispatcher(this));
-  return true;
-}
 
 /////////////////////////////////////
 //dist to middle module

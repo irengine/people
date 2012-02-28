@@ -74,6 +74,7 @@ public:
   static void calc_display_parent_path(MyPooledMemGuard & parent_path, const char * client_id = NULL);
   static void calc_dist_parent_path(MyPooledMemGuard & parent_path, const char * dist_id, const char * client_id = NULL);
   static void calc_backup_parent_path(MyPooledMemGuard & parent_path, const char * client_id = NULL);
+  static void calc_download_parent_path(MyPooledMemGuard & parent_path, const char * client_id = NULL);
   static bool full_backup(const char * dist_id, const char * client_id = NULL);
   static bool full_restore(const char * dist_id, bool remove_existing, bool is_new = true, const char * client_id = NULL);
   static bool app_init(const char * app_home_path = NULL, MyConfig::RUNNING_MODE mode = MyConfig::RM_UNKNOWN);

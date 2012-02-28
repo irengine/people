@@ -184,8 +184,6 @@ bool MyServerApp::on_construct()
   if (cfg->is_dist_server())
   {
     add_module(m_heart_beat_module = new MyHeartBeatModule(this));
-    if (cfg->remote_access_port > 0)
-      add_module(new MyDistRemoteAccessModule(this));
     add_module(m_dist_to_middle_module = new MyDistToMiddleModule(this));
   }
   if (cfg->is_middle_server())

@@ -285,6 +285,13 @@ void MyClientApp::calc_backup_parent_path(MyPooledMemGuard & parent_path, const 
   parent_path.init_from_string(path_x.data(), "/backup");
 }
 
+void MyClientApp::calc_download_parent_path(MyPooledMemGuard & parent_path, const char * client_id)
+{
+  MyPooledMemGuard path_x;
+  MyClientApp::data_path(path_x, client_id);
+  parent_path.init_from_string(path_x.data(), "/download");
+}
+
 bool MyClientApp::full_backup(const char * dist_id, const char * client_id)
 {
   MyPooledMemGuard src_parent_path;
@@ -690,7 +697,7 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
 void MyClientApp::check_prev_extract_task(const char * client_id)
 {
   MyPooledMemGuard path;
-  calc_backup_parent_path(path, client_id);
+  calc_download_parent_path(path, client_id);
 
   DIR * dir = opendir(path.data());
   if (!dir)
@@ -711,7 +718,7 @@ void MyClientApp::check_prev_extract_task(const char * client_id)
     if (likely(mycomutil_string_end_with(entry->d_name, ".mbz")))
     {
       msrc.init_from_string(entry->d_name);
-      msrc.data()[ACE_OS::strlen(msrc.data()) - 1 - ACE_OS::strlen(".mbz")] = 0;
+      msrc.data()[ACE_OS::strlen(msrc.data()) - ACE_OS::strlen(".mbz")] = 0;
       MyDistInfoFtp dist_info;
       {
         MyClientDBGuard dbg;
@@ -726,7 +733,7 @@ void MyClientApp::check_prev_extract_task(const char * client_id)
       }
     }
 
-    msrc.init_from_string(path.data(), "/", "");
+    msrc.init_from_string(path.data(), "/", entry->d_name);
     MyFilePaths::remove(msrc.data(), true);
   };
 

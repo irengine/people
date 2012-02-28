@@ -1659,7 +1659,7 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE
       return ER_OK;
   }
 
-  m_handler->connection_manager()->set_connection_client_id_index(m_handler, client_id_index, g_client_id_table);
+  m_handler->connection_manager()->set_connection_client_id_index(m_handler, client_id_index, m_handler->client_id_table());
   return ER_CONTINUE;
 }
 
@@ -1773,7 +1773,7 @@ MyBaseConnectionManager::~MyBaseConnectionManager()
   {
     handler = it->first;
     if (handler)
-      handler->handle_close(handler->get_handle(), 0);
+      handler->handle_close(ACE_INVALID_HANDLE, 0);
   }
 }
 
@@ -1909,7 +1909,11 @@ void MyBaseConnectionManager::detect_dead_connections(int timeout)
 
     if (handler->processor()->last_activity() < deadline)
     {
-      handler->handle_close(handler->get_handle(), 0);
+      if (it->second == CS_Pending)
+        -- m_pending;
+      handler->mark_as_reap();
+      remove_from_handler_map(handler, handler->client_id_table());
+      handler->handle_close(ACE_INVALID_HANDLE, 0);
       m_active_connections.erase(it++);
       --m_num_connections;
       ++m_reaped_connections;
@@ -1932,9 +1936,11 @@ void MyBaseConnectionManager::set_connection_client_id_index(MyBaseHandler * han
     it->second = handler;
     if (handler_old)
     {
+      remove_from_active_table(handler_old);
       MyPooledMemGuard info;
       handler_old->processor()->info_string(info);
-      MY_INFO("closing previous connection %s\n", info.data());
+      MY_DEBUG("closing previous connection %s\n", info.data());
+      handler_old->mark_as_reap();
       handler_old->handle_close(ACE_INVALID_HANDLE, 0);
     }
   } else
@@ -1977,8 +1983,15 @@ void MyBaseConnectionManager::set_connection_state(MyBaseHandler * handler, Conn
 
 void MyBaseConnectionManager::remove_connection(MyBaseHandler * handler, MyClientIDTable * id_table)
 {
-  if (m_locked)
+  if (unlikely(m_locked))
     return;
+
+  remove_from_active_table(handler);
+  remove_from_handler_map(handler, id_table);
+}
+
+void MyBaseConnectionManager::remove_from_active_table(MyBaseHandler * handler)
+{
   MyConnectionsPtr ptr = find(handler);
   if (ptr != m_active_connections.end())
   {
@@ -1987,6 +2000,12 @@ void MyBaseConnectionManager::remove_connection(MyBaseHandler * handler, MyClien
     m_active_connections.erase(ptr);
     --m_num_connections;
   }
+}
+
+void MyBaseConnectionManager::remove_from_handler_map(MyBaseHandler * handler, MyClientIDTable * id_table)
+{
+  if (unlikely(m_locked))
+    return;
 
   int index = handler->processor()->client_id_index();
   if (index < 0)
@@ -2016,6 +2035,7 @@ MyBaseConnectionManager::MyIndexHandlerMapPtr MyBaseConnectionManager::find_hand
 
 MyBaseHandler::MyBaseHandler(MyBaseConnectionManager * xptr)
 {
+  m_reaped = false;
   m_connection_manager = xptr;
   m_processor = NULL;
 }
@@ -2067,11 +2087,21 @@ int MyBaseHandler::send_data(ACE_Message_Block * mb)
   return ret;
 }
 
+void MyBaseHandler::mark_as_reap()
+{
+  m_reaped = true;
+}
+
 int MyBaseHandler::handle_input(ACE_HANDLE h)
 {
   ACE_UNUSED_ARG(h);
 //  MY_DEBUG("handle_input (handle = %d)\n", h);
   return m_processor->handle_input();
+}
+
+MyClientIDTable * MyBaseHandler::client_id_table() const
+{
+  return NULL;
 }
 
 void MyBaseHandler::on_close()
@@ -2088,16 +2118,18 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
   {
     if (!m_processor->wait_for_close())
       return 0;
-  } else if (!m_processor->wait_for_close())
-  {
-    //m_processor->handle_input();
   }
+//  else if (!m_processor->wait_for_close())
+//  {
+//    //m_processor->handle_input();
+//  }
+
   ACE_Message_Block *mb;
   ACE_Time_Value nowait(ACE_Time_Value::zero);
   while (-1 != this->getq(mb, &nowait))
     mb->release();
-  if (m_connection_manager)
-    m_connection_manager->remove_connection(this, g_client_id_table);
+  if (m_connection_manager && !m_reaped)
+    m_connection_manager->remove_connection(this, client_id_table());
   on_close();
   m_processor->on_close();
   //here comes the tricky part, parent class will NOT call delete as it normally does

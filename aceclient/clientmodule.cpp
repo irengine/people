@@ -248,19 +248,52 @@ bool MyClientDB::do_exec(const char *sql, bool show_error)
   return true;
 }
 
+bool MyClientDB::ftp_command_existing(const char * dist_id)
+{
+  int count = 0;
+  const char * const_sql_template = "select count(*) from tb_ftp_info where ftp_dist_id = '%s'";
+  char sql[200];
+  ACE_OS::snprintf(sql, 200, const_sql_template, dist_id);
+
+  char *zErrMsg = 0;
+  if (sqlite3_exec(m_db, sql, get_one_integer_value_callback, &count, &zErrMsg) != SQLITE_OK)
+  {
+    MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
+    if (zErrMsg)
+      sqlite3_free(zErrMsg);
+  }
+  if (zErrMsg)
+    sqlite3_free(zErrMsg);
+
+  return count >= 1;
+}
+
 bool MyClientDB::save_ftp_command(const char * ftp_command, const char * dist_id)
 {
   if (unlikely(!ftp_command || !*ftp_command || !dist_id || !*dist_id))
     return false;
 
-  const char * const_sql_template = "insert into tb_ftp_info(ftp_dist_id, ftp_str, ftp_status, ftp_recv_time) "
-                                    "values('%s', '%s', %d, %d)";
-  int len = ACE_OS::strlen(dist_id);
-  int total_len = ACE_OS::strlen(const_sql_template) + len + ACE_OS::strlen(ftp_command) + 20;
-  MyPooledMemGuard sql;
-  MyMemPoolFactoryX::instance()->get_mem(total_len, &sql);
-  ACE_OS::snprintf(sql.data(), total_len, const_sql_template, dist_id, ftp_command, 0, (long)time(NULL));
-  return do_exec(sql.data());
+  if (!ftp_command_existing(dist_id))
+  {
+    const char * const_sql_template = "insert into tb_ftp_info(ftp_dist_id, ftp_str, ftp_status, ftp_recv_time) "
+                                      "values('%s', '%s', %d, %d)";
+    int len = ACE_OS::strlen(dist_id);
+    int total_len = ACE_OS::strlen(const_sql_template) + len + ACE_OS::strlen(ftp_command) + 20;
+    MyPooledMemGuard sql;
+    MyMemPoolFactoryX::instance()->get_mem(total_len, &sql);
+    ACE_OS::snprintf(sql.data(), total_len, const_sql_template, dist_id, ftp_command, 0, (long)time(NULL));
+    return do_exec(sql.data());
+  } else
+  {
+    const char * const_sql_template = "update tb_ftp_info set ftp_str = '%s', ftp_status = 2, ftp_recv_time = %d "
+                                      "where ftp_dist_id = '%s'";
+    int len = ACE_OS::strlen(dist_id);
+    int total_len = ACE_OS::strlen(const_sql_template) + len + ACE_OS::strlen(ftp_command) + 20;
+    MyPooledMemGuard sql;
+    MyMemPoolFactoryX::instance()->get_mem(total_len, &sql);
+    ACE_OS::snprintf(sql.data(), total_len, const_sql_template, ftp_command, (long)time(NULL), dist_id);
+    return do_exec(sql.data());
+  }
 }
 
 bool MyClientDB::save_md5_command(const char * dist_id, const char * md5_server, const char * md5_client)
@@ -268,24 +301,7 @@ bool MyClientDB::save_md5_command(const char * dist_id, const char * md5_server,
   if (unlikely(!md5_server || !*md5_server || !dist_id || !*dist_id))
     return false;
 
-  int count = 0;
-  {
-    const char * const_sql_template = "select count(*) from tb_ftp_info where ftp_dist_id = '%s'";
-    char sql[200];
-    ACE_OS::snprintf(sql, 200, const_sql_template, dist_id);
-
-    char *zErrMsg = 0;
-    if (sqlite3_exec(m_db, sql, get_one_integer_value_callback, &count, &zErrMsg) != SQLITE_OK)
-    {
-      MY_ERROR("do_exec(sql=%s) failed, msg=%s\n", sql, zErrMsg);
-      if (zErrMsg)
-        sqlite3_free(zErrMsg);
-    }
-    if (zErrMsg)
-      sqlite3_free(zErrMsg);
-  }
-
-  if (count == 0)
+  if (!ftp_command_existing(dist_id))
   {
     const char * const_sql_template = "insert into tb_ftp_info(ftp_dist_id, ftp_status, md5_server, md5_client) "
                                       "values('%s', 0, '%s', '%s')";
@@ -323,7 +339,6 @@ bool MyClientDB::load_ftp_md5_for_diff(MyDistInfoFtp & dist_info)
   if (zErrMsg)
     sqlite3_free(zErrMsg);
   return true;
-
 }
 
 bool MyClientDB::set_ftp_command_status(const char * dist_id, int status)
@@ -1234,9 +1249,9 @@ void MyDistInfoFtp::calc_local_file_name()
 {
   if (unlikely(local_file_name.data() != NULL))
     return;
-  MyPooledMemGuard app_data_path;
-  MyClientApp::data_path(app_data_path, client_id.as_string());
-  local_file_name.init_from_string(app_data_path.data(), "/download/", dist_id.data(), ".mbz");
+  MyPooledMemGuard download_path;
+  MyClientApp::calc_download_parent_path(download_path, client_id.as_string());
+  local_file_name.init_from_string(download_path.data(), "/", dist_id.data(), ".mbz");
 }
 
 ACE_Message_Block * MyDistInfoFtp::make_ftp_dist_message(const char * dist_id, int status, bool ok, char ftype)
@@ -2074,6 +2089,8 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_M
           return (m_handler->send_data(reply_mb) < 0 ? ER_ERROR : ER_OK);
         } else if (ftp_status == -2)
           dbg.db().set_ftp_command_status(dist_id, 2);
+        else
+          dbg.db().save_ftp_command(packet->data, dist_id);
       } else
         dbg.db().save_ftp_command(packet->data, dist_id);
     }

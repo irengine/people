@@ -115,6 +115,8 @@ protected:
   static ACE_Thread_Mutex m_mutex;
 
 private:
+  bool ftp_command_existing(const char * dist_id);
+
   static int load_ftp_commands_callback(void * p, int argc, char **argv, char **azColName);
   static int load_ftp_command_callback(void * p, int argc, char **argv, char **azColName);
   static int get_one_integer_value_callback(void * p, int argc, char **argv, char **azColName);

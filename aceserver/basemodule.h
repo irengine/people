@@ -348,6 +348,7 @@ class MyBaseHandler: public ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH>
 public:
   typedef ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> super;
   MyBaseHandler(MyBaseConnectionManager * xptr = NULL);
+  virtual ~MyBaseHandler();
   void parent(void * p)
     { m_parent = p; }
   MyBaseAcceptor * acceptor() const
@@ -358,16 +359,18 @@ public:
   virtual int handle_input(ACE_HANDLE fd = ACE_INVALID_HANDLE);
   virtual int handle_output(ACE_HANDLE fd = ACE_INVALID_HANDLE);
   virtual int handle_close(ACE_HANDLE = ACE_INVALID_HANDLE, ACE_Reactor_Mask = ACE_Event_Handler::ALL_EVENTS_MASK);
-  virtual ~MyBaseHandler();
+  virtual MyClientIDTable * client_id_table() const;
 
   MyBaseConnectionManager * connection_manager();
   MyBaseProcessor * processor() const;
   int send_data(ACE_Message_Block * mb);
+  void mark_as_reap();
 
 protected:
   virtual void on_close();
   virtual int  on_open();
 
+  bool m_reaped;
   MyBaseConnectionManager * m_connection_manager;
   MyBaseProcessor * m_processor;
   void * m_parent;
@@ -398,6 +401,7 @@ public:
   MyBaseHandler * find_handler_by_index(int index);
   void set_connection_state(MyBaseHandler * handler, Connection_State state);
   void remove_connection(MyBaseHandler * handler, MyClientIDTable * id_table);
+  void remove_from_handler_map(MyBaseHandler * handler, MyClientIDTable * id_table);
 
   void detect_dead_connections(int timeout);
   void lock();
@@ -420,6 +424,7 @@ private:
   MyConnectionsPtr find(MyBaseHandler * handler);
   MyIndexHandlerMapPtr find_handler_by_index_i(int index);
   void do_send(ACE_Message_Block * mb, bool broadcast);
+  void remove_from_active_table(MyBaseHandler * handler);
 
   int  m_num_connections;
   int  m_total_connections;

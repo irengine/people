@@ -34,7 +34,6 @@ const int  DEFAULT_MODULE_HEART_BEAT_MPOOL_SIZE = DEFAULT_max_clients * 4;
 
 const int  DEFAULT_middle_server_client_port = 2223;
 const int  DEFAULT_middle_server_dist_port = 2224;
-const int  DEFAULT_remote_access_port = 2225;
 const int  DEFAULT_client_heart_beat_interval = 60; //in seconds
 const int  DEFAULT_test_client_ftp_thread_number = 50;
 const int  DEFAULT_db_server_port = 5432;
@@ -59,8 +58,6 @@ const ACE_TCHAR * CONFIG_log_file_number = ACE_TEXT("log.file_number");
 const ACE_TCHAR * CONFIG_log_file_size_in_MB = ACE_TEXT("log.file_size");
 
 const ACE_TCHAR * CONFIG_test_client_ftp_thread_number = ACE_TEXT("module.test_client_ftp_thread_number");
-
-const ACE_TCHAR * CONFIG_remote_access_port = ACE_TEXT("remote_access_port");
 
 //dist and middle servers
 const ACE_TCHAR * CONFIG_max_clients = ACE_TEXT("max_clients");
@@ -112,8 +109,6 @@ MyConfig::MyConfig()
   log_file_number = DEFAULT_log_file_number;
   log_file_size_in_MB = DEFAULT_log_file_size_in_MB;
   log_to_stderr = DEFAULT_log_to_stderr;
-
-  remote_access_port = DEFAULT_remote_access_port;
 
   //dist and middle server
   max_clients = DEFAULT_max_clients;
@@ -316,23 +311,13 @@ bool MyConfig::load_config_common(ACE_Configuration_Heap & cfgHeap, ACE_Configur
   if (cfgHeap.get_integer_value (section,  CONFIG_mem_pool_dump_interval, ival) == 0)
     mem_pool_dump_interval = ival;
 
-  if (cfgHeap.get_integer_value (section,  CONFIG_message_control_block_mem_pool_size, ival) == 0)
-  {
-    if (ival > 0 && ival < 1000000)
-      message_control_block_mem_pool_size = ival;
-  }
-  else if (is_client())
-    message_control_block_mem_pool_size = 1000;
-
-  if (cfgHeap.get_integer_value (section,  CONFIG_remote_access_port, ival) == 0)
-  {
-    if (ival == 0 || ival >= 65535)
-    {
-      MY_ERROR(ACE_TEXT("Invalid config value %s (= %d)\n"), CONFIG_remote_access_port, ival);
-      return false;
-    }
-    remote_access_port = ival;
-  }
+//  if (cfgHeap.get_integer_value (section,  CONFIG_message_control_block_mem_pool_size, ival) == 0)
+//  {
+//    if (ival > 0 && ival < 1000000)
+//      message_control_block_mem_pool_size = ival;
+//  }
+//  else if (is_client())
+//    message_control_block_mem_pool_size = 1000;
 
   return true;
 }
@@ -420,7 +405,7 @@ bool MyConfig::load_config_dist_middle(ACE_Configuration_Heap & cfgHeap, ACE_Con
     return false;
   }
 
-  if (cfgHeap.get_integer_value (section,  CONFIG_bs_server_port, ival) == 0)
+  if (cfgHeap.get_integer_value(section, CONFIG_bs_server_port, ival) == 0)
   {
     if (ival == 0 || ival >= 65535)
     {
@@ -442,7 +427,7 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
 
   if (g_test_mode)
   {
-    if (cfgHeap.get_integer_value (section,  CONFIG_client_heart_beat_interval, ival) == 0)
+    if (cfgHeap.get_integer_value(section, CONFIG_client_heart_beat_interval, ival) == 0)
     {
       if (ival == 0 || ival > 0xFFFF )
       {
@@ -456,7 +441,7 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
 
   if (g_test_mode)
   {
-    if (cfgHeap.get_integer_value (section,  CONFIG_test_client_ftp_thread_number, ival) == 0)
+    if (cfgHeap.get_integer_value(section, CONFIG_test_client_ftp_thread_number, ival) == 0)
     {
       if (ival == 0 || ival > 500 )
       {
@@ -468,7 +453,7 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
     }
   }
 
-  if (cfgHeap.get_integer_value (section,  CONFIG_adv_expire_days, ival) == 0)
+  if (cfgHeap.get_integer_value(section, CONFIG_adv_expire_days, ival) == 0)
   {
     if (ival > 365 )
     {
@@ -489,7 +474,7 @@ bool MyConfig::load_config_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configurat
 
   u_int ival;
 
-  if (cfgHeap.get_integer_value (section,  CONFIG_module_heart_beat_mem_pool_size, ival) == 0)
+  if (cfgHeap.get_integer_value(section, CONFIG_module_heart_beat_mem_pool_size, ival) == 0)
   {
     u_int itemp = std::max(2 * max_clients, 1000);
     if (ival < itemp)
@@ -656,7 +641,7 @@ void MyConfig::dump_config_info()
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_run_as_demon, run_as_demon));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_use_mem_pool, use_mem_pool));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_mem_pool_dump_interval, mem_pool_dump_interval));
-  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_message_control_block_mem_pool_size, message_control_block_mem_pool_size));
+//ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_message_control_block_mem_pool_size, message_control_block_mem_pool_size));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_status_file_check_interval, status_file_check_interval));
 
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_file_number, log_file_number));
@@ -668,8 +653,6 @@ void MyConfig::dump_config_info()
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_mode = 1\n")));
   else
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_mode = 0\n")));
-
-  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_remote_access_port, remote_access_port));
 
   //dist and middle server
   if (is_server())

@@ -142,7 +142,7 @@ void MyDistLoads::scan_for_dead()
 
 MyUnusedPathRemover::~MyUnusedPathRemover()
 {
-  std::for_each(m_path_list.begin(), m_path_list.end(), MyPooledObjectDeletor());
+  std::for_each(m_path_list.begin(), m_path_list.end(), MyObjectDeletor());
 }
 
 void MyUnusedPathRemover::add_dist_id(const char * dist_id)
