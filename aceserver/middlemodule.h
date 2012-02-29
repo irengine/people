@@ -69,7 +69,6 @@ public:
 };
 
 
-
 class MyDistLoads
 {
 public:
@@ -120,6 +119,8 @@ public:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
 
   static MyDistLoads * m_dist_loads;
+
+  DECLARE_MEMORY_POOL__NOTHROW(MyLocationProcessor, ACE_Thread_Mutex);
 
 protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);

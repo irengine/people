@@ -162,6 +162,12 @@ private:
   void process_files(const MyPooledMemGuard & path, MyClientDB & db);
 };
 
+class MyConnectIni
+{
+public:
+  enum CONNECT_STATUS {CS_DISCONNECTED = 0, CS_CONNECTING = 1, CS_ONLINE = 2 };
+  static void update_connect_status(MyConnectIni::CONNECT_STATUS cs);
+};
 
 class MyFTPClient
 {
@@ -664,6 +670,7 @@ private:
   void do_command_watch_dog();
   void send_string(const char * s);
   ACE_Message_Block * make_pc_on_off_mb(bool on, const char * sdata);
+  ACE_Message_Block * make_hardware_alarm_mb(char x, char y);
 
   ACE_Message_Block * m_mb;
 };

@@ -672,6 +672,8 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
     path_x = cfg->app_path + "/data/backup";
     MyFilePaths::make_path(path_x.c_str(), true);
 
+    MyConnectIni::update_connect_status(MyConnectIni::CS_DISCONNECTED);
+
     if(cfg->adv_expire_days > 0)
     {
       MyPooledMemGuard mpath;

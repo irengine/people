@@ -611,6 +611,7 @@ MyIPVerSubmitter * MyHeartBeatProcessor::m_ip_ver_submitter = NULL;
 MyFtpFeedbackSubmitter * MyHeartBeatProcessor::m_ftp_feedback_submitter = NULL;
 MyAdvClickSubmitter * MyHeartBeatProcessor::m_adv_click_submitter = NULL;
 MyPcOnOffSubmitter * MyHeartBeatProcessor::m_pc_on_off_submitter = NULL;
+MyHWAlarmSubmitter * MyHeartBeatProcessor::m_hardware_alarm_submitter = NULL;
 
 MyHeartBeatProcessor::MyHeartBeatProcessor(MyBaseHandler * handler): MyBaseServerProcessor(handler)
 {
@@ -652,6 +653,20 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
       MY_ERROR("bad client version check req packet received from %s\n", info.data());
       return ER_ERROR;
     }
+    return ER_OK;
+  }
+
+  if (m_packet_header.command == MyDataPacketHeader::CMD_HARDWARE_ALARM)
+  {
+    if (m_packet_header.length != (int)sizeof(MyPLCAlarm)
+        || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    {
+      MyPooledMemGuard info;
+      info_string(info);
+      MY_ERROR("bad hardware alarm request packet received from %s\n", info.data());
+      return ER_ERROR;
+    }
+    MY_DEBUG("get hardware alarm packet from %s\n", m_client_id.as_string());
     return ER_OK;
   }
 
@@ -739,6 +754,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
   MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
   if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
     return do_version_check(mb);
+
+  if (header->command == MyDataPacketHeader::CMD_HARDWARE_ALARM)
+    return do_hardware_alarm_req(mb);
 
   if (header->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
     return do_md5_file_list(mb);
@@ -887,6 +905,24 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_adv_click_req(ACE_Message
   return ER_OK;
 }
 
+MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_hardware_alarm_req(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  MyPLCAlarm * alarm = (MyPLCAlarm *) mb->base();
+  if (unlikely((alarm->x != '1' && alarm->x != '2') || (alarm->y != '0' && alarm->y != '1')))
+  {
+    MyPooledMemGuard info;
+    info_string(info);
+    MY_ERROR("bad hardware alarm packet from %s, x = %c, y = %c\n", info.data(), alarm->x, alarm->y);
+    return ER_ERROR;
+  }
+
+  char datetime[20];
+  mycomutil_generate_time_string(datetime, 20);
+  m_hardware_alarm_submitter->add_data(m_client_id.as_string(), m_client_id_length, alarm->x, alarm->y, datetime);
+  return ER_OK;
+}
+
 MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_pc_on_off_req(ACE_Message_Block * mb)
 {
   MyMessageBlockGuard guard(mb);
@@ -908,6 +944,8 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_pc_on_off_req(ACE_Message
   m_pc_on_off_submitter->add_data(m_client_id.as_string(), m_client_id_length, dpe->data[0], dpe->data + 1);
   return ER_OK;
 }
+
+PREPARE_MEMORY_POOL(MyHeartBeatProcessor);
 
 
 //MyAccumulatorBlock//
@@ -1191,6 +1229,57 @@ void MyAdvClickSubmitter::add_data(const char * client_id, int id_len, const cha
 const char * MyAdvClickSubmitter::get_command() const
 {
   return MY_BS_ADV_CLICK_CMD;
+}
+
+
+//MyHWAlarmSubmitter//
+MyHWAlarmSubmitter::MyHWAlarmSubmitter():
+      m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
+      m_temperature_block(BLOCK_SIZE, 1, this),
+      m_bright_block(BLOCK_SIZE, 1, this),
+      m_shake_block(BLOCK_SIZE, 1, this),
+      m_door_block(BLOCK_SIZE, 1, this),
+      m_datetime_block(BLOCK_SIZE, 25, this)
+{
+
+}
+
+void MyHWAlarmSubmitter::add_data(const char * client_id, int id_len, const char x, const char y, const char * datetime)
+{
+  bool ret = true;
+  if (!m_id_block.add(client_id, id_len))
+    ret = false;
+
+  if (x == 1)
+  {
+    if (!m_temperature_block.add(y))
+      ret = false;
+  } else if (!m_temperature_block.add(""))
+    ret = false;
+
+  if (!m_bright_block.add(""))
+    ret = false;
+  if (!m_shake_block.add(""))
+    ret = false;
+
+  if (x == 2)
+  {
+    if (!m_door_block.add(y))
+      ret = false;
+  } else if (!m_door_block.add(""))
+    ret = false;
+
+  if (!m_datetime_block.add(datetime))
+    ret = false;
+
+  if (!ret)
+    submit();
+
+}
+
+const char * MyHWAlarmSubmitter::get_command() const
+{
+  return MY_BS_HARD_MON_CMD;
 }
 
 
@@ -1482,6 +1571,7 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
   {
     MyHeartBeatProcessor::m_adv_click_submitter->check_time_out();
     MyHeartBeatProcessor::m_pc_on_off_submitter->check_time_out();
+    MyHeartBeatProcessor::m_hardware_alarm_submitter->check_time_out();
   }
   return 0;
 }
@@ -1562,6 +1652,7 @@ MyHeartBeatModule::MyHeartBeatModule(MyBaseApp * app): MyBaseModule(app)
   MyHeartBeatProcessor::m_ftp_feedback_submitter = &m_ftp_feedback_submitter;
   MyHeartBeatProcessor::m_adv_click_submitter = &m_adv_click_submitter;
   MyHeartBeatProcessor::m_pc_on_off_submitter = &m_pc_on_off_submitter;
+  MyHeartBeatProcessor::m_hardware_alarm_submitter = &m_hardware_alarm_submitter;
 }
 
 MyHeartBeatModule::~MyHeartBeatModule()

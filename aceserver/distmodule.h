@@ -23,6 +23,7 @@ class MyIPVerSubmitter;
 class MyFtpFeedbackSubmitter;
 class MyAdvClickSubmitter;
 class MyPcOnOffSubmitter;
+class MyHWAlarmSubmitter;
 class MyHeartBeatAcceptor;
 class MyDistClients;
 class MyDistClientOne;
@@ -184,6 +185,9 @@ public:
   static MyFtpFeedbackSubmitter * m_ftp_feedback_submitter;
   static MyAdvClickSubmitter * m_adv_click_submitter;
   static MyPcOnOffSubmitter * m_pc_on_off_submitter;
+  static MyHWAlarmSubmitter * m_hardware_alarm_submitter;
+
+  DECLARE_MEMORY_POOL__NOTHROW(MyHeartBeatProcessor, ACE_Thread_Mutex);
 
 protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
@@ -196,6 +200,7 @@ private:
   MyBaseProcessor::EVENT_RESULT do_ip_ver_req(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_adv_click_req(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_pc_on_off_req(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_hardware_alarm_req(ACE_Message_Block * mb);
 };
 
 class MyBaseSubmitter;
@@ -333,6 +338,27 @@ private:
   MyAccumulatorBlock m_number_block;
 };
 
+class MyHWAlarmSubmitter: public MyBaseSubmitter
+{
+public:
+  enum {ID_SEPARATOR = ';' };
+  MyHWAlarmSubmitter();
+  void add_data(const char * client_id, int id_len, const char x, const char y, const char * datetime);
+
+protected:
+  virtual const char * get_command() const;
+
+private:
+  enum { BLOCK_SIZE = 2048 };
+  MyAccumulatorBlock m_id_block;
+  MyAccumulatorBlock m_temperature_block;
+  MyAccumulatorBlock m_bright_block;
+  MyAccumulatorBlock m_shake_block;
+  MyAccumulatorBlock m_door_block;
+  MyAccumulatorBlock m_datetime_block;
+};
+
+
 class MyHeartBeatHandler: public MyBaseHandler
 {
 public:
@@ -417,6 +443,7 @@ private:
   MyFtpFeedbackSubmitter m_ftp_feedback_submitter;
   MyAdvClickSubmitter m_adv_click_submitter;
   MyPcOnOffSubmitter m_pc_on_off_submitter;
+  MyHWAlarmSubmitter m_hardware_alarm_submitter;
   MyHeartBeatService * m_service;
   MyHeartBeatDispatcher * m_dispatcher;
 };

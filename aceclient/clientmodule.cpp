@@ -692,6 +692,22 @@ int MyClientDB::get_ftp_md5_for_diff_callback(void * p, int argc, char **argv, c
   return 0;
 }
 
+//MyConnectIni//
+
+void MyConnectIni::update_connect_status(MyConnectIni::CONNECT_STATUS cs)
+{
+  MyPooledMemGuard path, fn;
+  MyClientApp::calc_display_parent_path(path, NULL);
+  fn.init_from_string(path.data(), "/connect.ini");
+  std::ofstream ofs(fn.data());
+  if (!ofs || ofs.bad())
+  {
+    MY_ERROR("can not open file %s for writing: %s\n", fn.data(), (const char*)MyErrno());
+    return;
+  }
+  ofs << (int)cs;
+}
+
 
 //MyFTPClient//
 
@@ -1982,6 +1998,9 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
             mod->click_sent_done(m_client_id.as_string());
         }
       }
+
+      if (!g_test_mode)
+        MyConnectIni::update_connect_status(MyConnectIni::CS_ONLINE);
     }
 
     return result;
@@ -2159,8 +2178,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ip_ver_reply(ACE_Messa
   MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
   MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
   mod->ip_ver_reply().init(dpe->data);
-  MY_INFO("setup heart beat late timer as %d\n", mod->ip_ver_reply().heart_beat_interval());
-  return ((MyClientToDistHandler*)m_handler)->setup_heart_beat_timer(mod->ip_ver_reply().heart_beat_interval() * 60) ?
+  return ((MyClientToDistHandler*)m_handler)->setup_heart_beat_timer(mod->ip_ver_reply().heart_beat_interval()) ?
           ER_OK: ER_ERROR;
 }
 
@@ -2434,8 +2452,15 @@ bool MyClientToDistHandler::setup_heart_beat_timer(int heart_beat_interval)
   if (m_heart_beat_timer >= 0)
     return true;
 
-  ACE_Time_Value interval1(heart_beat_interval);
-  m_heart_beat_timer = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval1, interval1);
+  if (unlikely(heart_beat_interval <= 0))
+  {
+    MY_ERROR("received bad heart_beat_interval (%d), using default value (3) instead\n", heart_beat_interval);
+    heart_beat_interval = 3;
+  }
+
+  MY_INFO("setup heart beat timer (per %d minute(s))\n", heart_beat_interval);
+  ACE_Time_Value interval(heart_beat_interval * 60);
+  m_heart_beat_timer = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval, interval);
   if (m_heart_beat_timer < 0)
   {
     MY_ERROR(ACE_TEXT("MyClientToDistHandler setup heart beat timer failed, %s"), (const char*)MyErrno());
@@ -2830,7 +2855,11 @@ const char * MyClientToDistDispatcher::name() const
 int MyClientToDistDispatcher::handle_timeout(const ACE_Time_Value &, const void * act)
 {
   if ((long)act == (long)TIMER_ID_BASE)
+  {
     ((MyClientToDistModule*)module_x())->check_ftp_timed_task();
+    if (!g_test_mode && m_connector->connection_manager()->active_connections() == 0)
+      MyConnectIni::update_connect_status(MyConnectIni::CS_DISCONNECTED);
+  }
   else if ((long)act == (long)TIMER_ID_WATCH_DOG)
     check_watch_dog();
   else
@@ -3453,7 +3482,22 @@ void MyHttp1991Processor::do_command_plc(char * parameter)
   else if (x == 7) //pc
     send_string(mod->ip_ver_reply().pc());
   else if ( x == 1 || x == 2)
+  {
     send_string("*1");
+    if (!y || (*y != '0' && *y != '1'))
+    {
+      MY_ERROR("bad hardware alarm packet @MyHttp1991Processor::do_command_plc, y = %s\n", !y? "NULL": y);
+      return;
+    }
+
+    ACE_Message_Block * mb = make_hardware_alarm_mb((char)(x + '0'), *y);
+    ACE_Time_Value tv(ACE_Time_Value::zero);
+    if (MyClientAppX::instance()->client_to_dist_module()->dispatcher()->putq(mb, &tv) < 0)
+    {
+      mb->release();
+      MY_ERROR("failed to place hw alarm message to dist queue, %s\n", (const char*)MyErrno());
+    }
+  }
   else if (x == 11 || x == 12)
   {
     send_string("*1");
@@ -3467,7 +3511,10 @@ void MyHttp1991Processor::do_command_plc(char * parameter)
     ACE_Message_Block * mb = make_pc_on_off_mb(x == 11, y);
     ACE_Time_Value tv(ACE_Time_Value::zero);
     if (MyClientAppX::instance()->client_to_dist_module()->dispatcher()->putq(mb, &tv) < 0)
+    {
       mb->release();
+      MY_ERROR("failed to place pc on/off message to dist queue, %s\n", (const char*)MyErrno());
+    }
   }
   else
   {
@@ -3486,6 +3533,18 @@ ACE_Message_Block * MyHttp1991Processor::make_pc_on_off_mb(bool on, const char *
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
   dpe->data[0] = on ? '1' : '2';
   ACE_OS::memcpy(dpe->data + 1, sdata, len + 1);
+  return mb;
+}
+
+ACE_Message_Block * MyHttp1991Processor::make_hardware_alarm_mb(char x, char y)
+{
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd_direct(sizeof(MyPLCAlarm),
+      MyDataPacketHeader::CMD_HARDWARE_ALARM);
+  if (g_test_mode)
+    ((MyDataPacketHeader *)mb->base())->magic = 0;
+  MyPLCAlarm * dpe = (MyPLCAlarm *)mb->base();
+  dpe->x = x;
+  dpe->y = y;
   return mb;
 }
 

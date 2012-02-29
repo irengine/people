@@ -111,6 +111,13 @@ void MyServerApp::dump_mem_pool_info()
     MyBaseApp::mem_pool_dump_one("MyHeartBeatHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatHandler), chunks);
   }
 
+  if (MyHeartBeatProcessor::mem_pool())
+  {
+    chunks = MyHeartBeatProcessor::mem_pool()->chunks();
+    MyHeartBeatProcessor::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+    MyBaseApp::mem_pool_dump_one("MyHeartBeatProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatProcessor), chunks);
+  }
+
   if (MyDistToBSHandler::mem_pool())
   {
     chunks = MyDistToBSHandler::mem_pool()->chunks();
@@ -131,6 +138,13 @@ void MyServerApp::dump_mem_pool_info()
     chunks = MyLocationHandler::mem_pool()->chunks();
     MyLocationHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
     MyBaseApp::mem_pool_dump_one("MyLocationHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationHandler), chunks);
+  }
+
+  if (MyLocationProcessor::mem_pool())
+  {
+    chunks = MyLocationProcessor::mem_pool()->chunks();
+    MyLocationProcessor::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+    MyBaseApp::mem_pool_dump_one("MyLocationProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationProcessor), chunks);
   }
 
   if (MyHttpHandler::mem_pool())
@@ -208,6 +222,7 @@ bool MyServerApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
     MyBaseApp::app_demonize();
   if (cfg->is_dist_server())
   {
+    MyHeartBeatProcessor::init_mem_pool(cfg->max_clients);
     MyHeartBeatHandler::init_mem_pool(cfg->max_clients);
     MyDistToMiddleHandler::init_mem_pool(20);
     MyDistToBSHandler::init_mem_pool(20);
@@ -216,6 +231,7 @@ bool MyServerApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
   {
     MyDistLoadHandler::init_mem_pool(50);
     MyLocationHandler::init_mem_pool(1000);
+    MyLocationProcessor::init_mem_pool(1000);
     MyHttpHandler::init_mem_pool(20);
     MyMiddleToBSHandler::init_mem_pool(20);
   }
@@ -231,7 +247,9 @@ void MyServerApp::app_fini()
   MyConfigX::close();
   dump_mem_pool_info(); //only mem pool info, other objects should gone by now
   MyHeartBeatHandler::fini_mem_pool();
+  MyHeartBeatProcessor::fini_mem_pool();
   MyLocationHandler::fini_mem_pool();
+  MyLocationProcessor::fini_mem_pool();
   MyDistLoadHandler::fini_mem_pool();
   MyHttpHandler::fini_mem_pool();
   MyDistToMiddleHandler::fini_mem_pool();

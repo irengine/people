@@ -155,6 +155,7 @@ public:
     CMD_IP_VER_REQ,
     CMD_UI_CLICK,
     CMD_PC_ON_OFF,
+    CMD_HARDWARE_ALARM,
     CMD_END,
     CMD_DISCONNECT_INTERNAL
   };
@@ -456,6 +457,12 @@ public:
   }
 };
 
+class MyPLCAlarm: public MyDataPacketHeader
+{
+public:
+  char x;
+  char y;
+};
 
 
 class MyBSBasePacket

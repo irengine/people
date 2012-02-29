@@ -262,6 +262,8 @@ MyBaseProcessor::EVENT_RESULT MyLocationProcessor::do_version_check(ACE_Message_
     return ER_OK;
 }
 
+PREPARE_MEMORY_POOL(MyLocationProcessor);
+
 
 //MyLocationHandler//
 

@@ -230,7 +230,7 @@ bool mycomutil_calculate_file_md5(const char * _file, MyPooledMemGuard & md5_res
 
 bool mycomutil_generate_time_string(char * result_buff, int buff_len, time_t t)
 {
-  MY_ASSERT_RETURN(buff_len > 15, "\n", false);
+  MY_ASSERT_RETURN(buff_len > 15, "buffer len too small @mycomutil_generate_time_string\n", false);
   struct tm _tm;
   if (unlikely(localtime_r(&t, &_tm) == NULL))
     return false;
