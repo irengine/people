@@ -2458,7 +2458,8 @@ bool MyClientToDistHandler::setup_heart_beat_timer(int heart_beat_interval)
     heart_beat_interval = 3;
   }
 
-  MY_INFO("setup heart beat timer (per %d minute(s))\n", heart_beat_interval);
+  if (!g_test_mode || m_processor->client_id_index() == 0)
+    MY_INFO("setup heart beat timer (per %d minute(s))\n", heart_beat_interval);
   ACE_Time_Value interval(heart_beat_interval * 60);
   m_heart_beat_timer = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval, interval);
   if (m_heart_beat_timer < 0)
