@@ -67,6 +67,77 @@ bool MyProgramLauncher::ready() const
 
 //MyVLCLauncher//
 
+int MyVLCLauncher::next() const
+{
+  return m_next;
+}
+
+bool MyVLCLauncher::load()
+{
+  const char * adv = "/tmp/daily/5/adv.txt";
+  std::vector<std::string> advlist;
+
+  m_next = 0;
+  time_t next_time = 0;
+  m_current_line.init_from_string(NULL);
+  if (!MyFilePaths::exist(adv))
+    return false;
+
+  MyPooledMemGuard line;
+  MyMemPoolFactoryX::instance()->get_mem(16000, &line);
+  std::ifstream ifs(adv);
+  if (!ifs || ifs.bad())
+  {
+    MY_WARNING("failed to open %s: %s\n", adv, (const char*)MyErrno());
+    return false;;
+  }
+
+  time_t now = time(NULL);
+  struct tm _tm;
+  const int BLOCK_SIZE = 16000;
+  int t;
+  while (!ifs.eof())
+  {
+    time_t t_this;
+    ifs.getline(line.data(), BLOCK_SIZE - 1);
+    line.data()[BLOCK_SIZE - 1] = 0;
+    char * ptr = ACE_OS::strchr(line.data(), ':');
+    if (!ptr)
+      continue;
+    *ptr ++ = 0;
+    while (*ptr == ' ' || *ptr == '\t')
+      ++ptr;
+    if (*ptr == 0)
+      continue;
+    t = atoi(line.data());
+    if (t < 0 || t > 23)
+      continue;
+    localtime_r(&now, &_tm);
+    _tm.tm_hour = t;
+    t_this = mktime(&_tm);
+    if (t_this + GAP_THREASHHOLD < now)
+    {
+      next_time = t_this;
+      m_current_line.init_from_string(line.data());
+    } else
+    {
+      if (next_time != 0)
+      {
+        m_next = t_this - now;
+        return true;
+      } else
+      {
+        next_time = t_this;
+        m_current_line.init_from_string(line.data());
+      }
+    }
+
+  }//while eof
+
+  m_next = 0;
+  return *m_current_line.data() != 0;
+}
+
 bool MyVLCLauncher::on_launch(ACE_Process_Options & options)
 {
   const char * adv = "/tmp/daily/5/adv.txt";
@@ -75,52 +146,30 @@ bool MyVLCLauncher::on_launch(ACE_Process_Options & options)
 
   std::vector<std::string> advlist;
 
-  if (MyFilePaths::exist(adv))
+  if (load())
   {
-    MyPooledMemGuard cmdline, line;
+    MyPooledMemGuard cmdline;
     MyMemPoolFactoryX::instance()->get_mem(32000, &cmdline);
-    MyMemPoolFactoryX::instance()->get_mem(16000, &line);
-    std::ifstream ifs(adv);
-    if (!ifs || ifs.bad())
-    {
-      MY_WARNING("failed to open %s: %s\n", adv, (const char*)MyErrno());
-      goto __next__;
-    }
 
-    while (!ifs.eof())
+    bool fake = false;
+    const char separators[2] = {' ', 0 };
+    MyStringTokenizer tkn(m_current_line.data(), separators);
+    char * token;
+    while ((token = tkn.get_token()) != NULL)
     {
-      ifs.getline(line.data(), 16000 - 1);
-      line.data()[32000 - 1] = 0;
-      char * ptr = ACE_OS::strchr(line.data(), ':');
-      if (!ptr)
-        continue;
-      *ptr ++ = 0;
-
-      bool fake = false;
-      const char separators[2] = {' ', 0 };
-      MyStringTokenizer tkn(ptr, separators);
-      char * token;
-      while ((token = tkn.get_token()) != NULL)
+      if (mycomutil_string_end_with(token, ".bmp") || mycomutil_string_end_with(token, ".jpg") ||
+          mycomutil_string_end_with(token, ".gif") || mycomutil_string_end_with(token, ".png"))
       {
-        if (mycomutil_string_end_with(token, ".bmp") || mycomutil_string_end_with(token, ".jpg") ||
-            mycomutil_string_end_with(token, ".gif") || mycomutil_string_end_with(token, ".png"))
-        {
-          ACE_OS::strcat(cmdline.data(), " fake://");
-          fake = true;
-        } else
-          ACE_OS::strcat(cmdline.data(), " ");
-        ACE_OS::strcat(cmdline.data(), token);
-      }
-
-      if (cmdline.data()[0] == 0)
-        continue;
-
-      options.command_line("%s %s %s", vlc, (fake ? " --fake-duration 10000" : ""), cmdline.data());
-      return true;
+        ACE_OS::strcat(cmdline.data(), " fake://");
+        fake = true;
+      } else
+        ACE_OS::strcat(cmdline.data(), " ");
+      ACE_OS::strcat(cmdline.data(), token);
     }
-  }
 
-__next__:
+    options.command_line("%s %s %s", vlc, (fake ? " --fake-duration 10000" : ""), cmdline.data());
+    return true;
+  }
 
   MY_INFO("%s not exist or content empty, trying %s\n", adv, gasket);
 
@@ -142,7 +191,52 @@ bool MyVLCLauncher::ready() const
 }
 
 
+//MyVLCMonitor//
+
+MyVLCMonitor::MyVLCMonitor(MyClientApp * app)
+{
+  m_app = app;
+  m_need_relaunch = false;
+}
+
+void MyVLCMonitor::check_relaunch()
+{
+  if (!m_need_relaunch)
+    return;
+  m_need_relaunch = false;
+  launch_vlc();
+}
+
+void MyVLCMonitor::need_relaunch()
+{
+  m_need_relaunch = true;
+}
+
+void MyVLCMonitor::launch_vlc()
+{
+  m_app->vlc_launcher().launch();
+  ACE_Reactor::instance()->cancel_timer(this);
+  if (m_app->vlc_launcher().next() > 0)
+  {
+    ACE_Time_Value tv(m_app->vlc_launcher().next());
+    if (ACE_Reactor::instance()->schedule_timer(this, 0, tv) < 0)
+      MY_ERROR("failed to setup vlc monitor timer\n");
+  }
+}
+
+int MyVLCMonitor::handle_timeout(const ACE_Time_Value &, const void *)
+{
+  launch_vlc();
+  return 0;
+}
+
+
 //MyOperaLauncher//
+
+MyOperaLauncher::MyOperaLauncher()
+{
+  m_need_relaunch = false;
+}
 
 bool MyOperaLauncher::on_launch(ACE_Process_Options & options)
 {
@@ -189,10 +283,23 @@ bool MyOperaLauncher::ready() const
   return _stat.st_size > 1;
 }
 
+void MyOperaLauncher::check_relaunch()
+{
+  if (!m_need_relaunch)
+    return;
+  m_need_relaunch = false;
+  launch();
+}
+
+void MyOperaLauncher::need_relaunch()
+{
+  m_need_relaunch = true;
+}
+
 
 //MyClientApp//
 
-MyClientApp::MyClientApp()
+MyClientApp::MyClientApp(): m_vlc_monitor(this)
 {
   m_client_to_dist_module = NULL;
 }
@@ -246,6 +353,11 @@ MyVLCLauncher & MyClientApp::vlc_launcher()
 MyOperaLauncher & MyClientApp::opera_launcher()
 {
   return m_opera_launcher;
+}
+
+MyVLCMonitor & MyClientApp::vlc_monitor()
+{
+  return m_vlc_monitor;
 }
 
 void MyClientApp::data_path(MyPooledMemGuard & _data_path, const char * client_id)
@@ -561,7 +673,7 @@ bool MyClientApp::on_construct()
   if (!g_test_mode)
   {
     m_vlc_launcher.launch();
-    m_opera_launcher.launch();
+    m_vlc_monitor.launch_vlc();
     check_prev_extract_task(client_id());
   }
 
@@ -577,6 +689,13 @@ bool MyClientApp::on_sigchild(pid_t pid)
 {
   m_opera_launcher.on_terminated(pid);
   m_vlc_launcher.on_terminated(pid);
+  return true;
+}
+
+bool MyClientApp::on_event_loop()
+{
+  m_vlc_monitor.check_relaunch();
+  m_opera_launcher.check_relaunch();
   return true;
 }
 
@@ -740,8 +859,6 @@ void MyClientApp::check_prev_extract_task(const char * client_id)
   };
 
   closedir(dir);
-
-
 }
 
 void MyClientApp::app_fini()

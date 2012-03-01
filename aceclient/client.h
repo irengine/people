@@ -13,6 +13,7 @@
 #include <ace/Process.h>
 
 class MyClientToDistModule;
+class MyClientApp;
 
 class MyProgramLauncher
 {
@@ -38,21 +39,51 @@ class MyVLCLauncher: public MyProgramLauncher
 {
 public:
   virtual bool ready() const;
+  int next() const;
 
 protected:
   virtual bool on_launch(ACE_Process_Options & options);
+  bool load();
 
+private:
+  enum { GAP_THREASHHOLD = 2 * 60 };
+
+  int m_next;
+  MyPooledMemGuard m_current_line;
 };
 
 class MyOperaLauncher: public MyProgramLauncher
 {
 public:
+  MyOperaLauncher();
+
   virtual bool ready() const;
+  void check_relaunch();
+  void need_relaunch();
 
 protected:
   virtual bool on_launch(ACE_Process_Options & options);
 
+private:
+  bool m_need_relaunch;
 };
+
+class MyVLCMonitor: public ACE_Event_Handler
+{
+public:
+  MyVLCMonitor(MyClientApp * app);
+  void launch_vlc();
+
+  void check_relaunch();
+  void need_relaunch();
+
+  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
+
+private:
+  MyClientApp * m_app;
+  bool m_need_relaunch;
+};
+
 
 class MyClientApp: public MyBaseApp
 {
@@ -66,6 +97,7 @@ public:
   const char * client_id() const;
   MyVLCLauncher & vlc_launcher();
   MyOperaLauncher & opera_launcher();
+  MyVLCMonitor  & vlc_monitor();
 
   MyClientIDTable & client_id_table()
     { return m_client_id_table; }
@@ -90,6 +122,7 @@ protected:
   virtual void on_stop();
   virtual void do_dump_info();
   virtual bool on_sigchild(pid_t pid);
+  virtual bool on_event_loop();
 
 private:
   static bool do_backup_restore(const MyPooledMemGuard & src_parent_path, const MyPooledMemGuard & dest_path, bool remove_existing);
@@ -101,6 +134,7 @@ private:
   std::string m_client_id;
   MyClientIDTable m_client_id_table;
   MyVLCLauncher m_vlc_launcher;
+  MyVLCMonitor  m_vlc_monitor;
   MyOperaLauncher m_opera_launcher;
 };
 

@@ -179,6 +179,7 @@ protected:
 
   virtual void do_dump_info();
   virtual bool on_sigchild(pid_t pid);
+  virtual bool on_event_loop();
 
   bool do_sigchild();
   void on_sig_event(int signum);

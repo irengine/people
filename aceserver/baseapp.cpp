@@ -1014,6 +1014,8 @@ void MyBaseApp::do_event_loop()
       MY_INFO("status file checking failed, quitting...\n");
       return;
     }
+    if (!on_event_loop())
+      return;
   }
 }
 
@@ -1040,6 +1042,11 @@ bool MyBaseApp::do_sigchild()
 bool MyBaseApp::on_sigchild(pid_t pid)
 {
   ACE_UNUSED_ARG(pid);
+  return true;
+}
+
+bool MyBaseApp::on_event_loop()
+{
   return true;
 }
 
