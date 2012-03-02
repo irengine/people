@@ -203,6 +203,7 @@ public:
 
   MyHttpProcessor(MyBaseHandler * handler);
   virtual ~MyHttpProcessor();
+  DECLARE_MEMORY_POOL__NOTHROW(MyHttpProcessor, ACE_Thread_Mutex);
 
 protected:
   virtual int packet_length();
@@ -378,6 +379,8 @@ public:
   typedef MyBSBasePacketProcessor super;
 
   MyMiddleToBSProcessor(MyBaseHandler * handler);
+
+  DECLARE_MEMORY_POOL__NOTHROW(MyMiddleToBSProcessor, ACE_Thread_Mutex);
 };
 
 class MyMiddleToBSHandler: public MyBaseHandler

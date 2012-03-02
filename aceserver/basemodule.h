@@ -555,6 +555,7 @@ public:
     if (m_read_next_offset < (int)sizeof(m_packet_header))
     {
       int ret = read_req_header();
+      //MY_DEBUG("read_req_header() returns %d, m_read_next_offset = %d\n", ret, m_read_next_offset);
       if (ret < 0)
         return -1;
       else if (ret > 0)

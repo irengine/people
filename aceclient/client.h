@@ -48,6 +48,9 @@ protected:
 private:
   enum { GAP_THREASHHOLD = 2 * 60 };
 
+  const char * adv_txt() const;
+  const char * gasket() const;
+
   int m_next;
   MyPooledMemGuard m_current_line;
 };
