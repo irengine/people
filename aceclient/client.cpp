@@ -672,7 +672,7 @@ bool MyClientApp::on_construct()
 
   if (!g_test_mode)
   {
-    m_vlc_launcher.launch();
+    m_opera_launcher.launch();
     m_vlc_monitor.launch_vlc();
     check_prev_extract_task(client_id());
   }

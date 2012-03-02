@@ -225,7 +225,7 @@ bool MyDistClient::send_md5()
   int md5_len = dist_info->md5_len + 1;
   int data_len = dist_out_leading_length() + md5_len;
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(data_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
-  MyServerFileMD5List * md5_packet = (MyServerFileMD5List *)mb->base();
+  MyDataPacketExt * md5_packet = (MyDataPacketExt *)mb->base();
   md5_packet->magic = client_id_index();
   dist_out_leading_data(md5_packet->data);
   ACE_OS::memcpy(md5_packet->data + data_len - md5_len, dist_info->md5.data(), md5_len);
