@@ -28,7 +28,8 @@ class http
     try 
     {
       Socket skt = new Socket(args[0], 1922);
-      BufferedReader in = new BufferedReader(new InputStreamReader(skt.getInputStream()));
+      //skt.setTcpNoDelay(true);
+      DataInputStream in = new DataInputStream(skt.getInputStream());
       DataOutputStream out = new DataOutputStream(skt.getOutputStream());
       System.out.println("Sending url...");
       out.writeInt(len);
@@ -36,10 +37,10 @@ class http
       //out.writeBytes(args[1]);
       out.write(utf8Bytes, 0, utf8Bytes.length);
       out.flush();
+//      out.close();
       System.out.print("Received string: '");
-      while (!in.ready()) 
-      {}
-      System.out.print(in.readLine()); // Read one line and output it
+      byte b = in.readByte();
+      System.out.print((char)b); // Read one line and output it
       System.out.println("'\n");
       in.close();
     }
