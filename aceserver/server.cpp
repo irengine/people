@@ -154,6 +154,13 @@ void MyServerApp::dump_mem_pool_info()
     MyBaseApp::mem_pool_dump_one("MyHttpHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpHandler), chunks);
   }
 
+  if (MyHttpProcessor::mem_pool())
+  {
+    chunks = MyHttpProcessor::mem_pool()->chunks();
+    MyHttpProcessor::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+    MyBaseApp::mem_pool_dump_one("MyHttpProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpProcessor), chunks);
+  }
+
   if (MyDistLoadHandler::mem_pool())
   {
     chunks = MyDistLoadHandler::mem_pool()->chunks();
@@ -232,8 +239,10 @@ bool MyServerApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
     MyDistLoadHandler::init_mem_pool(50);
     MyLocationHandler::init_mem_pool(1000);
     MyLocationProcessor::init_mem_pool(1000);
+    MyHttpProcessor::init_mem_pool(20);
     MyHttpHandler::init_mem_pool(20);
     MyMiddleToBSHandler::init_mem_pool(20);
+    MyMiddleToBSProcessor::init_mem_pool(20);
   }
   MyMemPoolFactoryX::instance()->init(cfg);
   return app->do_constructor();
@@ -252,9 +261,11 @@ void MyServerApp::app_fini()
   MyLocationProcessor::fini_mem_pool();
   MyDistLoadHandler::fini_mem_pool();
   MyHttpHandler::fini_mem_pool();
+  MyHttpProcessor::fini_mem_pool();
   MyDistToMiddleHandler::fini_mem_pool();
   MyDistToBSHandler::fini_mem_pool();
   MyMiddleToBSHandler::fini_mem_pool();
+  MyMiddleToBSProcessor::fini_mem_pool();
   MyMemPoolFactoryX::close();
 }
 

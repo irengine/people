@@ -232,14 +232,7 @@ bool MyDistClient::send_md5()
 
   last_update = time(NULL);
 
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (MyServerAppX::instance()->heart_beat_module()->dispatcher()->putq(mb, &tv) == -1)
-  {
-    MY_ERROR("can not put file md5 list message to disatcher's queue\n");
-    mb->release();
-    return false;
-  } else
-    return true;
+  return mycomutil_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "file md5 list to dispatcher's queue");
 }
 
 bool MyDistClient::generate_diff_mbz()
@@ -1233,6 +1226,7 @@ const char * MyAdvClickSubmitter::get_command() const
 
 
 //MyHWAlarmSubmitter//
+
 MyHWAlarmSubmitter::MyHWAlarmSubmitter():
       m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
       m_temperature_block(BLOCK_SIZE, 1, this),
@@ -1250,7 +1244,7 @@ void MyHWAlarmSubmitter::add_data(const char * client_id, int id_len, const char
   if (!m_id_block.add(client_id, id_len))
     ret = false;
 
-  if (x == 1)
+  if (x == '1')
   {
     if (!m_temperature_block.add(y))
       ret = false;
@@ -1262,7 +1256,7 @@ void MyHWAlarmSubmitter::add_data(const char * client_id, int id_len, const char
   if (!m_shake_block.add(""))
     ret = false;
 
-  if (x == 2)
+  if (x == '2')
   {
     if (!m_door_block.add(y))
       ret = false;

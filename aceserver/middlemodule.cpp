@@ -455,6 +455,8 @@ bool MyHttpProcessor::do_process_input_data()
   }
 }
 
+PREPARE_MEMORY_POOL(MyHttpProcessor);
+
 
 //MyHttpHandler//
 
@@ -1031,6 +1033,8 @@ MyMiddleToBSProcessor::MyMiddleToBSProcessor(MyBaseHandler * handler): super(han
 {
 
 }
+
+PREPARE_MEMORY_POOL(MyMiddleToBSProcessor);
 
 
 //MyMiddleToBSHandler//

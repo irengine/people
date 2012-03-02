@@ -116,6 +116,9 @@ void MyAdvCleaner::process_files(const MyPooledMemGuard & _path, MyClientDB & db
   MyPooledMemGuard path;
   path.init_from_string(_path.data(), "/5");
 
+  if (!MyFilePaths::exist(path.data()))
+    return;
+
   DIR * dir = opendir(path.data());
   if (!dir)
   {
@@ -2164,9 +2167,7 @@ void MyClientToDistProcessor::check_offline_report()
   dpe->data[0] = '3';
   ACE_OS::memcpy(dpe->data + 1, buff, len + 1);
 
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (MyClientAppX::instance()->client_to_dist_module()->dispatcher()->putq(mb, &tv) < 0)
-    mb->release();
+  mycomutil_mb_putq(MyClientAppX::instance()->client_to_dist_module()->dispatcher(), mb, "client off-line report to dist queue");
 }
 
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ip_ver_reply(ACE_Message_Block * mb)
@@ -2619,6 +2620,8 @@ void MyClientToDistService::do_extract_task(MyDistInfoFtp * dist_info)
     dist_info->status = extractor.extract(dist_info) ? 4:5;
     dist_info->update_db_status();
     dist_info->post_status_message();
+    if (ftype_is_adv_list(dist_info->ftype) && !g_test_mode && dist_info->status == 4)
+      MyClientAppX::instance()->vlc_monitor().need_relaunch();
   }
   return_back(dist_info);
 }
@@ -3492,12 +3495,7 @@ void MyHttp1991Processor::do_command_plc(char * parameter)
     }
 
     ACE_Message_Block * mb = make_hardware_alarm_mb((char)(x + '0'), *y);
-    ACE_Time_Value tv(ACE_Time_Value::zero);
-    if (MyClientAppX::instance()->client_to_dist_module()->dispatcher()->putq(mb, &tv) < 0)
-    {
-      mb->release();
-      MY_ERROR("failed to place hw alarm message to dist queue, %s\n", (const char*)MyErrno());
-    }
+    mycomutil_mb_putq(MyClientAppX::instance()->client_to_dist_module()->dispatcher(), mb, "hw alarm to dist queue");
   }
   else if (x == 11 || x == 12)
   {
@@ -3510,12 +3508,7 @@ void MyHttp1991Processor::do_command_plc(char * parameter)
     *(y + 15) = 0;
     *(y + 8) = ' ';
     ACE_Message_Block * mb = make_pc_on_off_mb(x == 11, y);
-    ACE_Time_Value tv(ACE_Time_Value::zero);
-    if (MyClientAppX::instance()->client_to_dist_module()->dispatcher()->putq(mb, &tv) < 0)
-    {
-      mb->release();
-      MY_ERROR("failed to place pc on/off message to dist queue, %s\n", (const char*)MyErrno());
-    }
+    mycomutil_mb_putq(MyClientAppX::instance()->client_to_dist_module()->dispatcher(), mb, "pc on/off to dist queue");
   }
   else
   {

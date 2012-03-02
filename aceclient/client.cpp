@@ -67,6 +67,16 @@ bool MyProgramLauncher::ready() const
 
 //MyVLCLauncher//
 
+const char * MyVLCLauncher::adv_txt() const
+{
+  return "/tmp/daily/5/adv.txt";
+}
+
+const char * MyVLCLauncher::gasket() const
+{
+  return "/tmp/daily/8/gasket.avi";
+}
+
 int MyVLCLauncher::next() const
 {
   return m_next;
@@ -74,22 +84,21 @@ int MyVLCLauncher::next() const
 
 bool MyVLCLauncher::load()
 {
-  const char * adv = "/tmp/daily/5/adv.txt";
   std::vector<std::string> advlist;
 
   m_next = 0;
   time_t next_time = 0;
   m_current_line.init_from_string(NULL);
-  if (!MyFilePaths::exist(adv))
+  if (!MyFilePaths::exist(adv_txt()))
     return false;
 
   MyPooledMemGuard line;
   MyMemPoolFactoryX::instance()->get_mem(16000, &line);
-  std::ifstream ifs(adv);
+  std::ifstream ifs(adv_txt());
   if (!ifs || ifs.bad())
   {
-    MY_WARNING("failed to open %s: %s\n", adv, (const char*)MyErrno());
-    return false;;
+    MY_WARNING("failed to open %s: %s\n", adv_txt(), (const char*)MyErrno());
+    return false;
   }
 
   time_t now = time(NULL);
@@ -140,45 +149,44 @@ bool MyVLCLauncher::load()
 
 bool MyVLCLauncher::on_launch(ACE_Process_Options & options)
 {
-  const char * adv = "/tmp/daily/5/adv.txt";
-  const char * gasket = "/tmp/daily/8/gasket.avi";
-  const char * vlc = "vlc --fullscreen";
+  const char * vlc = "vlc -L --fullscreen";
 
   std::vector<std::string> advlist;
 
   if (load())
   {
     MyPooledMemGuard cmdline;
-    MyMemPoolFactoryX::instance()->get_mem(32000, &cmdline);
+    MyMemPoolFactoryX::instance()->get_mem(64000, &cmdline);
 
     bool fake = false;
     const char separators[2] = {' ', 0 };
     MyStringTokenizer tkn(m_current_line.data(), separators);
     char * token;
+    cmdline.data()[0] = 0;
     while ((token = tkn.get_token()) != NULL)
     {
       if (mycomutil_string_end_with(token, ".bmp") || mycomutil_string_end_with(token, ".jpg") ||
           mycomutil_string_end_with(token, ".gif") || mycomutil_string_end_with(token, ".png"))
       {
-        ACE_OS::strcat(cmdline.data(), " fake://");
+        ACE_OS::strncat(cmdline.data(), " fake:///tmp/daily/5/", 64000 - 1);
         fake = true;
       } else
-        ACE_OS::strcat(cmdline.data(), " ");
-      ACE_OS::strcat(cmdline.data(), token);
+        ACE_OS::strncat(cmdline.data(), " /tmp/daily/5/", 64000 - 1);
+      ACE_OS::strncat(cmdline.data(), token, 64000 - 1);
     }
 
     options.command_line("%s %s %s", vlc, (fake ? " --fake-duration 10000" : ""), cmdline.data());
     return true;
   }
 
-  MY_INFO("%s not exist or content empty, trying %s\n", adv, gasket);
+  MY_INFO("%s not exist or content empty, trying %s\n", adv_txt(), gasket());
 
-  if (!MyFilePaths::exist(gasket))
+  if (!MyFilePaths::exist(gasket()))
   {
-    MY_ERROR("no %s file\n", gasket);
+    MY_ERROR("no %s file\n", gasket());
     return false;
   }
-  options.command_line("%s %s", vlc, gasket);
+  options.command_line("%s %s", vlc, gasket());
   return true;
 }
 

@@ -256,6 +256,20 @@ bool mycomutil_string_end_with(const char * src, const char * key)
   return ACE_OS::memcmp(src + len1 - len2, key, len2) == 0;
 }
 
+bool mycomutil_mb_putq(ACE_Task<ACE_MT_SYNCH> * target, ACE_Message_Block * mb, const char * err_msg)
+{
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (unlikely(target->putq(mb, &tv) < 0))
+  {
+    if (err_msg)
+      MY_ERROR("can not put message %s: %s\n", err_msg, (const char *)MyErrno());
+    mb->release();
+    return false;
+  }
+
+  return true;
+}
+
 
 int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
 
@@ -284,7 +298,8 @@ int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH
   int ret = mycomutil_translate_tcp_result(send_cnt);
   if (ret < 0)
     return ret;
-  mb->rd_ptr(send_cnt);
+  if (send_cnt > 0)
+    mb->rd_ptr(send_cnt);
   return (mb->length() == 0 ? 0:1);
 }
 
@@ -384,15 +399,20 @@ _exit_:
 
 int mycomutil_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb)
 {
+//  MY_DEBUG("on enter: mb->space()=%d\n", mb->space());
   if (!mb || !handler)
     return -1;
   if (mb->space() == 0)
     return 0;
   ssize_t recv_cnt = handler->peer().recv(mb->wr_ptr(), mb->space());//TEMP_FAILURE_RETRY(handler->peer().recv(mb->wr_ptr(), mb->space()));
+//  MY_DEBUG("handler->recv() returns %d\n", (int)recv_cnt);
   int ret = mycomutil_translate_tcp_result(recv_cnt);
+//  MY_DEBUG("tcp result = %d\n", ret);
   if (ret < 0)
     return -1;
-  mb->wr_ptr(recv_cnt);
+  if (recv_cnt > 0)
+    mb->wr_ptr(recv_cnt);
+//  MY_DEBUG("on exit: mb->space()=%d\n", mb->space());
   return (mb->space() == 0 ? 0:1);
 }
 
