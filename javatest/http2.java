@@ -89,7 +89,7 @@ class http2
     try 
     {
       Socket skt = new Socket(args[0], 1922);
-      BufferedReader in = new BufferedReader(new InputStreamReader(skt.getInputStream()));
+      DataInputStream in = new DataInputStream(skt.getInputStream());
       DataOutputStream out = new DataOutputStream(skt.getOutputStream());
       System.out.println("Sending url...");
       out.writeInt(len);
@@ -98,9 +98,8 @@ class http2
       out.write(utf8Bytes, 0, utf8Bytes.length);
       out.flush();
       System.out.print("Received string: '");
-      while (!in.ready()) 
-      {}
-      System.out.print(in.readLine()); // Read one line and output it
+      byte b = in.readByte();
+      System.out.print((char)b); // Read one char and output it
       System.out.println("'\n");
       in.close();
     }
