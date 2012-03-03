@@ -1921,9 +1921,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
 
   if (bVersionCheckReply)
   {
-    MyClientVersionCheckReplyProc proc;
-    proc.attach((const char*)&m_packet_header);
-    if (!proc.validate_header())
+    if (!my_dph_validate_client_version_check_reply(&m_packet_header))
     {
       MY_ERROR("failed to validate header for version check\n");
       return ER_ERROR;
@@ -1933,9 +1931,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
   {
-    MyServerFileMD5ListProc proc;
-    proc.attach((const char*)&m_packet_header);
-    if (!proc.validate_header())
+    if (my_dph_validate_file_md5_list(&m_packet_header))
     {
       MY_ERROR("failed to validate header for server file md5 list\n");
       return ER_ERROR;
@@ -1945,9 +1941,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_FTP_FILE)
   {
-    MyFtpFileProc proc;
-    proc.attach((const char*)&m_packet_header);
-    if (!proc.validate_header())
+    if (!my_dph_validate_ftp_file(&m_packet_header))
     {
       MY_ERROR("failed to validate header for server ftp file\n");
       return ER_ERROR;
@@ -2250,12 +2244,11 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
 int MyClientToDistProcessor::send_version_check_req()
 {
   ACE_Message_Block * mb = make_version_check_request_mb();
-  MyClientVersionCheckRequestProc proc;
-  proc.attach(mb->base());
-  proc.data()->client_version_major = const_client_version_major;
-  proc.data()->client_version_minor = const_client_version_minor;
-  proc.data()->client_id = m_client_id;
-  proc.data()->server_id = (u_int8_t) MyServerID::load(m_client_id.as_string());
+  MyClientVersionCheckRequest * proc = (MyClientVersionCheckRequest *)mb->base();
+  proc->client_version_major = const_client_version_major;
+  proc->client_version_minor = const_client_version_minor;
+  proc->client_id = m_client_id;
+  proc->server_id = (u_int8_t) MyServerID::load(m_client_id.as_string());
   return (m_handler->send_data(mb) < 0? -1: 0);
 }
 
@@ -3175,9 +3168,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToMiddleProcessor::on_recv_header()
 
   if (bVersionCheckReply)
   {
-    MyClientVersionCheckReplyProc proc;
-    proc.attach((const char*)&m_packet_header);
-    if (!proc.validate_header())
+    if (!my_dph_validate_client_version_check_reply(&m_packet_header))
     {
       MY_ERROR("failed to validate header for version check reply\n");
       return ER_ERROR;
@@ -3207,9 +3198,8 @@ MyBaseProcessor::EVENT_RESULT MyClientToMiddleProcessor::on_recv_packet_i(ACE_Me
 void MyClientToMiddleProcessor::do_version_check_reply(ACE_Message_Block * mb)
 {
   const char * prefix_msg = "middle server version check reply:";
-  MyClientVersionCheckReplyProc vcr;
-  vcr.attach(mb->base());
-  switch (vcr.data()->reply_code)
+  MyClientVersionCheckReply * vcr = (MyClientVersionCheckReply *) mb->base();
+  switch (vcr->reply_code)
   {
   case MyClientVersionCheckReply::VER_MISMATCH:
     MY_ERROR("%s get version mismatch response\n", prefix_msg);
@@ -3228,7 +3218,7 @@ void MyClientToMiddleProcessor::do_version_check_reply(ACE_Message_Block * mb)
     return;
 
   default:
-    MY_ERROR("%s get unexpected reply code = %d\n", prefix_msg, vcr.data()->reply_code);
+    MY_ERROR("%s get unexpected reply code = %d\n", prefix_msg, vcr->reply_code);
     return;
   }
 }
@@ -3254,12 +3244,11 @@ void MyClientToMiddleProcessor::do_handle_server_list(ACE_Message_Block * mb)
 int MyClientToMiddleProcessor::send_version_check_req()
 {
   ACE_Message_Block * mb = make_version_check_request_mb();
-  MyClientVersionCheckRequestProc proc;
-  proc.attach(mb->base());
-  proc.data()->client_version_major = const_client_version_major;
-  proc.data()->client_version_minor = const_client_version_minor;
-  proc.data()->client_id = m_client_id;
-  proc.data()->server_id = 0;
+  MyClientVersionCheckRequest * proc = (MyClientVersionCheckRequest *)mb->base();
+  proc->client_version_major = const_client_version_major;
+  proc->client_version_minor = const_client_version_minor;
+  proc->client_id = m_client_id;
+  proc->server_id = 0;
   MY_INFO("sending handshake request to middle server...\n");
   return (m_handler->send_data(mb) < 0? -1: 0);
 }

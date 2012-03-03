@@ -295,7 +295,7 @@ bool MyDistClient::send_ftp()
   int ftp_file_name_len = ACE_OS::strlen(ftp_file_name) + 1;
   int data_len = leading_length + ftp_file_name_len + dist_info->password_len + 1 + _mbz_md5_len;
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(data_len, MyDataPacketHeader::CMD_FTP_FILE);
-  MyFtpFile * packet = (MyFtpFile *)mb->base();
+  MyDataPacketExt * packet = (MyDataPacketExt *)mb->base();
   packet->magic = client_id_index();
   dist_out_leading_data(packet->data);
   char * ptr = packet->data + leading_length;
@@ -309,14 +309,7 @@ bool MyDistClient::send_ftp()
 
   last_update = time(NULL);
 
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (MyServerAppX::instance()->heart_beat_module()->dispatcher()->putq(mb, &tv) == -1)
-  {
-    MY_ERROR("can not put file md5 list message to disatcher's queue\n");
-    mb->release();
-    return false;
-  } else
-    return true;
+  return mycomutil_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "file md5 list to dispatcher's queue");
 }
 
 
@@ -618,10 +611,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_HEARTBEAT_PING)
   {
-    MyHeartBeatPingProc proc;
-    proc.attach((const char*)&m_packet_header);
-    bool result = proc.validate_header();
-    if (!result)
+    if (!my_dph_validate_heart_beat(&m_packet_header))
     {
       MyPooledMemGuard info;
       info_string(info);
@@ -636,10 +626,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
   {
-    MyClientVersionCheckRequestProc proc;
-    proc.attach((const char*)&m_packet_header);
-    bool result = proc.validate_header();
-    if (!result)
+    if (!my_dph_validate_client_version_check_req(&m_packet_header))
     {
       MyPooledMemGuard info;
       info_string(info);
@@ -651,8 +638,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_HARDWARE_ALARM)
   {
-    if (m_packet_header.length != (int)sizeof(MyPLCAlarm)
-        || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    if (!my_dph_validate_plc_alarm(&m_packet_header))
     {
       MyPooledMemGuard info;
       info_string(info);
@@ -665,10 +651,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
   {
-    MyServerFileMD5ListProc proc;
-    proc.attach((const char*)&m_packet_header);
-    bool result = proc.validate_header();
-    if (!result)
+    if (!my_dph_validate_file_md5_list(&m_packet_header))
     {
       MyPooledMemGuard info;
       info_string(info);
@@ -680,10 +663,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_FTP_FILE)
   {
-    MyFtpFileProc proc;
-    proc.attach((const char*)&m_packet_header);
-    bool result = proc.validate_header();
-    if (!result)
+    if (!my_dph_validate_ftp_file(&m_packet_header))
     {
       MyPooledMemGuard info;
       info_string(info);
@@ -1558,9 +1538,7 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
   {
     ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(int));
     *(int*)mb->base() = MyHeartBeatService::TIMED_DIST_TASK;
-    ACE_Time_Value tv(ACE_Time_Value::zero);
-    if (((MyHeartBeatModule*)module_x())->service()->putq(mb, &tv) < 0)
-      mb->release();
+    mycomutil_mb_putq(((MyHeartBeatModule*)module_x())->service(), mb, "dist command to service queue");
   } else if ((long)act == TIMER_ID_ADV_CLICK)
   {
     MyHeartBeatProcessor::m_adv_click_submitter->check_time_out();
@@ -1751,9 +1729,7 @@ void MyDistToBSProcessor::process_ip_ver_reply_one(char * item)
     MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
     ACE_OS::memcpy(dpe->data, data, len);
     dpe->magic = index;
-    ACE_Time_Value tv(ACE_Time_Value::zero);
-    if (MyServerAppX::instance()->heart_beat_module()->dispatcher()->putq(mb, &tv) == -1)
-      mb->release();
+    mycomutil_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "ip ver reply to dispatcher's queue");
   } else
   {
     if (index >= 0)
@@ -1761,9 +1737,7 @@ void MyDistToBSProcessor::process_ip_ver_reply_one(char * item)
       ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(0, MyDataPacketHeader::CMD_DISCONNECT_INTERNAL);
       MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
       dpe->magic = index;
-      ACE_Time_Value tv(ACE_Time_Value::zero);
-      if (MyServerAppX::instance()->heart_beat_module()->dispatcher()->putq(mb, &tv) == -1)
-        mb->release();
+      mycomutil_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "disconnect internal to dispatcher's queue");
     }
   }
 }
@@ -1865,9 +1839,7 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::on_recv_header()
 
   if (bVersionCheckReply)
   {
-    MyClientVersionCheckReplyProc proc;
-    proc.attach((const char*)&m_packet_header);
-    if (!proc.validate_header())
+    if (!my_dph_validate_client_version_check_reply(&m_packet_header))
     {
       MY_ERROR("failed to validate header for version check reply packet\n");
       return ER_ERROR;
@@ -1877,9 +1849,7 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_HAVE_DIST_TASK)
   {
-    MyHaveDistTaskProc proc;
-    proc.attach((const char*)&m_packet_header);
-    if (!proc.validate_header())
+    if (!my_dph_validate_have_dist_task(&m_packet_header))
     {
       MY_ERROR("failed to validate header for dist task notify packet\n");
       return ER_ERROR;
@@ -1928,11 +1898,10 @@ int MyDistToMiddleProcessor::send_server_load()
     return 0;
 
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd_direct(sizeof(MyLoadBalanceRequest), MyDataPacketHeader::CMD_LOAD_BALANCE_REQ);
-  MyLoadBalanceRequestProc proc;
-  proc.attach(mb->base());
-  proc.ip_addr(m_local_addr);
-  proc.data()->clients_connected = MyServerAppX::instance()->heart_beat_module()->num_active_clients();
-  MY_INFO("sending dist server load number [%d] to middle server...\n", proc.data()->clients_connected);
+  MyLoadBalanceRequest * req = (MyLoadBalanceRequest *) mb->base();
+  req->set_ip_addr(m_local_addr);
+  req->clients_connected = MyServerAppX::instance()->heart_beat_module()->num_active_clients();
+  MY_INFO("sending dist server load number [%d] to middle server...\n", req->clients_connected);
   return (m_handler->send_data(mb) < 0 ? -1: 0);
 }
 
@@ -1942,9 +1911,8 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_version_check_reply(AC
   m_version_check_reply_done = true;
 
   const char * prefix_msg = "dist server version check reply:";
-  MyClientVersionCheckReplyProc vcr;
-  vcr.attach(mb->base());
-  switch (vcr.data()->reply_code)
+  MyClientVersionCheckReply * vcr = (MyClientVersionCheckReply *) mb->base();
+  switch (vcr->reply_code)
   {
   case MyClientVersionCheckReply::VER_OK:
     return MyBaseProcessor::ER_OK;
@@ -1966,7 +1934,7 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_version_check_reply(AC
     return MyBaseProcessor::ER_ERROR;
 
   default: //server_list
-    MY_ERROR("%s get unknown reply code = %d\n", prefix_msg, vcr.data()->reply_code);
+    MY_ERROR("%s get unknown reply code = %d\n", prefix_msg, vcr->reply_code);
     return MyBaseProcessor::ER_ERROR;
   }
 
@@ -1986,12 +1954,11 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_have_dist_task(ACE_Mes
 int MyDistToMiddleProcessor::send_version_check_req()
 {
   ACE_Message_Block * mb = make_version_check_request_mb();
-  MyClientVersionCheckRequestProc proc;
-  proc.attach(mb->base());
-  proc.data()->client_version_major = 1;
-  proc.data()->client_version_minor = 0;
-  proc.data()->client_id = MyConfigX::instance()->middle_server_key.c_str();
-  proc.data()->server_id = MyConfigX::instance()->server_id;
+  MyClientVersionCheckRequest * proc = (MyClientVersionCheckRequest *)mb->base();
+  proc->client_version_major = 1;
+  proc->client_version_minor = 0;
+  proc->client_id = MyConfigX::instance()->middle_server_key.c_str();
+  proc->server_id = MyConfigX::instance()->server_id;
   MY_INFO("sending handshake request to middle server...\n");
   return (m_handler->send_data(mb) < 0? -1: 0);
 }
@@ -2126,9 +2093,7 @@ void MyDistToMiddleDispatcher::send_to_bs(ACE_Message_Block * mb)
 
 void MyDistToMiddleDispatcher::send_to_middle(ACE_Message_Block * mb)
 {
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (this->putq(mb, &tv) == -1)
-    mb->release();
+  mycomutil_mb_putq(this, mb, "@ MyDistToMiddleDispatcher::send_to_middle");
 }
 
 void MyDistToMiddleDispatcher::on_stop()

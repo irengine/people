@@ -172,85 +172,6 @@ public:
   bool guard();
 };
 
-
-//the ultimate root class for all data packets Proc
-class MyDataPacketBaseProc
-{
-public:
-  MyDataPacketBaseProc(const char * _data = NULL): m_data((MyDataPacketHeader *)_data)
-  {}
-  virtual ~MyDataPacketBaseProc()
-  {
-  }
-  virtual void init_header()
-  {
-    m_data->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
-  }
-  virtual bool validate_header() const
-  {
-    return m_data->magic == MyDataPacketHeader::DATAPACKET_MAGIC;
-  }
-  virtual bool validate_data() const
-  {
-    return true;
-  }
-  void attach(const char * _data)
-  //renamed just because gcc 4.4 is not smart enough to distinguish this
-  //from the sub-class override and overload version
-  //void data(char * _data)
-  {
-    m_data = (MyDataPacketHeader *)_data;
-  }
-  virtual MyDataPacketHeader * data() const
-  {
-    return m_data;
-  }
-
-protected:
-  MyDataPacketHeader * m_data;
-};
-
-class MyHaveDistTaskProc: public MyDataPacketBaseProc
-{
-public:
-  virtual void init_header()
-  {
-    MyDataPacketBaseProc::init_header();
-    m_data->length = sizeof(MyDataPacketHeader);
-    m_data->command = MyDataPacketHeader::CMD_HAVE_DIST_TASK;
-  };
-
-  virtual bool validate_header() const
-  {
-    if (!MyDataPacketBaseProc::validate_header())
-      return false;
-    return (m_data->length == sizeof(MyDataPacketHeader) &&
-            m_data->command == MyDataPacketHeader::CMD_HAVE_DIST_TASK);
-  }
-};
-
-
-//Heart Beat Packet is just an alias to the Header packet
-class MyHeartBeatPingProc: public MyDataPacketBaseProc
-{
-public:
-  virtual void init_header()
-  {
-    MyDataPacketBaseProc::init_header();
-    m_data->length = sizeof(MyDataPacketHeader);
-    m_data->command = MyDataPacketHeader::CMD_HEARTBEAT_PING;
-  };
-
-  virtual bool validate_header() const
-  {
-    if (!MyDataPacketBaseProc::validate_header())
-      return false;
-    return (m_data->length == sizeof(MyDataPacketHeader) &&
-            m_data->command == MyDataPacketHeader::CMD_HEARTBEAT_PING);
-  }
-};
-
-
 class MyClientVersionCheckRequest: public MyDataPacketHeader
 {
 public:
@@ -258,6 +179,12 @@ public:
   u_int8_t client_version_minor;
   u_int8_t server_id;
   MyClientID client_id;
+
+  void validate_data()
+  {
+    client_id.fix_data();
+  }
+
 };
 
 class MyIpVerRequest: public MyDataPacketHeader
@@ -266,38 +193,6 @@ public:
   u_int8_t client_version_major;
   u_int8_t client_version_minor;
 };
-
-
-class MyClientVersionCheckRequestProc: public MyDataPacketBaseProc
-{
-public:
-  virtual void init_header()
-  {
-    MyDataPacketBaseProc::init_header();
-    m_data->length = sizeof(MyClientVersionCheckRequest);
-    m_data->command = MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ;
-  };
-
-  virtual bool validate_header() const
-  {
-    if (!MyDataPacketBaseProc::validate_header())
-      return false;
-    return (m_data->length == sizeof(MyClientVersionCheckRequest) &&
-            m_data->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
-  }
-
-  virtual MyClientVersionCheckRequest * data() const
-  {
-    return (MyClientVersionCheckRequest *)m_data;
-  }
-
-  virtual bool validate_data() const
-  {
-    data()->client_id.fix_data();
-    return true;
-  }
-};
-
 
 class MyClientVersionCheckReply: public MyDataPacketHeader
 {
@@ -316,70 +211,15 @@ public:
   char data[0]; //placeholder
 };
 
-class MyClientVersionCheckReplyProc: public MyDataPacketBaseProc
-{
-public:
-  virtual void init_header(int extra_length = 0)
-  {
-    MyDataPacketBaseProc::init_header();
-    m_data->length = sizeof(MyClientVersionCheckReply) + extra_length;
-    m_data->command = MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY;
-  };
-
-  virtual bool validate_header() const
-  {
-    MyClientVersionCheckReply * pData = data();
-    if (!MyDataPacketBaseProc::validate_header())
-      return false;
-    if (pData->command != MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY)
-      return false;
-    return (pData->length >= (int)sizeof(MyClientVersionCheckReply)) &&
-        (pData->length <= (int)sizeof(MyClientVersionCheckReply) + MyClientVersionCheckReply::MAX_REPLY_DATA_LENGTH);
-  }
-
-  virtual bool validate_data() const
-  {
-    MyClientVersionCheckReply * pData = data();
-    return (pData->reply_code >= MyClientVersionCheckReply::VER_OK &&
-        pData->reply_code <= MyClientVersionCheckReply::VER_SERVER_LIST);
-  }
-
-  virtual MyClientVersionCheckReply * data() const
-  {
-    return (MyClientVersionCheckReply *)m_data;
-  }
-
-};
-
-class MyServerFileMD5List: public MyDataPacketHeader
-{
-public:
-  char data[0];
-};
-
-class MyServerFileMD5ListProc: public MyDataPacketBaseProc
-{
-public:
-  virtual void init_header()
-  {
-    MyDataPacketBaseProc::init_header();
-    m_data->command = MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST;
-  };
-
-  virtual bool validate_header() const
-  {
-    if (!MyDataPacketBaseProc::validate_header())
-      return false;
-    return (m_data->length > (int32_t)sizeof(MyDataPacketHeader) &&
-            m_data->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
-  }
-
-  virtual MyServerFileMD5List * data() const
-  {
-    return (MyServerFileMD5List *)m_data;
-  }
-};
-
+bool my_dph_validate_base(const MyDataPacketHeader * header);
+bool my_dph_validate_file_md5_list(const MyDataPacketHeader * header);
+bool my_dph_validate_ftp_file(const MyDataPacketHeader * header);
+bool my_dph_validate_plc_alarm(const MyDataPacketHeader * header);
+bool my_dph_validate_load_balance_req(const MyDataPacketHeader * header);
+bool my_dph_validate_client_version_check_reply(const MyDataPacketHeader * header);
+bool my_dph_validate_client_version_check_req(const MyDataPacketHeader * header);
+#define my_dph_validate_have_dist_task my_dph_validate_base
+#define my_dph_validate_heart_beat my_dph_validate_base
 
 class MyLoadBalanceRequest: public MyDataPacketHeader
 {
@@ -387,74 +227,18 @@ public:
   enum { IP_ADDR_LENGTH = INET_ADDRSTRLEN };
   char ip_addr[IP_ADDR_LENGTH];
   int32_t clients_connected;
-};
 
-class MyLoadBalanceRequestProc: public MyDataPacketBaseProc
-{
-public:
-  virtual void init_header()
+  void set_ip_addr(const char * s)
   {
-    MyDataPacketBaseProc::init_header();
-    m_data->command = MyDataPacketHeader::CMD_LOAD_BALANCE_REQ;
-    m_data->length = (int32_t)sizeof(MyLoadBalanceRequest);
-  };
-
-  virtual bool validate_header() const
-  {
-    if (!MyDataPacketBaseProc::validate_header())
-      return false;
-    return (m_data->length == (int32_t)sizeof(MyLoadBalanceRequest) &&
-            m_data->command == MyDataPacketHeader::CMD_LOAD_BALANCE_REQ);
-  }
-
-  virtual MyLoadBalanceRequest * data() const
-  {
-    return (MyLoadBalanceRequest *)m_data;
-  }
-
-  void ip_addr(const char * s)
-  {
-    if (unlikely(!m_data))
-      return;
     if (unlikely(!s || !*s))
-      data()->ip_addr[0] = 0;
+      ip_addr[0] = 0;
     else
     {
-      ACE_OS::memset(data()->ip_addr, 0, MyLoadBalanceRequest::IP_ADDR_LENGTH); //noise muffler
-      ACE_OS::strsncpy(data()->ip_addr, s, MyLoadBalanceRequest::IP_ADDR_LENGTH);
+      ACE_OS::memset(ip_addr, 0, MyLoadBalanceRequest::IP_ADDR_LENGTH); //noise muffler
+      ACE_OS::strsncpy(ip_addr, s, MyLoadBalanceRequest::IP_ADDR_LENGTH);
     }
   }
-};
 
-class MyFtpFile: public MyDataPacketHeader
-{
-public:
-  char data[0];
-};
-
-
-class MyFtpFileProc: public MyDataPacketBaseProc
-{
-public:
-  virtual void init_header()
-  {
-    MyDataPacketBaseProc::init_header();
-    m_data->command = MyDataPacketHeader::CMD_FTP_FILE;
-    m_data->length = (int32_t)sizeof(MyLoadBalanceRequest);
-  };
-
-  virtual bool validate_header() const
-  {
-    if (!MyDataPacketBaseProc::validate_header())
-      return false;
-    return (m_data->length > (int32_t)sizeof(MyFtpFile) && m_data->length < 4096 &&
-            m_data->command == MyDataPacketHeader::CMD_FTP_FILE);
-  }
-
-  virtual MyFtpFile * data() const
-  {
-    return (MyFtpFile *)m_data;
-  }
 };
 
 class MyPLCAlarm: public MyDataPacketHeader
@@ -463,7 +247,6 @@ public:
   char x;
   char y;
 };
-
 
 class MyBSBasePacket
 {

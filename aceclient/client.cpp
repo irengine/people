@@ -332,15 +332,7 @@ bool MyClientApp::send_mb_to_dist(ACE_Message_Block * mb)
     return false;
   }
 
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (m_client_to_dist_module->dispatcher()->putq(mb, &tv) == -1)
-  {
-    MY_ERROR("failed to put packet to client_to_dist service queue %s\n", (const char *)MyErrno());
-    mb->release();
-    return false;
-  }
-
-  return true;
+  return mycomutil_mb_putq(m_client_to_dist_module->dispatcher(), mb, "to client_to_dist service queue");
 }
 
 const MyClientVerson & MyClientApp::client_version() const

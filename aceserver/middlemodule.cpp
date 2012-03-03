@@ -210,9 +210,7 @@ MyBaseProcessor::EVENT_RESULT MyLocationProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
   {
-    MyClientVersionCheckRequestProc proc;
-    proc.attach((const char*)&m_packet_header);
-    if (!proc.validate_header())
+    if (!my_dph_validate_client_version_check_req(&m_packet_header))
     {
       MY_ERROR("failed to validate header for client version check req\n");
       return ER_ERROR;
@@ -441,18 +439,10 @@ MyBaseProcessor::EVENT_RESULT MyHttpProcessor::on_recv_packet_i(ACE_Message_Bloc
 
 bool MyHttpProcessor::do_process_input_data()
 {
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (MyServerAppX::instance()->http_module()->http_service()->putq(m_current_block, &tv) != -1)
-  {
-    m_current_block = NULL;
-    return true;
-  } else
-  {
-    MY_ERROR("can not put http request into target queue @MyHttpProcessor::do_process_input_data()\n");
-    m_current_block->release();
-    m_current_block = NULL;
-    return false;
-  }
+  bool result = (mycomutil_mb_putq(MyServerAppX::instance()->http_module()->http_service(), m_current_block,
+      "http request into target queue @MyHttpProcessor::do_process_input_data()"));
+  m_current_block = NULL;
+  return result;
 }
 
 PREPARE_MEMORY_POOL(MyHttpProcessor);
@@ -694,23 +684,8 @@ bool MyHttpService::do_calc_md5(MyHttpDistRequest & http_dist_request)
 
 bool MyHttpService::notify_dist_servers()
 {
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(MyDataPacketHeader));
-  MyDataPacketBaseProc vcr;
-  vcr.attach(mb->base());
-  vcr.init_header();
-  vcr.data()->length = sizeof(MyDataPacketHeader);
-  vcr.data()->command = MyDataPacketHeader::CMD_HAVE_DIST_TASK;
-  mb->wr_ptr(mb->capacity());
-
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (MyServerAppX::instance()->dist_load_module()->dispatcher()->putq(mb, &tv) == -1)
-  {
-    MY_ERROR("can not place dist task notification to target queue\n");
-    mb->release();
-    return false;
-  }
-
-  return true;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(0, MyDataPacketHeader::CMD_HAVE_DIST_TASK);
+  return mycomutil_mb_putq(MyServerAppX::instance()->dist_load_module()->dispatcher(), mb, "dist task notification to target queue");
 }
 
 //MyHttpDispatcher//
@@ -806,10 +781,7 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
   {
-    MyClientVersionCheckRequestProc proc;
-    proc.attach((const char*)&m_packet_header);
-    bool result = proc.validate_header();
-    if (!result)
+    if (!my_dph_validate_client_version_check_req(&m_packet_header))
     {
       MyPooledMemGuard info;
       info_string(info);
@@ -821,10 +793,7 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_LOAD_BALANCE_REQ)
   {
-    MyLoadBalanceRequestProc proc;
-    proc.attach((const char*)&m_packet_header);
-    bool result = proc.validate_header();
-    if (!result)
+    if (!my_dph_validate_load_balance_req(&m_packet_header))
     {
       MyPooledMemGuard info;
       info_string(info);

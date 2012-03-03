@@ -1626,16 +1626,15 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_header()
 
 MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE_Message_Block * mb, MyClientIDTable & client_id_table)
 {
-  MyClientVersionCheckRequestProc vcr;
-  vcr.attach(mb->base());
-  vcr.validate_data();
+  MyClientVersionCheckRequest * vcr = (MyClientVersionCheckRequest *) mb->base();
+  vcr->validate_data();
   ACE_Message_Block * reply_mb = NULL;
-  m_client_version.init(vcr.data()->client_version_major, vcr.data()->client_version_minor);
-  int client_id_index = client_id_table.index_of(vcr.data()->client_id);
+  m_client_version.init(vcr->client_version_major, vcr->client_version_minor);
+  int client_id_index = client_id_table.index_of(vcr->client_id);
   bool valid = false;
 
   m_client_id_index = client_id_index;
-  m_client_id = vcr.data()->client_id;
+  m_client_id = vcr->client_id;
   m_client_id_length = strlen(m_client_id.as_string());
 
   if (client_id_index >= 0)
@@ -1647,7 +1646,7 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE
   if (!valid)
   {
     m_wait_for_close = true;
-    MY_WARNING(ACE_TEXT("closing connection due to invalid client_id = %s\n"), vcr.data()->client_id.as_string());
+    MY_WARNING(ACE_TEXT("closing connection due to invalid client_id = %s\n"), vcr->client_id.as_string());
     reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_ACCESS_DENIED);
   }
 
@@ -2589,14 +2588,9 @@ bool MyBaseService::do_add_task(void * p, int task_type)
   *((int*)mb->base()) = task_type;
   *(char **)(mb->base() + sizeof(int)) = (char*)p;
 
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (putq(mb, &tv) < 0)
-  {
-    MY_ERROR("failed to place task %d command packet to %s %s\n", task_type, name(), (const char*)MyErrno());
-    mb->release();
-    return false;
-  } else
-    return true;
+  char buff[100];
+  ACE_OS::snprintf(buff, 100, "command packet (%d) to %s", task_type, name());
+  return mycomutil_mb_putq(this, mb, buff);
 }
 
 void * MyBaseService::get_task(ACE_Message_Block * mb, int & task_type) const

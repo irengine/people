@@ -8,6 +8,52 @@
 #include "datapacket.h"
 #include "mycomutil.h"
 
+bool my_dph_validate_file_md5_list(const MyDataPacketHeader * header)
+{
+  return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
+         header->length > (int32_t)sizeof(MyDataPacketHeader) &&
+         header->length < 2 * 1024 * 1024;
+}
+
+bool my_dph_validate_ftp_file(const MyDataPacketHeader * header)
+{
+  return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
+         header->length > (int32_t)sizeof(MyDataPacketHeader) &&
+         header->length < 4096;
+}
+
+bool my_dph_validate_base(const MyDataPacketHeader * header)
+{
+  return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
+         header->length == (int32_t)sizeof(MyDataPacketHeader);
+}
+
+bool my_dph_validate_plc_alarm(const MyDataPacketHeader * header)
+{
+  return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
+         header->length == (int32_t)sizeof(MyPLCAlarm);
+}
+
+bool my_dph_validate_load_balance_req(const MyDataPacketHeader * header)
+{
+  return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
+         header->length == (int32_t)sizeof(MyLoadBalanceRequest);
+}
+
+bool my_dph_validate_client_version_check_reply(const MyDataPacketHeader * header)
+{
+  return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
+         header->length >= (int32_t)sizeof(MyClientVersionCheckReply) &&
+         header->length <= (int32_t)sizeof(MyClientVersionCheckReply) + MyClientVersionCheckReply::MAX_REPLY_DATA_LENGTH;
+}
+
+bool my_dph_validate_client_version_check_req(const MyDataPacketHeader * header)
+{
+  return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
+         header->length == (int32_t)sizeof(MyClientVersionCheckRequest);
+}
+
+
 //MyDataPacketExt//
 
 bool MyDataPacketExt::guard()
