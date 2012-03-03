@@ -257,7 +257,7 @@ public:
 private:
   ACE_Thread_Mutex  m_mutex;
   MyDistInfoMD5List m_dist_info_md5s;
-  MyDistInfoMD5List m_dist_info_md5s_finished;
+//  MyDistInfoMD5List m_dist_info_md5s_finished;
 };
 
 class MyDistInfoMD5Comparer

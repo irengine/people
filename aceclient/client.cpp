@@ -249,46 +249,47 @@ MyOperaLauncher::MyOperaLauncher()
 bool MyOperaLauncher::on_launch(ACE_Process_Options & options)
 {
   const char * indexhtml = "/tmp/daily/index.html";
-  std::string indexfile("/tmp/daily/");
-  indexfile += MyClientApp::index_frame_file();
+//  std::string indexfile("/tmp/daily/");
+//  indexfile += MyClientApp::index_frame_file();
+//
+//  const char * fn = indexhtml;
+//  char buff[1024];
+//  if (!MyFilePaths::exist(indexhtml))
+//  {
+//    MY_INFO("file %s not exist, trying %s instead\n", indexhtml, indexfile.c_str());
+//    std::ifstream ifs(indexfile.c_str());
+//    if (!ifs || ifs.bad())
+//    {
+//      MY_ERROR("failed to open %s: %s\n", indexfile.c_str(), (const char*)MyErrno());
+//      return false;
+//    }
+//    if (ifs.eof())
+//    {
+//      MY_ERROR("file %s is empty\n", indexfile.c_str());
+//      return false;
+//    }
+//    char line[500];
+//    ifs.getline(line, 500);
+//    line[500 - 1] = 0;
+//    ACE_OS::snprintf(buff, 1024, "/tmp/daily/%s", line);
+//    fn = buff;
+//  }
 
-  const char * fn = indexhtml;
-  char buff[1024];
-  if (!MyFilePaths::exist(indexhtml))
-  {
-    MY_INFO("file %s not exist, trying %s instead\n", indexhtml, indexfile.c_str());
-    std::ifstream ifs(indexfile.c_str());
-    if (!ifs || ifs.bad())
-    {
-      MY_ERROR("failed to open %s: %s\n", indexfile.c_str(), (const char*)MyErrno());
-      return false;
-    }
-    if (ifs.eof())
-    {
-      MY_ERROR("file %s is empty\n", indexfile.c_str());
-      return false;
-    }
-    char line[500];
-    ifs.getline(line, 500);
-    line[500 - 1] = 0;
-    ACE_OS::snprintf(buff, 1024, "/tmp/daily/%s", line);
-    fn = buff;
-  }
-
-  options.command_line("opera --fullscreen %s", fn);
+  options.command_line("opera --fullscreen %s", indexhtml); //fn);
   return true;
 }
 
 bool MyOperaLauncher::ready() const
 {
-  if (MyFilePaths::exist("/tmp/daily/index.html"))
-    return true;
-  struct stat  _stat;
-  MyPooledMemGuard indexfile;
-  indexfile.init_from_string("/tmp/daily/", MyClientApp::index_frame_file());
-  if (!MyFilePaths::stat(indexfile.data(), &_stat))
-    return false;
-  return _stat.st_size > 1;
+  return MyFilePaths::exist("/tmp/daily/index.html");
+//  if (MyFilePaths::exist("/tmp/daily/index.html"))
+//    return true;
+//  struct stat  _stat;
+//  MyPooledMemGuard indexfile;
+//  indexfile.init_from_string("/tmp/daily/", MyClientApp::index_frame_file());
+//  if (!MyFilePaths::stat(indexfile.data(), &_stat))
+//    return false;
+//  return _stat.st_size > 1;
 }
 
 void MyOperaLauncher::check_relaunch()
@@ -566,16 +567,16 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
     }
   }
 
-  src_path.init_from_string(src_parent_path.data(), "/", index_frame_file());
-  dest_path.init_from_string(dest_parent_path.data(), "/", index_frame_file());
-  MyFilePaths::copy_file(src_path.data(), dest_path.data(), true);
+//  src_path.init_from_string(src_parent_path.data(), "/", index_frame_file());
+//  dest_path.init_from_string(dest_parent_path.data(), "/", index_frame_file());
+//  MyFilePaths::copy_file(src_path.data(), dest_path.data(), true);
   return true;
 }
 
 bool MyClientApp::get_mfile(const MyPooledMemGuard & parent_path, MyPooledMemGuard & mfile)
 {
-  if (get_mfile_from_file(parent_path, mfile))
-    return true;
+//  if (get_mfile_from_file(parent_path, mfile))
+//    return true;
 
   mfile.init_from_string("index.html");
   MyPooledMemGuard tmp;

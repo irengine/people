@@ -1033,15 +1033,30 @@ MyDistInfoHeader::~MyDistInfoHeader()
 bool MyDistInfoHeader::validate()
 {
   if (!ftype_is_valid(ftype))
+  {
+    MY_ERROR("invalid MyDistInfoHeader, ftype = %c\n", ftype);
     return false;
+  }
 
   if (!type_is_valid(type))
+  {
+    MY_ERROR("invalid MyDistInfoHeader, type = %c\n", type);
     return false;
+  }
 
   if (aindex.data() && aindex.data()[0] && !(findex.data() && findex.data()[0]))
+  {
+    MY_ERROR("invalid MyDistInfoHeader, findex is null while aindex is not\n");
     return false;
+  }
 
-  return (dist_id.data() && dist_id.data()[0]);
+  if (!(dist_id.data() && dist_id.data()[0]))
+  {
+    MY_ERROR("invalid MyDistInfoHeader, dist_id is null\n");
+    return false;
+  }
+
+  return true;
 }
 
 int MyDistInfoHeader::load_header_from_string(char * src)
@@ -1194,7 +1209,7 @@ bool MyDistInfoFtp::load_from_string(char * src)
   int header_len = load_header_from_string(src);
   if (header_len <= 0)
   {
-    MY_ERROR("bad ftp file packet, no valid dist info\n");
+    MY_ERROR("bad ftp file packet, no valid header info\n");
     return false;
   }
 
@@ -1231,7 +1246,7 @@ bool MyDistInfoFtp::load_from_string(char * src)
     return false;
   }
   this->file_password.init_from_string(file_password);
-  return true;
+  return validate();
 };
 
 time_t MyDistInfoFtp::get_delay_penalty() const
@@ -1575,17 +1590,17 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
     }
   }
 
-  if (result)
-  {
-    if (ftype_is_frame(dist_info->ftype))
-    {
-      MyPooledMemGuard indexfile;
-      indexfile.init_from_string(true_dest_path.data(), "/", MyClientApp::index_frame_file());
-      MyUnixHandleGuard fh;
-      if (fh.open_write(indexfile.data(), true, true, false, true))
-        ::write(fh.handle(), dist_info->aindex.data(), ACE_OS::strlen(dist_info->aindex.data()));
-    }
-  }
+//  if (result)
+//  {
+//    if (ftype_is_frame(dist_info->ftype))
+//    {
+//      MyPooledMemGuard indexfile;
+//      indexfile.init_from_string(true_dest_path.data(), "/", MyClientApp::index_frame_file());
+//      MyUnixHandleGuard fh;
+//      if (fh.open_write(indexfile.data(), true, true, false, true))
+//        ::write(fh.handle(), dist_info->aindex.data(), ACE_OS::strlen(dist_info->aindex.data()));
+//    }
+//  }
   return result;
 }
 
@@ -1657,7 +1672,7 @@ bool MyDistInfoMD5::load_from_string(char * src)
   if (!m_md5list.from_buffer(_md5_list))
     return false;
 
-  return m_md5list.count() > 0;
+  return validate();
 }
 
 bool MyDistInfoMD5::validate()
@@ -1674,7 +1689,7 @@ bool MyDistInfoMD5::validate()
 MyDistInfoMD5s::~MyDistInfoMD5s()
 {
   std::for_each(m_dist_info_md5s.begin(), m_dist_info_md5s.end(), MyObjectDeletor());
-  std::for_each(m_dist_info_md5s_finished.begin(), m_dist_info_md5s_finished.end(), MyObjectDeletor());
+//  std::for_each(m_dist_info_md5s_finished.begin(), m_dist_info_md5s_finished.end(), MyObjectDeletor());
 }
 
 void MyDistInfoMD5s::add(MyDistInfoMD5 * p)
@@ -1684,7 +1699,11 @@ void MyDistInfoMD5s::add(MyDistInfoMD5 * p)
 
   ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex));
   if (p->compare_done())
-    m_dist_info_md5s_finished.push_back(p);
+  {
+    //m_dist_info_md5s_finished.push_back(p);
+    MyObjectDeletor dlt;
+    dlt(p);
+  }
   else
     m_dist_info_md5s.push_back(p);
 }
@@ -1701,17 +1720,18 @@ MyDistInfoMD5 * MyDistInfoMD5s::get()
 
 MyDistInfoMD5 * MyDistInfoMD5s::get_finished(const MyDistInfoMD5 & rhs)
 {
-  ACE_MT(ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, NULL));
-  MyDistInfoMD5ListPtr it;
-  for (it = m_dist_info_md5s_finished.begin(); it != m_dist_info_md5s_finished.end(); ++it)
-  {
-    if (ACE_OS::strcmp((*it)->dist_id.data(), rhs.dist_id.data()) == 0 && (*it)->client_id_index == rhs.client_id_index)
-    {
-      MyDistInfoMD5 * result = *it;
-      m_dist_info_md5s_finished.erase(it);
-      return result;
-    }
-  }
+  ACE_UNUSED_ARG(rhs);
+//  ACE_MT(ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, NULL));
+//  MyDistInfoMD5ListPtr it;
+//  for (it = m_dist_info_md5s_finished.begin(); it != m_dist_info_md5s_finished.end(); ++it)
+//  {
+//    if (ACE_OS::strcmp((*it)->dist_id.data(), rhs.dist_id.data()) == 0 && (*it)->client_id_index == rhs.client_id_index)
+//    {
+//      MyDistInfoMD5 * result = *it;
+//      m_dist_info_md5s_finished.erase(it);
+//      return result;
+//    }
+//  }
 
   return NULL;
 }
@@ -1931,7 +1951,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
   {
-    if (my_dph_validate_file_md5_list(&m_packet_header))
+    if (!my_dph_validate_file_md5_list(&m_packet_header))
     {
       MY_ERROR("failed to validate header for server file md5 list\n");
       return ER_ERROR;
@@ -2053,11 +2073,8 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_md5_list_request(ACE_M
       return ER_OK;
     }
 
-    bool added = false;
-    if (MyClientAppX::instance()->client_to_dist_module()->service())
-      added = MyClientAppX::instance()->client_to_dist_module()->service()->add_md5_task(dist_md5);
-    if (unlikely(!added))
-      MyClientAppX::instance()->client_to_dist_module()->dist_info_md5s().add(dist_md5);
+    if (!MyClientAppX::instance()->client_to_dist_module()->service()->add_md5_task(dist_md5))
+      delete dist_md5;
   }
   else
   {
@@ -2126,7 +2143,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_M
     if (MyClientAppX::instance()->client_to_dist_module()->client_ftp_service())
       added = MyClientAppX::instance()->client_to_dist_module()->client_ftp_service()->add_ftp_task(dist_ftp);
     if (!added)
-      MyClientAppX::instance()->client_to_dist_module()->dist_info_ftps().add(dist_ftp);
+      delete dist_ftp;
   }
   else
   {
@@ -2553,11 +2570,23 @@ const char * MyClientToDistService::name() const
 
 bool MyClientToDistService::add_md5_task(MyDistInfoMD5 * p)
 {
+  if (unlikely(!p->validate()))
+  {
+    MY_ERROR("invalid md5 task @ %s::add_md5_task", name());
+    delete p;
+    return true;
+  }
   return do_add_task(p, TASK_MD5);
 }
 
 bool MyClientToDistService::add_extract_task(MyDistInfoFtp * p)
 {
+  if (unlikely(!p->validate()))
+  {
+    MY_ERROR("invalid extract task @ %s::add_extract_task", name());
+    delete p;
+    return true;
+  }
   return do_add_task(p, TASK_EXTRACT);
 }
 
@@ -2613,8 +2642,20 @@ void MyClientToDistService::do_extract_task(MyDistInfoFtp * dist_info)
     dist_info->status = extractor.extract(dist_info) ? 4:5;
     dist_info->update_db_status();
     dist_info->post_status_message();
-    if (ftype_is_adv_list(dist_info->ftype) && !g_test_mode && dist_info->status == 4)
-      MyClientAppX::instance()->vlc_monitor().need_relaunch();
+    if (!g_test_mode && dist_info->status == 4)
+    {
+      if (ftype_is_adv_list(dist_info->ftype))
+        MyClientAppX::instance()->vlc_monitor().need_relaunch();
+      else if (ftype_is_frame(dist_info->ftype))
+      {
+        MyOperaLauncher & ol = MyClientAppX::instance()->opera_launcher();
+        if (!ol.running())
+        {
+          ol.need_relaunch();
+          MyClientAppX::instance()->client_to_dist_module()->dispatcher()->start_watch_dog();
+        }
+      }
+    }
   }
   return_back(dist_info);
 }
@@ -2840,6 +2881,9 @@ bool MyClientToDistDispatcher::on_start()
   ACE_Time_Value interval(WATCH_DOG_INTERVAL * 60);
   if (reactor()->schedule_timer(this, (const void*)TIMER_ID_WATCH_DOG, interval, interval) < 0)
     MY_ERROR("setup watch dog timer failed %s %s\n", name(), (const char*)MyErrno());
+
+  if (MyClientAppX::instance()->opera_launcher().running())
+    start_watch_dog();
   return true;
 }
 
@@ -2906,9 +2950,7 @@ void MyClientToDistDispatcher::on_stop()
 void MyClientToDistDispatcher::check_watch_dog()
 {
   if (((MyClientToDistModule*)module_x())->watch_dog().expired())
-  {
-
-  }
+    MyClientAppX::instance()->opera_launcher().need_relaunch();
 }
 
 bool MyClientToDistDispatcher::on_event_loop()
@@ -3047,13 +3089,8 @@ void MyClientToDistModule::check_ftp_timed_task()
 
   m_dist_info_ftps.begin();
   while ((p = m_dist_info_ftps.get(false, now)) != NULL)
-  {
     if (!m_service->add_extract_task(p))
-    {
-      m_dist_info_ftps.add(p);
-      break;
-    }
-  }
+      delete p;
 }
 
 ACE_Message_Block * MyClientToDistModule::get_click_infos(const char * client_id) const

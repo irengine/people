@@ -200,7 +200,7 @@ public:
   enum REPLY_CODE
   {
     VER_OK = 1,
-    VER_OK_CAN_UPGRADE, //todo upgrade hint
+    VER_OK_CAN_UPGRADE,
     VER_MISMATCH,
     VER_ACCESS_DENIED,
     VER_SERVER_BUSY,

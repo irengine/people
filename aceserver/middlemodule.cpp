@@ -35,7 +35,7 @@ private:
 
 MyDistLoads::MyDistLoads()
 {
-  m_loads.reserve(4);
+  m_loads.reserve(6);
   m_server_list_length = 0;
   m_server_list[0] = 0;
 }
@@ -934,9 +934,9 @@ bool MyDistLoadDispatcher::on_start()
   if (!m_acceptor)
     m_acceptor = new MyDistLoadAcceptor(this, new MyBaseConnectionManager());
   add_acceptor(m_acceptor);
-  if (!m_bs_connector)
-    m_bs_connector = new MyMiddleToBSConnector(this, new MyBaseConnectionManager());
-  add_connector(m_bs_connector);
+//  if (!m_bs_connector)
+//    m_bs_connector = new MyMiddleToBSConnector(this, new MyBaseConnectionManager());
+//  add_connector(m_bs_connector);
 
   ACE_Time_Value interval(int(MyDistLoads::DEAD_TIME * 60 / MyBaseApp::CLOCK_INTERVAL / 2));
   if (reactor()->schedule_timer(this, 0, interval, interval) == -1)
