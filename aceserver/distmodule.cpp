@@ -601,7 +601,7 @@ MyHWAlarmSubmitter * MyHeartBeatProcessor::m_hardware_alarm_submitter = NULL;
 
 MyHeartBeatProcessor::MyHeartBeatProcessor(MyBaseHandler * handler): MyBaseServerProcessor(handler)
 {
-
+  m_handler->msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
 MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
@@ -1473,7 +1473,7 @@ MyHeartBeatDispatcher::MyHeartBeatDispatcher(MyBaseModule * pModule, int numThre
 {
   m_acceptor = NULL;
   m_clock_interval = CLOCK_INTERVAL;
-  msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE); //20 Megabytes
+  msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
 const char * MyHeartBeatDispatcher::name() const
@@ -1681,7 +1681,7 @@ void MyHeartBeatModule::on_stop()
 
 MyDistToBSProcessor::MyDistToBSProcessor(MyBaseHandler * handler): super(handler)
 {
-
+  m_handler->msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
 MyBaseProcessor::EVENT_RESULT MyDistToBSProcessor::on_recv_packet_i(ACE_Message_Block * mb)
@@ -1809,6 +1809,7 @@ MyDistToMiddleProcessor::MyDistToMiddleProcessor(MyBaseHandler * handler): MyBas
 {
   m_version_check_reply_done = false;
   m_local_addr[0] = 0;
+  m_handler->msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
 int MyDistToMiddleProcessor::on_open()

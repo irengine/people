@@ -307,8 +307,11 @@ protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
+  enum { MSG_QUEUE_MAX_SIZE = 512 * 1024 };
+
   MyBaseProcessor::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_load_balance(ACE_Message_Block * mb);
+
   bool m_client_id_verified;
   MyDistLoads * m_dist_loads;
 };
@@ -336,6 +339,8 @@ protected:
   virtual bool on_event_loop();
 
 private:
+  enum { MSG_QUEUE_MAX_SIZE = 1024 * 1024 };
+
   MyDistLoadAcceptor * m_acceptor;
   MyMiddleToBSConnector * m_bs_connector;
 };

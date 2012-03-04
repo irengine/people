@@ -762,6 +762,7 @@ MyDistLoadProcessor::MyDistLoadProcessor(MyBaseHandler * handler): MyBaseServerP
 {
   m_client_id_verified = false;
   m_dist_loads = NULL;
+  m_handler->msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
 MyDistLoadProcessor::~MyDistLoadProcessor()
@@ -909,6 +910,7 @@ MyDistLoadDispatcher::MyDistLoadDispatcher(MyBaseModule * pModule, int numThread
 {
   m_acceptor = NULL;
   m_bs_connector = NULL;
+  msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
 const char * MyDistLoadDispatcher::name() const

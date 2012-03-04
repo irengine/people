@@ -233,8 +233,8 @@ bool MyServerApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
     MyLocationProcessor::init_mem_pool(1000);
     MyHttpProcessor::init_mem_pool(20);
     MyHttpHandler::init_mem_pool(20);
-    MyMiddleToBSHandler::init_mem_pool(20);
-    MyMiddleToBSProcessor::init_mem_pool(20);
+//    MyMiddleToBSHandler::init_mem_pool(20);
+//    MyMiddleToBSProcessor::init_mem_pool(20);
   }
   MyMemPoolFactoryX::instance()->init(cfg);
   return app->do_constructor();

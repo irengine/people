@@ -464,7 +464,7 @@ public:
 
 private:
   enum { TASK_MD5, TASK_EXTRACT };
-  enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
+  enum { MSG_QUEUE_MAX_SIZE = 1 * 1024 * 1024 };
 
   void return_back(MyDistInfoFtp * dist_info);
   void return_back_md5(MyDistInfoMD5 * p);
@@ -509,6 +509,7 @@ protected:
   virtual bool on_event_loop();
 
 private:
+  enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
   enum { FTP_CHECK_INTERVAL = 1, WATCH_DOG_INTERVAL = 5 }; //in minutes
   enum { TIMER_ID_WATCH_DOG = 2 };
 

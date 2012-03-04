@@ -1184,7 +1184,8 @@ MyDistInfoFtp::MyDistInfoFtp()
   failed_count = 0;
   last_update = time(NULL);
   first_download = true;
-  recv_time = 0;
+  recv_time = time(NULL);
+  status = 2;
 }
 
 bool MyDistInfoFtp::validate()
@@ -1193,11 +1194,19 @@ bool MyDistInfoFtp::validate()
     return false;
 
   if (status < 2 || status > 6)
+  {
+    MY_ERROR("bad MyDistInfoFtp status (%d)\n", status);
     return false;
-  const time_t long_time = 60 * 60 * 24 * 12 * 365; //one year
-  time_t t = time(NULL);
+  }
 
-  return recv_time < t + long_time && recv_time > t - long_time;
+  time_t t = time(NULL);
+  if (unlikely(!(recv_time < t + const_one_year && recv_time > t - const_one_year)))
+  {
+    MY_WARNING("obsolete MyDistInfoFtp object, recv_time = %d\n", recv_time);
+    return false;
+  }
+
+  return true;
 }
 
 bool MyDistInfoFtp::load_from_string(char * src)
@@ -2864,6 +2873,7 @@ MyClientToDistDispatcher::MyClientToDistDispatcher(MyBaseModule * pModule, int n
   m_middle_connector = NULL;
   m_http1991_acceptor = NULL;
   m_clock_interval = FTP_CHECK_INTERVAL * 60;
+  msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
 MyClientToDistDispatcher::~MyClientToDistDispatcher()

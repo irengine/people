@@ -990,7 +990,7 @@ void MyMemPoolFactory::init(MyConfig * config)
       else if (pool_size[i] < 512 * KB)
         m = 20;
       else
-        m = 4;
+        m = 2;
       m_pool_sizes.push_back(pool_size[i]);
       m_pools.push_back(new My_Cached_Allocator<ACE_Thread_Mutex>(m, pool_size[i]));
       m_pools[i]->setup();
@@ -1007,7 +1007,7 @@ void MyMemPoolFactory::init(MyConfig * config)
       else if (pool_size[i] < 512 * KB)
         m = 2 * MB / pool_size[i];
       else
-        m = 4;
+        m = 2;
       m_pool_sizes.push_back(pool_size[i]);
       m_pools.push_back(new My_Cached_Allocator<ACE_Thread_Mutex>(m, pool_size[i]));
       m_pools[i]->setup();
@@ -1023,7 +1023,7 @@ void MyMemPoolFactory::init(MyConfig * config)
       else if (pool_size[i] < 512 * KB)
         m = MB / pool_size[i];
       else
-        m = 4;
+        m = 2;
       m_pool_sizes.push_back(pool_size[i]);
       m_pools.push_back(new My_Cached_Allocator<ACE_Thread_Mutex>(m, pool_size[i]));
       m_pools[i]->setup();
