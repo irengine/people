@@ -2844,7 +2844,7 @@ bool MyClientToDistConnector::before_reconnect()
 {
   if (m_last_connect_time == 0)
     m_last_connect_time = time(NULL);
-  if (m_reconnect_retry_count <= 3)
+  if (m_reconnect_retry_count <= 5)
     return true;
 
   MyDistServerAddrList & addr_list = ((MyClientToDistModule*)(m_module))->server_addr_list();
@@ -2908,7 +2908,7 @@ int MyClientToDistDispatcher::handle_timeout(const ACE_Time_Value &, const void 
   if ((long)act == (long)TIMER_ID_BASE)
   {
     ((MyClientToDistModule*)module_x())->check_ftp_timed_task();
-    if (!g_test_mode && m_connector->connection_manager()->active_connections() == 0)
+    if (!g_test_mode && (m_connector == NULL || m_connector->connection_manager()->active_connections() == 0))
       MyConnectIni::update_connect_status(MyConnectIni::CS_DISCONNECTED);
   }
   else if ((long)act == (long)TIMER_ID_WATCH_DOG)

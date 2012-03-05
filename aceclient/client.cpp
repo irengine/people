@@ -64,6 +64,15 @@ bool MyProgramLauncher::ready() const
   return true;
 }
 
+bool MyProgramLauncher::on_launch(ACE_Process_Options & options)
+{
+  ACE_UNUSED_ARG(options);
+  if (!ready())
+    return false;
+
+  return true;
+}
+
 
 //MyVLCLauncher//
 
@@ -248,6 +257,9 @@ MyOperaLauncher::MyOperaLauncher()
 
 bool MyOperaLauncher::on_launch(ACE_Process_Options & options)
 {
+  if (!MyProgramLauncher::on_launch(options))
+    return false;
+
   const char * indexhtml = "/tmp/daily/index.html";
 //  std::string indexfile("/tmp/daily/");
 //  indexfile += MyClientApp::index_frame_file();

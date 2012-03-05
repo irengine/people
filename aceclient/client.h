@@ -27,7 +27,7 @@ public:
   virtual bool ready() const;
 
 protected:
-  virtual bool on_launch(ACE_Process_Options & options) = 0;
+  virtual bool on_launch(ACE_Process_Options & options);
 
 private:
   enum { INVALID_PID = 0 };
