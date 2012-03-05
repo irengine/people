@@ -43,7 +43,7 @@ bool MyProgramLauncher::launch()
   } else
   {
     m_pid = pid;
-    MY_INFO("launch program OK: %s\n", options.command_line_buf(NULL));
+    MY_INFO("launch program OK (pid = %d): %s\n", (int)pid, options.command_line_buf(NULL));
     return true;
   }
 }
@@ -91,7 +91,7 @@ int MyVLCLauncher::next() const
   return m_next;
 }
 
-bool MyVLCLauncher::load()
+bool MyVLCLauncher::load(ACE_Process_Options & options)
 {
   std::vector<std::string> advlist;
 
@@ -135,25 +135,68 @@ bool MyVLCLauncher::load()
     t_this = mktime(&_tm);
     if (t_this + GAP_THREASHHOLD < now)
     {
-      next_time = t_this;
-      m_current_line.init_from_string(line.data());
+      if (parse_line(ptr, options, true))
+        next_time = t_this;
     } else
     {
       if (next_time != 0)
       {
-        m_next = t_this - now;
-        return true;
+        if (parse_line(ptr, options, false))
+        {
+          m_next = t_this - now;
+          return true;
+        }
       } else
       {
-        next_time = t_this;
-        m_current_line.init_from_string(line.data());
+        if (parse_line(ptr, options, true))
+          next_time = t_this;
       }
     }
-
   }//while eof
 
   m_next = 0;
-  return *m_current_line.data() != 0;
+  return next_time != 0;
+}
+
+bool MyVLCLauncher::parse_line(char * ptr, ACE_Process_Options & options, bool fill_options)
+{
+  const char * vlc = "vlc -L --fullscreen";
+
+  MyPooledMemGuard cmdline;
+  MyMemPoolFactoryX::instance()->get_mem(64000, &cmdline);
+
+  bool fake = false;
+  const char separators[2] = {' ', 0 };
+  MyStringTokenizer tkn(ptr, separators);
+  char * token;
+  cmdline.data()[0] = 0;
+  MyPooledMemGuard fn;
+  while ((token = tkn.get_token()) != NULL)
+  {
+    fn.init_from_string("/tmp/daily/5/", token);
+    if (!MyFilePaths::exist(fn.data()))
+    {
+      MY_INFO("skipping non-existing adv file %s\n", token);
+      continue;
+    }
+    if (!fill_options)
+      return true;
+
+    if (mycomutil_string_end_with(token, ".bmp") || mycomutil_string_end_with(token, ".jpg") ||
+        mycomutil_string_end_with(token, ".gif") || mycomutil_string_end_with(token, ".png"))
+    {
+      ACE_OS::strncat(cmdline.data(), " fake:///tmp/daily/5/", 64000 - 1);
+      fake = true;
+    } else
+      ACE_OS::strncat(cmdline.data(), " /tmp/daily/5/", 64000 - 1);
+    ACE_OS::strncat(cmdline.data(), token, 64000 - 1);
+  }
+
+  if (cmdline.data()[0] == 0)
+    return false;
+
+  options.command_line("%s %s %s", vlc, (fake ? " --fake-duration 10000" : ""), cmdline.data());
+  return true;
 }
 
 bool MyVLCLauncher::on_launch(ACE_Process_Options & options)
@@ -162,31 +205,8 @@ bool MyVLCLauncher::on_launch(ACE_Process_Options & options)
 
   std::vector<std::string> advlist;
 
-  if (load())
-  {
-    MyPooledMemGuard cmdline;
-    MyMemPoolFactoryX::instance()->get_mem(64000, &cmdline);
-
-    bool fake = false;
-    const char separators[2] = {' ', 0 };
-    MyStringTokenizer tkn(m_current_line.data(), separators);
-    char * token;
-    cmdline.data()[0] = 0;
-    while ((token = tkn.get_token()) != NULL)
-    {
-      if (mycomutil_string_end_with(token, ".bmp") || mycomutil_string_end_with(token, ".jpg") ||
-          mycomutil_string_end_with(token, ".gif") || mycomutil_string_end_with(token, ".png"))
-      {
-        ACE_OS::strncat(cmdline.data(), " fake:///tmp/daily/5/", 64000 - 1);
-        fake = true;
-      } else
-        ACE_OS::strncat(cmdline.data(), " /tmp/daily/5/", 64000 - 1);
-      ACE_OS::strncat(cmdline.data(), token, 64000 - 1);
-    }
-
-    options.command_line("%s %s %s", vlc, (fake ? " --fake-duration 10000" : ""), cmdline.data());
+  if (load(options))
     return true;
-  }
 
   MY_INFO("%s not exist or content empty, trying %s\n", adv_txt(), gasket());
 

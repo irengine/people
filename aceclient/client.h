@@ -43,11 +43,12 @@ public:
 
 protected:
   virtual bool on_launch(ACE_Process_Options & options);
-  bool load();
+  bool load(ACE_Process_Options & options);
 
 private:
   enum { GAP_THREASHHOLD = 2 * 60 };
 
+  bool parse_line(char * ptr, ACE_Process_Options & options, bool fill_options);
   const char * adv_txt() const;
   const char * gasket() const;
 
