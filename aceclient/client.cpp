@@ -132,6 +132,8 @@ bool MyVLCLauncher::load(ACE_Process_Options & options)
       continue;
     localtime_r(&now, &_tm);
     _tm.tm_hour = t;
+    _tm.tm_min = 0;
+    _tm.tm_sec = 0;
     t_this = mktime(&_tm);
     if (t_this + GAP_THREASHHOLD < now)
     {
@@ -255,9 +257,12 @@ void MyVLCMonitor::launch_vlc()
   ACE_Reactor::instance()->cancel_timer(this);
   if (m_app->vlc_launcher().next() > 0)
   {
+    ACE_Reactor::instance()->cancel_timer(this);
     ACE_Time_Value tv(m_app->vlc_launcher().next());
     if (ACE_Reactor::instance()->schedule_timer(this, 0, tv) < 0)
       MY_ERROR("failed to setup vlc monitor timer\n");
+    else
+      MY_INFO("vlc next playlist will be shown in %d minute(s)\n", (int)(m_app->vlc_launcher().next() / 60));
   }
 }
 

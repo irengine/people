@@ -151,7 +151,7 @@ MyHttpDistInfo * MyHttpDistInfos::create_http_dist_info(const char * dist_id)
   return result;
 }
 
-bool MyHttpDistInfos::need_reload() const
+bool MyHttpDistInfos::need_reload()
 {
   return (!MyServerAppX::instance()->db().dist_info_is_update(*this));
 }

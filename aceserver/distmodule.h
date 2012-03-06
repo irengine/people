@@ -417,7 +417,7 @@ private:
 class MyHeartBeatAcceptor: public MyBaseAcceptor
 {
 public:
-  enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
+  enum { IDLE_TIME_AS_DEAD = 15 }; //in minutes
   MyHeartBeatAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
   virtual int make_svc_handler(MyBaseHandler *& sh);
   virtual const char * name() const;

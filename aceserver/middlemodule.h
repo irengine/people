@@ -348,7 +348,7 @@ private:
 class MyDistLoadAcceptor: public MyBaseAcceptor
 {
 public:
-  enum { IDLE_TIME_AS_DEAD = 10 }; //in minutes
+  enum { IDLE_TIME_AS_DEAD = 15 }; //in minutes
   MyDistLoadAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
 
   virtual int make_svc_handler(MyBaseHandler *& sh);

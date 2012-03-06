@@ -665,12 +665,15 @@ bool MyDB::delete_dist_client(const char * client_id, const char * dist_id)
   return exec_command(sql);
 }
 
-bool MyDB::dist_info_is_update(const MyHttpDistInfos & infos)
+bool MyDB::dist_info_is_update(MyHttpDistInfos & infos)
 {
   MyPooledMemGuard value;
   if (!load_cfg_value(1, value))
     return true;
-  return ACE_OS::strcmp(infos.last_load_time.data(), value.data()) == 0;
+  bool result = ACE_OS::strcmp(infos.last_load_time.data(), value.data()) == 0;
+  if (!result)
+    infos.last_load_time.init_from_string(value.data());
+  return result;
 }
 
 bool MyDB::dist_info_update_status()

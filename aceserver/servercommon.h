@@ -77,7 +77,7 @@ public:
   ~MyHttpDistInfos();
 
   MyHttpDistInfo * create_http_dist_info(const char * dist_id);
-  bool need_reload() const;
+  bool need_reload();
   void prepare_update(const int capacity);
   void clear();
   MyHttpDistInfo * find(const char * dist_id);

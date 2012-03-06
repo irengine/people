@@ -2154,7 +2154,7 @@ int MyBaseHandler::handle_output (ACE_HANDLE fd)
       mb->release();
 //      reactor()->remove_handler(this, ACE_Event_Handler::WRITE_MASK | ACE_Event_Handler::READ_MASK |
 //                                ACE_Event_Handler::DONT_CALL);
-      return handle_close(get_handle(), 0); //todo: more graceful shutdown
+      return handle_close(ACE_INVALID_HANDLE, 0);
     }
     if (mb->length() > 0)
     {
@@ -2621,7 +2621,6 @@ MyBaseDispatcher::MyBaseDispatcher(MyBaseModule * pModule, int numThreads):
 
 MyBaseDispatcher::~MyBaseDispatcher()
 {
-  //fixme: cleanup correctly
   if (m_reactor)
     delete m_reactor;
 }

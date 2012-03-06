@@ -702,7 +702,7 @@ protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
   ACE_Message_Block * make_version_check_request_mb();
 
-  enum { PEER_ADDR_LEN = INET_ADDRSTRLEN }; // in the format of xxx.xxx.xxx.xxx
+  enum { PEER_ADDR_LEN = INET_ADDRSTRLEN };
   char m_peer_addr[PEER_ADDR_LEN];
 };
 

@@ -44,7 +44,7 @@ public:
   bool set_dist_client_md5(const char * client_id, const char * dist_id, const char * md5, int new_status);
   bool set_dist_client_mbz(const char * client_id, const char * dist_id, const char * mbz, const char * mbz_md5);
   bool delete_dist_client(const char * client_id, const char * dist_id);
-  bool dist_info_is_update(const MyHttpDistInfos & infos);
+  bool dist_info_is_update(MyHttpDistInfos & infos);
   bool dist_info_update_status();
   bool remove_orphan_dist_info();
   bool get_dist_ids(MyUnusedPathRemover & path_remover);
