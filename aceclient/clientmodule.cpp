@@ -2073,14 +2073,14 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_md5_list_request(ACE_M
   if (dist_md5->load_from_string(packet->data))
   {
     MY_INFO("received one md5 file list command for dist %s, client_id=%s\n", dist_md5->dist_id.data(), m_client_id.as_string());
-    MyDistInfoMD5 * existing = MyClientAppX::instance()->client_to_dist_module()->dist_info_md5s().get_finished(*dist_md5);
-    if (unlikely(existing != NULL))
-    {
-      existing->post_md5_message();
-      MyClientAppX::instance()->client_to_dist_module()->dist_info_md5s().add(existing);
-      delete dist_md5;
-      return ER_OK;
-    }
+//    MyDistInfoMD5 * existing = MyClientAppX::instance()->client_to_dist_module()->dist_info_md5s().get_finished(*dist_md5);
+//    if (unlikely(existing != NULL))
+//    {
+//      existing->post_md5_message();
+//      MyClientAppX::instance()->client_to_dist_module()->dist_info_md5s().add(existing);
+//      delete dist_md5;
+//      return ER_OK;
+//    }
 
     if (!MyClientAppX::instance()->client_to_dist_module()->service()->add_md5_task(dist_md5))
       delete dist_md5;
