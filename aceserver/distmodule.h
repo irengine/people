@@ -41,6 +41,7 @@ public:
   void dist_ftp_md5_reply(const char * md5list);
   const char * client_id() const;
   int client_id_index() const;
+  void send_fb_detail(bool ok);
 
   MyHttpDistInfo * dist_info;
   MyDistClientOne * dist_one;
@@ -158,7 +159,7 @@ public:
   MyClientFileDistributor();
 
   bool distribute(bool check_reload);
-  void dist_ftp_file_reply(const char * client_id, const char * dist_id, int _status);
+  void dist_ftp_file_reply(const char * client_id, const char * dist_id, int _status, bool ok);
   void dist_ftp_md5_reply(const char * client_id, const char * dist_id, const char * md5list);
 
 private:

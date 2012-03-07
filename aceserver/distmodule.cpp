@@ -66,6 +66,12 @@ void MyDistClient::update_md5_list(const char * _md5)
   update_status(2);
 }
 
+void MyDistClient::send_fb_detail(bool ok)
+{
+  ACE_Message_Block * mb = make_ftp_fb_detail_mb(ok);
+  MyServerAppX::instance()->dist_to_middle_module()->send_to_bs(mb);
+}
+
 void MyDistClient::dist_ftp_md5_reply(const char * md5list)
 {
   if (unlikely(*md5list == 0))
@@ -89,6 +95,8 @@ void MyDistClient::dist_ftp_md5_reply(const char * md5list)
         dist_info->ftype[0],
         client_id(),
         '4', '1', buff);
+
+    send_fb_detail(true);
 
     dist_one->delete_dist_client(this);
 //    MyServerAppX::instance()->db().set_dist_client_status(*this, 5);
@@ -231,15 +239,18 @@ ACE_Message_Block * MyDistClient::make_ftp_fb_detail_mb(bool bok)
     {
       md5_new.init_from_string(md5.data());
       mycomutil_string_replace_char(md5_new.data(), MyDataPacketHeader::ITEM_SEPARATOR, ':');
+      int len = ACE_OS::strlen(md5_new.data());
+      if (md5_new.data()[len - 1] == ':')
+        md5_new.data()[len - 1] = 0;
       detail_files = md5_new.data();
     }
   }
   else
     detail_files = dist_info->findex.data();
+
   int total_len = ACE_OS::strlen(dist_one->client_id()) + ACE_OS::strlen(dist_info->ver.data()) +
       ACE_OS::strlen(buff) + ACE_OS::strlen(dist_info->findex.data()) + ACE_OS::strlen(detail_files) +
       10;
-
   //batNO, fileKindCode, agentCode, indexName, fileName, type,flag, date
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(total_len, MY_BS_DIST_FBDETAIL_CMD);
   char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
@@ -615,7 +626,7 @@ bool MyClientFileDistributor::check_dist_clients(bool reload)
   return true;
 }
 
-void MyClientFileDistributor::dist_ftp_file_reply(const char * client_id, const char * dist_id, int _status)
+void MyClientFileDistributor::dist_ftp_file_reply(const char * client_id, const char * dist_id, int _status, bool ok)
 {
   MyDistClient * dc = m_dist_clients.find_dist_client(client_id, dist_id);
   if (unlikely(dc == NULL))
@@ -627,7 +638,10 @@ void MyClientFileDistributor::dist_ftp_file_reply(const char * client_id, const 
     MyServerAppX::instance()->db().set_dist_client_status(client_id, dist_id, _status);
   }
   else
+  {
+    dc->send_fb_detail(ok);
     dc->delete_self();
+  }
 }
 
 void MyClientFileDistributor::dist_ftp_md5_reply(const char * client_id, const char * dist_id, const char * md5list)
@@ -1454,7 +1468,7 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
   if (recv_status == '9')
     return;
 
-  m_distributor.dist_ftp_file_reply(client_id.as_string(), dist_id, status);
+  m_distributor.dist_ftp_file_reply(client_id.as_string(), dist_id, status, ok == '1');
 }
 
 void MyHeartBeatService::do_file_md5_reply(ACE_Message_Block * mb)
