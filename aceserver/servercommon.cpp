@@ -18,6 +18,7 @@ MyHttpDistInfo::MyHttpDistInfo(const char * dist_id)
   ver_len = 0;
   findex_len = 0;
   password_len = 0;
+  aindex_len = 0;
 
   ftype[0] = ftype[1] = 0;
   type[0] = type[1] = 0;

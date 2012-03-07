@@ -338,7 +338,7 @@ bool MyConfig::load_config_dist_middle(ACE_Configuration_Heap & cfgHeap, ACE_Con
 
   ACE_TString sval;
   if (cfgHeap.get_string_value(section, CONFIG_middle_server_key, sval) == 0)
-    db_server_addr = sval.c_str();
+    middle_server_key = sval.c_str();
   else
   {
     MY_ERROR("can not read config value %s\n", CONFIG_middle_server_key);
@@ -663,6 +663,9 @@ void MyConfig::dump_config_info()
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_compressed_store_path, compressed_store_path.c_str()));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_bs_server_addr, bs_server_addr.c_str()));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_bs_server_port, bs_server_port));
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_db_server_addr, db_server_addr.c_str()));
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_db_server_port, db_server_port));
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_db_user_name, db_user_name.c_str()));
   }
 
   //client an dist
