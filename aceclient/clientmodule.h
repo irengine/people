@@ -439,6 +439,7 @@ public:
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
   bool setup_timer();
   bool setup_heart_beat_timer(int heart_beat_interval);
+  bool setup_click_send_timer();
   MyClientToDistModule * module_x() const;
   DECLARE_MEMORY_POOL__NOTHROW(MyClientToDistHandler, ACE_Thread_Mutex);
 
@@ -447,7 +448,7 @@ protected:
   virtual int  on_open();
 
 private:
-  enum { HEART_BEAT_PING_TIMER = 1, IP_VER_TIMER };
+  enum { HEART_BEAT_PING_TIMER = 1, IP_VER_TIMER, CLICK_SEND_TIMER };
   enum { IP_VER_INTERVAL = 1 }; //in minutes
 
   long m_heart_beat_timer;

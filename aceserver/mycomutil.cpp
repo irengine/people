@@ -256,6 +256,15 @@ bool mycomutil_string_end_with(const char * src, const char * key)
   return ACE_OS::memcmp(src + len1 - len2, key, len2) == 0;
 }
 
+void mycomutil_string_replace_char(char * s, const char src, const char dest)
+{
+  if (unlikely(!s))
+    return;
+  char * ptr = s;
+  while ((ptr = strchr(ptr, src)) != NULL)
+    *ptr ++ = dest;
+}
+
 bool mycomutil_mb_putq(ACE_Task<ACE_MT_SYNCH> * target, ACE_Message_Block * mb, const char * err_msg)
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);

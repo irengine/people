@@ -64,6 +64,7 @@ private:
   bool generate_diff_mbz();
   int  dist_out_leading_length();
   void dist_out_leading_data(char * data);
+  ACE_Message_Block * make_ftp_fb_detail_mb(bool bok);
 };
 
 class MyDistClientOne

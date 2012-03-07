@@ -235,6 +235,7 @@ private:
   enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
 
   bool handle_packet(ACE_Message_Block * mb);
+  bool do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest & http_dist_request);
   bool parse_request(ACE_Message_Block * mb, MyHttpDistRequest & http_dist_request);
   bool do_compress(MyHttpDistRequest & http_dist_request);
   bool do_calc_md5(MyHttpDistRequest & http_dist_request);
@@ -332,6 +333,7 @@ public:
   MyDistLoadDispatcher(MyBaseModule * pModule, int numThreads = 1);
   virtual const char * name() const;
   virtual int handle_timeout(const ACE_Time_Value &current_time, const void *act = 0);
+  void send_to_bs(ACE_Message_Block * mb);
 
 protected:
   virtual void on_stop();
@@ -343,6 +345,7 @@ private:
 
   MyDistLoadAcceptor * m_acceptor;
   MyMiddleToBSConnector * m_bs_connector;
+  ACE_Message_Queue<ACE_MT_SYNCH> m_to_bs_queue;
 };
 
 class MyDistLoadAcceptor: public MyBaseAcceptor

@@ -660,6 +660,7 @@ bool mycomutil_calculate_file_md5(const char * _file, MyPooledMemGuard & md5_res
 bool mycomutil_generate_time_string(char * result_buff, int buff_len, time_t t = time(NULL));
 size_t mycomutil_string_hash(const char * str);
 bool mycomutil_string_end_with(const char * src, const char * key);
+void mycomutil_string_replace_char(char * s, const char src, const char dest);
 
 bool mycomutil_mb_putq(ACE_Task<ACE_MT_SYNCH> * target, ACE_Message_Block * mb, const char * err_msg);
 int mycomutil_translate_tcp_result(ssize_t transfer_return_value);

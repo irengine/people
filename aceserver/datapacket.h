@@ -273,6 +273,7 @@ public:
 #define MY_BS_IP_VER_CMD        "01"
 #define MY_BS_HARD_MON_CMD      "03"
 #define MY_BS_DIST_FEEDBACK_CMD "02"
+#define MY_BS_DIST_FBDETAIL_CMD "12"
 #define MY_BS_POWERON_LINK_CMD  "07"
 #define MY_BS_PATCH_FILE_CMD    "06"
 

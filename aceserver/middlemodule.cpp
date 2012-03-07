@@ -595,9 +595,28 @@ bool MyHttpService::parse_request(ACE_Message_Block * mb, MyHttpDistRequest &htt
   return true;
 }
 
-bool MyHttpService::handle_packet(ACE_Message_Block * mb)
+bool MyHttpService::handle_packet(ACE_Message_Block * _mb)
 {
   MyHttpDistRequest http_dist_request;
+  bool result = do_handle_packet(_mb, http_dist_request);
+  if (unlikely(!result && !!http_dist_request.check_valid(true)))
+    return false;
+  int total_len;
+  char buff[32];
+  mycomutil_generate_time_string(buff, 32);
+  total_len = ACE_OS::strlen(buff) + ACE_OS::strlen(http_dist_request.ver) + 8;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(total_len, MY_BS_DIST_FEEDBACK_CMD);
+  char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
+  ACE_OS::sprintf(dest, "%s#%c##1#%c#%s", http_dist_request.ver, *http_dist_request.ftype,
+      result? '1':'0', buff);
+  dest[total_len] = MyBSBasePacket::BS_PACKET_END_MARK;
+  MyServerAppX::instance()->dist_load_module()->dispatcher()->send_to_bs(mb);
+
+  return result;
+}
+
+bool MyHttpService::do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest & http_dist_request)
+{
   if (!parse_request(mb, http_dist_request))
     return false;
 
@@ -918,6 +937,13 @@ const char * MyDistLoadDispatcher::name() const
   return "MyDistLoadDispatcher";
 }
 
+void MyDistLoadDispatcher::send_to_bs(ACE_Message_Block * mb)
+{
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (m_to_bs_queue.enqueue(mb, &tv) < 0)
+    mb->release();
+}
+
 int MyDistLoadDispatcher::handle_timeout(const ACE_Time_Value &, const void *)
 {
   MyServerAppX::instance()->location_module()->dist_loads()->scan_for_dead();
@@ -936,9 +962,9 @@ bool MyDistLoadDispatcher::on_start()
   if (!m_acceptor)
     m_acceptor = new MyDistLoadAcceptor(this, new MyBaseConnectionManager());
   add_acceptor(m_acceptor);
-//  if (!m_bs_connector)
-//    m_bs_connector = new MyMiddleToBSConnector(this, new MyBaseConnectionManager());
-//  add_connector(m_bs_connector);
+  if (!m_bs_connector)
+    m_bs_connector = new MyMiddleToBSConnector(this, new MyBaseConnectionManager());
+  add_connector(m_bs_connector);
 
   ACE_Time_Value interval(int(MyDistLoads::DEAD_TIME * 60 / MyBaseApp::CLOCK_INTERVAL / 2));
   if (reactor()->schedule_timer(this, 0, interval, interval) == -1)
@@ -953,8 +979,14 @@ bool MyDistLoadDispatcher::on_event_loop()
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);
   ACE_Message_Block * mb;
-  if (this->getq(mb, &tv) == 0)
+  const int const_max_count = 10;
+  int i = 0;
+  while (this->getq(mb, &tv) != -1 && ++i < const_max_count)
     m_acceptor->connection_manager()->broadcast(mb);
+
+  i = 0;
+  while (m_to_bs_queue.dequeue(mb, &tv) != -1 && ++i < const_max_count)
+    m_bs_connector->connection_manager()->broadcast(mb);
 
   return true;
 }

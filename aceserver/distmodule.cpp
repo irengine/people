@@ -217,6 +217,45 @@ void MyDistClient::dist_out_leading_data(char * data)
       dist_info->type[0], MyDataPacketHeader::FINISH_SEPARATOR);
 }
 
+ACE_Message_Block * MyDistClient::make_ftp_fb_detail_mb(bool bok)
+{
+  MyPooledMemGuard md5_new;
+  char buff[32];
+  mycomutil_generate_time_string(buff, 32);
+  const char * detail_files;
+  if (type_is_multi(dist_info->type[0]))
+  {
+    if (!md5.data())
+      detail_files = "";
+    else
+    {
+      md5_new.init_from_string(md5.data());
+      mycomutil_string_replace_char(md5_new.data(), MyDataPacketHeader::ITEM_SEPARATOR, ':');
+      detail_files = md5_new.data();
+    }
+  }
+  else
+    detail_files = dist_info->findex.data();
+  int total_len = ACE_OS::strlen(dist_one->client_id()) + ACE_OS::strlen(dist_info->ver.data()) +
+      ACE_OS::strlen(buff) + ACE_OS::strlen(dist_info->findex.data()) + ACE_OS::strlen(detail_files) +
+      10;
+
+  //batNO, fileKindCode, agentCode, indexName, fileName, type,flag, date
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(total_len, MY_BS_DIST_FBDETAIL_CMD);
+  char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
+  ACE_OS::sprintf(dest, "%s#%c#%s#%s#%s#%c#%c#%s",
+      dist_info->ver.data(),
+      dist_info->ftype[0],
+      dist_one->client_id(),
+      dist_info->findex.data(),
+      detail_files,
+      dist_info->type[0],
+      bok? '1': '0',
+      buff);
+  dest[total_len] = MyBSBasePacket::BS_PACKET_END_MARK;
+  return mb;
+}
+
 bool MyDistClient::send_md5()
 {
   if (!dist_info->md5.data() || !dist_info->md5.data()[0] || dist_info->md5_len <= 0)
@@ -2079,11 +2118,14 @@ bool MyDistToMiddleDispatcher::on_event_loop()
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);
   ACE_Message_Block * mb;
-  if (this->getq(mb, &tv) == 0)
+  const int const_max_count = 10;
+  int i = 0;
+  while (this->getq(mb, &tv) != -1 && ++i < const_max_count)
     m_connector->connection_manager()->broadcast(mb);
 
   tv = ACE_Time_Value::zero;
-  if (m_to_bs_queue.dequeue(mb, &tv) == 0)
+  i = 0;
+  while (m_to_bs_queue.dequeue(mb, &tv) != -1 && ++i < const_max_count)
     m_bs_connector->connection_manager()->broadcast(mb);
 
   return true;
@@ -2097,7 +2139,7 @@ const char * MyDistToMiddleDispatcher::name() const
 void MyDistToMiddleDispatcher::send_to_bs(ACE_Message_Block * mb)
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (m_to_bs_queue.enqueue(mb, &tv) == -1)
+  if (m_to_bs_queue.enqueue(mb, &tv) < 0)
     mb->release();
 }
 

@@ -2015,13 +2015,16 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
         MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
         if (!mod->click_sent())
         {
-          ACE_Message_Block * mb = mod->get_click_infos(m_client_id.as_string());
-          if (!mb)
-            mod->click_sent_done(m_client_id.as_string());
-          else if (m_handler->send_data(mb) < 0)
-            return ER_ERROR;
-          else
-            mod->click_sent_done(m_client_id.as_string());
+          if (!((MyClientToDistHandler *)m_handler)->setup_click_send_timer())
+          {
+            ACE_Message_Block * mb = mod->get_click_infos(m_client_id.as_string());
+            if (!mb)
+              mod->click_sent_done(m_client_id.as_string());
+            else if (m_handler->send_data(mb) < 0)
+              return ER_ERROR;
+            else
+              mod->click_sent_done(m_client_id.as_string());
+          }
         }
       }
 
@@ -2490,6 +2493,20 @@ bool MyClientToDistHandler::setup_heart_beat_timer(int heart_beat_interval)
     return true;
 }
 
+bool MyClientToDistHandler::setup_click_send_timer()
+{
+  const int const_delay_max = 15 * 60;
+  int delay = (int)(random() % const_delay_max);
+  ACE_Time_Value interval(delay);
+  if (reactor()->schedule_timer(this, (void*)CLICK_SEND_TIMER, interval) < 0)
+  {
+    MY_ERROR(ACE_TEXT("MyClientToDistHandler setup click send timer failed, %s"), (const char*)MyErrno());
+    return false;
+  }
+
+  return true;
+}
+
 MyClientToDistModule * MyClientToDistHandler::module_x() const
 {
   return (MyClientToDistModule *)connector()->module_x();
@@ -2508,6 +2525,21 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
     return ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
   else if (long(act) == IP_VER_TIMER)
     return ((MyClientToDistProcessor*)m_processor)->send_ip_ver_req();
+  else if (long(act) == CLICK_SEND_TIMER)
+  {
+    MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
+    if (mod->click_sent())
+      return 0;
+    ACE_Message_Block * mb = mod->get_click_infos(m_processor->client_id().as_string());
+    if (!mb)
+      mod->click_sent_done(m_processor->client_id().as_string());
+    else if (send_data(mb) < 0)
+      return handle_close(ACE_INVALID_HANDLE, 0);
+    else
+      mod->click_sent_done(m_processor->client_id().as_string());
+
+    return 0;
+  }
   else
   {
     MY_ERROR("unexpected timer call @MyClientToDistHandler::handle_timeout, timer id = %d\n", long(act));
