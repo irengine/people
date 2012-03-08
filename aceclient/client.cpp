@@ -17,11 +17,21 @@
 MyProgramLauncher::MyProgramLauncher()
 {
   m_pid = INVALID_PID;
+  m_wait_for_term = false;
 }
 
 MyProgramLauncher::~MyProgramLauncher()
 {
 
+}
+
+void MyProgramLauncher::kill_instance()
+{
+  if (m_pid != INVALID_PID)
+  {
+    kill(m_pid, SIGTERM);
+    m_wait_for_term = true;
+  }
 }
 
 bool MyProgramLauncher::launch()
@@ -31,6 +41,7 @@ bool MyProgramLauncher::launch()
     kill(m_pid, SIGTERM);
     m_pid = INVALID_PID;
   }
+  m_wait_for_term = false;
   ACE_Process_Options options;
   if (!on_launch(options))
     return false;
@@ -333,8 +344,15 @@ void MyOperaLauncher::check_relaunch()
 {
   if (!m_need_relaunch)
     return;
-  m_need_relaunch = false;
-  launch();
+  if (running())
+  {
+    if (!m_wait_for_term)
+      kill_instance();
+  } else
+  {
+    m_need_relaunch = false;
+    launch();
+  }
 }
 
 void MyOperaLauncher::need_relaunch()

@@ -586,11 +586,7 @@ bool MyClientFileDistributor::distribute(bool check_reload)
   else if (now - m_last_end < IDLE_TIME * 60)
     return false;
   else
-  {
-    if (!m_dist_infos.need_reload())
-      return false;
-    reload = true;
-  }
+    reload = m_dist_infos.need_reload();
 
   if (unlikely(reload))
     MY_INFO("loading dist entries from db...\n");

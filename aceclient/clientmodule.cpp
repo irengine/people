@@ -916,7 +916,46 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
   ACE_FILE_IO file_put;
   ACE_FILE_Connector file_con;
   char file_cache[MAX_BUFSIZE];
-  int file_size, all_size;
+  int file_size, all_size, fs_server = 0, fs_client = 0;
+
+  struct stat _stat;
+  if (MyFilePaths::stat(localfile, &_stat))
+    fs_client = (int)_stat.st_size;
+
+  if (this->send("TYPE I\r\n"))
+  {
+    if (!this->recv() || !is_response("200"))
+    {
+      MY_ERROR("ftp no/bad response on TYPE command to server (%s): %s\n", m_ftp_server_addr.data(), m_response.data());
+      return false;
+    }
+  }
+
+
+  if (fs_client > 0)
+  {
+    MyPooledMemGuard fs;
+    fs.init_from_string("SIZE ", filename, "\r\n");
+    if (!this->send(fs.data()))
+      return false;
+    if (!this->recv() || !is_response("213"))
+    {
+      MY_ERROR("ftp no/bad response on SIZE command to server (%s): %s\n", m_ftp_server_addr.data(), m_response.data());
+      return false;
+    }
+    const char * ptr = m_response.data() + 3;
+    while (*ptr == ' ')
+      ptr ++;
+    fs_server = atoi(ptr);
+    if (fs_server <= 0)
+    {
+      MY_ERROR("bad fs_server value = %d\n", fs_server);
+      return false;
+    }
+
+    if (fs_client >= fs_server)
+      fs_client = 0;
+  }
 
   if (this->send("PASV\r\n"))
   {
@@ -955,6 +994,18 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
 //  else
 //    MY_INFO("ftp establish data connection OK to server %s\n", m_ftp_server_addr.data());
 
+  if (fs_client > 0)
+  {
+    char tmp[64];
+    ACE_OS::snprintf(tmp, 64, "REST %d\r\n", fs_client);
+    this->send(tmp);
+    if (!this->recv() || !is_response("350"))
+    {
+      MY_ERROR("ftp no/bad response on REST command to server (%s): %s\n", m_ftp_server_addr.data(), m_response.data());
+      return false;
+    }
+  }
+
   MyPooledMemGuard retr;
   retr.init_from_string("RETR ", filename, "\r\n");
   if (this->send(retr.data()))
@@ -967,8 +1018,14 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
     }
   }
 
+  int flag = O_RDWR | O_CREAT;
+  if (fs_client <= 0)
+    flag |= O_TRUNC;
+  else
+    flag |= O_APPEND;
+
   tv.sec(TIME_OUT_SECONDS);
-  if (file_con.connect(file_put, ACE_FILE_Addr(localfile), &tv, ACE_Addr::sap_any, 0, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR) == -1)
+  if (file_con.connect(file_put, ACE_FILE_Addr(localfile), &tv, ACE_Addr::sap_any, 0, flag, S_IRUSR | S_IWUSR) == -1)
   {
     MY_ERROR("ftp failed to open local file %s to save download %s\n", localfile, (const char*)MyErrno());
     return false;

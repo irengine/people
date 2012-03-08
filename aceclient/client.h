@@ -28,6 +28,9 @@ public:
 
 protected:
   virtual bool on_launch(ACE_Process_Options & options);
+  void kill_instance();
+
+  bool m_wait_for_term;
 
 private:
   enum { INVALID_PID = 0 };
