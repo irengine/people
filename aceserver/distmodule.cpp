@@ -1109,7 +1109,7 @@ void MyBaseSubmitter::reset()
 //MyFtpFeedbackSubmitter//
 
 MyFtpFeedbackSubmitter::MyFtpFeedbackSubmitter():
-  m_dist_id_block(BLOCK_SIZE, 32, this), m_client_id_block(BLOCK_SIZE, sizeof(MyClientID), this), m_ftype_block(BLOCK_SIZE, 1, this),
+  m_dist_id_block(BLOCK_SIZE, 32, this), m_ftype_block(BLOCK_SIZE, 1, this), m_client_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
   m_step_block(BLOCK_SIZE, 1, this), m_ok_flag_block(BLOCK_SIZE, 1, this), m_date_block(BLOCK_SIZE, 15, this)
 {
 

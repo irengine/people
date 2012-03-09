@@ -1388,6 +1388,22 @@ bool MyDistInfoFtp::update_db_status() const
   return false;
 }
 
+void MyDistInfoFtp::generate_url_ini()
+{
+  if (!ftype_is_chn(ftype))
+    return;
+
+  MyPooledMemGuard path, file;
+  calc_target_parent_path(path, false);
+  file.init_from_string(path.data(), "/index/", adir.data(), "/url.ini");
+
+  MyUnixHandleGuard h;
+  if (unlikely(!h.open_write(file.data(), true, true, false, false)))
+    return;
+
+
+}
+
 void MyDistInfoFtp::generate_update_ini()
 {
   MyPooledMemGuard value;
@@ -1654,6 +1670,11 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
       MY_ERROR("unknown dist type(%d) for dist_id(%s)\n", dist_info->type, dist_info->dist_id.data());
       result = false;
     }
+  }
+
+  if (result && ftype_is_chn(dist_info->ftype))
+  {
+
   }
 
 //  if (result)

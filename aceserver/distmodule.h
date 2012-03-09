@@ -265,8 +265,8 @@ protected:
 private:
   enum { BLOCK_SIZE = 1024 };
   MyAccumulatorBlock m_dist_id_block;
-  MyAccumulatorBlock m_client_id_block;
   MyAccumulatorBlock m_ftype_block;
+  MyAccumulatorBlock m_client_id_block;
   MyAccumulatorBlock m_step_block;
   MyAccumulatorBlock m_ok_flag_block;
   MyAccumulatorBlock m_date_block;

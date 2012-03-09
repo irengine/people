@@ -284,6 +284,7 @@ public:
   void post_status_message(int _status = -1, bool result_ok = true) const;
   bool update_db_status() const;
   void generate_update_ini();
+  void generate_url_ini();
 
   static ACE_Message_Block * make_ftp_dist_message(const char * dist_id, int status, bool ok = true, char ftype = 'x');
 
