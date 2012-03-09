@@ -41,8 +41,10 @@ private:
 class MyVLCLauncher: public MyProgramLauncher
 {
 public:
+  MyVLCLauncher();
   virtual bool ready() const;
   int next() const;
+  void init_mode(bool b);
 
 protected:
   virtual bool on_launch(ACE_Process_Options & options);
@@ -57,6 +59,7 @@ private:
 
   int m_next;
   MyPooledMemGuard m_current_line;
+  bool m_init_mode;
 };
 
 class MyOperaLauncher: public MyProgramLauncher
@@ -115,7 +118,7 @@ public:
   static void calc_backup_parent_path(MyPooledMemGuard & parent_path, const char * client_id = NULL);
   static void calc_download_parent_path(MyPooledMemGuard & parent_path, const char * client_id = NULL);
   static bool full_backup(const char * dist_id, const char * client_id = NULL);
-  static bool full_restore(const char * dist_id, bool remove_existing, bool is_new = true, const char * client_id = NULL);
+  static bool full_restore(const char * dist_id, bool remove_existing, bool is_new = true, const char * client_id = NULL, bool init = false);
   static bool app_init(const char * app_home_path = NULL, MyConfig::RUNNING_MODE mode = MyConfig::RM_UNKNOWN);
   static void app_fini();
   static const char * index_frame_file();
@@ -132,7 +135,7 @@ protected:
   virtual bool on_event_loop();
 
 private:
-  static bool do_backup_restore(const MyPooledMemGuard & src_parent_path, const MyPooledMemGuard & dest_path, bool remove_existing);
+  static bool do_backup_restore(const MyPooledMemGuard & src_parent_path, const MyPooledMemGuard & dest_path, bool remove_existing, bool init);
   static bool get_mfile_from_file(const MyPooledMemGuard & parent_path, MyPooledMemGuard & mfile);
   static void check_prev_extract_task(const char * client_id);
 

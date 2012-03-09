@@ -355,10 +355,8 @@ protected:
 private:
   enum { BLOCK_SIZE = 2048 };
   MyAccumulatorBlock m_id_block;
-  MyAccumulatorBlock m_temperature_block;
-  MyAccumulatorBlock m_bright_block;
-  MyAccumulatorBlock m_shake_block;
-  MyAccumulatorBlock m_door_block;
+  MyAccumulatorBlock m_type_block;
+  MyAccumulatorBlock m_value_block;
   MyAccumulatorBlock m_datetime_block;
 };
 

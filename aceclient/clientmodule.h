@@ -207,6 +207,7 @@ public:
   void calc_target_parent_path(MyPooledMemGuard & target_parent_path, bool extract_only);
   bool calc_target_path(const char * target_parent_path, MyPooledMemGuard & target_path);
   virtual bool validate();
+  const char * index_file() const;
 
   MyPooledMemGuard dist_id;
   MyPooledMemGuard findex;

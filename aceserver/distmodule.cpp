@@ -1267,10 +1267,8 @@ const char * MyAdvClickSubmitter::get_command() const
 
 MyHWAlarmSubmitter::MyHWAlarmSubmitter():
       m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
-      m_temperature_block(BLOCK_SIZE, 1, this),
-      m_bright_block(BLOCK_SIZE, 1, this),
-      m_shake_block(BLOCK_SIZE, 1, this),
-      m_door_block(BLOCK_SIZE, 1, this),
+      m_type_block(BLOCK_SIZE, 1, this),
+      m_value_block(BLOCK_SIZE, 5, this),
       m_datetime_block(BLOCK_SIZE, 25, this)
 {
 
@@ -1284,21 +1282,12 @@ void MyHWAlarmSubmitter::add_data(const char * client_id, int id_len, const char
 
   if (x == '1')
   {
-    if (!m_temperature_block.add(y))
+    if (!m_type_block.add('1'))
       ret = false;
-  } else if (!m_temperature_block.add(""))
+  } else if (!m_type_block.add('4'))
     ret = false;
 
-  if (!m_bright_block.add(""))
-    ret = false;
-  if (!m_shake_block.add(""))
-    ret = false;
-
-  if (x == '2')
-  {
-    if (!m_door_block.add(y))
-      ret = false;
-  } else if (!m_door_block.add(""))
+  if (!m_value_block.add(y))
     ret = false;
 
   if (!m_datetime_block.add(datetime))
@@ -1306,7 +1295,6 @@ void MyHWAlarmSubmitter::add_data(const char * client_id, int id_len, const char
 
   if (!ret)
     submit();
-
 }
 
 const char * MyHWAlarmSubmitter::get_command() const

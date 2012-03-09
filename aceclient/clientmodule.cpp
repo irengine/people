@@ -1101,9 +1101,9 @@ bool MyDistInfoHeader::validate()
     return false;
   }
 
-  if (aindex.data() && aindex.data()[0] && !(findex.data() && findex.data()[0]))
+  if (/*aindex.data() && aindex.data()[0] &&*/ !(findex.data() && findex.data()[0]))
   {
-    MY_ERROR("invalid MyDistInfoHeader, findex is null while aindex is not\n");
+    MY_ERROR("invalid MyDistInfoHeader, findex is null\n");
     return false;
   }
 
@@ -1114,6 +1114,13 @@ bool MyDistInfoHeader::validate()
   }
 
   return true;
+}
+
+const char * MyDistInfoHeader::index_file() const
+{
+  if (aindex.data() && aindex.data()[0])
+    return aindex.data();
+  return findex.data();
 }
 
 int MyDistInfoHeader::load_header_from_string(char * src)
@@ -1401,7 +1408,8 @@ void MyDistInfoFtp::generate_url_ini()
   if (unlikely(!h.open_write(file.data(), true, true, false, false)))
     return;
 
-
+  const char * s = index_file();
+  ::write(h.handle(), s, ACE_OS::strlen(s));
 }
 
 void MyDistInfoFtp::generate_update_ini()
@@ -1424,6 +1432,7 @@ void MyDistInfoFtp::generate_update_ini()
   ACE_OS::snprintf(buff, 100, "%02d:%02d;%s", _tm.tm_hour, _tm.tm_min, value.data());
   ::write(h.handle(), buff, ACE_OS::strlen(buff));
 }
+
 
 //MyDistInfoFtps//
 
@@ -1535,6 +1544,7 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
   {
     MY_INFO("apply update OK for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
     dist_info->generate_update_ini();
+    dist_info->generate_url_ini();
     if (!g_test_mode && ftype_is_adv_list(dist_info->ftype))
     {
       MyConfig * cfg = MyConfigX::instance();
@@ -1600,7 +1610,12 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
       }
 
       if (ftype_is_chn(dist_info->ftype))
-        MyFilePaths::zap_path_except_mfile(target_path, dist_info->aindex, true);
+      {
+        if (dist_info->aindex.data() && *dist_info->aindex.data())
+          MyFilePaths::zap_path_except_mfile(target_path, dist_info->aindex, true);
+        else
+          MyFilePaths::zap_path_except_mfile(target_path, dist_info->findex, true);
+      }
 
       MyMfileSplitter spl;
       spl.init(dist_info->aindex.data());
@@ -1619,7 +1634,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
       if (ftype_is_frame(dist_info->ftype))
       {
         MyPooledMemGuard index_path;
-        index_path.init_from_string(target_path.data(), "/", dist_info->aindex.data());
+        index_path.init_from_string(target_path.data(), "/", dist_info->index_file());
         MyFilePaths::get_correlate_path(index_path, 0);
         MyFilePaths::zap_empty_paths(index_path);
       }
@@ -1670,11 +1685,6 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
       MY_ERROR("unknown dist type(%d) for dist_id(%s)\n", dist_info->type, dist_info->dist_id.data());
       result = false;
     }
-  }
-
-  if (result && ftype_is_chn(dist_info->ftype))
-  {
-
   }
 
 //  if (result)
@@ -3647,6 +3657,8 @@ void MyHttp1991Processor::do_command_plc(char * parameter)
       MY_ERROR("bad hardware alarm packet @MyHttp1991Processor::do_command_plc, y = %s\n", !y? "NULL": y);
       return;
     }
+
+    MY_INFO("hardware alarm: x = %d, y = %c\n", x, *y);
 
     ACE_Message_Block * mb = make_hardware_alarm_mb((char)(x + '0'), *y);
     mycomutil_mb_putq(MyClientAppX::instance()->client_to_dist_module()->dispatcher(), mb, "hw alarm to dist queue");

@@ -22,7 +22,7 @@ MyProgramLauncher::MyProgramLauncher()
 
 MyProgramLauncher::~MyProgramLauncher()
 {
-
+  kill_instance();
 }
 
 void MyProgramLauncher::kill_instance()
@@ -100,6 +100,11 @@ const char * MyVLCLauncher::gasket() const
 int MyVLCLauncher::next() const
 {
   return m_next;
+}
+
+void MyVLCLauncher::init_mode(bool b)
+{
+  m_init_mode = b;
 }
 
 bool MyVLCLauncher::load(ACE_Process_Options & options)
@@ -218,7 +223,7 @@ bool MyVLCLauncher::on_launch(ACE_Process_Options & options)
 
   std::vector<std::string> advlist;
 
-  if (load(options))
+  if (!m_init_mode && load(options))
     return true;
 
   MY_INFO("%s not exist or content empty, trying %s\n", adv_txt(), gasket());
@@ -230,6 +235,11 @@ bool MyVLCLauncher::on_launch(ACE_Process_Options & options)
   }
   options.command_line("%s %s", vlc, gasket());
   return true;
+}
+
+MyVLCLauncher::MyVLCLauncher()
+{
+  m_init_mode = false;
 }
 
 bool MyVLCLauncher::ready() const
@@ -477,7 +487,7 @@ bool MyClientApp::full_backup(const char * dist_id, const char * client_id)
     return false;
   }
 
-  if (!do_backup_restore(src_parent_path, tmp, false))
+  if (!do_backup_restore(src_parent_path, tmp, false, false))
     return false;
 
   if (dist_id && *dist_id)
@@ -502,7 +512,7 @@ bool MyClientApp::full_backup(const char * dist_id, const char * client_id)
   return MyFilePaths::rename(tmp.data(), new_path.data(), false);
 }
 
-bool MyClientApp::full_restore(const char * dist_id, bool remove_existing, bool is_new, const char * client_id)
+bool MyClientApp::full_restore(const char * dist_id, bool remove_existing, bool is_new, const char * client_id, bool init)
 {
   MyPooledMemGuard dest_parent_path;
   calc_display_parent_path(dest_parent_path, client_id);
@@ -534,10 +544,10 @@ bool MyClientApp::full_restore(const char * dist_id, bool remove_existing, bool 
       return false;
   }
 
-  return do_backup_restore(src_parent_path, dest_parent_path, remove_existing);
+  return do_backup_restore(src_parent_path, dest_parent_path, remove_existing, init);
 }
 
-bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, const MyPooledMemGuard & dest_parent_path, bool remove_existing)
+bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, const MyPooledMemGuard & dest_parent_path, bool remove_existing, bool init)
 {
   MyPooledMemGuard src_path, dest_path;
   MyPooledMemGuard mfile;
@@ -556,6 +566,25 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
       MyFilePaths::remove(dest_path.data());
       MyFilePaths::get_correlate_path(dest_path, 0);
       MyFilePaths::remove_path(dest_path.data(), true);
+    }
+  }
+
+  src_path.init_from_string(src_parent_path.data(), "/8");
+  if (MyFilePaths::exist(src_path.data()))
+  {
+    dest_path.init_from_string(dest_parent_path.data(), "/8");
+    if (remove_existing)
+      MyFilePaths::remove_path(dest_path.data(), true);
+    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
+    {
+      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
+      return false;
+    }
+
+    if (init && !g_test_mode)
+    {
+      MyClientAppX::instance()->vlc_launcher().init_mode(true);
+      MyClientAppX::instance()->vlc_launcher().launch();
     }
   }
 
@@ -583,10 +612,10 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
     }
   }
 
-  src_path.init_from_string(src_parent_path.data(), "/7");
+  src_path.init_from_string(src_parent_path.data(), "/led");
   if (MyFilePaths::exist(src_path.data()))
   {
-    dest_path.init_from_string(dest_parent_path.data(), "/7");
+    dest_path.init_from_string(dest_parent_path.data(), "/led");
     if (remove_existing)
       MyFilePaths::remove_path(dest_path.data(), true);
     if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
@@ -596,18 +625,8 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
     }
   }
 
-  src_path.init_from_string(src_parent_path.data(), "/8");
-  if (MyFilePaths::exist(src_path.data()))
-  {
-    dest_path.init_from_string(dest_parent_path.data(), "/8");
-    if (remove_existing)
-      MyFilePaths::remove_path(dest_path.data(), true);
-    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
-    {
-      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
-      return false;
-    }
-  }
+  if (init && !g_test_mode)
+    MyClientAppX::instance()->opera_launcher().launch();
 
   src_path.init_from_string(src_parent_path.data(), "/5");
   if (MyFilePaths::exist(src_path.data()))
@@ -726,9 +745,19 @@ bool MyClientApp::on_construct()
 
   add_module(m_client_to_dist_module = new MyClientToDistModule(this));
 
+  if (!full_restore(NULL, true, true, NULL, true))
+  {
+    MY_WARNING("restore of latest data failed, now restoring previous data...\n");
+    if (!full_restore(NULL, true, false, NULL, true))
+    {
+      MY_ERROR("restore of previous data failed\n");
+    }
+  }
+
   if (!g_test_mode)
   {
-    m_opera_launcher.launch();
+//    m_opera_launcher.launch();
+    m_vlc_launcher.init_mode(false);
     m_vlc_monitor.launch_vlc();
     check_prev_extract_task(client_id());
   }
