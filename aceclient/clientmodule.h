@@ -657,7 +657,7 @@ class MyHttp1991Processor: public MyBaseProcessor
 {
 public:
   typedef MyBaseProcessor super;
-  enum { MAX_COMMAND_LINE_LENGTH = 1024 };
+  enum { MAX_COMMAND_LINE_LENGTH = 2048 };
 
   MyHttp1991Processor(MyBaseHandler * handler);
   virtual ~MyHttp1991Processor();

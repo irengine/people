@@ -3518,22 +3518,30 @@ int MyHttp1991Processor::handle_input()
   if (mycomutil_recv_message_block(m_handler, m_mb) < 0)
     return -1;
   int len = m_mb->length();
-  if (len <= 7 || len >= MAX_COMMAND_LINE_LENGTH)
+  if (len >= MAX_COMMAND_LINE_LENGTH)
   {
     MY_ERROR("invalid request @MyHttp1991Processor, request length = %d\n", len);
     return -1;
   }
 
   char * ptr = m_mb->base();
-  ptr[len] = 0;
+  if (!strstr(ptr, "\r\n\r\n"))
+    return 0;
 
-  const char const_click_str[] = "http://127.0.0.1:1991/list?pg=";
+  ptr[len - 1] = 0;
+
+  if (strstr(m_mb->base(), ":1991") == NULL)
+  {
+    MY_ERROR("bad http request: %s\n", m_mb->base());
+    return -1;
+  }
+  const char const_click_str[] = "/list?pg=";
   const int const_click_str_len = sizeof(const_click_str) / sizeof(char) - 1;
-  const char const_plc_str[] = "http://localhost:1991/ctrl?type=";
+  const char const_plc_str[] = "/ctrl?type=";
   const int const_plc_str_len = sizeof(const_plc_str) / sizeof(char) - 1;
 
   char * value;
-  if (ACE_OS::strstr(ptr, "http://127.0.0.1:1991/op") != NULL)
+  if (ACE_OS::strstr(ptr, "/op") != NULL)
     do_command_watch_dog();
   else if ((value = ACE_OS::strstr(ptr, const_click_str)) != NULL)
     do_command_adv_click(value + const_click_str_len);
@@ -3669,9 +3677,21 @@ ACE_Message_Block * MyHttp1991Processor::make_hardware_alarm_mb(char x, char y)
 
 void MyHttp1991Processor::send_string(const char * s)
 {
-  int len = ACE_OS::strlen(s);
+  const char * const_complete = "HTTP/1.1 200 OK\r\n"
+                                "Content-Type: text/html\r\n"
+                                "Content-Length: %d\r\n\r\n";
+
+  const char * const_html_tpl = "<html><head></head><body>%s</body></html>\r\n";
+  int html_len = ACE_OS::strlen(s) + ACE_OS::strlen(const_html_tpl) + 2;
+  int len = html_len + ACE_OS::strlen(const_complete) + 20;
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(len);
-  ACE_OS::memcpy(mb->base(), s, len);
+  MyPooledMemGuard guard;
+  MyMemPoolFactoryX::instance()->get_mem(html_len, &guard);
+  ACE_OS::sprintf(guard.data(), const_html_tpl, s);
+  html_len = ACE_OS::strlen(guard.data());
+  ACE_OS::sprintf(mb->base(), const_complete, html_len);
+  ACE_OS::strcat(mb->base(), guard.data());
+  len = ACE_OS::strlen(mb->base());
   mb->wr_ptr(len);
   m_handler->send_data(mb);
 }
