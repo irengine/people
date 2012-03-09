@@ -3617,7 +3617,7 @@ void MyHttp1991Processor::do_command_plc(char * parameter)
   else if (x == 6) //led
     send_string(mod->ip_ver_reply().led());
   else if (x == 7) //pc
-    send_string(mod->ip_ver_reply().pc());
+    send_string("*063021251");//mod->ip_ver_reply().pc());
   else if ( x == 1 || x == 2)
   {
     send_string("*1");
