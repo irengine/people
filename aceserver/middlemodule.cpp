@@ -603,7 +603,7 @@ bool MyHttpService::handle_packet(ACE_Message_Block * _mb)
     return false;
   int total_len;
   char buff[32];
-  mycomutil_generate_time_string(buff, 32);
+  mycomutil_generate_time_string(buff, 32, true);
   total_len = ACE_OS::strlen(buff) + ACE_OS::strlen(http_dist_request.ver) + 8;
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(total_len, MY_BS_DIST_FEEDBACK_CMD);
   char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;

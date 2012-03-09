@@ -228,13 +228,13 @@ bool mycomutil_calculate_file_md5(const char * _file, MyPooledMemGuard & md5_res
   return true;
 }
 
-bool mycomutil_generate_time_string(char * result_buff, int buff_len, time_t t)
+bool mycomutil_generate_time_string(char * result_buff, int buff_len, bool full, time_t t)
 {
-  MY_ASSERT_RETURN(buff_len > 15, "buffer len too small @mycomutil_generate_time_string\n", false);
+  MY_ASSERT_RETURN(full? buff_len > 19: buff_len > 15, "buffer len too small @mycomutil_generate_time_string\n", false);
   struct tm _tm;
   if (unlikely(localtime_r(&t, &_tm) == NULL))
     return false;
-  ACE_OS::snprintf(result_buff, buff_len, "%04d%02d%02d %02d%02d%02d", _tm.tm_year + 1900, _tm.tm_mon + 1,
+  ACE_OS::snprintf(result_buff, buff_len, "%04d-%02d-%02d %02d:%02d:%02d", _tm.tm_year + 1900, _tm.tm_mon + 1,
       _tm.tm_mday, _tm.tm_hour, _tm.tm_min, _tm.tm_sec);
   return true;
 }

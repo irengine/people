@@ -1194,7 +1194,7 @@ bool MyDistInfoHeader::calc_target_path(const char * target_parent_path, MyPoole
   else if (ftype_is_adv(ftype))
     sub_path = "5";
   else if (ftype_is_led(ftype))
-    sub_path = "7";
+    sub_path = "led";
   else if (ftype_is_frame(ftype))
   {
     target_path.init_from_string(target_parent_path);
@@ -2231,7 +2231,7 @@ void MyClientToDistProcessor::check_offline_report()
     return;
 
   char buff[32], buff2[32];
-  if (unlikely(!mycomutil_generate_time_string(buff2, 32, now) || ! mycomutil_generate_time_string(buff, 32, t)))
+  if (unlikely(!mycomutil_generate_time_string(buff2, 32, false, now) || ! mycomutil_generate_time_string(buff, 32, false, t)))
   {
     MY_ERROR("mycomutil_generate_time_string failed @MyClientToDistProcessor::check_offline_report()\n");
     return;

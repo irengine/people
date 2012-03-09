@@ -77,7 +77,7 @@ void MyDistClient::dist_ftp_md5_reply(const char * md5list)
   if (unlikely(*md5list == 0))
   {
     char buff[50];
-    mycomutil_generate_time_string(buff, 50);
+    mycomutil_generate_time_string(buff, 50, true);
     MyServerAppX::instance()->heart_beat_module()->ftp_feedback_submitter().add(
         dist_info->ver.data(),
         dist_info->ftype[0],
@@ -229,7 +229,7 @@ ACE_Message_Block * MyDistClient::make_ftp_fb_detail_mb(bool bok)
 {
   MyPooledMemGuard md5_new;
   char buff[32];
-  mycomutil_generate_time_string(buff, 32);
+  mycomutil_generate_time_string(buff, 32, true);
   const char * detail_files;
   if (type_is_multi(dist_info->type[0]))
   {
@@ -948,8 +948,8 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_hardware_alarm_req(ACE_Me
     return ER_ERROR;
   }
 
-  char datetime[20];
-  mycomutil_generate_time_string(datetime, 20);
+  char datetime[32];
+  mycomutil_generate_time_string(datetime, 20, false);
   m_hardware_alarm_submitter->add_data(m_client_id.as_string(), m_client_id_length, alarm->x, alarm->y, datetime);
   return ER_OK;
 }
@@ -1456,7 +1456,7 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
   if ((ftype != 'x') && step != 0)
   {
     char buff[32];
-    mycomutil_generate_time_string(buff, 32);
+    mycomutil_generate_time_string(buff, 32, true);
     ((MyHeartBeatModule *)module_x())->ftp_feedback_submitter().add(dist_id, ftype, client_id.as_string(), step, ok, buff);
     if (step == '3' && ok == '1')
       ((MyHeartBeatModule *)module_x())->ftp_feedback_submitter().add(dist_id, ftype, client_id.as_string(), '4', ok, buff);
