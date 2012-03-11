@@ -148,7 +148,7 @@ bool MyDB::exec_command(const char * sql_command, int * affected)
     return false;
   PGresult * pres = PQexec(m_connection, sql_command);
   MyPGResultGuard guard(pres);
-  if (!pres || PQresultStatus(pres) != PGRES_COMMAND_OK)
+  if (!pres || (PQresultStatus(pres) != PGRES_COMMAND_OK && PQresultStatus(pres) != PGRES_TUPLES_OK))
   {
     MY_ERROR("MyDB::exec_command(%s) failed: %s\n", sql_command, PQerrorMessage(m_connection));
     return false;
@@ -687,7 +687,7 @@ bool MyDB::dist_info_update_status()
 
 bool MyDB::remove_orphan_dist_info()
 {
-  const char * sql = "delete from tb_dist_info where dist_id not in (select distinct dc_dist_id from tb_dist_clients)";
+  const char * sql = "select post_process()";
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql);

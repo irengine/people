@@ -759,7 +759,6 @@ bool MyClientApp::on_construct()
 //    m_opera_launcher.launch();
     m_vlc_launcher.init_mode(false);
     m_vlc_monitor.launch_vlc();
-    check_prev_extract_task(client_id());
   }
 
   return true;
@@ -916,6 +915,7 @@ void MyClientApp::check_prev_extract_task(const char * client_id)
   struct dirent *entry;
   while ((entry = readdir(dir)) != NULL)
   {
+
     if (!entry->d_name)
       continue;
     if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
@@ -925,18 +925,20 @@ void MyClientApp::check_prev_extract_task(const char * client_id)
     {
       msrc.init_from_string(entry->d_name);
       msrc.data()[ACE_OS::strlen(msrc.data()) - ACE_OS::strlen(".mbz")] = 0;
-      MyDistInfoFtp dist_info;
+      MyDistInfoFtp * dist_info = new MyDistInfoFtp;
       {
         MyClientDBGuard dbg;
         if (dbg.db().open_db(client_id))
-          dbg.db().load_ftp_command(dist_info, msrc.data());
+          dbg.db().load_ftp_command(*dist_info, msrc.data());
       }
-      if (dist_info.status == 3 && dist_info.validate())
+      if (dist_info->status == -2)
+        dist_info->status = 2;
+      if (dist_info->validate() && dist_info->status == 3)
       {
-        MyDistFtpFileExtractor extractor;
-        dist_info.status = extractor.extract(&dist_info) ? 4:5;
-        dist_info.update_db_status();
-      }
+        MyClientAppX::instance()->client_to_dist_module()->dist_info_ftps().add(dist_info);
+        continue;
+      } else
+        delete dist_info;
     }
 
     msrc.init_from_string(path.data(), "/", entry->d_name);

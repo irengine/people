@@ -92,7 +92,7 @@ public:
 
   bool open_db(const char * client_id, bool do_init = false);
   void close_db();
-  bool save_ftp_command(const char * ftp_command, const char * dist_id);
+  bool save_ftp_command(const char * ftp_command, const MyDistInfoFtp & dist_ftp);
   bool save_md5_command(const char * dist_id, const char * md5_server, const char * md5_client);
   bool load_ftp_md5_for_diff(MyDistInfoFtp & dist_info);
   bool set_ftp_command_status(const char * dist_id, int status);
@@ -104,6 +104,7 @@ public:
   void remove_outdated_ftp_command(time_t deadline);
   bool load_ftp_commands(MyDistInfoFtps * dist_ftps);
   bool load_ftp_command(MyDistInfoFtp & dist_ftp, const char * dist_id);
+  bool ftp_obsoleted(MyDistInfoFtp & dist_ftp);
   bool update_adv_time(const char * filename, time_t t);
   bool delete_old_adv(time_t deadline);
   bool adv_has_file(const char * filename);
@@ -280,12 +281,14 @@ public:
   bool should_ftp(time_t now) const;
   bool should_extract() const;
   void touch();
-  void inc_failed();
+  void inc_failed(int steps = 1);
+  int  failed_count() const;
   void calc_local_file_name();
   void post_status_message(int _status = -1, bool result_ok = true) const;
   bool update_db_status() const;
   void generate_update_ini();
   void generate_url_ini();
+  bool operator < (const MyDistInfoFtp & rhs) const;
 
   static ACE_Message_Block * make_ftp_dist_message(const char * dist_id, int status, bool ok = true, char ftype = 'x');
 
@@ -302,10 +305,10 @@ public:
   bool first_download;
 
 private:
-  enum { FAILED_PENALTY = 4, MAX_FAILED_COUNT = 20 };
+  enum { FAILED_PENALTY = 4, MAX_FAILED_COUNT = 15 };
 
   time_t last_update;
-  int  failed_count;
+  int  m_failed_count;
 };
 
 class MyDistInfoFtps
@@ -314,7 +317,9 @@ public:
   typedef std::list<MyDistInfoFtp * > MyDistInfoFtpList;
   typedef MyDistInfoFtpList::iterator MyDistInfoFtpListPtr;
 
+  MyDistInfoFtps();
   ~MyDistInfoFtps();
+
   void begin();
   void add(MyDistInfoFtp * p);
   int status(const char * dist_id, const char * client_id);
@@ -577,6 +582,8 @@ protected:
   virtual void on_stop();
 
 private:
+  void check_prev_download_task();
+
   MyDistServerAddrList m_server_addr_list;
   MyClientToDistService * m_service;
   MyClientToDistDispatcher *m_dispatcher;
