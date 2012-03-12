@@ -279,7 +279,7 @@ bool MyClientDB::save_ftp_command(const char * ftp_command, const MyDistInfoFtp 
 
   const char * const_sql_template1 = "insert into tb_ftp_info(ftp_dist_id, ftp_str, ftp_status, ftp_recv_time, ftp_adir, ftp_aindex, ftp_ftype) "
                                     "values('%s', '%s', 2, %d, '%s', '%s', '%c')";
-  const char * const_sql_template2 = "update tb_ftp_info set ftp_str = '%s', ftp_status = 2, ftp_recv_time = %d, ftp_adir='%s', ftp_aindex='%s', ftp_type='%c' "
+  const char * const_sql_template2 = "update tb_ftp_info set ftp_str = '%s', ftp_status = 2, ftp_recv_time = %d, ftp_adir='%s', ftp_aindex='%s', ftp_ftype='%c' "
                                     "where ftp_dist_id = '%s'";
   bool bExist = ftp_command_existing(dist_ftp.dist_id.data());
   const char * sql_tpl = bExist? const_sql_template2 : const_sql_template1;
