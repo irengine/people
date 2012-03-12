@@ -3720,7 +3720,9 @@ int MyHttp1991Processor::handle_input()
 
 void MyHttp1991Processor::do_command_watch_dog()
 {
+  MY_DEBUG("watch dog updated!\n");
   MyClientAppX::instance()->client_to_dist_module()->watch_dog().touch();
+  send_string("*1");
 }
 
 void MyHttp1991Processor::do_command_adv_click(char * parameter)
@@ -3750,6 +3752,7 @@ void MyHttp1991Processor::do_command_adv_click(char * parameter)
   MyClientDBGuard dbg;
   if (dbg.db().open_db(m_client_id.as_string()))
     dbg.db().save_click_info(parameter, pcode);
+  send_string("*1");
 }
 
 void MyHttp1991Processor::do_command_plc(char * parameter)
