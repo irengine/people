@@ -297,7 +297,7 @@ bool MyClientDB::save_ftp_command(const char * ftp_command, const MyDistInfoFtp 
     ACE_OS::snprintf(sql.data(), total_len, sql_tpl,
         dist_ftp.dist_id.data(),
         ftp_command,
-        (long)time(NULL),
+        dist_ftp.recv_time,
         adir,
         aindex,
         dist_ftp.ftype);
@@ -555,7 +555,7 @@ void MyClientDB::remove_outdated_ftp_command(time_t deadline)
 
 bool MyClientDB::ftp_obsoleted(MyDistInfoFtp & dist_ftp)
 {
-  const char * const_chn_tpl = "select count(*) from tb_ftp_info where ftp_ftype in ('1', '2', '4') and ftp_dir = '%s' and ftp_recv_time > %d";
+  const char * const_chn_tpl = "select count(*) from tb_ftp_info where ftp_ftype in ('1', '2', '4') and ftp_adir = '%s' and ftp_recv_time > %d";
   const char * const_frm_tpl = "select count(*) from tb_ftp_info where ftp_ftype = '0' and ftp_recv_time > %d";
   const char * const_other_tpl = "select count(*) from tb_ftp_info where ftp_ftype in (%s) and ftp_index = '%s' and ftp_recv_time > %d";
   const int BUFF_SIZE = 4096;
@@ -672,7 +672,8 @@ int MyClientDB::load_ftp_commands_callback(void * p, int argc, char **argv, char
     delete dist_ftp;
     return 0;
   }
-  dist_ftp->recv_time = atoi(argv[2]);
+  dist_ftp->recv_time = atoi(argv[3]);
+  dist_ftp->last_update = 0;
   dist_ftps->add(dist_ftp);
   return 0;
 }
@@ -2296,17 +2297,18 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_M
           if (ftp_status >= 2)
           {
             ACE_Message_Block * reply_mb = MyDistInfoFtp::make_ftp_dist_message(dist_id, ftp_status);
-            MY_INFO("dist ftp command already finished, dist_id(%s) client_id(%s)\n", dist_id, m_client_id.as_string());
+            MY_INFO("dist ftp command already received, dist_id(%s) client_id(%s)\n", dist_id, m_client_id.as_string());
             return (m_handler->send_data(reply_mb) < 0 ? ER_ERROR : ER_OK);
-          } else if (ftp_status == -2)
+          } /*else if (ftp_status == -2)
             dbg.db().set_ftp_command_status(dist_id, 2);
-          else
-            dbg.db().save_ftp_command(str_data.data(), *dist_ftp);
+          else*/
+          dbg.db().save_ftp_command(str_data.data(), *dist_ftp);
         } else
           dbg.db().save_ftp_command(str_data.data(), *dist_ftp);
       }
     }
-
+    dist_ftp->status = 2;
+    dist_ftp->post_status_message();
     bool added = false;
     if (MyClientAppX::instance()->client_to_dist_module()->client_ftp_service())
       added = MyClientAppX::instance()->client_to_dist_module()->client_ftp_service()->add_ftp_task(dist_ftp);
@@ -2616,8 +2618,8 @@ MyClientToDistHandler::MyClientToDistHandler(MyBaseConnectionManager * xptr): My
 
 bool MyClientToDistHandler::setup_timer()
 {
-  ACE_Time_Value interval(IP_VER_TIMER * 60);
-  if (reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval, interval) < 0)
+  ACE_Time_Value interval(IP_VER_INTERVAL * 60);
+  if (reactor()->schedule_timer(this, (void*)IP_VER_TIMER, interval, interval) < 0)
   {
     MY_ERROR(ACE_TEXT("MyClientToDistHandler setup ip ver timer failed, %s"), (const char*)MyErrno());
     return false;

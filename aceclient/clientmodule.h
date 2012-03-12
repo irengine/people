@@ -303,11 +303,11 @@ public:
   time_t recv_time;
   MyPooledMemGuard local_file_name;
   bool first_download;
+  time_t last_update;
 
 private:
-  enum { FAILED_PENALTY = 4, MAX_FAILED_COUNT = 15 };
+  enum { FAILED_PENALTY = 2, MAX_FAILED_COUNT = 15 };
 
-  time_t last_update;
   int  m_failed_count;
 };
 
@@ -456,7 +456,7 @@ protected:
 
 private:
   enum { HEART_BEAT_PING_TIMER = 1, IP_VER_TIMER, CLICK_SEND_TIMER };
-  enum { IP_VER_INTERVAL = 1 }; //in minutes
+  enum { IP_VER_INTERVAL = 10 }; //in minutes
 
   long m_heart_beat_timer;
 };

@@ -738,7 +738,7 @@ bool MyClientApp::on_construct()
       {
         time_t deadline = time_t(NULL) - const_one_day * 10;
         dbg.db().remove_outdated_ftp_command(deadline);
-        dbg.db().reset_ftp_command_status();
+//      dbg.db().reset_ftp_command_status();
       }
     }
   }
