@@ -331,6 +331,7 @@ class MyDistLoadDispatcher: public MyBaseDispatcher
 {
 public:
   MyDistLoadDispatcher(MyBaseModule * pModule, int numThreads = 1);
+  ~MyDistLoadDispatcher();
   virtual const char * name() const;
   virtual int handle_timeout(const ACE_Time_Value &current_time, const void *act = 0);
   void send_to_bs(ACE_Message_Block * mb);
@@ -389,6 +390,9 @@ public:
   MyMiddleToBSProcessor(MyBaseHandler * handler);
 
   DECLARE_MEMORY_POOL__NOTHROW(MyMiddleToBSProcessor, ACE_Thread_Mutex);
+
+protected:
+  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 };
 
 class MyMiddleToBSHandler: public MyBaseHandler

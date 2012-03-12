@@ -932,6 +932,19 @@ MyDistLoadDispatcher::MyDistLoadDispatcher(MyBaseModule * pModule, int numThread
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
+MyDistLoadDispatcher::~MyDistLoadDispatcher()
+{
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  int i = 0;
+  for (ACE_Message_Block * mb; m_to_bs_queue.dequeue(mb, &tv) != -1; )
+  {
+    ++i;
+    mb->release();
+  }
+  if (i > 0)
+    MY_INFO("releasing %d mb on %s::termination\n", i, name());
+}
+
 const char * MyDistLoadDispatcher::name() const
 {
   return "MyDistLoadDispatcher";
@@ -981,11 +994,11 @@ bool MyDistLoadDispatcher::on_event_loop()
   ACE_Message_Block * mb;
   const int const_max_count = 10;
   int i = 0;
-  while (this->getq(mb, &tv) != -1 && ++i < const_max_count)
+  while (++i < const_max_count && this->getq(mb, &tv) != -1)
     m_acceptor->connection_manager()->broadcast(mb);
 
   i = 0;
-  while (m_to_bs_queue.dequeue(mb, &tv) != -1 && ++i < const_max_count)
+  while (++i < const_max_count && m_to_bs_queue.dequeue(mb, &tv) != -1)
     m_bs_connector->connection_manager()->broadcast(mb);
 
   return true;
@@ -1035,6 +1048,13 @@ void MyDistLoadModule::on_stop()
 MyMiddleToBSProcessor::MyMiddleToBSProcessor(MyBaseHandler * handler): super(handler)
 {
 
+}
+
+MyBaseProcessor::EVENT_RESULT MyMiddleToBSProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+{
+  if (mb)
+    mb->release();
+  return ER_OK;
 }
 
 PREPARE_MEMORY_POOL(MyMiddleToBSProcessor);
