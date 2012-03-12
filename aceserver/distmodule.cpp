@@ -1410,7 +1410,7 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
 
   if (recv_status == '2')
   {
-    MY_DEBUG("ftp download started client_id(%s) dist_id(%s)\n", client_id.as_string(), dist_id);
+    MY_DEBUG("ftp command received client_id(%s) dist_id(%s)\n", client_id.as_string(), dist_id);
     status = 4;
   } else if (recv_status == '3')
   {

@@ -506,7 +506,8 @@ class MyClientToDistDispatcher: public MyBaseDispatcher
 {
 public:
   MyClientToDistDispatcher(MyBaseModule * pModule, int numThreads = 1);
-  ~MyClientToDistDispatcher();
+  virtual ~MyClientToDistDispatcher();
+
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
   virtual const char * name() const;
   void ask_for_server_addr_list_done(bool success);

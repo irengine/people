@@ -2322,6 +2322,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_M
           {
             ACE_Message_Block * reply_mb = MyDistInfoFtp::make_ftp_dist_message(dist_id, ftp_status);
             MY_INFO("dist ftp command already received, dist_id(%s) client_id(%s)\n", dist_id, m_client_id.as_string());
+            delete dist_ftp;
             return (m_handler->send_data(reply_mb) < 0 ? ER_ERROR : ER_OK);
           } /*else if (ftp_status == -2)
             dbg.db().set_ftp_command_status(dist_id, 2);
