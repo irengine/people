@@ -674,6 +674,12 @@ int MyClientDB::load_ftp_commands_callback(void * p, int argc, char **argv, char
   }
   dist_ftp->recv_time = atoi(argv[3]);
   dist_ftp->last_update = 0;
+  if (!g_test_mode)
+  {
+    dist_ftp->client_id = MyClientAppX::instance()->client_id();
+    dist_ftp->client_id_index = 0;
+    dist_ftp->ftp_password.init_from_string(MyClientAppX::instance()->ftp_password());
+  }
   dist_ftps->add(dist_ftp);
   return 0;
 }
@@ -781,7 +787,19 @@ MyFTPClient::~MyFTPClient()
 
 bool MyFTPClient::download(MyDistInfoFtp * dist_info, const char * server_ip)
 {
-  MyFTPClient ftp_client(server_ip, 21, dist_info->client_id.as_string(), dist_info->ftp_password.data(), dist_info);
+  const char * client_id = dist_info->client_id.as_string();
+  const char * ftp_password = dist_info->ftp_password.data();
+  if (!ftp_password || !*ftp_password)
+  {
+    dist_info->ftp_password.init_from_string(MyClientAppX::instance()->ftp_password());
+    ftp_password = dist_info->ftp_password.data();
+  }
+  if (unlikely(!client_id || !*client_id || !ftp_password || !*ftp_password || !server_ip || ! *server_ip))
+  {
+    MY_ERROR("bad parameter @MyFTPClient::download(%s, %s, %s)\n", server_ip, client_id, ftp_password);
+    return false;
+  }
+  MyFTPClient ftp_client(server_ip, 21, client_id, ftp_password, dist_info);
   if (!ftp_client.login())
     return false;
   MyPooledMemGuard ftp_file_name;
@@ -850,7 +868,8 @@ bool MyFTPClient::recv()
 
 bool MyFTPClient::is_response(const char * res_code)
 {
-  return m_response.data() && (ACE_OS::memcmp(m_response.data(), res_code, 3) == 0);
+  const char * res = m_response.data();
+  return res && (ACE_OS::strlen(res) >= 3) && (ACE_OS::memcmp(res, res_code, 3) == 0);
 }
 
 bool MyFTPClient::send(const char * command)
@@ -1062,6 +1081,8 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
     {
       MY_ERROR("ftp no/bad response on RETR (%s) command to server (%s): %s\n",
           filename, m_ftp_server_addr.data(), m_response.data());
+      if (is_response("550"))
+        m_ftp_info->inc_failed(MyDistInfoFtp::MAX_FAILED_COUNT);
       return false;
     }
   }
@@ -1395,9 +1416,12 @@ void MyDistInfoFtp::inc_failed(int steps)
   m_failed_count += steps;
   if (m_failed_count >= MAX_FAILED_COUNT)
   {
-    status = 7;
-    update_db_status();
-    post_status_message();
+    if (status <= 3)
+    {
+      status = 7;
+      update_db_status();
+      post_status_message();
+    }
   }
 }
 
@@ -2380,6 +2404,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
     {
       MyServerID::save(m_client_id.as_string(), (int)(u_int8_t)vcr->data[0]);
       m_ftp_password.init_from_string(vcr->data + 1);
+      MyClientAppX::instance()->ftp_password(m_ftp_password.data());
     }
     m_handler->connector()->reset_retry_count();
     if (!g_test_mode)
@@ -2391,6 +2416,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
     {
       MyServerID::save(m_client_id.as_string(), (int)(u_int8_t)vcr->data[0]);
       m_ftp_password.init_from_string(vcr->data + 1);
+      MyClientAppX::instance()->ftp_password(m_ftp_password.data());
     }
     m_handler->connector()->reset_retry_count();
     if (!g_test_mode || m_client_id_index == 0)
@@ -2441,7 +2467,7 @@ int MyClientToDistProcessor::send_version_check_req()
 
 int MyClientToDistProcessor::send_ip_ver_req()
 {
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd_direct(sizeof(MyClientVersionCheckRequest), MyDataPacketHeader::CMD_IP_VER_REQ);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd_direct(sizeof(MyIpVerRequest), MyDataPacketHeader::CMD_IP_VER_REQ);
   MyIpVerRequest * ivr = (MyIpVerRequest *) mb->base();
   ivr->client_version_major = const_client_version_major;
   ivr->client_version_minor = const_client_version_minor;
@@ -3294,6 +3320,13 @@ void MyClientToDistModule::check_ftp_timed_task()
 {
   if (unlikely(!m_client_ftp_service))
     return;
+
+  if (!g_test_mode)
+  {
+    const char * s = MyClientAppX::instance()->ftp_password();
+    if (!s || !*s)
+      return;
+  }
 
   MyDistInfoFtp * p;
   ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_dist_info_ftps.m_mutex));

@@ -108,6 +108,8 @@ public:
   MyVLCLauncher & vlc_launcher();
   MyOperaLauncher & opera_launcher();
   MyVLCMonitor  & vlc_monitor();
+  const char * ftp_password();
+  void ftp_password(const char * password);
 
   MyClientIDTable & client_id_table()
     { return m_client_id_table; }
@@ -145,6 +147,8 @@ private:
   MyVLCLauncher m_vlc_launcher;
   MyVLCMonitor  m_vlc_monitor;
   MyOperaLauncher m_opera_launcher;
+  MyPooledMemGuard m_ftp_password;
+  ACE_Thread_Mutex m_mutex;
 };
 
 typedef ACE_Unmanaged_Singleton<MyClientApp, ACE_Null_Mutex> MyClientAppX;

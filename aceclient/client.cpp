@@ -411,6 +411,18 @@ const char * MyClientApp::client_id() const
   return m_client_id.c_str();
 }
 
+const char * MyClientApp::ftp_password()
+{
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, NULL);
+  return m_ftp_password.data();
+}
+
+void MyClientApp::ftp_password(const char * password)
+{
+  ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
+  m_ftp_password.init_from_string(password);
+}
+
 MyVLCLauncher & MyClientApp::vlc_launcher()
 {
   return m_vlc_launcher;

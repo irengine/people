@@ -273,6 +273,8 @@ class MyDistInfoFtp: public MyDistInfoHeader
 {
 public:
   typedef MyDistInfoHeader super;
+  enum { FAILED_PENALTY = 2, MAX_FAILED_COUNT = 15 };
+
   MyDistInfoFtp();
 
   virtual bool validate();
@@ -306,7 +308,6 @@ public:
   time_t last_update;
 
 private:
-  enum { FAILED_PENALTY = 2, MAX_FAILED_COUNT = 15 };
 
   int  m_failed_count;
 };
