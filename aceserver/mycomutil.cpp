@@ -1108,7 +1108,7 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
       } else
       {
         ++ m_global_alloc_count;
-        MY_DEBUG("global alloc of size(%d)\n", capacity);
+        //MY_DEBUG("global alloc of size(%d)\n", capacity);
         return new ACE_Message_Block(capacity);
       }
     } else

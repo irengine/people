@@ -231,7 +231,7 @@ bool MyDB::save_dist(MyHttpDistRequest & http_dist_request, const char * md5, co
   MyMemPoolFactoryX::instance()->get_mem(len, &sql);
   MyPooledMemGuard aindex;
   wrap_str(http_dist_request.aindex, aindex);
-  ACE_OS::snprintf(sql.data(), 4096, insert_sql_template,
+  ACE_OS::snprintf(sql.data(), len - 1, insert_sql_template,
       http_dist_request.ver, http_dist_request.type, aindex.data(),
       http_dist_request.findex, http_dist_request.fdir,
       http_dist_request.ftype, http_dist_request.password, _md5, _mbz_md5);
@@ -244,7 +244,7 @@ bool MyDB::save_dist_clients(char * idlist, char * adirlist, const char * dist_i
 {
   const char * insert_sql_template1 = "insert into tb_dist_clients(dc_dist_id, dc_client_id, dc_adir) values('%s', '%s', '%s')";
   const char * insert_sql_template2 = "insert into tb_dist_clients(dc_dist_id, dc_client_id) values('%s', '%s')";
-  char insert_sql[1024];
+  char insert_sql[2048];
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
 
@@ -267,9 +267,9 @@ bool MyDB::save_dist_clients(char * idlist, char * adirlist, const char * dist_i
       }
     }
     if (adir)
-      ACE_OS::snprintf(insert_sql, 1024, insert_sql_template1, dist_id, client_id, adir);
+      ACE_OS::snprintf(insert_sql, 2048, insert_sql_template1, dist_id, client_id, adir);
     else
-      ACE_OS::snprintf(insert_sql, 1024, insert_sql_template2, dist_id, client_id);
+      ACE_OS::snprintf(insert_sql, 2048, insert_sql_template2, dist_id, client_id);
     exec_command(insert_sql);
     ++i;
     if (i == BATCH_COUNT)
