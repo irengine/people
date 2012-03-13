@@ -2490,7 +2490,7 @@ int MyBaseConnector::do_connect(int count, bool bNew)
     MyBaseHandler * handler = NULL;
     int ok_count = 0, pending_count = 0;
 
-    ACE_Time_Value timeout(30);
+    ACE_Time_Value timeout(60);
     ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
 
     for (int i = 1; i <= true_count; ++i)
@@ -2525,7 +2525,7 @@ int MyBaseConnector::do_connect(int count, bool bNew)
   {
     ACE_INET_Addr port_to_connect(m_tcp_port, m_tcp_addr.c_str());
     MyBaseHandler * handler = NULL;
-    ACE_Time_Value timeout(30);
+    ACE_Time_Value timeout(60);
     ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
     MY_INFO(ACE_TEXT("%s connecting to %s:%d ...\n"), name(), m_tcp_addr.c_str(), m_tcp_port);
     if (connect(handler, port_to_connect, synch_options) == -1)

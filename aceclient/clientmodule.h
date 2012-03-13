@@ -636,7 +636,7 @@ protected:
   virtual int  on_open();
 
 private:
-  enum { TIMER_OUT_TIMER = 1 };
+  enum { TIMER_OUT_TIMER = 1, TIME_OUT_INTERVAL = 5 };
   void setup_timer();
 
   long m_timer_out_timer_id;
@@ -654,7 +654,7 @@ protected:
   virtual bool before_reconnect();
 
 private:
-  enum { RECONNECT_INTERVAL = 3 }; //time in minutes
+  enum { RECONNECT_INTERVAL = 4 }; //time in minutes
   enum { MAX_CONNECT_RETRY_COUNT = 3 };
   int m_retried_count;
 };

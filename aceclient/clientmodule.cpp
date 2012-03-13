@@ -2719,12 +2719,14 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
     if (!mb)
       mod->click_sent_done(m_processor->client_id().as_string());
     else if (send_data(mb) < 0)
-      return handle_close(ACE_INVALID_HANDLE, 0);
+      return -1;
     else
       mod->click_sent_done(m_processor->client_id().as_string());
 
     return 0;
   }
+  else if (long(act) == 0)
+    return -1;
   else
   {
     MY_ERROR("unexpected timer call @MyClientToDistHandler::handle_timeout, timer id = %d\n", long(act));
@@ -3567,10 +3569,10 @@ MyClientToMiddleHandler::MyClientToMiddleHandler(MyBaseConnectionManager * xptr)
 
 void MyClientToMiddleHandler::setup_timer()
 {
-  ACE_Time_Value interval (MyConfigX::instance()->client_heart_beat_interval);
-  m_timer_out_timer_id = reactor()->schedule_timer(this, (void*)TIMER_OUT_TIMER, interval, interval);
+  ACE_Time_Value interval(TIME_OUT_INTERVAL * 60);
+  m_timer_out_timer_id = reactor()->schedule_timer(this, (void*)TIMER_OUT_TIMER, interval);
   if (m_timer_out_timer_id < 0)
-    MY_ERROR(ACE_TEXT("MyClientToDistHandler setup heart beat timer failed, %s"), (const char*)MyErrno());
+    MY_ERROR(ACE_TEXT("MyClientToMiddleHandler setup time out timer failed, %s"), (const char*)MyErrno());
 }
 
 MyClientToDistModule * MyClientToMiddleHandler::module_x() const
@@ -3586,9 +3588,8 @@ int MyClientToMiddleHandler::on_open()
 int MyClientToMiddleHandler::handle_timeout(const ACE_Time_Value &current_time, const void *act)
 {
   ACE_UNUSED_ARG(current_time);
-  if (long(act) != TIMER_OUT_TIMER)
-    MY_ERROR("unexpected timer call @MyClientToMiddleHandler::handle_timeout, timer id = %d\n", long(act));
-  return handle_close();
+  ACE_UNUSED_ARG(act);
+  return -1;
 }
 
 void MyClientToMiddleHandler::on_close()
