@@ -87,7 +87,34 @@ bool MyDB::connect()
   else
     MY_INFO("connect to database OK\n");
   return result;
+}
 
+bool MyDB::ping_db_server()
+{
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  const char * select_sql = "select ('now'::text)::timestamp(0) without time zone";
+  exec_command(select_sql);
+  return check_db_connection();
+}
+
+bool MyDB::check_db_connection()
+{
+  if (unlikely(!connected()))
+    return false;
+  ConnStatusType cst = PQstatus(m_connection);
+  if (cst == CONNECTION_BAD)
+  {
+    MY_ERROR("connection to db lost, trying to re-connect...\n");
+    PQreset(m_connection);
+    cst = PQstatus(m_connection);
+    if (cst == CONNECTION_BAD)
+    {
+      MY_ERROR("reconnect to db failed: %s\n", PQerrorMessage(m_connection));
+      return false;
+    } else
+      MY_INFO("reconnect to db OK!\n");
+  }
+  return true;
 }
 
 void MyDB::disconnect()
@@ -667,6 +694,11 @@ bool MyDB::delete_dist_client(const char * client_id, const char * dist_id)
 
 bool MyDB::dist_info_is_update(MyHttpDistInfos & infos)
 {
+  {
+    ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+    if (!check_db_connection())
+      return true;
+  }
   MyPooledMemGuard value;
   if (!load_cfg_value(1, value))
     return true;

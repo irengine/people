@@ -26,6 +26,8 @@ public:
   static time_t get_time_from_string(const char * s);
 
   bool connect();
+  bool check_db_connection();
+  bool ping_db_server();
   bool get_client_ids(MyClientIDTable * idtable);
   bool save_client_id(const char * s);
   bool save_dist(MyHttpDistRequest & http_dist_request, const char * md5, const char * mbz_md5);

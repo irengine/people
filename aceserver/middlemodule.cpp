@@ -655,6 +655,12 @@ bool MyHttpService::do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest &
       return false;
   }
 
+  if (!db.ping_db_server())
+  {
+    MY_ERROR("no connection to db, aborting processing of dist %s\n", http_dist_request.ver);
+    return false;
+  }
+
   if (!db.save_dist(http_dist_request, md5_result.data(), mbz_md5_result.data()))
   {
     MY_ERROR("can not save_dist to db\n");
