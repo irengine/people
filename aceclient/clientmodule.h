@@ -548,6 +548,20 @@ private:
   time_t m_last_connect_time;
 };
 
+class MyHwAlarm
+{
+public:
+  MyHwAlarm();
+  void x(char _x);
+  void y(char _y);
+
+private:
+  ACE_Message_Block * make_hardware_alarm_mb();
+
+  char m_x;
+  char m_y;
+};
+
 class MyClientToDistModule: public MyBaseModule
 {
 public:
@@ -578,6 +592,11 @@ public:
   {
     return m_id_generator;
   }
+
+  MyHwAlarm lcd_alarm;
+  MyHwAlarm led_alarm;
+  MyHwAlarm temperature_alarm;
+  MyHwAlarm door_alarm;
 
 protected:
   virtual bool on_start();
@@ -683,7 +702,6 @@ private:
   void do_command_watch_dog();
   void send_string(const char * s);
   ACE_Message_Block * make_pc_on_off_mb(bool on, const char * sdata);
-  ACE_Message_Block * make_hardware_alarm_mb(char x, char y);
 
   ACE_Message_Block * m_mb;
 };

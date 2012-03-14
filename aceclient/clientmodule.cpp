@@ -3230,6 +3230,44 @@ bool MyClientToDistDispatcher::on_event_loop()
 }
 
 
+//MyHwAlarm//
+
+MyHwAlarm::MyHwAlarm()
+{
+  m_x = 0;
+  m_y = 0;
+}
+
+void MyHwAlarm::x(char _x)
+{
+  m_x = _x;
+}
+
+void MyHwAlarm::y(char _y)
+{
+  bool changed = (m_y != _y);
+  m_y = _y;
+  if (unlikely(changed))
+  {
+    ACE_Message_Block * mb = make_hardware_alarm_mb();
+    if (likely(mb != NULL))
+      mycomutil_mb_putq(MyClientAppX::instance()->client_to_dist_module()->dispatcher(), mb, "hw alarm to dist queue");
+  }
+}
+
+ACE_Message_Block * MyHwAlarm::make_hardware_alarm_mb()
+{
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd_direct(sizeof(MyPLCAlarm),
+      MyDataPacketHeader::CMD_HARDWARE_ALARM);
+  if (g_test_mode)
+    ((MyDataPacketHeader *)mb->base())->magic = 0;
+  MyPLCAlarm * dpe = (MyPLCAlarm *)mb->base();
+  dpe->x = m_x;
+  dpe->y = m_y;
+  return mb;
+}
+
+
 //MyClientToDistModule//
 
 MyClientToDistModule::MyClientToDistModule(MyBaseApp * app): MyBaseModule(app)
@@ -3249,6 +3287,10 @@ MyClientToDistModule::MyClientToDistModule(MyBaseApp * app): MyBaseModule(app)
   m_dispatcher = NULL;
   m_client_ftp_service = NULL;
   m_click_sent = false;
+  lcd_alarm.x('6');
+  led_alarm.x('5');
+  temperature_alarm.x('1');
+  door_alarm.x('2');
 }
 
 MyClientToDistModule::~MyClientToDistModule()
@@ -3721,7 +3763,7 @@ int MyHttp1991Processor::handle_input()
 
 void MyHttp1991Processor::do_command_watch_dog()
 {
-  MY_DEBUG("watch dog updated!\n");
+//  MY_DEBUG("watch dog updated!\n");
   MyClientAppX::instance()->client_to_dist_module()->watch_dog().touch();
   send_string("*1");
 }
@@ -3783,10 +3825,39 @@ void MyHttp1991Processor::do_command_plc(char * parameter)
   int x = atoi(parameter);
   MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
 
-  if (x == 5) //lcd
-    send_string(mod->ip_ver_reply().lcd());
-  else if (x == 6) //led
-    send_string(mod->ip_ver_reply().led());
+  if (x == 5) //led
+  {
+    send_string("*1");
+
+    if (!y || (*y != '0' && *y != '1'))
+    {
+      MY_ERROR("bad led alarm packet @MyHttp1991Processor::do_command_plc, y = %s\n", !y? "NULL": y);
+      return;
+    }
+    mod->led_alarm.y(*y);
+//    MY_INFO("led alarm: x = %d, y = %c\n", x, *y);
+
+  }
+  else if (x == 6) //lcd
+  {
+    send_string("*1");
+    if (!y || ACE_OS::strlen(y) < 2 || (*y != '0' && *y != '1') || (*(y + 1) != '0' && *(y + 1) != '1'))
+    {
+      MY_ERROR("bad lcd alarm packet @MyHttp1991Processor::do_command_plc, y = %s\n", !y? "NULL": y);
+      return;
+    }
+//    MY_INFO("lcd alarm: x = %d, y = %s\n", x, y);
+    char p = 0;
+    if (ACE_OS::memcmp(y, "00", 2) == 0)
+      p = '0';
+    else if (ACE_OS::memcmp(y, "01", 2) == 0)
+      p = '1';
+    else if (ACE_OS::memcmp(y, "10", 2) == 0)
+      p = '2';
+    else if (ACE_OS::memcmp(y, "11", 2) == 0)
+      p = '3';
+    mod->lcd_alarm.y(p);
+  }
   else if (x == 7) //pc
     send_string("*063021251");//mod->ip_ver_reply().pc());
   else if ( x == 1 || x == 2)
@@ -3798,10 +3869,11 @@ void MyHttp1991Processor::do_command_plc(char * parameter)
       return;
     }
 
-    MY_INFO("hardware alarm: x = %d, y = %c\n", x, *y);
-
-    ACE_Message_Block * mb = make_hardware_alarm_mb((char)(x + '0'), *y);
-    mycomutil_mb_putq(MyClientAppX::instance()->client_to_dist_module()->dispatcher(), mb, "hw alarm to dist queue");
+    //MY_INFO("hardware alarm: x = %d, y = %c\n", x, *y);
+    if (x == 1)
+      mod->temperature_alarm.y(*y);
+    else
+      mod->door_alarm.y(*y);
   }
   else if (x == 11 || x == 12)
   {
@@ -3833,18 +3905,6 @@ ACE_Message_Block * MyHttp1991Processor::make_pc_on_off_mb(bool on, const char *
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
   dpe->data[0] = on ? '1' : '2';
   ACE_OS::memcpy(dpe->data + 1, sdata, len + 1);
-  return mb;
-}
-
-ACE_Message_Block * MyHttp1991Processor::make_hardware_alarm_mb(char x, char y)
-{
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd_direct(sizeof(MyPLCAlarm),
-      MyDataPacketHeader::CMD_HARDWARE_ALARM);
-  if (g_test_mode)
-    ((MyDataPacketHeader *)mb->base())->magic = 0;
-  MyPLCAlarm * dpe = (MyPLCAlarm *)mb->base();
-  dpe->x = x;
-  dpe->y = y;
   return mb;
 }
 

@@ -940,7 +940,8 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_hardware_alarm_req(ACE_Me
 {
   MyMessageBlockGuard guard(mb);
   MyPLCAlarm * alarm = (MyPLCAlarm *) mb->base();
-  if (unlikely((alarm->x != '1' && alarm->x != '2') || (alarm->y != '0' && alarm->y != '1')))
+  if (unlikely((alarm->x != '1' && alarm->x != '2' && alarm->x != '5' && alarm->x != '6') ||
+      (alarm->y < '0' || alarm->y > '3')))
   {
     MyPooledMemGuard info;
     info_string(info);
@@ -1280,15 +1281,25 @@ void MyHWAlarmSubmitter::add_data(const char * client_id, int id_len, const char
   if (!m_id_block.add(client_id, id_len))
     ret = false;
 
-  if (x == '1')
-  {
-    if (!m_type_block.add('1'))
-      ret = false;
-  } else if (!m_type_block.add('4'))
+  if (!m_type_block.add(x))
     ret = false;
 
-  if (!m_value_block.add(y))
-    ret = false;
+  if (x != '6')
+  {
+    if (!m_value_block.add(y))
+      ret = false;
+  } else
+  {
+    const char * _y = "00";
+    if (y == '1')
+      _y = "01";
+    else if (y == '2')
+      _y = "10";
+    else if (y == '3')
+      _y = "11";
+    if (!m_value_block.add(_y))
+      ret = false;
+  }
 
   if (!m_datetime_block.add(datetime))
     ret = false;
