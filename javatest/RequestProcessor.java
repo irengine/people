@@ -137,10 +137,12 @@ public class RequestProcessor implements Runnable
       if (!first)
         reply.append(";");      
       reply.append(tk_ids.nextToken());
-      reply.append(":06201200:06201300:05002200::3");
+      //reply.append(":06201200:06201300:05002200::3");
+      reply.append(":08222222:0:15001545:201203132012031615591500:2012031420120316:2");
       first = false;
     }
     String s_result = reply.toString();
+//    String s_result = "123:::::5;";
     return send_reply(out, "01", s_result);
   }
 
