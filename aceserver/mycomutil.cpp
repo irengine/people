@@ -234,7 +234,8 @@ bool mycomutil_generate_time_string(char * result_buff, int buff_len, bool full,
   struct tm _tm;
   if (unlikely(localtime_r(&t, &_tm) == NULL))
     return false;
-  ACE_OS::snprintf(result_buff, buff_len, "%04d-%02d-%02d %02d:%02d:%02d", _tm.tm_year + 1900, _tm.tm_mon + 1,
+  const char * fmt_str = full? "%04d-%02d-%02d %02d:%02d:%02d" : "%04d%02d%02d %02d%02d%02d";
+  ACE_OS::snprintf(result_buff, buff_len, fmt_str, _tm.tm_year + 1900, _tm.tm_mon + 1,
       _tm.tm_mday, _tm.tm_hour, _tm.tm_min, _tm.tm_sec);
   return true;
 }

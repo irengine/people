@@ -365,21 +365,20 @@ class MyIpVerReply
 public:
   MyIpVerReply();
   void init(char * data);
-  const char * lcd();
-  const char * led();
   const char * pc();
   int heart_beat_interval();
 
 private:
   enum { DEFAULT_HEART_BEAT_INTERVAL = 1};
 
-  void init_time_str(MyPooledMemGuard & g, const char * s);
+  void init_time_str(MyPooledMemGuard & g, const char * s, const char c);
+  const char * search(char * src);
 
-  MyPooledMemGuard m_lcd;
-  MyPooledMemGuard m_led;
   MyPooledMemGuard m_pc;
   int m_heart_beat_interval;
   ACE_Thread_Mutex m_mutex;
+  char m_tail;
+  char m_now[24];
 };
 
 class MyClientToDistProcessor: public MyBaseClientProcessor

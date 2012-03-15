@@ -1993,50 +1993,61 @@ void MyWatchDog::start()
 //MyIpVerReply//
 
 const char * default_time = "06302200";
+const char * off_time = "00000000";
 
 MyIpVerReply::MyIpVerReply()
 {
   m_heart_beat_interval = DEFAULT_HEART_BEAT_INTERVAL;
-  init_time_str(m_lcd, NULL);
-  init_time_str(m_led, NULL);
-  init_time_str(m_pc, NULL);
+  m_tail = '1';
+  init_time_str(m_pc, NULL, m_tail);
 }
 
-void MyIpVerReply::init_time_str(MyPooledMemGuard & g, const char * s)
+void MyIpVerReply::init_time_str(MyPooledMemGuard & g, const char * s, const char c)
 {
+  char buff[2];
+  buff[1] = 0;
+  buff[0] = c;
   const char * ptr = (s && *s)? s: default_time;
-  g.init_from_string("*", ptr, "1");
+  g.init_from_string("*", ptr, buff);
 }
 
 void MyIpVerReply::init(char * data)
 {
   ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
+
+  time_t t = time(NULL);
+  mycomutil_generate_time_string(m_now, 24, false, t);
+  m_now[8] = 0;
+
   if (unlikely(!data || !*data))
     return;
 
-  char * value = data;
+  char * def = data;
   char * ptr = ACE_OS::strchr(data, ':');
   if (unlikely(!ptr))
     return;
   *ptr ++ = 0;
-  init_time_str(m_lcd, value);
 
-  value = ptr;
-  ptr = ACE_OS::strchr(value, ':');
+  char * on_off = ptr;
+  ptr = ACE_OS::strchr(ptr, ':');
   if (unlikely(!ptr))
     return;
   *ptr ++ = 0;
-  init_time_str(m_led, value);
 
-  value = ptr;
-  ptr = ACE_OS::strchr(value, ':');
+  char * weekend = ptr;
+  ptr = ACE_OS::strchr(ptr, ':');
   if (unlikely(!ptr))
     return;
   *ptr ++ = 0;
-  init_time_str(m_pc, value);
 
-  value = ptr; //policy
-  ptr = ACE_OS::strchr(value, ':');
+  char * temp = ptr; //policy
+  ptr = ACE_OS::strchr(ptr, ':');
+  if (unlikely(!ptr))
+    return;
+  *ptr ++ = 0;
+
+  char * off = ptr;
+  ptr = ACE_OS::strchr(ptr, ':');
   if (unlikely(!ptr))
     return;
   *ptr ++ = 0;
@@ -2047,18 +2058,47 @@ void MyIpVerReply::init(char * data)
     MY_ERROR("invalid heart beat interval (%d) received \n", m_heart_beat_interval);
     m_heart_beat_interval = DEFAULT_HEART_BEAT_INTERVAL;
   }
+
+  if (search(off) != NULL)
+  {
+    init_time_str(m_pc, off_time, m_tail);
+    return;
+  }
+
+  const char * p = search(temp);
+  if (p != NULL)
+  {
+    init_time_str(m_pc, p, m_tail);
+    return;
+  }
+
+  struct tm _tm;
+  localtime_r(&t, &_tm);
+  if ((_tm.tm_wday == 0 || _tm.tm_wday == 6) && *weekend != 0 && *on_off != 0)
+  {
+    init_time_str(m_pc, weekend, *on_off);
+    return;
+  }
+
+  init_time_str(m_pc, def, m_tail);
 }
 
-const char * MyIpVerReply::lcd()
+const char * MyIpVerReply::search(char * src)
 {
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, NULL);
-  return m_lcd.data();
-}
-
-const char * MyIpVerReply::led()
-{
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, NULL);
-  return m_led.data();
+  const char separators[2] = {'#', 0 };
+  MyStringTokenizer tkn(src, separators);
+  char * token;
+  while ((token = tkn.get_token()) != NULL)
+  {
+    if (ACE_OS::strlen(token) < 16)
+      continue;
+    if (ACE_OS::strncmp(m_now, token, 8) < 0)
+      continue;
+    if (ACE_OS::strncmp(m_now, token + 8, 8) > 0)
+      continue;
+    return token + 16;
+  }
+  return NULL;
 }
 
 const char * MyIpVerReply::pc()
@@ -3859,7 +3899,7 @@ void MyHttp1991Processor::do_command_plc(char * parameter)
     mod->lcd_alarm.y(p);
   }
   else if (x == 7) //pc
-    send_string("*063021251");//mod->ip_ver_reply().pc());
+    send_string(mod->ip_ver_reply().pc());
   else if ( x == 1 || x == 2)
   {
     send_string("*1");

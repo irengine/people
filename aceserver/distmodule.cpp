@@ -950,7 +950,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_hardware_alarm_req(ACE_Me
   }
 
   char datetime[32];
-  mycomutil_generate_time_string(datetime, 20, false);
+  mycomutil_generate_time_string(datetime, 20, true);
   m_hardware_alarm_submitter->add_data(m_client_id.as_string(), m_client_id_length, alarm->x, alarm->y, datetime);
   return ER_OK;
 }
@@ -2054,6 +2054,8 @@ int MyDistToMiddleHandler::handle_timeout(const ACE_Time_Value &current_time, co
   ACE_UNUSED_ARG(current_time);
   if (long(act) == LOAD_BALANCE_REQ_TIMER)
     return ((MyDistToMiddleProcessor*)m_processor)->send_server_load();
+  else if (long(act) == 0)
+    return -1;
   else
   {
     MY_ERROR("unexpected timer call @MyDistToMiddleHandler::handle_timeout, timer id = %d\n", long(act));
