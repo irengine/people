@@ -1992,15 +1992,16 @@ void MyWatchDog::start()
 
 //MyIpVerReply//
 
-const char * default_time = "06302200";
-const char * off_time = "00000000";
-
 MyIpVerReply::MyIpVerReply()
 {
+  const char * default_time = "09001730";
   m_heart_beat_interval = DEFAULT_HEART_BEAT_INTERVAL;
   m_tail = '0';
-  init_time_str(m_pc, NULL, '0');
-  init_time_str(m_pc_x, NULL, '0');
+  if (!load_from_file())
+  {
+    init_time_str(m_pc, default_time, '0');
+    init_time_str(m_pc_x, default_time, '0');
+  }
 }
 
 void MyIpVerReply::init_time_str(MyPooledMemGuard & g, const char * s, const char c)
@@ -2008,7 +2009,7 @@ void MyIpVerReply::init_time_str(MyPooledMemGuard & g, const char * s, const cha
   char buff[2];
   buff[1] = 0;
   buff[0] = c;
-  const char * ptr = (s && *s)? s: default_time;
+  const char * ptr = (s && *s)? s: "09001730";
   g.init_from_string("*", ptr, buff);
 }
 
@@ -2021,8 +2022,11 @@ void MyIpVerReply::init(char * data)
   ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
   do_init(m_pc, data, t);
   do_init(m_pc_x, cp.data(), t + const_one_day);
-  if (ACE_OS::strlen(m_pc.data()) >= 9 && ACE_OS::strlen(m_pc_x.data()) >= 9)
+  if (ACE_OS::strlen(m_pc.data()) >= 10 && ACE_OS::strlen(m_pc_x.data()) >= 10)
+  {
     ACE_OS::memcpy(m_pc_x.data() + 5, m_pc.data() + 5, 4);
+    m_pc_x.data()[9] = m_pc.data()[9];
+  }
 }
 
 void MyIpVerReply::do_init(MyPooledMemGuard & g, char * data, time_t t)
@@ -2070,6 +2074,9 @@ void MyIpVerReply::do_init(MyPooledMemGuard & g, char * data, time_t t)
     m_heart_beat_interval = DEFAULT_HEART_BEAT_INTERVAL;
   }
 
+  if (*def != 0)
+    save_to_file(def);
+
   if (search(off) != NULL)
   {
     init_time_str(g, def, '1');
@@ -2102,6 +2109,43 @@ void MyIpVerReply::do_init(MyPooledMemGuard & g, char * data, time_t t)
   init_time_str(g, def, m_tail);
 }
 
+void MyIpVerReply::get_filename(MyPooledMemGuard & fn)
+{
+  fn.init_from_string(MyConfigX::instance()->app_data_path.c_str(), "/pc_time.dat");
+}
+
+void MyIpVerReply::save_to_file(const char * s)
+{
+  if (!s || ACE_OS::strlen(s) != 8)
+    return;
+
+  MyUnixHandleGuard f;
+  MyPooledMemGuard file_name;
+  get_filename(file_name);
+  if (!f.open_write(file_name.data(), true, true, false, true))
+    return;
+  if (::write(f.handle(), s, 8) != 8)
+    MY_ERROR("write to file %s failed %s\n", file_name.data(), (const char*)MyErrno());
+}
+
+bool MyIpVerReply::load_from_file()
+{
+  MyUnixHandleGuard f;
+  MyPooledMemGuard file_name;
+  get_filename(file_name);
+  if (!f.open_read(file_name.data()))
+    return false;
+  char buff[9];
+  if (::read(f.handle(), buff, 8) != 8)
+  {
+    MY_ERROR("read from file %s failed %s\n", file_name.data(), (const char*)MyErrno());
+    return false;
+  }
+  buff[8] = 0;
+  init_time_str(m_pc, buff, '0');
+  init_time_str(m_pc_x, buff, '0');
+  return true;
+}
 
 const char * MyIpVerReply::search(char * src)
 {
