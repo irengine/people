@@ -836,6 +836,7 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
 
   MyClientToMiddleHandler::init_mem_pool(20);
   MyMemPoolFactoryX::instance()->init(cfg);
+  app->init_log();
 
   if (g_test_mode)
   {

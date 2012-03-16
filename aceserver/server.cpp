@@ -217,6 +217,7 @@ bool MyServerApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
     std::printf("error loading config file, quitting\n");
     exit(5);
   }
+  app->init_log();
   if (cfg->run_as_demon)
     MyBaseApp::app_demonize();
   if (cfg->is_dist_server())

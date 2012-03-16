@@ -798,7 +798,6 @@ void MyBaseApp::add_module(MyBaseModule * module)
 
 bool MyBaseApp::do_constructor()
 {
-  init_log();
   MyConfigX::instance()->dump_config_info();
   MY_INFO(ACE_TEXT("loading modules...\n"));
 
