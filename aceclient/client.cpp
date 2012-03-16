@@ -840,6 +840,12 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
   MyMemPoolFactoryX::instance()->init(cfg);
   app->init_log();
 
+  if (getenv("DISPLAY") == NULL)
+  {
+    MY_ERROR("no DISPLAY environment var found\n");
+    exit(5);
+  }
+
   if (g_test_mode)
   {
     std::string idfile = cfg->app_path + "/config/id.file";
