@@ -2024,6 +2024,8 @@ void MyIpVerReply::init(char * data)
   do_init(m_pc_x, cp.data(), t + const_one_day);
   if (ACE_OS::strlen(m_pc.data()) >= 10 && ACE_OS::strlen(m_pc_x.data()) >= 10)
   {
+    if (m_pc.data()[9] == '1')
+      ACE_OS::memset(m_pc.data() + 5, '0', 4);
     ACE_OS::memcpy(m_pc_x.data() + 5, m_pc.data() + 5, 4);
     m_pc_x.data()[9] = m_pc.data()[9];
   }
