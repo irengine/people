@@ -1998,8 +1998,9 @@ const char * off_time = "00000000";
 MyIpVerReply::MyIpVerReply()
 {
   m_heart_beat_interval = DEFAULT_HEART_BEAT_INTERVAL;
-  m_tail = '1';
-  init_time_str(m_pc, NULL, m_tail);
+  m_tail = '0';
+  init_time_str(m_pc, NULL, '0');
+  init_time_str(m_pc_x, NULL, '0');
 }
 
 void MyIpVerReply::init_time_str(MyPooledMemGuard & g, const char * s, const char c)
@@ -2013,9 +2014,19 @@ void MyIpVerReply::init_time_str(MyPooledMemGuard & g, const char * s, const cha
 
 void MyIpVerReply::init(char * data)
 {
-  ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
-
   time_t t = time(NULL);
+  MyPooledMemGuard cp;
+  cp.init_from_string(data);
+
+  ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
+  do_init(m_pc, data, t);
+  do_init(m_pc_x, cp.data(), t + const_one_day);
+  if (ACE_OS::strlen(m_pc.data()) >= 9 && ACE_OS::strlen(m_pc_x.data()) >= 9)
+    ACE_OS::memcpy(m_pc_x.data() + 5, m_pc.data() + 5, 4);
+}
+
+void MyIpVerReply::do_init(MyPooledMemGuard & g, char * data, time_t t)
+{
   mycomutil_generate_time_string(m_now, 24, false, t);
   m_now[8] = 0;
 
@@ -2061,27 +2072,36 @@ void MyIpVerReply::init(char * data)
 
   if (search(off) != NULL)
   {
-    init_time_str(m_pc, off_time, m_tail);
+    init_time_str(g, def, '1');
     return;
   }
 
   const char * p = search(temp);
   if (p != NULL)
   {
-    init_time_str(m_pc, p, m_tail);
+    init_time_str(g, p, m_tail);
     return;
   }
 
   struct tm _tm;
   localtime_r(&t, &_tm);
-  if ((_tm.tm_wday == 0 || _tm.tm_wday == 6) && *weekend != 0 && *on_off != 0)
+  if ((_tm.tm_wday == 0 || _tm.tm_wday == 6) && *on_off != 0)
   {
-    init_time_str(m_pc, weekend, *on_off);
-    return;
+    if (*on_off == '1')
+    {
+      init_time_str(g, def, '1');
+      return;
+    }
+    else if (*weekend != 0)
+    {
+      init_time_str(g, weekend, '0');
+      return;
+    }
   }
 
-  init_time_str(m_pc, def, m_tail);
+  init_time_str(g, def, m_tail);
 }
+
 
 const char * MyIpVerReply::search(char * src)
 {
@@ -2103,8 +2123,24 @@ const char * MyIpVerReply::search(char * src)
 
 const char * MyIpVerReply::pc()
 {
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, NULL);
-  return m_pc.data();
+  time_t t = time(NULL);
+  struct tm _tm;
+  localtime_r(&t, &_tm);
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, "");
+  if (ACE_OS::strlen(m_pc.data()) <= 5)
+    return m_pc.data();
+
+  char hour[3], minx[3];
+  ACE_OS::memcpy(hour, m_pc.data() + 1, 2);
+  ACE_OS::memcpy(minx, m_pc.data() + 3, 2);
+  hour[2] = 0;
+  minx[2] = 0;
+  if (_tm.tm_hour < atoi(hour))
+    return m_pc.data();
+  else if (_tm.tm_hour == atoi(hour) && _tm.tm_min <= atoi(minx))
+    return m_pc.data();
+  return m_pc_x.data();
 }
 
 int MyIpVerReply::heart_beat_interval()

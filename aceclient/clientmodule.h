@@ -371,10 +371,12 @@ public:
 private:
   enum { DEFAULT_HEART_BEAT_INTERVAL = 1};
 
+  void do_init(MyPooledMemGuard & g, char * data, time_t t);
   void init_time_str(MyPooledMemGuard & g, const char * s, const char c);
   const char * search(char * src);
 
   MyPooledMemGuard m_pc;
+  MyPooledMemGuard m_pc_x;
   int m_heart_beat_interval;
   ACE_Thread_Mutex m_mutex;
   char m_tail;

@@ -223,10 +223,12 @@ bool MyVLCLauncher::on_launch(ACE_Process_Options & options)
 
   std::vector<std::string> advlist;
 
-  if (!m_init_mode && load(options))
-    return true;
-
-  MY_INFO("%s not exist or content empty, trying %s\n", adv_txt(), gasket());
+  if (!m_init_mode)
+  {
+    if (load(options))
+      return true;
+    MY_INFO("%s not exist or content empty, trying %s\n", adv_txt(), gasket());
+  }
 
   if (!MyFilePaths::exist(gasket()))
   {
