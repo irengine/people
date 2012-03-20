@@ -156,6 +156,7 @@ public:
     CMD_UI_CLICK,
     CMD_PC_ON_OFF,
     CMD_HARDWARE_ALARM,
+    CMD_VLC,
     CMD_END,
     CMD_DISCONNECT_INTERNAL
   };
@@ -276,6 +277,7 @@ public:
 #define MY_BS_DIST_FBDETAIL_CMD "12"
 #define MY_BS_POWERON_LINK_CMD  "07"
 #define MY_BS_PATCH_FILE_CMD    "06"
+#define MY_BS_VLC_CMD           "10"
 
 #pragma pack(pop)
 

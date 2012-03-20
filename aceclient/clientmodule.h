@@ -444,6 +444,40 @@ private:
   int m_ftp_index;
 };
 
+class MyVlcItem
+{
+public:
+  MyVlcItem();
+  int length() const;
+
+  std::string filename;
+  int duration;
+};
+
+class MyVlcItems
+{
+public:
+  typedef std::list<MyVlcItem> MyVlcItemList;
+  void add(const char * fn, int duration);
+  int total_len();
+  bool empty() const;
+  ACE_Message_Block * make_mb();
+
+private:
+  MyVlcItem * find(const char * fn);
+  MyVlcItemList m_vlcs;
+};
+
+class MyVlcHistory
+{
+public:
+  void items(MyVlcItems * _items);
+  void process();
+
+private:
+  MyVlcItems * m_items;
+};
+
 class MyClientToDistHandler: public MyBaseHandler
 {
 public:
@@ -587,6 +621,7 @@ public:
   MyDistInfoMD5s & dist_info_md5s();
   void check_ftp_timed_task();
   ACE_Message_Block * get_click_infos(const char * client_id) const;
+  ACE_Message_Block * get_vlc_infos(const char * client_id) const;
   bool click_sent() const;
   void click_sent_done(const char * client_id);
   MyWatchDog & watch_dog();

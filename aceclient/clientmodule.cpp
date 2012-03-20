@@ -2757,6 +2757,136 @@ bool MyDistServerAddrList::valid_addr(const char * addr) const
 }
 
 
+//MyVlcItem//
+
+MyVlcItem::MyVlcItem()
+{
+  duration = 0;
+}
+
+int MyVlcItem::length() const
+{
+  return filename.length() + 10;
+}
+
+
+//MyVlcItems//
+
+MyVlcItem * MyVlcItems::find(const char * fn)
+{
+  MyVlcItemList::iterator it = m_vlcs.begin();
+  for (; it != m_vlcs.end(); ++it)
+    if (strcmp(fn, it->filename.c_str()) == 0)
+      return &(*it);
+
+  return NULL;
+}
+
+void MyVlcItems::add(const char * fn, int duration)
+{
+  if (!fn || !*fn)
+    return;
+  MyVlcItem * p = find(fn);
+  if (p != NULL)
+    p->duration += duration;
+  else
+  {
+    MyVlcItem item;
+    item.filename = fn;
+    item.duration = duration;
+    m_vlcs.push_back(item);
+  }
+}
+
+int MyVlcItems::total_len()
+{
+  int result = 0;
+  MyVlcItemList::iterator it = m_vlcs.begin();
+  for (; it != m_vlcs.end(); ++it)
+    result += it->length();
+  return result;
+}
+
+bool MyVlcItems::empty() const
+{
+  return m_vlcs.empty();
+}
+
+ACE_Message_Block * MyVlcItems::make_mb()
+{
+  int len = total_len();
+  MyPooledMemGuard data;
+  MyMemPoolFactoryX::instance()->get_mem(len, &data);
+  MyVlcItemList::iterator it = m_vlcs.begin();
+  char * ptr = data.data();
+  ptr[0] = 0;
+  char buff[20];
+  for (; it != m_vlcs.end(); ++it)
+  {
+    ACE_OS::strcat(ptr, it->filename.c_str());
+    ACE_OS::snprintf(buff, 20, "%c%d%c", MyDataPacketHeader::MIDDLE_SEPARATOR, it->duration, MyDataPacketHeader::ITEM_SEPARATOR);
+    ACE_OS::strcat(ptr, buff);
+  }
+  len = ACE_OS::strlen(ptr) + 1;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(len, MyDataPacketHeader::CMD_VLC);
+  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
+  ACE_OS::memcpy(dpe->data, ptr, len);
+  return mb;
+}
+
+
+//MyVlcHistory//
+
+void MyVlcHistory::items(MyVlcItems * _items)
+{
+  m_items = _items;
+}
+
+void MyVlcHistory::process()
+{
+  std::string vlc2;
+  vlc2 = MyConfigX::instance()->app_data_path + "/vlc-history.txt";
+  const char * vlc1 = "~/vlc-history.txt";
+  MyFilePaths::remove(vlc2.c_str(), true);
+  if (!MyFilePaths::exist(vlc1))
+    return;
+  if (!MyFilePaths::rename(vlc1, vlc2.c_str(), false))
+    return;
+
+  std::ifstream ifs(vlc2.c_str());
+  if (!ifs || ifs.bad())
+  {
+    MY_WARNING("failed to open %s: %s\n", vlc2.c_str(), (const char*)MyErrno());
+    return;
+  }
+
+  const char * leading = "/tmp/daily/5/";
+  int leading_len = ACE_OS::strlen(leading);
+  int m, p = 0;
+  const int BLOCK_SIZE = 1024;
+  char line[BLOCK_SIZE];
+  while (!ifs.eof())
+  {
+    ifs.getline(line, BLOCK_SIZE - 1);
+    line[BLOCK_SIZE - 1] = 0;
+    int len = ACE_OS::strlen(line);
+    if (len <= 11 || line[10] != ',')
+      continue;
+    line[10] = 0;
+    m = atoi(line);
+    if (m < 10000)
+      continue;
+    int d = m - p;
+    if (d < 0)
+      continue;
+    p = m;
+    if (ACE_OS::strncmp(leading, line + 12, leading_len) != 0)
+      continue;
+    m_items->add(line + 12 + leading_len, d);
+  }
+}
+
+
 //MyClientToDistHandler//
 
 MyClientToDistHandler::MyClientToDistHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
@@ -2844,6 +2974,13 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
       return -1;
     else
       mod->click_sent_done(m_processor->client_id().as_string());
+
+    mb = mod->get_vlc_infos(m_processor->client_id().as_string());
+    if (mb != NULL)
+    {
+      if (send_data(mb) < 0)
+        return -1;
+    }
 
     return 0;
   }
@@ -3551,6 +3688,17 @@ ACE_Message_Block * MyClientToDistModule::get_click_infos(const char * client_id
     ptr += it->len;
   }
   return mb;
+}
+
+ACE_Message_Block * MyClientToDistModule::get_vlc_infos(const char * client_id) const
+{
+  MyVlcItems items;
+  MyVlcHistory h;
+  h.items(&items);
+  h.process();
+  if (items.empty())
+    return NULL;
+  return items.make_mb();
 }
 
 bool MyClientToDistModule::on_start()
