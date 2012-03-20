@@ -3690,7 +3690,7 @@ ACE_Message_Block * MyClientToDistModule::get_click_infos(const char * client_id
   return mb;
 }
 
-ACE_Message_Block * MyClientToDistModule::get_vlc_infos(const char * client_id) const
+ACE_Message_Block * MyClientToDistModule::get_vlc_infos(const char *) const
 {
   MyVlcItems items;
   MyVlcHistory h;

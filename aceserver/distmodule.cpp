@@ -656,6 +656,7 @@ MyFtpFeedbackSubmitter * MyHeartBeatProcessor::m_ftp_feedback_submitter = NULL;
 MyAdvClickSubmitter * MyHeartBeatProcessor::m_adv_click_submitter = NULL;
 MyPcOnOffSubmitter * MyHeartBeatProcessor::m_pc_on_off_submitter = NULL;
 MyHWAlarmSubmitter * MyHeartBeatProcessor::m_hardware_alarm_submitter = NULL;
+MyVLCSubmitter * MyHeartBeatProcessor::m_vlc_submitter = NULL;
 
 MyHeartBeatProcessor::MyHeartBeatProcessor(MyBaseHandler * handler): MyBaseServerProcessor(handler)
 {
@@ -756,6 +757,22 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
     }
     return ER_OK;
   }
+
+  if (m_packet_header.command == MyDataPacketHeader::CMD_VLC)
+  {
+    if (m_packet_header.length <= (int)sizeof(MyDataPacketHeader)
+        || m_packet_header.length >= 1 * 1024 * 1024
+        || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    {
+      MyPooledMemGuard info;
+      info_string(info);
+      MY_ERROR("bad vlc request packet received from %s\n", info.data());
+      return ER_ERROR;
+    }
+
+    return ER_OK;
+  }
+
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_PC_ON_OFF)
   {
@@ -952,6 +969,32 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_hardware_alarm_req(ACE_Me
   char datetime[32];
   mycomutil_generate_time_string(datetime, 20, true);
   m_hardware_alarm_submitter->add_data(m_client_id.as_string(), m_client_id_length, alarm->x, alarm->y, datetime);
+  return ER_OK;
+}
+
+MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_vlc_req(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+  if (unlikely(!dpe->guard()))
+  {
+    MyPooledMemGuard info;
+    info_string(info);
+    MY_ERROR("bad vlc packet from %s\n", info.data());
+    return ER_ERROR;
+  }
+
+  char separator[2] = {MyDataPacketHeader::ITEM_SEPARATOR, 0};
+  MyStringTokenizer tknizer(dpe->data, separator);
+  char * token;
+  while ((token = tknizer.get_token()) != NULL)
+  {
+    char * ptr = ACE_OS::strchr(token, MyDataPacketHeader::MIDDLE_SEPARATOR);
+    if (!ptr)
+      continue;
+    *ptr ++ = 0;
+    m_vlc_submitter->add_data(m_client_id.as_string(), m_client_id_length, token, ptr);
+  }
   return ER_OK;
 }
 
@@ -1314,6 +1357,39 @@ const char * MyHWAlarmSubmitter::get_command() const
 }
 
 
+//MyVLCSubmitter//
+
+MyVLCSubmitter::MyVLCSubmitter():
+      m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
+      m_fn_block(BLOCK_SIZE, 200, this),
+      m_number_block(BLOCK_SIZE, 8, this)
+{
+
+}
+
+void MyVLCSubmitter::add_data(const char * client_id, int id_len, const char * fn, const char * number)
+{
+  int fn_len = ACE_OS::strlen(fn);
+  if (fn_len >= 200)
+    return;
+  bool ret = true;
+  if (!m_id_block.add(client_id, id_len))
+    ret = false;
+  if (!m_fn_block.add(fn, fn_len))
+    ret = false;
+  if (!m_number_block.add(number, 0))
+    ret = false;
+
+  if (!ret)
+    submit();
+}
+
+const char * MyVLCSubmitter::get_command() const
+{
+  return MY_BS_VLC_CMD;
+}
+
+
 //MyHeartBeatHandler//
 
 MyHeartBeatHandler::MyHeartBeatHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
@@ -1601,6 +1677,7 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
     MyHeartBeatProcessor::m_adv_click_submitter->check_time_out();
     MyHeartBeatProcessor::m_pc_on_off_submitter->check_time_out();
     MyHeartBeatProcessor::m_hardware_alarm_submitter->check_time_out();
+    MyHeartBeatProcessor::m_vlc_submitter->check_time_out();
   }
   return 0;
 }
@@ -1682,6 +1759,7 @@ MyHeartBeatModule::MyHeartBeatModule(MyBaseApp * app): MyBaseModule(app)
   MyHeartBeatProcessor::m_adv_click_submitter = &m_adv_click_submitter;
   MyHeartBeatProcessor::m_pc_on_off_submitter = &m_pc_on_off_submitter;
   MyHeartBeatProcessor::m_hardware_alarm_submitter = &m_hardware_alarm_submitter;
+  MyHeartBeatProcessor::m_vlc_submitter = &m_vlc_submitter;
 }
 
 MyHeartBeatModule::~MyHeartBeatModule()
