@@ -219,7 +219,7 @@ bool my_dph_validate_ftp_file(const MyDataPacketHeader * header);
 bool my_dph_validate_plc_alarm(const MyDataPacketHeader * header);
 bool my_dph_validate_load_balance_req(const MyDataPacketHeader * header);
 bool my_dph_validate_client_version_check_reply(const MyDataPacketHeader * header);
-bool my_dph_validate_client_version_check_req(const MyDataPacketHeader * header);
+bool my_dph_validate_client_version_check_req(const MyDataPacketHeader * header, const int extra = 0);
 #define my_dph_validate_have_dist_task my_dph_validate_base
 #define my_dph_validate_heart_beat my_dph_validate_base
 

@@ -47,10 +47,15 @@ bool my_dph_validate_client_version_check_reply(const MyDataPacketHeader * heade
          header->length <= (int32_t)sizeof(MyClientVersionCheckReply) + MyClientVersionCheckReply::MAX_REPLY_DATA_LENGTH;
 }
 
-bool my_dph_validate_client_version_check_req(const MyDataPacketHeader * header)
+bool my_dph_validate_client_version_check_req(const MyDataPacketHeader * header, const int extra)
 {
-  return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
-         header->length == (int32_t)sizeof(MyClientVersionCheckRequest);
+  if (extra > 0)
+    return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
+           header->length > (int32_t)sizeof(MyClientVersionCheckRequest) &&
+           header->length <= (int32_t)sizeof(MyClientVersionCheckRequest) + extra;
+  else
+    return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
+           header->length == (int32_t)sizeof(MyClientVersionCheckRequest);
 }
 
 

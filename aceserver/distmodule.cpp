@@ -685,7 +685,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
   {
-    if (!my_dph_validate_client_version_check_req(&m_packet_header))
+    if (!my_dph_validate_client_version_check_req(&m_packet_header, 30))
     {
       MyPooledMemGuard info;
       info_string(info);
