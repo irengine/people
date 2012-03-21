@@ -1545,9 +1545,9 @@ MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_packet_i(ACE_Messag
   return ER_OK;
 }
 
-ACE_Message_Block * MyBasePacketProcessor::make_version_check_request_mb()
+ACE_Message_Block * MyBasePacketProcessor::make_version_check_request_mb(const int extra)
 {
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd_direct(sizeof(MyClientVersionCheckRequest), MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd_direct(sizeof(MyClientVersionCheckRequest) + extra, MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
   return mb;
 }
 

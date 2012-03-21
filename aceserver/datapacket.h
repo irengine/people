@@ -180,6 +180,7 @@ public:
   u_int8_t client_version_minor;
   u_int8_t server_id;
   MyClientID client_id;
+  char hw_ver[0];
 
   void validate_data()
   {

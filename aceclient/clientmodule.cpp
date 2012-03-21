@@ -557,7 +557,7 @@ bool MyClientDB::ftp_obsoleted(MyDistInfoFtp & dist_ftp)
 {
   const char * const_chn_tpl = "select count(*) from tb_ftp_info where ftp_ftype in ('1', '2', '4') and ftp_adir = '%s' and ftp_recv_time > %d";
   const char * const_frm_tpl = "select count(*) from tb_ftp_info where ftp_ftype = '0' and ftp_recv_time > %d";
-  const char * const_other_tpl = "select count(*) from tb_ftp_info where ftp_ftype in (%s) and ftp_index = '%s' and ftp_recv_time > %d";
+  const char * const_other_tpl = "select count(*) from tb_ftp_info where ftp_ftype in (%s) and ftp_aindex = '%s' and ftp_recv_time > %d";
   const int BUFF_SIZE = 4096;
   char sql[BUFF_SIZE];
   if (ftype_is_chn(dist_ftp.ftype))
@@ -2579,12 +2579,15 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
 
 int MyClientToDistProcessor::send_version_check_req()
 {
-  ACE_Message_Block * mb = make_version_check_request_mb();
+  const char * hw_ver = MyClientAppX::instance()->client_to_dist_module()->hw_ver();
+  int len = ACE_OS::strlen(hw_ver) + 1;
+  ACE_Message_Block * mb = make_version_check_request_mb(len);
   MyClientVersionCheckRequest * proc = (MyClientVersionCheckRequest *)mb->base();
   proc->client_version_major = const_client_version_major;
   proc->client_version_minor = const_client_version_minor;
   proc->client_id = m_client_id;
   proc->server_id = (u_int8_t) MyServerID::load(m_client_id.as_string());
+  ACE_OS::memcpy(proc->hw_ver, hw_ver, len);
   return (m_handler->send_data(mb) < 0? -1: 0);
 }
 
@@ -3579,6 +3582,28 @@ MyWatchDog & MyClientToDistModule::watch_dog()
 MyIpVerReply & MyClientToDistModule::ip_ver_reply()
 {
   return m_ip_ver_reply;
+}
+
+const char * MyClientToDistModule::hw_ver()
+{
+  if (m_hw_ver.length() > 0)
+    return m_hw_ver.c_str();
+  std::ifstream ifs("/tmp/daily/driver.ini");
+  if (!ifs || ifs.bad())
+  {
+    m_hw_ver = "NULL";
+    return m_hw_ver.c_str();
+  }
+  char line[100];
+  ifs.getline(line, 100);
+  line[99] = 0;
+  if (line[0] == 0)
+  {
+    m_hw_ver = "NULL";
+    return m_hw_ver.c_str();
+  }
+  m_hw_ver = line;
+  return m_hw_ver.c_str();
 }
 
 const char * MyClientToDistModule::name() const

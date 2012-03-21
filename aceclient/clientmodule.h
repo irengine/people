@@ -626,6 +626,7 @@ public:
   void click_sent_done(const char * client_id);
   MyWatchDog & watch_dog();
   MyIpVerReply & ip_ver_reply();
+  const char * hw_ver();
 
   MyTestClientIDGenerator & id_generator()
   {
@@ -655,6 +656,7 @@ private:
   bool m_click_sent;
   MyWatchDog m_watch_dog;
   MyIpVerReply m_ip_ver_reply;
+  std::string m_hw_ver;
 
   MyTestClientIDGenerator m_id_generator;
 };
