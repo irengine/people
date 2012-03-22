@@ -411,7 +411,7 @@ int MyHttpProcessor::packet_length()
 MyBaseProcessor::EVENT_RESULT MyHttpProcessor::on_recv_header()
 {
   int len = packet_length();
-  if (len > 1024 * 1024 * 10 || len < 20)
+  if (len > 1024 * 1024 || len <= 32)
   {
     MY_ERROR("got an invalid http packet with size = %d\n", len);
     return ER_ERROR;
@@ -439,8 +439,21 @@ MyBaseProcessor::EVENT_RESULT MyHttpProcessor::on_recv_packet_i(ACE_Message_Bloc
 
 bool MyHttpProcessor::do_process_input_data()
 {
-  bool result = (mycomutil_mb_putq(MyServerAppX::instance()->http_module()->http_service(), m_current_block,
-      "http request into target queue @MyHttpProcessor::do_process_input_data()"));
+  bool result = true;
+  const char * const_dist_cmd = "http://127.0.0.1:10092/file?";
+  const char * const_remote_cmd = "http://127.0.0.1:10092/ctrl?";
+  if (likely(ACE_OS::strncmp(const_dist_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_dist_cmd)) == 0))
+    result = (mycomutil_mb_putq(MyServerAppX::instance()->http_module()->http_service(), m_current_block,
+              "http request into target queue @MyHttpProcessor::do_process_input_data()"));
+  else if (likely(ACE_OS::strncmp(const_dist_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_remote_cmd)) == 0))
+  {
+    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(m_current_block->length() - 3, MyDataPacketHeader::CMD_REMOTE_CMD);
+    MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
+    ACE_OS::memcpy(dpe->data, m_current_block->base() + 4, m_current_block->length() - 4);
+    dpe->data[m_current_block->length() - 4] = 0;
+    result = mycomutil_mb_putq(MyServerAppX::instance()->dist_load_module()->dispatcher(), mb, "remote cmd to target queue");
+    m_current_block->release();
+  }
   m_current_block = NULL;
   return result;
 }

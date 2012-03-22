@@ -549,6 +549,7 @@ private:
   int send_version_check_req();
   MyBaseProcessor::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_have_dist_task(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_remote_cmd_task(ACE_Message_Block * mb);
 
   bool m_version_check_reply_done;
   char m_local_addr[IP_ADDR_LENGTH];

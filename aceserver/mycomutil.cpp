@@ -1177,8 +1177,8 @@ bool MyMemPoolFactory::get_mem(int size, MyPooledMemGuard * guard)
   int idx = g_use_mem_pool? find_first_index(size): INVALID_INDEX;
   if (idx == INVALID_INDEX || (p = (char*)m_pools[idx]->malloc()) == NULL)
   {
-    if (g_use_mem_pool)
-      MY_DEBUG("global alloc of size(%d)\n", size);
+//    if (g_use_mem_pool)
+//      MY_DEBUG("global alloc of size(%d)\n", size);
     ++ m_global_alloc_count;
     p = new char[size];
     guard->data(p, INVALID_INDEX, size);

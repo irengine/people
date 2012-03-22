@@ -2014,6 +2014,16 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::on_recv_header()
     return ER_OK;
   }
 
+  if (m_packet_header.command == MyDataPacketHeader::CMD_REMOTE_CMD)
+  {
+    if (!my_dph_validate_file_md5_list(&m_packet_header))
+    {
+      MY_ERROR("failed to validate header for remote cmd notify packet\n");
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
   MY_ERROR("unexpected packet header from dist server, header.command = %d\n", m_packet_header.command);
   return ER_ERROR;
 }
@@ -2040,6 +2050,13 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::on_recv_packet_i(ACE_Mess
   {
     MyBaseProcessor::EVENT_RESULT result = do_have_dist_task(mb);
     MY_INFO("got notification from middle server on new dist task\n");
+    return result;
+  }
+
+  if (m_packet_header.command == MyDataPacketHeader::CMD_REMOTE_CMD)
+  {
+    MY_INFO("got notification from middle server on remote cmd\n");
+    MyBaseProcessor::EVENT_RESULT result = do_have_dist_task(mb);
     return result;
   }
 
@@ -2105,6 +2122,57 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_have_dist_task(ACE_Mes
     MY_ERROR("can not put new dist task message to dispatcher's queue @MyDistToMiddleProcessor::do_have_dist_task\n");
     mb->release();
   }
+  return ER_OK;
+}
+
+MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_remote_cmd_task(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
+  if (!dpe->guard())
+  {
+    MY_ERROR("bad remote cmd task packet received\n");
+    return ER_ERROR;
+  }
+  char * ptr = ACE_OS::strstr(dpe->data, "&cmd=");
+  if (!ptr)
+  {
+    MY_ERROR("bad remote cmd task packet received, no '&cmd='\n");
+    return ER_ERROR;
+  }
+  char cmd = *(ptr + ACE_OS::strlen("&cmd="));
+  if (cmd < '1' || cmd > '4')
+  {
+    MY_ERROR("bad remote cmd task packet cmd = %c\n", cmd);
+    return ER_ERROR;
+  }
+  ptr = ACE_OS::strstr(ptr, "&acode=");
+  if (!ptr)
+  {
+    MY_ERROR("bad remote cmd task packet received, no '&acode='\n");
+    return ER_ERROR;
+  }
+  char * acode = ptr + ACE_OS::strlen("&acode=");
+
+  char separators[2] = { ';', 0 };
+  MyStringTokenizer tokenizer(acode, separators);
+  char * token;
+  bool switched;
+  MyClientID _client_id;
+  int _index;
+  while ((token = tokenizer.get_token()) != NULL)
+  {
+    _index = -1;
+    _client_id = token;
+    if (!g_client_id_table->active(_client_id, _index, switched))
+      continue;
+    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(1, MyDataPacketHeader::CMD_REMOTE_CMD);
+    MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
+    dpe->magic = _index;
+    dpe->data[0] = cmd;
+    mycomutil_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "remote cmd to dispatcher's queue");
+  }
+
   return ER_OK;
 }
 

@@ -2290,6 +2290,17 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
     return ER_OK;
   }
 
+  if (m_packet_header.command == MyDataPacketHeader::CMD_REMOTE_CMD)
+  {
+    if (m_packet_header.length != (int)sizeof(MyDataPacketHeader) + 1
+        || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    {
+      MY_ERROR("failed to validate header for remote cmd\n");
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
   MY_ERROR("unexpected packet header from dist server, header.command = %d\n", m_packet_header.command);
   return ER_ERROR;
 }
@@ -2344,6 +2355,9 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
 
   if (header->command == MyDataPacketHeader::CMD_IP_VER_REQ)
     return do_ip_ver_reply(mb);
+
+  if (header->command == MyDataPacketHeader::CMD_REMOTE_CMD)
+    return do_remote_cmd(mb);
 
   MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyClientToDistProcessor::on_recv_packet_i(), command = %d\n",
@@ -2510,6 +2524,22 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ip_ver_reply(ACE_Messa
   mod->ip_ver_reply().init(dpe->data);
   return ((MyClientToDistHandler*)m_handler)->setup_heart_beat_timer(mod->ip_ver_reply().heart_beat_interval()) ?
           ER_OK: ER_ERROR;
+}
+
+MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_remote_cmd(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  if (g_test_mode)
+    return ER_OK;
+  MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
+  char cmd = dpe->data[0];
+  if (cmd > '4' || cmd < '1')
+  {
+    MY_ERROR("invalid remote cmd (=%c) received\n", cmd);
+    return ER_ERROR;
+  }
+
+  return ER_OK;
 }
 
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(ACE_Message_Block * mb)

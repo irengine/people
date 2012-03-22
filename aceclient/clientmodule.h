@@ -408,6 +408,7 @@ private:
   MyBaseProcessor::EVENT_RESULT do_md5_list_request(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_ip_ver_reply(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_remote_cmd(ACE_Message_Block * mb);
   void check_offline_report();
 
   bool m_version_check_reply_done;
