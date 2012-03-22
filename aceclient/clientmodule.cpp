@@ -3588,21 +3588,25 @@ const char * MyClientToDistModule::hw_ver()
 {
   if (m_hw_ver.length() > 0)
     return m_hw_ver.c_str();
-  std::ifstream ifs("/tmp/daily/driver.ini");
+  const char * fn = "/tmp/daily/driver.ini";
+  std::ifstream ifs(fn);
   if (!ifs || ifs.bad())
   {
     m_hw_ver = "NULL";
+    MY_WARNING("can not open file (%s) for read %s\n", fn, (const char*)MyErrno());
     return m_hw_ver.c_str();
   }
-  char line[100];
-  ifs.getline(line, 100);
-  line[99] = 0;
+  char line[30];
+  ifs.getline(line, 30);
+  line[29] = 0;
   if (line[0] == 0)
   {
     m_hw_ver = "NULL";
+    MY_WARNING("file %s does not have led/lcd driver version\n", fn);
     return m_hw_ver.c_str();
   }
   m_hw_ver = line;
+  MY_INFO("get led/lcd driver version: %s\n", m_hw_ver.c_str());
   return m_hw_ver.c_str();
 }
 

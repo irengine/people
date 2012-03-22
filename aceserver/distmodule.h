@@ -208,6 +208,7 @@ private:
   MyBaseProcessor::EVENT_RESULT do_pc_on_off_req(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_hardware_alarm_req(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_vlc_req(ACE_Message_Block * mb);
+  char m_hw_ver[12];
 };
 
 class MyBaseSubmitter;
@@ -297,7 +298,7 @@ class MyIPVerSubmitter: public MyBaseSubmitter
 public:
   enum {ID_SEPARATOR = ';' };
   MyIPVerSubmitter();
-  void add_data(const char * client_id, int id_len, const char * ip, const char * ver);
+  void add_data(const char * client_id, int id_len, const char * ip, const char * ver, const char * hwver);
 
 protected:
   virtual const char * get_command() const;
@@ -307,6 +308,8 @@ private:
   MyAccumulatorBlock m_id_block;
   MyAccumulatorBlock m_ip_block;
   MyAccumulatorBlock m_ver_block;
+  MyAccumulatorBlock m_hw_ver1_block;
+  MyAccumulatorBlock m_hw_ver2_block;
 };
 
 class MyPcOnOffSubmitter: public MyBaseSubmitter

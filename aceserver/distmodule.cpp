@@ -661,6 +661,7 @@ MyVLCSubmitter * MyHeartBeatProcessor::m_vlc_submitter = NULL;
 MyHeartBeatProcessor::MyHeartBeatProcessor(MyBaseHandler * handler): MyBaseServerProcessor(handler)
 {
   m_handler->msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
+  m_hw_ver[0] = 0;
 }
 
 MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
@@ -836,11 +837,25 @@ void MyHeartBeatProcessor::do_ping()
 MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message_Block * mb)
 {
   MyMessageBlockGuard guard(mb);
-
   MyClientIDTable & client_id_table = MyServerAppX::instance()->client_id_table();
-
+  MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
+  if (!dpe->guard())
+  {
+    MyPooledMemGuard info;
+    info_string(info);
+    MY_ERROR(ACE_TEXT("bad client version check packet, dpe->guard() failed: %s\n"), info.data());
+    return ER_ERROR;
+  }
+  ACE_OS::strsncpy(m_hw_ver, ((MyClientVersionCheckRequest*)mb->base())->hw_ver, 12);
+  if (m_hw_ver[0] == 0)
+  {
+    ACE_OS::strcpy(m_hw_ver, "NULL");
+    MyPooledMemGuard info;
+    info_string(info);
+    MY_WARNING(ACE_TEXT("client version check packet led/lcd driver version empty: %s\n"), info.data());
+  }
   MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, client_id_table);
-  m_ip_ver_submitter->add_data(m_client_id.as_string(), m_client_id_length, m_peer_addr, m_client_version.to_string());
+  m_ip_ver_submitter->add_data(m_client_id.as_string(), m_client_id_length, m_peer_addr, m_client_version.to_string(), m_hw_ver);
 
   if (ret != ER_CONTINUE)
     return ret;
@@ -914,7 +929,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(ACE_Message_Blo
 MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ip_ver_req(ACE_Message_Block * mb)
 {
   MyMessageBlockGuard guard(mb);
-  m_ip_ver_submitter->add_data(m_client_id.as_string(), m_client_id_length, m_peer_addr, m_client_version.to_string());
+  m_ip_ver_submitter->add_data(m_client_id.as_string(), m_client_id_length, m_peer_addr, m_client_version.to_string(), m_hw_ver);
   return ER_OK;
 }
 
@@ -1222,12 +1237,14 @@ const char * MyPingSubmitter::get_command() const
 MyIPVerSubmitter::MyIPVerSubmitter():
     m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
     m_ip_block(BLOCK_SIZE, INET_ADDRSTRLEN, this),
-    m_ver_block(BLOCK_SIZE * 7 / sizeof(MyClientID) + 1, 7, this)
+    m_ver_block(BLOCK_SIZE * 3 / sizeof(MyClientID) + 1, 7, this),
+    m_hw_ver1_block(BLOCK_SIZE, 12, this),
+    m_hw_ver2_block(BLOCK_SIZE, 12, this)
 {
 
 }
 
-void MyIPVerSubmitter::add_data(const char * client_id, int id_len, const char * ip, const char * ver)
+void MyIPVerSubmitter::add_data(const char * client_id, int id_len, const char * ip, const char * ver, const char * hwver)
 {
   bool ret = true;
   if (!m_id_block.add(client_id, id_len))
@@ -1235,6 +1252,10 @@ void MyIPVerSubmitter::add_data(const char * client_id, int id_len, const char *
   if (!m_ip_block.add(ip, 0))
     ret = false;
   if (!m_ver_block.add(ver, 0))
+    ret = false;
+  if (!m_hw_ver1_block.add(hwver, 0))
+    ret = false;
+  if (!m_hw_ver1_block.add(hwver, 0))
     ret = false;
 
   if (!ret)
