@@ -1826,6 +1826,7 @@ void MyDistInfoMD5::post_md5_message()
   ACE_OS::memcpy(dpe->data, dist_id.data(), dist_id_len);
   dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
   m_md5list.to_buffer(dpe->data + dist_id_len + 1, md5_len, false);
+  MY_INFO("posting md5 reply to dist server for dist_id (%s), md5 len = %d\n", dist_id.data(), md5_len - 1);
   MyClientAppX::instance()->send_mb_to_dist(mb);
 }
 
@@ -3105,8 +3106,9 @@ void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
 
   MyFileMD5s client_md5s;
   if (!MyDistInfoMD5Comparer::compute(p, client_md5s))
-    MY_INFO("md5 file list generation error\n");
+    MY_ERROR("md5 file list generation error\n");
 
+  bool b_saved = false;
   {
     MyPooledMemGuard md5_client;
     client_md5s.sort();
@@ -3116,8 +3118,10 @@ void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
 
     MyClientDBGuard dbg;
     if (dbg.db().open_db(p->client_id.as_string()))
-      dbg.db().save_md5_command(p->dist_id.data(), p->md5_text(), md5_client.data());
+      b_saved = dbg.db().save_md5_command(p->dist_id.data(), p->md5_text(), md5_client.data());
   }
+
+  MY_INFO("client side md5 for dist_id(%s) save: %s\n", p->dist_id.data(), b_saved? "OK":"failed");
 
   MyDistInfoMD5Comparer::compare(p, p->md5list(), client_md5s);
   p->post_md5_message();
