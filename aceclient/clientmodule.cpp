@@ -3156,6 +3156,7 @@ void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
   MY_INFO("client side md5 for dist_id(%s) save: %s\n", p->dist_id.data(), b_saved? "OK":"failed");
 
   MyDistInfoMD5Comparer::compare(p, p->md5list(), client_md5s);
+  p->compare_done(true);
   p->post_md5_message();
   return_back_md5(p);
 }

@@ -996,7 +996,7 @@ void MyMemPoolFactory::init(MyConfig * config)
     {
       int m;
       if (pool_size[i] <= 512)
-        m = 1000;
+        m = 300;
       else if (pool_size[i] < 8 * KB)
         m = 300;
       else if (pool_size[i] < 512 * KB)

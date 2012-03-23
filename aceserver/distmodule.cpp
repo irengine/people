@@ -669,7 +669,8 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
   {
     MyPooledMemGuard info;
     info_string(info);
-    MY_DEBUG("get client packet header: command = %d from %s\n", m_packet_header.command, info.data());
+    MY_DEBUG("get client packet header: command = %d, len = %d from %s\n",
+        m_packet_header.command, m_packet_header.length, info.data());
   }
 
   if (super::on_recv_header() == ER_ERROR)

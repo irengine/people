@@ -383,11 +383,13 @@ MyFileMD5::MyFileMD5(const char * _filename, const char * md5, int prefix_len, c
 
 MyFileMD5s::MyFileMD5s()
 {
+//  MY_DEBUG("creating md5s: %X\n", (int)(long)this);
   m_base_dir_len = 0;
 }
 
 MyFileMD5s::~MyFileMD5s()
 {
+//  MY_DEBUG("destroying md5s: %X\n", (int)(long)this);
   std::for_each(m_file_md5_list.begin(), m_file_md5_list.end(), MyPooledObjectDeletor());
 }
 
