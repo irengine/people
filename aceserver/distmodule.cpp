@@ -666,6 +666,12 @@ MyHeartBeatProcessor::MyHeartBeatProcessor(MyBaseHandler * handler): MyBaseServe
 
 MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 {
+  {
+    MyPooledMemGuard info;
+    info_string(info);
+    MY_DEBUG("get client packet header: command = %d from %s\n", m_packet_header.command, info.data());
+  }
+
   if (super::on_recv_header() == ER_ERROR)
     return ER_ERROR;
 
@@ -717,6 +723,11 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
       info_string(info);
       MY_ERROR("bad md5 file list packet received from %s\n", info.data());
       return ER_ERROR;
+    } else
+    {
+      MyPooledMemGuard info;
+      info_string(info);
+      MY_INFO("get md5 file list packet received from %s, len = %d\n", info.data(), m_packet_header.length);
     }
     return ER_OK;
   }
@@ -905,8 +916,11 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_md5_file_list(ACE_Message
     return ER_ERROR;
   }
 
-  MyPooledMemGuard info;
-  info_string(info);
+  {
+    MyPooledMemGuard info;
+    info_string(info);
+    MY_DEBUG("complete md5 list from client %s, length = %d\n", info.data(), mb->length());
+  }
   MyServerAppX::instance()->dist_put_to_service(mb);
   return ER_OK;
 }
@@ -1237,9 +1251,9 @@ const char * MyPingSubmitter::get_command() const
 MyIPVerSubmitter::MyIPVerSubmitter():
     m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
     m_ip_block(BLOCK_SIZE, INET_ADDRSTRLEN, this),
-    m_ver_block(BLOCK_SIZE * 3 / sizeof(MyClientID) + 1, 7, this),
-    m_hw_ver1_block(BLOCK_SIZE, 12, this),
-    m_hw_ver2_block(BLOCK_SIZE, 12, this)
+    m_ver_block(BLOCK_SIZE * 3 / sizeof(MyClientID) + 1, 7, this)//,
+//    m_hw_ver1_block(BLOCK_SIZE, 12, this),
+//    m_hw_ver2_block(BLOCK_SIZE, 12, this)
 {
 
 }
@@ -1253,10 +1267,10 @@ void MyIPVerSubmitter::add_data(const char * client_id, int id_len, const char *
     ret = false;
   if (!m_ver_block.add(ver, 0))
     ret = false;
-  if (!m_hw_ver1_block.add(hwver, 0))
-    ret = false;
-  if (!m_hw_ver1_block.add(hwver, 0))
-    ret = false;
+//  if (!m_hw_ver1_block.add(hwver, 0))
+//    ret = false;
+//  if (!m_hw_ver1_block.add(hwver, 0))
+//    ret = false;
 
   if (!ret)
     submit();
@@ -1586,7 +1600,7 @@ void MyHeartBeatService::do_file_md5_reply(ACE_Message_Block * mb)
   }
   *md5list ++ = 0;
   const char * dist_id = dpe->data;
-  MY_DEBUG("file md5 list value from client_id(%s) dist_id(%s): %s\n", client_id.as_string(),
+  MY_DEBUG("file md5 list from client_id(%s) dist_id(%s): %s\n", client_id.as_string(),
       dist_id, (*md5list? md5list: "(empty)"));
   m_distributor.dist_ftp_md5_reply(client_id.as_string(), dist_id, md5list);
 }

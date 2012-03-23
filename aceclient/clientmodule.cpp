@@ -2547,6 +2547,8 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
   MyMessageBlockGuard guard(mb);
   m_version_check_reply_done = true;
 
+  MY_DEBUG("on ver reply: handler = %X, socket = %d\n", (int)(long)m_handler, m_handler->get_handle());
+
   MyClientVersionCheckReply * vcr;
   vcr = (MyClientVersionCheckReply *)mb->base();
   switch (vcr->reply_code)
@@ -3503,6 +3505,7 @@ bool MyClientToDistDispatcher::on_event_loop()
     ACE_Time_Value tv(ACE_Time_Value::zero);
     if (this->getq(mb, &tv) != -1)
     {
+      MY_DEBUG("packet to dist: length = %d\n", mb->length());
       if (g_test_mode)
       {
         int index = ((MyDataPacketHeader*)mb->base())->magic;

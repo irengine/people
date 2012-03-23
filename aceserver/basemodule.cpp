@@ -1860,6 +1860,11 @@ void MyBaseConnectionManager::do_send(ACE_Message_Block * mb, bool broadcast)
   {
     if (it->second == CS_Pending)
       continue;
+    if (!broadcast)
+    {
+      MyBaseHandler * handler = it->first;
+      MY_DEBUG("do_send: handler=%X, socket=%d, length=%d\n", (int)(long)handler, handler->get_handle(), mb->length());
+    }
     if (it->first->send_data(mb->duplicate()) < 0)
       ptrs.push_back(it->first);
     else if (!broadcast)
