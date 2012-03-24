@@ -12,6 +12,7 @@
 #include <stddef.h>
 #include <ace/OS_NS_string.h>
 #include <ace/INET_Addr.h>
+#include <uuid/uuid.h>
 
 #include "common.h"
 
@@ -158,11 +159,13 @@ public:
     CMD_HARDWARE_ALARM,
     CMD_VLC,
     CMD_REMOTE_CMD,
+    CMD_ACK,
     CMD_END,
     CMD_DISCONNECT_INTERNAL
   };
   int32_t length;
   u_int32_t magic;
+  uuid_t  uuid;
   int16_t command;
 };
 

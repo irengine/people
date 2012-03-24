@@ -3,7 +3,7 @@ FILES=basemodule distmodule baseapp datapacket mycomutil middlemodule server md5
 SRC=$(addsuffix .cpp,$(FILES))
 OBJ=$(addsuffix .o,$(FILES))
 BUILD=$(VBIN)
-LIBS=-L/usr/pgsql-9.1/lib -lACE -lbz2 -lpq
+LIBS=-L/usr/pgsql-9.1/lib -lACE -lbz2 -lpq -luuid
 CPPFLAGS=-I/usr/pgsql-9.1/include -std=c++0x
 VLDLIBS=$(LDLIBS:%=%$(VAR))
 debug=1

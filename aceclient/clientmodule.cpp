@@ -1445,7 +1445,7 @@ ACE_Message_Block * MyDistInfoFtp::make_ftp_dist_message(const char * dist_id, i
     status = 3;
   int dist_id_len = ACE_OS::strlen(dist_id);
   int total_len = dist_id_len + 1 + 2 + 2;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(total_len, MyDataPacketHeader::CMD_FTP_FILE);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(total_len, MyDataPacketHeader::CMD_FTP_FILE, false);
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
   ACE_OS::memcpy(dpe->data, dist_id, dist_id_len);
   dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
@@ -1464,6 +1464,7 @@ void MyDistInfoFtp::post_status_message(int _status, bool result_ok) const
   if (g_test_mode)
     dpe->magic = client_id_index;
 
+//  MyClientAppX::instance()->client_to_dist_module()->dispatcher()->add_to_buffered_mbs(mb);
   MyClientAppX::instance()->send_mb_to_dist(mb);
 }
 
@@ -2290,6 +2291,20 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
     return ER_OK;
   }
 
+  if (m_packet_header.command == MyDataPacketHeader::CMD_ACK)
+  {
+    if (!my_dph_validate_base(&m_packet_header))
+    {
+      MY_ERROR("failed to validate header for server ack packet\n");
+      return ER_ERROR;
+    }
+    if (g_test_mode)
+      return ER_OK_FINISHED;
+    else
+      return ER_OK;
+  }
+
+
   if (m_packet_header.command == MyDataPacketHeader::CMD_REMOTE_CMD)
   {
     if (m_packet_header.length != (int)sizeof(MyDataPacketHeader) + 1
@@ -2358,6 +2373,9 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
 
   if (header->command == MyDataPacketHeader::CMD_REMOTE_CMD)
     return do_remote_cmd(mb);
+
+  if (header->command == MyDataPacketHeader::CMD_ACK)
+    return do_ack(mb);
 
   MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyClientToDistProcessor::on_recv_packet_i(), command = %d\n",
@@ -2524,6 +2542,20 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ip_ver_reply(ACE_Messa
   mod->ip_ver_reply().init(dpe->data);
   return ((MyClientToDistHandler*)m_handler)->setup_heart_beat_timer(mod->ip_ver_reply().heart_beat_interval()) ?
           ER_OK: ER_ERROR;
+}
+
+MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ack(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  if (unlikely(g_test_mode))
+  {
+    MY_ERROR("unexpected ack packet on test mode\n");
+    return ER_ERROR;
+  }
+
+  MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
+  MyClientAppX::instance()->client_to_dist_module()->dispatcher()->on_ack(dph->uuid);
+  return ER_OK;
 }
 
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_remote_cmd(ACE_Message_Block * mb)
@@ -3398,6 +3430,95 @@ bool MyClientToDistConnector::before_reconnect()
 }
 
 
+//MyBufferedMB//
+
+MyBufferedMB::MyBufferedMB(ACE_Message_Block * mb)
+{
+  m_mb = mb->duplicate();
+  m_last = time(NULL);
+}
+
+MyBufferedMB::~MyBufferedMB()
+{
+  if (m_mb)
+    m_mb->release();
+}
+
+ACE_Message_Block * MyBufferedMB::mb()
+{
+  return m_mb;
+}
+
+bool MyBufferedMB::timeout(time_t t) const
+{
+  return m_last + TIME_OUT_VALUE < t;
+}
+
+void MyBufferedMB::touch(time_t t)
+{
+  m_last = t;
+}
+
+bool MyBufferedMB::match(uuid_t uuid)
+{
+  MyDataPacketHeader * dph = (MyDataPacketHeader*)m_mb->base();
+  return uuid_compare(dph->uuid, uuid) == 0;
+}
+
+
+//MyBufferedMBs//
+
+MyBufferedMBs::~MyBufferedMBs()
+{
+  std::for_each(m_mblist.begin(), m_mblist.end(), MyObjectDeletor());
+}
+
+void MyBufferedMBs::connection_manager(MyBaseConnectionManager * p)
+{
+  m_con_manager = p;
+}
+
+void MyBufferedMBs::add(ACE_Message_Block * mb)
+{
+  if (!mb || mb->capacity() < (size_t)sizeof(MyDataPacketHeader))
+    return;
+  MyBufferedMB * obj = new MyBufferedMB(mb);
+  m_mblist.push_back(obj);
+}
+
+void MyBufferedMBs::check_timeout()
+{
+  MyBufferedMBList::iterator it;
+  MyBufferedMB * p;
+  time_t t = time(NULL);
+  for (it = m_mblist.begin(); it != m_mblist.end(); ++it)
+  {
+    p = *it;
+    if (p->timeout(t))
+    {
+      m_con_manager->send_single(p->mb()->duplicate());
+      p->touch(t);
+    }
+  }
+}
+
+void MyBufferedMBs::on_reply(uuid_t uuid)
+{
+  MyBufferedMBList::iterator it;
+  MyBufferedMB * p;
+  for (it = m_mblist.begin(); it != m_mblist.end(); ++it)
+  {
+    p = *it;
+    if (p->match(uuid))
+    {
+      delete p;
+      m_mblist.erase(it);
+      break;
+    }
+  }
+}
+
+
 //MyClientToDistDispatcher//
 
 MyClientToDistDispatcher::MyClientToDistDispatcher(MyBaseModule * pModule, int numThreads):
@@ -3442,8 +3563,13 @@ int MyClientToDistDispatcher::handle_timeout(const ACE_Time_Value &, const void 
   if ((long)act == (long)TIMER_ID_BASE)
   {
     ((MyClientToDistModule*)module_x())->check_ftp_timed_task();
-    if (!g_test_mode && (m_connector == NULL || m_connector->connection_manager()->active_connections() == 0))
-      MyConnectIni::update_connect_status(MyConnectIni::CS_DISCONNECTED);
+    if (!g_test_mode)
+    {
+      if (m_connector == NULL || m_connector->connection_manager()->active_connections() == 0)
+        MyConnectIni::update_connect_status(MyConnectIni::CS_DISCONNECTED);
+      else
+        m_buffered_mbs.check_timeout();
+    }
   }
   else if ((long)act == (long)TIMER_ID_WATCH_DOG)
     check_watch_dog();
@@ -3472,6 +3598,8 @@ void MyClientToDistDispatcher::ask_for_server_addr_list_done(bool success)
   if (!m_connector)
     m_connector = new MyClientToDistConnector(this, new MyBaseConnectionManager());
   add_connector(m_connector);
+  m_buffered_mbs.connection_manager(m_connector->connection_manager());
+
   const char * addr = addr_list.begin();
   if (ACE_OS::strcmp("127.0.0.1", addr) == 0)
     addr = MyConfigX::instance()->middle_server_addr.c_str();
@@ -3482,6 +3610,16 @@ void MyClientToDistDispatcher::ask_for_server_addr_list_done(bool success)
 void MyClientToDistDispatcher::start_watch_dog()
 {
   ((MyClientToDistModule*)module_x())->watch_dog().start();
+}
+
+void MyClientToDistDispatcher::on_ack(uuid_t uuid)
+{
+  m_buffered_mbs.on_reply(uuid);
+}
+
+void MyClientToDistDispatcher::add_to_buffered_mbs(ACE_Message_Block * mb)
+{
+  m_buffered_mbs.add(mb);
 }
 
 void MyClientToDistDispatcher::on_stop()
@@ -3522,7 +3660,17 @@ bool MyClientToDistDispatcher::on_event_loop()
         if (handler->send_data(mb) < 0)
           handler->handle_close();
       } else
+      {
+        if (likely(mb->capacity() >= (int)sizeof(MyDataPacketHeader)))
+        {
+          MyDataPacketHeader * dph = (MyDataPacketHeader*)mb->base();
+          uuid_t uuid;
+          uuid_clear(uuid);
+          if (uuid_compare(dph->uuid, uuid) != 0)
+            add_to_buffered_mbs(mb);
+        }
         m_connector->connection_manager()->send_single(mb);
+      }
     } else
       break;
   }

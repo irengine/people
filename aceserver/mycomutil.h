@@ -454,9 +454,10 @@ public:
   ~MyMemPoolFactory();
   void init(MyConfig * config);
   ACE_Message_Block * get_message_block(int capacity);
-  ACE_Message_Block * get_message_block_cmd(int extra, int command, bool is_send = true);
-  ACE_Message_Block * get_message_block_cmd_direct(int capacity, int command, bool is_send = true);
+  ACE_Message_Block * get_message_block_cmd(int extra, int command, bool b_no_uuid = true);
+  ACE_Message_Block * get_message_block_cmd_direct(int capacity, int command, bool b_no_uuid = true);
   ACE_Message_Block * get_message_block_bs(int data_len, const char * cmd);
+  ACE_Message_Block * get_message_block_ack(ACE_Message_Block * src);
   bool get_mem(int size, MyPooledMemGuard * guard);
   void * get_mem_x(int size);
   void free_mem_x(void * ptr); //use _x to avoid ambiguous of NULL pointer as parameter

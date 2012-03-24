@@ -36,6 +36,7 @@ void MyProgramLauncher::kill_instance()
 
 bool MyProgramLauncher::launch()
 {
+  return false;
   if (m_pid != INVALID_PID)
   {
     kill(m_pid, SIGTERM);

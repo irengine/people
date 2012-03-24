@@ -409,6 +409,7 @@ private:
   MyBaseProcessor::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_ip_ver_reply(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_remote_cmd(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_ack(ACE_Message_Block * mb);
   void check_offline_report();
 
   bool m_version_check_reply_done;
@@ -541,6 +542,38 @@ private:
 
 class MyClientToMiddleConnector;
 
+class MyBufferedMB
+{
+public:
+  MyBufferedMB(ACE_Message_Block * mb);
+  ~MyBufferedMB();
+  ACE_Message_Block * mb();
+  bool timeout(time_t t) const;
+  void touch(time_t t);
+  bool match(uuid_t uuid);
+
+private:
+  enum { TIME_OUT_VALUE = 10 * 60 };
+  ACE_Message_Block * m_mb;
+  time_t m_last;
+};
+
+class MyBufferedMBs
+{
+public:
+  ~MyBufferedMBs();
+  void connection_manager(MyBaseConnectionManager * p);
+  void add(ACE_Message_Block * mb);
+  void check_timeout();
+  void on_reply(uuid_t uuid);
+
+private:
+  typedef std::list<MyBufferedMB *> MyBufferedMBList;
+
+  MyBaseConnectionManager * m_con_manager;
+  MyBufferedMBList m_mblist;
+};
+
 class MyClientToDistDispatcher: public MyBaseDispatcher
 {
 public:
@@ -551,6 +584,8 @@ public:
   virtual const char * name() const;
   void ask_for_server_addr_list_done(bool success);
   void start_watch_dog();
+  void on_ack(uuid_t uuid);
+  void add_to_buffered_mbs(ACE_Message_Block * mb);
 
 protected:
   virtual void on_stop();
@@ -567,6 +602,7 @@ private:
   MyClientToDistConnector * m_connector;
   MyClientToMiddleConnector * m_middle_connector;
   MyHttp1991Acceptor * m_http1991_acceptor;
+  MyBufferedMBs m_buffered_mbs;
 };
 
 

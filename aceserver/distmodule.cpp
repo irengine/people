@@ -936,8 +936,11 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(ACE_Message_Blo
     MY_ERROR("bad ftp reply packet from %s\n", info.data());
     return ER_ERROR;
   }
-
+  ACE_Message_Block * mb_reply = MyMemPoolFactoryX::instance()->get_message_block_ack(mb);
   MyServerAppX::instance()->dist_put_to_service(mb);
+  if (mb_reply != NULL)
+    if (m_handler->send_data(mb_reply) < 0)
+      return ER_ERROR;
   return ER_OK;
 }
 

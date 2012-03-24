@@ -1121,12 +1121,12 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
   return new ACE_Message_Block(capacity);
 }
 
-ACE_Message_Block * MyMemPoolFactory::get_message_block_cmd_direct(int capacity, int command, bool is_send)
+ACE_Message_Block * MyMemPoolFactory::get_message_block_cmd_direct(int capacity, int command, bool b_no_uuid)
 {
-  return get_message_block_cmd(capacity - sizeof(MyDataPacketHeader), command, is_send);
+  return get_message_block_cmd(capacity - sizeof(MyDataPacketHeader), command, b_no_uuid);
 }
 
-ACE_Message_Block * MyMemPoolFactory::get_message_block_cmd(int capacity, int command, bool _send)
+ACE_Message_Block * MyMemPoolFactory::get_message_block_cmd(int capacity, int command, bool b_no_uuid)
 {
   if (unlikely(capacity < 0))
   {
@@ -1134,13 +1134,38 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block_cmd(int capacity, int co
     return NULL;
   }
   ACE_Message_Block * mb = get_message_block(capacity + (int)sizeof(MyDataPacketHeader));
-  if (likely(_send))
-    mb->wr_ptr(mb->capacity());
+  mb->wr_ptr(mb->capacity());
   MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
   dph->command = command;
   dph->length = capacity + (int)sizeof(MyDataPacketHeader);
   dph->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
+  if (likely(b_no_uuid))
+    ::uuid_clear(dph->uuid);
+    //ACE_OS::memset(&(dph->uuid), 0, sizeof(uuid_t));
+  else
+    ::uuid_generate(dph->uuid);
   return mb;
+}
+
+ACE_Message_Block * MyMemPoolFactory::get_message_block_ack(ACE_Message_Block * src)
+{
+  if (unlikely(!src) || src->capacity() < (int)sizeof(MyDataPacketHeader))
+  {
+    MY_WARNING("invalid src for ack message packet\n");
+    return NULL;
+  }
+
+  ACE_Message_Block * mb = get_message_block((int)sizeof(MyDataPacketHeader));
+  mb->wr_ptr(mb->capacity());
+  MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
+  MyDataPacketHeader * dph_src = (MyDataPacketHeader *) src->base();
+  dph->command = MyDataPacketHeader::CMD_ACK;
+  dph->length = (int)sizeof(MyDataPacketHeader);
+  dph->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
+  //ACE_OS::memcpy(&(dph->uuid), &(dph_src->uuid), sizeof(uuid_t));
+  uuid_copy(dph->uuid, dph_src->uuid);
+  return mb;
+
 }
 
 ACE_Message_Block * MyMemPoolFactory::get_message_block_bs(int data_len, const char * cmd)
