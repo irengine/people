@@ -53,8 +53,8 @@ BEGIN
 		    )
 	);
 
-  delete from tb_dist_info where dist_id not in 
-    (select distinct dc_dist_id from tb_dist_clients);
+  delete from tb_dist_info where (('now'::text)::timestamp(0) without time zone - dist_time > '5 day') and (dist_id not in 
+    (select distinct dc_dist_id from tb_dist_clients));
 END;
 $$ 
 LANGUAGE plpgsql;

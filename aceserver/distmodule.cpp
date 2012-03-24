@@ -812,6 +812,13 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
 {
   MyBaseServerProcessor::on_recv_packet_i(mb);
 
+  {
+    MyPooledMemGuard info;
+    info_string(info);
+    MY_DEBUG("get complete client packet: command = %d, len = %d from %s\n",
+        m_packet_header.command, m_packet_header.length, info.data());
+  }
+
   MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
   if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
     return do_version_check(mb);
