@@ -117,6 +117,7 @@ class MyLocationProcessor: public MyBaseServerProcessor
 public:
   MyLocationProcessor(MyBaseHandler * handler);
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
+  virtual const char * name() const;
 
   static MyDistLoads * m_dist_loads;
 
@@ -203,6 +204,7 @@ public:
 
   MyHttpProcessor(MyBaseHandler * handler);
   virtual ~MyHttpProcessor();
+  virtual const char * name() const;
   DECLARE_MEMORY_POOL__NOTHROW(MyHttpProcessor, ACE_Thread_Mutex);
 
 protected:
@@ -300,6 +302,7 @@ public:
 
   MyDistLoadProcessor(MyBaseHandler * handler);
   virtual ~MyDistLoadProcessor();
+  virtual const char * name() const;
   virtual bool client_id_verified() const;
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
   void dist_loads(MyDistLoads * dist_loads);
@@ -388,6 +391,7 @@ public:
   typedef MyBSBasePacketProcessor super;
 
   MyMiddleToBSProcessor(MyBaseHandler * handler);
+  virtual const char * name() const;
 
   DECLARE_MEMORY_POOL__NOTHROW(MyMiddleToBSProcessor, ACE_Thread_Mutex);
 

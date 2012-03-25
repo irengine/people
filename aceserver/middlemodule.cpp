@@ -203,6 +203,11 @@ MyLocationProcessor::MyLocationProcessor(MyBaseHandler * handler): MyBaseServerP
 
 }
 
+const char * MyLocationProcessor::name() const
+{
+  return "MyLocationProcessor";
+}
+
 MyBaseProcessor::EVENT_RESULT MyLocationProcessor::on_recv_header()
 {
   if (MyBaseServerProcessor::on_recv_header() == ER_ERROR)
@@ -401,6 +406,11 @@ MyHttpProcessor::MyHttpProcessor(MyBaseHandler * handler): super(handler)
 MyHttpProcessor::~MyHttpProcessor()
 {
 
+}
+
+const char * MyHttpProcessor::name() const
+{
+  return "MyHttpProcessor";
 }
 
 int MyHttpProcessor::packet_length()
@@ -808,6 +818,11 @@ MyDistLoadProcessor::~MyDistLoadProcessor()
 
 }
 
+const char * MyDistLoadProcessor::name() const
+{
+  return "MyDistLoadProcessor";
+}
+
 void MyDistLoadProcessor::dist_loads(MyDistLoads * dist_loads)
 {
   m_dist_loads = dist_loads;
@@ -1067,6 +1082,11 @@ void MyDistLoadModule::on_stop()
 MyMiddleToBSProcessor::MyMiddleToBSProcessor(MyBaseHandler * handler): super(handler)
 {
 
+}
+
+const char * MyMiddleToBSProcessor::name() const
+{
+  return "MyMiddleToBSProcessor";
 }
 
 MyBaseProcessor::EVENT_RESULT MyMiddleToBSProcessor::on_recv_packet_i(ACE_Message_Block * mb)

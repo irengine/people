@@ -475,6 +475,7 @@ public:
   virtual void on_close();
   virtual int handle_input();
   virtual bool can_send_data(ACE_Message_Block * mb) const;
+  virtual const char * name() const;
   bool wait_for_close() const;
   void prepare_to_close();
 
@@ -535,10 +536,16 @@ public:
     m_read_next_offset = 0;
     m_current_block = NULL;
   }
+
   virtual ~MyVeryBasePacketProcessor()
   {
     if (m_current_block)
       m_current_block->release();
+  }
+
+  virtual const char * name() const
+  {
+    return "MyVeryBasePacketProcessor";
   }
 
   virtual int handle_input()
@@ -695,6 +702,7 @@ public:
   MyBasePacketProcessor(MyBaseHandler * handler);
   virtual void info_string(MyPooledMemGuard & info) const;
   virtual int on_open();
+  virtual const char * name() const;
 
 protected:
   virtual int packet_length();
@@ -725,6 +733,7 @@ public:
   typedef MyBasePacketProcessor super;
   MyBaseServerProcessor(MyBaseHandler * handler);
   virtual ~MyBaseServerProcessor();
+  virtual const char * name() const;
   virtual bool can_send_data(ACE_Message_Block * mb) const;
   virtual bool client_id_verified() const;
 
@@ -743,6 +752,7 @@ public:
 
   MyBaseClientProcessor(MyBaseHandler * handler);
   virtual ~MyBaseClientProcessor();
+  virtual const char * name() const;
   virtual bool client_id_verified() const;
   virtual int on_open();
   virtual void on_close();

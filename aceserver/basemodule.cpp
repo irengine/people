@@ -1322,6 +1322,11 @@ bool MyBaseProcessor::can_send_data(ACE_Message_Block * mb) const
   return true;
 }
 
+const char * MyBaseProcessor::name() const
+{
+  return "MyBaseProcessor";
+}
+
 int MyBaseProcessor::handle_input_wait_for_close()
 {
   char buffer[4096];
@@ -1330,6 +1335,8 @@ int MyBaseProcessor::handle_input_wait_for_close()
   int ret = mycomutil_translate_tcp_result(recv_cnt);
   if (ret < 0)
     return -1;
+  if (ret > 0)
+    MY_DEBUG("discarding %d data @%s::handle_input_wait_for_close()\n", recv_cnt, name());
   return (m_handler->msg_queue()->is_empty ()) ? -1 : 0;
 }
 
@@ -1504,6 +1511,10 @@ MyBasePacketProcessor::MyBasePacketProcessor(MyBaseHandler * handler): super(han
   m_peer_addr[0] = 0;
 }
 
+const char * MyBasePacketProcessor::name() const
+{
+  return "MyBasePacketProcessor";
+}
 
 void MyBasePacketProcessor::info_string(MyPooledMemGuard & info) const
 {
@@ -1593,6 +1604,11 @@ MyBaseServerProcessor::MyBaseServerProcessor(MyBaseHandler * handler) : MyBasePa
 MyBaseServerProcessor::~MyBaseServerProcessor()
 {
 
+}
+
+const char * MyBaseServerProcessor::name() const
+{
+  return "MyBaseServerProcessor";
 }
 
 bool MyBaseServerProcessor::client_id_verified() const
@@ -1685,6 +1701,11 @@ MyBaseClientProcessor::MyBaseClientProcessor(MyBaseHandler * handler) : MyBasePa
 MyBaseClientProcessor::~MyBaseClientProcessor()
 {
 
+}
+
+const char * MyBaseClientProcessor::name() const
+{
+  return "MyBaseClientProcessor";
 }
 
 bool MyBaseClientProcessor::client_id_verified() const

@@ -160,6 +160,7 @@ public:
     CMD_VLC,
     CMD_REMOTE_CMD,
     CMD_ACK,
+    CMD_TEST,
     CMD_END,
     CMD_DISCONNECT_INTERNAL
   };

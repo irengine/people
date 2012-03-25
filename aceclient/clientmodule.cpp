@@ -2205,6 +2205,11 @@ MyClientToDistProcessor::MyClientToDistProcessor(MyBaseHandler * handler): MyBas
   m_version_check_reply_done = false;
 }
 
+const char * MyClientToDistProcessor::name() const
+{
+  return "MyClientToDistProcessor";
+}
+
 int MyClientToDistProcessor::on_open()
 {
   if (super::on_open() < 0)
@@ -3956,6 +3961,11 @@ void MyClientToDistModule::check_prev_download_task()
 MyClientToMiddleProcessor::MyClientToMiddleProcessor(MyBaseHandler * handler): MyBaseClientProcessor(handler)
 {
 
+}
+
+const char * MyClientToMiddleProcessor::name() const
+{
+  return "MyClientToMiddleProcessor";
 }
 
 int MyClientToMiddleProcessor::on_open()

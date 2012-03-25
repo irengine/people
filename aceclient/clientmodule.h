@@ -392,6 +392,7 @@ public:
   typedef MyBaseClientProcessor super;
 
   MyClientToDistProcessor(MyBaseHandler * handler);
+  virtual const char * name() const;
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
   virtual int on_open();
   int send_heart_beat();
@@ -708,6 +709,7 @@ public:
   typedef MyBaseClientProcessor super;
 
   MyClientToMiddleProcessor(MyBaseHandler * handler);
+  virtual const char * name() const;
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
   virtual int on_open();
 

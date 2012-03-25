@@ -182,6 +182,7 @@ public:
 
   MyHeartBeatProcessor(MyBaseHandler * handler);
   virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
+  virtual const char * name() const;
 
   static MyPingSubmitter * m_heart_beat_submitter;
   static MyIPVerSubmitter * m_ip_ver_submitter;
@@ -487,6 +488,7 @@ class MyDistToBSProcessor: public MyBSBasePacketProcessor
 public:
   typedef MyBSBasePacketProcessor super;
   MyDistToBSProcessor(MyBaseHandler * handler);
+  virtual const char * name() const;
 
 protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);

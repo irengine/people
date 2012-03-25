@@ -664,6 +664,11 @@ MyHeartBeatProcessor::MyHeartBeatProcessor(MyBaseHandler * handler): MyBaseServe
   m_hw_ver[0] = 0;
 }
 
+const char * MyHeartBeatProcessor::name() const
+{
+  return "MyHeartBeatProcessor";
+}
+
 MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 {
   {
@@ -1863,6 +1868,11 @@ void MyHeartBeatModule::on_stop()
 MyDistToBSProcessor::MyDistToBSProcessor(MyBaseHandler * handler): super(handler)
 {
   m_handler->msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
+}
+
+const char * MyDistToBSProcessor::name() const
+{
+  return "MyDistToBSProcessor";
 }
 
 MyBaseProcessor::EVENT_RESULT MyDistToBSProcessor::on_recv_packet_i(ACE_Message_Block * mb)
