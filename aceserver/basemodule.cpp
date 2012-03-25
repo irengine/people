@@ -2141,11 +2141,8 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
   if (close_mask == ACE_Event_Handler::WRITE_MASK)
   {
     if (!m_processor->wait_for_close())
-    {
-      reactor()->remove_handler(this, ACE_Event_Handler::WRITE_MASK | ACE_Event_Handler::DONT_CALL);
       return 0;
-    }
-  }
+   }
 //  else if (!m_processor->wait_for_close())
 //  {
 //    //m_processor->handle_input();
@@ -2185,7 +2182,8 @@ int MyBaseHandler::handle_output (ACE_HANDLE fd)
       mb->release();
 //      reactor()->remove_handler(this, ACE_Event_Handler::WRITE_MASK | ACE_Event_Handler::READ_MASK |
 //                                ACE_Event_Handler::DONT_CALL);
-      return handle_close(ACE_INVALID_HANDLE, 0);
+      //return handle_close(ACE_INVALID_HANDLE, 0);
+      return -1;
     }
     if (mb->length() > 0)
     {
@@ -2194,7 +2192,12 @@ int MyBaseHandler::handle_output (ACE_HANDLE fd)
     }
     mb->release();
   }
-  return this->msg_queue()->is_empty() ? -1:0;
+  if (this->msg_queue()->is_empty())
+    this->reactor()->cancel_wakeup(this, ACE_Event_Handler::WRITE_MASK);
+  else
+    this->reactor()->schedule_wakeup(this, ACE_Event_Handler::WRITE_MASK);
+
+  return 0;
 }
 
 MyBaseHandler::~MyBaseHandler()

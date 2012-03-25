@@ -1085,6 +1085,8 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_test(ACE_Message_Block * 
 {
 //  MyMessageBlockGuard guard(mb);
   MY_DEBUG("playback test packet of %d bytes...\n", mb->length());
+  MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
+  dph->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
 //  mb->rd_ptr(mb->base());
 //  mb->wr_ptr(mb->capacity());
   m_handler->send_data(mb);

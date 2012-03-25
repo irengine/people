@@ -402,7 +402,7 @@ _exit_:
       return -1;
     else
       guard.detach();
-    handler->reactor()->register_handler(handler, ACE_Event_Handler::WRITE_MASK);
+    handler->reactor()->schedule_wakeup(handler, ACE_Event_Handler::WRITE_MASK);
     return 1;
   }
 }
