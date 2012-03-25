@@ -438,7 +438,7 @@ bool MyDistClientOne::dist_files()
       m_dist_clients->on_remove_dist_client(*it, false);
     clear();
     MyServerAppX::instance()->db().load_dist_clients(m_dist_clients, this);
-    MY_INFO("reloading client one db for client id (%s)\n", m_client_id.as_string());
+    MY_DEBUG("reloading client one db for client id (%s)\n", m_client_id.as_string());
   }
 
   for (it = m_client_ones.begin(); it != m_client_ones.end(); )

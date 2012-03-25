@@ -3059,16 +3059,16 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
 //  MY_DEBUG("MyClientToDistHandler::handle_timeout()\n");
   if (long(act) == HEART_BEAT_PING_TIMER)
   {
-    const int extra_size = 1024 * 1024 * 1;
-    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(extra_size, MyDataPacketHeader::CMD_TEST);
-    MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
-    ACE_OS::memset(dpe->data, 0, extra_size);
     MY_DEBUG("ping dist server now...\n");
-    int ret = send_data(mb);
-    if (ret == 0)
-      ret = ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
-    return ret;
-    //return ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
+//    const int extra_size = 1024 * 1024 * 1;
+//    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(extra_size, MyDataPacketHeader::CMD_TEST);
+//    MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+//    ACE_OS::memset(dpe->data, 0, extra_size);
+//    int ret = send_data(mb);
+//    if (ret == 0)
+//      ret = ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
+//    return ret;
+    return ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
   }
   else if (long(act) == IP_VER_TIMER)
     return ((MyClientToDistProcessor*)m_processor)->send_ip_ver_req();
