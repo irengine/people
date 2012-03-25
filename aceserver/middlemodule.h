@@ -311,7 +311,7 @@ protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
-  enum { MSG_QUEUE_MAX_SIZE = 512 * 1024 };
+  enum { MSG_QUEUE_MAX_SIZE = 1024 * 1024 };
 
   MyBaseProcessor::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_load_balance(ACE_Message_Block * mb);

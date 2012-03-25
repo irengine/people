@@ -403,6 +403,7 @@ protected:
 
 private:
   enum { OFFLINE_THREASH_HOLD = 3 }; //in minutes
+  enum { MSG_QUEUE_MAX_SIZE = 2 * 1024 * 1024 };
 
   int send_version_check_req();
   MyBaseProcessor::EVENT_RESULT do_ftp_file_request(ACE_Message_Block * mb);

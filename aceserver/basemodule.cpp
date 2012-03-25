@@ -2137,12 +2137,14 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
                           ACE_Reactor_Mask close_mask)
 {
   ACE_UNUSED_ARG(handle);
+  ACE_UNUSED_ARG(close_mask);
   //  MY_DEBUG("handle_close.y (handle = %d, mask=%x)\n", handle, close_mask);
-  if (close_mask == ACE_Event_Handler::WRITE_MASK)
-  {
-    if (!m_processor->wait_for_close())
-      return 0;
-   }
+//  if (close_mask == ACE_Event_Handler::WRITE_MASK)
+//  {
+//    if (!m_processor->wait_for_close())
+//      return 0;
+//   }
+
 //  else if (!m_processor->wait_for_close())
 //  {
 //    //m_processor->handle_input();

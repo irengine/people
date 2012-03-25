@@ -198,7 +198,7 @@ protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
-  enum { MSG_QUEUE_MAX_SIZE = 512 * 1024 };
+  enum { MSG_QUEUE_MAX_SIZE = 2 * 1024 * 1024 };
 
   void do_ping();
   MyBaseProcessor::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
@@ -547,7 +547,7 @@ protected:
 
 private:
   enum { IP_ADDR_LENGTH = INET_ADDRSTRLEN };
-  enum { MSG_QUEUE_MAX_SIZE = 256 * 1024 };
+  enum { MSG_QUEUE_MAX_SIZE = 512 * 1024 };
 
   int send_version_check_req();
   MyBaseProcessor::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);

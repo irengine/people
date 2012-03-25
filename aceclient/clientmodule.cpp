@@ -2203,6 +2203,7 @@ int MyIpVerReply::heart_beat_interval()
 MyClientToDistProcessor::MyClientToDistProcessor(MyBaseHandler * handler): MyBaseClientProcessor(handler)
 {
   m_version_check_reply_done = false;
+  m_handler->msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
 const char * MyClientToDistProcessor::name() const
