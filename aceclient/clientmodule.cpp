@@ -2321,6 +2321,17 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
     return ER_OK;
   }
 
+  if (m_packet_header.command == MyDataPacketHeader::CMD_TEST)
+  {
+    if (m_packet_header.length < (int)sizeof(MyDataPacketHeader)
+        || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    {
+      MY_ERROR("failed to validate header for test cmd\n");
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
   MY_ERROR("unexpected packet header from dist server, header.command = %d\n", m_packet_header.command);
   return ER_ERROR;
 }
@@ -2381,6 +2392,9 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
 
   if (header->command == MyDataPacketHeader::CMD_ACK)
     return do_ack(mb);
+
+  if (header->command == MyDataPacketHeader::CMD_TEST)
+    return do_test(mb);
 
   MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyClientToDistProcessor::on_recv_packet_i(), command = %d\n",
@@ -2560,6 +2574,13 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ack(ACE_Message_Block 
 
   MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
   MyClientAppX::instance()->client_to_dist_module()->dispatcher()->on_ack(dph->uuid);
+  return ER_OK;
+}
+
+MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_test(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  MY_DEBUG("received test packet of size %d\n", mb->capacity());
   return ER_OK;
 }
 
@@ -3032,7 +3053,17 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
   ACE_UNUSED_ARG(current_time);
 //  MY_DEBUG("MyClientToDistHandler::handle_timeout()\n");
   if (long(act) == HEART_BEAT_PING_TIMER)
-    return ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
+  {
+    const int extra_size = 1024 * 1024 * 1;
+    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(extra_size, MyDataPacketHeader::CMD_TEST);
+    MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+    ACE_OS::memset(dpe->data, 0, extra_size);
+    int ret = send_data(mb);
+    if (ret == 0)
+      ret = ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
+    return ret;
+    //return ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
+  }
   else if (long(act) == IP_VER_TIMER)
     return ((MyClientToDistProcessor*)m_processor)->send_ip_ver_req();
   else if (long(act) == CLICK_SEND_TIMER)

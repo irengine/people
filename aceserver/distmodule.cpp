@@ -807,6 +807,19 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
     return ER_OK;
   }
 
+  if (m_packet_header.command == MyDataPacketHeader::CMD_TEST)
+  {
+    if (m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    {
+      MyPooledMemGuard info;
+      info_string(info);
+      MY_ERROR("bad test packet received from %s\n", info.data());
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
+
   MY_ERROR(ACE_TEXT("unexpected packet header received @MyHeartBeatProcessor.on_recv_header, cmd = %d\n"),
       m_packet_header.command);
 
@@ -845,6 +858,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
 
   if (header->command == MyDataPacketHeader::CMD_PC_ON_OFF)
     return do_pc_on_off_req(mb);
+
+  if (header->command == MyDataPacketHeader::CMD_TEST)
+    return do_test(mb);
 
   MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyHeartBeatProcessor::on_recv_packet_i, command = %d\n",
@@ -1062,6 +1078,16 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_pc_on_off_req(ACE_Message
   }
 
   m_pc_on_off_submitter->add_data(m_client_id.as_string(), m_client_id_length, dpe->data[0], dpe->data + 1);
+  return ER_OK;
+}
+
+MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_test(ACE_Message_Block * mb)
+{
+//  MyMessageBlockGuard guard(mb);
+  MY_DEBUG("playback test packet of %d bytes...\n", mb->length());
+//  mb->rd_ptr(mb->base());
+//  mb->wr_ptr(mb->capacity());
+  m_handler->send_data(mb);
   return ER_OK;
 }
 

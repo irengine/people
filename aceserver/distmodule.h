@@ -209,6 +209,7 @@ private:
   MyBaseProcessor::EVENT_RESULT do_pc_on_off_req(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_hardware_alarm_req(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_vlc_req(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_test(ACE_Message_Block * mb);
   char m_hw_ver[12];
 };
 
