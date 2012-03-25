@@ -3058,6 +3058,7 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
     ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(extra_size, MyDataPacketHeader::CMD_TEST);
     MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
     ACE_OS::memset(dpe->data, 0, extra_size);
+    MY_DEBUG("ping dist server now...\n");
     int ret = send_data(mb);
     if (ret == 0)
       ret = ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
