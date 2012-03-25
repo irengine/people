@@ -2142,7 +2142,7 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
   {
     if (!m_processor->wait_for_close())
     {
-      //reactor()->remove_handler(this, ACE_Event_Handler::WRITE_MASK | ACE_Event_Handler::DONT_CALL);
+      reactor()->remove_handler(this, ACE_Event_Handler::WRITE_MASK | ACE_Event_Handler::DONT_CALL);
       return 0;
     }
   }

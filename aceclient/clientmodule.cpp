@@ -2243,6 +2243,8 @@ int MyClientToDistProcessor::on_open()
 
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
 {
+  MY_DEBUG("get dist packet header: command = %d, len = %d\n", m_packet_header.command, m_packet_header.length);
+
   MyBaseProcessor::EVENT_RESULT result = super::on_recv_header();
   if (result != ER_CONTINUE)
     return ER_ERROR;
@@ -2338,6 +2340,8 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
 
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
+  MY_DEBUG("get complete dist packet: command = %d, len = %d\n", m_packet_header.command, m_packet_header.length);
+
   MyBasePacketProcessor::on_recv_packet_i(mb);
   MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
 
