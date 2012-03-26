@@ -2365,15 +2365,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
         if (!mod->click_sent())
         {
           if (!((MyClientToDistHandler *)m_handler)->setup_click_send_timer())
-          {
-            ACE_Message_Block * mb = mod->get_click_infos(m_client_id.as_string());
-            if (!mb)
-              mod->click_sent_done(m_client_id.as_string());
-            else if (m_handler->send_data(mb) < 0)
-              return ER_ERROR;
-            else
-              mod->click_sent_done(m_client_id.as_string());
-          }
+            MY_ERROR("can not set adv click timer %s\n", (const char *)MyErrno());
         }
       }
 
@@ -3082,12 +3074,13 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
     if (mod->click_sent())
       return 0;
     ACE_Message_Block * mb = mod->get_click_infos(m_processor->client_id().as_string());
-    if (!mb)
-      mod->click_sent_done(m_processor->client_id().as_string());
-    else if (send_data(mb) < 0)
-      return -1;
-    else
-      mod->click_sent_done(m_processor->client_id().as_string());
+    mod->click_sent_done(m_processor->client_id().as_string());
+    if (mb != NULL)
+    {
+      MyClientAppX::instance()->client_to_dist_module()->dispatcher()->add_to_buffered_mbs(mb);
+      if (send_data(mb) < 0)
+        return -1;
+    }
 
     mb = mod->get_vlc_infos(m_processor->client_id().as_string());
     if (mb != NULL)
@@ -3710,10 +3703,13 @@ bool MyClientToDistDispatcher::on_event_loop()
         if (likely(mb->capacity() >= (int)sizeof(MyDataPacketHeader)))
         {
           MyDataPacketHeader * dph = (MyDataPacketHeader*)mb->base();
-          uuid_t uuid;
-          uuid_clear(uuid);
-          if (uuid_compare(dph->uuid, uuid) != 0)
-            add_to_buffered_mbs(mb);
+          if (dph->command == MyDataPacketHeader::CMD_FTP_FILE)
+          {
+            uuid_t uuid;
+            uuid_clear(uuid);
+            if (uuid_compare(dph->uuid, uuid) != 0)
+              add_to_buffered_mbs(mb);
+          }
         }
         m_connector->connection_manager()->send_single(mb);
       }
@@ -3934,7 +3930,7 @@ ACE_Message_Block * MyClientToDistModule::get_click_infos(const char * client_id
   }
 
   ++len;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(len, MyDataPacketHeader::CMD_UI_CLICK, true);
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(len, MyDataPacketHeader::CMD_UI_CLICK, false);
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
   char * ptr = dpe->data;
   for (it = click_infos.begin(); it != click_infos.end(); ++it)
@@ -4325,6 +4321,9 @@ void MyHttp1991Processor::do_command_adv_click(char * parameter)
   if (ptr)
     *ptr = 0;
   ptr = ACE_OS::strchr(pcode, '\r');
+  if (ptr)
+    *ptr = 0;
+  ptr = ACE_OS::strstr(pcode, " HTTP/");
   if (ptr)
     *ptr = 0;
 
