@@ -875,7 +875,7 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
       if (dbg.db().open_db(client_id.as_string(), true))
       {
         dbg.db().remove_outdated_ftp_command(deadline);
-        dbg.db().reset_ftp_command_status();
+//        dbg.db().reset_ftp_command_status();
       }
     }
   } else
@@ -944,14 +944,18 @@ void MyClientApp::check_prev_extract_task(const char * client_id)
         if (dbg.db().open_db(client_id))
           dbg.db().load_ftp_command(*dist_info, msrc.data());
       }
-      if (dist_info->status == -2)
-        dist_info->status = 2;
-      if (dist_info->validate() && dist_info->status == 3)
+//      if (dist_info->status == -2)
+//        dist_info->status = 2;
+      if (dist_info->validate() && (dist_info->status == 3 || dist_info->status == 2))
       {
-        MyClientAppX::instance()->client_to_dist_module()->dist_info_ftps().add(dist_info);
+        //MyClientAppX::instance()->client_to_dist_module()->dist_info_ftps().add(dist_info);
+        delete dist_info;
         continue;
       } else
+      {
+        MY_INFO("removing downloaded file %s (%d)\n", entry->d_name, dist_info->status);
         delete dist_info;
+      }
     }
 
     msrc.init_from_string(path.data(), "/", entry->d_name);

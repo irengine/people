@@ -598,7 +598,8 @@ bool MyClientDB::load_ftp_commands(MyDistInfoFtps * dist_ftps)
 {
   if (unlikely(!dist_ftps))
     return false;
-  const char * sql = "select ftp_dist_id, ftp_str, ftp_status, ftp_recv_time from tb_ftp_info where ftp_status <= 3 order by ftp_recv_time";
+  const char * sql = "select ftp_dist_id, ftp_str, ftp_status, ftp_recv_time from tb_ftp_info "
+                     "where ftp_status <= 3 and ftp_status >= 2 order by ftp_recv_time";
   char *zErrMsg = 0;
   if (sqlite3_exec(m_db, sql, load_ftp_commands_callback, dist_ftps, &zErrMsg) != SQLITE_OK)
   {
@@ -650,11 +651,6 @@ int MyClientDB::load_ftp_commands_callback(void * p, int argc, char **argv, char
 
   //ftp_dist_id, ftp_str, ftp_status, ftp_recv_time
   MyDistInfoFtp * dist_ftp = new MyDistInfoFtp();
-  if (unlikely(!dist_ftp->load_from_string(argv[1])))
-  {
-    delete dist_ftp;
-    return 0;
-  }
 
   if (unlikely(!argv[2] || !*argv[2]))
   {
@@ -662,10 +658,16 @@ int MyClientDB::load_ftp_commands_callback(void * p, int argc, char **argv, char
     return 0;
   }
   dist_ftp->status = atoi(argv[2]);
-  if (dist_ftp->status == -2)
-    dist_ftp->status = 2;
+//  if (dist_ftp->status == -2)
+//    dist_ftp->status = 2;
   if (dist_ftp->status == 2)
     dist_ftp->inc_failed(3);
+
+  if (unlikely(!dist_ftp->load_from_string(argv[1])))
+  {
+    delete dist_ftp;
+    return 0;
+  }
 
   if (unlikely(!argv[3] || !*argv[3]))
   {
@@ -694,25 +696,25 @@ int MyClientDB::load_ftp_command_callback(void * p, int argc, char **argv, char 
     MY_ERROR("NULL dist_ftp parameter @load_ftp_command_callback\n");
     return -1;
   }
+  dist_ftp->status = -1;
   if (unlikely(argc != 4))
   {
     MY_ERROR("unexpected parameter number (=%d) @load_ftp_commands_callback\n", argc);
     return -1;
   }
-
-  //ftp_dist_id, ftp_str, ftp_status, ftp_recv_time
-  if (unlikely(!dist_ftp->load_from_string(argv[1])))
-    return 0;
-
   if (unlikely(!argv[2] || !*argv[2]))
     return 0;
 
   dist_ftp->status = atoi(argv[2]);
 
+  //ftp_dist_id, ftp_str, ftp_status, ftp_recv_time
+  if (unlikely(!dist_ftp->load_from_string(argv[1])))
+    return 0;
+
   if (unlikely(!argv[3] || !*argv[3]))
     return 0;
 
-  dist_ftp->recv_time = atoi(argv[2]);
+  dist_ftp->recv_time = atoi(argv[3]);
   return 0;
 }
 
@@ -997,7 +999,6 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
       return false;
     }
   }
-
 
   if (fs_client > 0)
   {
@@ -3060,15 +3061,18 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
   if (long(act) == HEART_BEAT_PING_TIMER)
   {
     MY_DEBUG("ping dist server now...\n");
-//    const int extra_size = 1024 * 1024 * 1;
-//    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(extra_size, MyDataPacketHeader::CMD_TEST);
-//    MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
-//    ACE_OS::memset(dpe->data, 0, extra_size);
-//    int ret = send_data(mb);
-//    if (ret == 0)
-//      ret = ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
-//    return ret;
+#if 0
+    const int extra_size = 1024 * 1024 * 1;
+    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(extra_size, MyDataPacketHeader::CMD_TEST);
+    MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+    ACE_OS::memset(dpe->data, 0, extra_size);
+    int ret = send_data(mb);
+    if (ret == 0)
+      ret = ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
+    return ret;
+#else
     return ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
+#endif
   }
   else if (long(act) == IP_VER_TIMER)
     return ((MyClientToDistProcessor*)m_processor)->send_ip_ver_req();
