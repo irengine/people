@@ -565,6 +565,8 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
 {
   MyPooledMemGuard src_path, dest_path;
   MyPooledMemGuard mfile;
+  struct stat buf;
+
   if (!get_mfile(src_parent_path, mfile))
   {
     MY_ERROR("no main index file found @MyClientApp::do_backup_restore() in path: %s\n", src_parent_path.data());
@@ -577,18 +579,18 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
     if (get_mfile(dest_parent_path, mfile_dest))
     {
       dest_path.init_from_string(dest_parent_path.data(), "/", mfile_dest.data());
-      MyFilePaths::remove(dest_path.data());
+      MyFilePaths::zap(dest_path.data(), true);
       MyFilePaths::get_correlate_path(dest_path, 0);
-      MyFilePaths::remove_path(dest_path.data(), true);
+      MyFilePaths::zap(dest_path.data(), true);
     }
   }
 
   src_path.init_from_string(src_parent_path.data(), "/8");
-  if (MyFilePaths::exist(src_path.data()))
+  dest_path.init_from_string(dest_parent_path.data(), "/8");
+  if (remove_existing)
+    MyFilePaths::zap(dest_path.data(), true);
+  if (MyFilePaths::stat(src_path.data(), &buf) && S_ISDIR(buf.st_mode))
   {
-    dest_path.init_from_string(dest_parent_path.data(), "/8");
-    if (remove_existing)
-      MyFilePaths::remove_path(dest_path.data(), true);
     if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
     {
       MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
@@ -603,7 +605,7 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
   }
 
   src_path.init_from_string(src_parent_path.data(), "/", mfile.data());
-  if (MyFilePaths::exist(src_path.data()))
+  if (MyFilePaths::stat(src_path.data(), &buf) && S_ISREG(buf.st_mode))
   {
     dest_path.init_from_string(dest_parent_path.data(), "/", mfile.data());
     if (!MyFilePaths::copy_file(src_path.data(), dest_path.data(), true))
@@ -614,11 +616,11 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
   }
 
   MyFilePaths::get_correlate_path(src_path, 0);
-  if (MyFilePaths::exist(src_path.data()))
+  MyFilePaths::get_correlate_path(dest_path, 0);
+  if (remove_existing)
+    MyFilePaths::zap(dest_path.data(), true);
+  if (MyFilePaths::stat(src_path.data(), &buf) && S_ISDIR(buf.st_mode))
   {
-    MyFilePaths::get_correlate_path(dest_path, 0);
-    if (remove_existing)
-      MyFilePaths::remove_path(dest_path.data(), true);
     if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
     {
       MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
@@ -627,11 +629,11 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
   }
 
   src_path.init_from_string(src_parent_path.data(), "/led");
-  if (MyFilePaths::exist(src_path.data()))
+  dest_path.init_from_string(dest_parent_path.data(), "/led");
+  if (remove_existing)
+    MyFilePaths::zap(dest_path.data(), true);
+  if (MyFilePaths::stat(src_path.data(), &buf) && S_ISDIR(buf.st_mode))
   {
-    dest_path.init_from_string(dest_parent_path.data(), "/led");
-    if (remove_existing)
-      MyFilePaths::remove_path(dest_path.data(), true);
     if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
     {
       MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
@@ -643,11 +645,11 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
     MyClientAppX::instance()->opera_launcher().launch();
 
   src_path.init_from_string(src_parent_path.data(), "/5");
-  if (MyFilePaths::exist(src_path.data()))
+  dest_path.init_from_string(dest_parent_path.data(), "/5");
+  if (remove_existing)
+    MyFilePaths::zap(dest_path.data(), true);
+  if (MyFilePaths::stat(src_path.data(), &buf) && S_ISDIR(buf.st_mode))
   {
-    dest_path.init_from_string(dest_parent_path.data(), "/5");
-    if (remove_existing)
-      MyFilePaths::remove_path(dest_path.data(), true);
     if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
     {
       MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());

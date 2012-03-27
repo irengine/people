@@ -743,7 +743,7 @@ int MyClientDB::get_ftp_md5_for_diff_callback(void * p, int argc, char **argv, c
 {
   ACE_UNUSED_ARG(azColName);
 
-  if (argc != 2 || !argv[0] || !argv[1])
+  if (argc != 2 || !argv[0])
     return -1;
   MyDistInfoFtp * dist_info = (MyDistInfoFtp *) p;
   dist_info->server_md5.init_from_string(argv[0]);
@@ -1193,6 +1193,13 @@ const char * MyDistInfoHeader::index_file() const
   return findex.data();
 }
 
+bool MyDistInfoHeader::need_spl() const
+{
+  if (!aindex.data() || !aindex.data()[0])
+    return false;
+  return ACE_OS::strcmp(aindex.data(), findex.data()) != 0;
+}
+
 int MyDistInfoHeader::load_header_from_string(char * src)
 {
   if (unlikely(!src))
@@ -1631,6 +1638,7 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
   {
     MY_ERROR("apply update failed for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
 //    idtable.expired(dist_info->client_id_index, true);
+//todo: lock or unlock?
   }
   else
   {
@@ -1681,12 +1689,44 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
 
   if (type_is_multi(dist_info->type))
   {
-    if (!mycomutil_string_end_with(dist_info->local_file_name.data(), "/all_in_one.mbz"))
+    if (!mycomutil_string_end_with(dist_info->file_name.data(), "/all_in_one.mbz"))
     {
-      if (!MyFilePaths::copy_path(true_dest_path.data(), target_path.data(), true))
+      if (ftype_is_frame(dist_info->ftype))
       {
-        MY_ERROR("copy path failed from %s to %s\n", true_dest_path.data(), target_path.data());
-        return false;
+        MyPooledMemGuard src, dest;
+        src.init_from_string(true_dest_path.data(), "/index.html");
+        dest.init_from_string(target_path.data(), "/index.html");
+        struct stat buf;
+        if (MyFilePaths::stat(src.data(), &buf) && S_ISREG(buf.st_mode))
+        {
+          if (!MyFilePaths::copy_file(src.data(), dest.data(), true))
+          {
+            MY_ERROR("failed to copy file %s to %s, %s\n", src.data(), dest.data(), (const char*)MyErrno());
+            return false;
+          }
+        }
+        src.init_from_string(true_dest_path.data(), "/index");
+        dest.init_from_string(target_path.data(), "/index");
+
+        if (MyFilePaths::stat(src.data(), &buf) && S_ISDIR(buf.st_mode))
+        {
+          if (!MyFilePaths::copy_path(src.data(), dest.data(), true))
+          {
+            MY_ERROR("copy path failed from %s to %s\n", src.data(), dest.data());
+            return false;
+          }
+        }
+      } else
+      {
+        struct stat buf;
+        if (MyFilePaths::stat(true_dest_path.data(), &buf) && S_ISDIR(buf.st_mode))
+        {
+          if (!MyFilePaths::copy_path(true_dest_path.data(), target_path.data(), true))
+          {
+            MY_ERROR("copy path failed from %s to %s\n", true_dest_path.data(), target_path.data());
+            return false;
+          }
+        }
       }
 
       {
@@ -1709,6 +1749,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
           MyFilePaths::zap_path_except_mfile(target_path, dist_info->findex, true);
       }
 
+#if 0
       MyMfileSplitter spl;
       spl.init(dist_info->aindex.data());
       MyFileMD5s server_md5s, client_md5s;
@@ -1730,6 +1771,25 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
         MyFilePaths::get_correlate_path(index_path, 0);
         MyFilePaths::zap_empty_paths(index_path);
       }
+#else
+      MyMfileSplitter spl;
+      spl.init(dist_info->aindex.data());
+      MyFileMD5s server_md5s;
+      server_md5s.enable_map();
+//    MY_DEBUG("cmp md5 server: %s\n", dist_info->server_md5.data());
+//    MY_DEBUG("cmp md5 client: %s\n", dist_info->client_md5.data());
+      if (!server_md5s.from_buffer(dist_info->server_md5.data(), &spl))
+      {
+        MY_ERROR("bad server md5 list @MyDistFtpFileExtractor::do_extract\n");
+        return false;
+      }
+      server_md5s.trim_garbage(target_path.data());
+      if (!MyFilePaths::make_path_const(target_path.data(), prefix_len, false, true))
+      {
+        MY_ERROR("can not mkdir(%s) %s\n", target_path.data(), (const char *)MyErrno());
+        return false;
+      }
+#endif
     }
   }
 
@@ -1745,9 +1805,9 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
       {
         MyPooledMemGuard mfilex;
         mfilex.init_from_string(true_dest_path.data(), "/", mfile.data());
-        MyFilePaths::remove(mfilex.data());
+        MyFilePaths::zap(mfilex.data(), true);
         MyFilePaths::get_correlate_path(mfilex, 0);
-        MyFilePaths::remove_path(mfilex.data(), true);
+        MyFilePaths::zap(mfilex.data(), true);
       }
     }
 
@@ -1828,7 +1888,7 @@ void MyDistInfoMD5::post_md5_message()
   ACE_OS::memcpy(dpe->data, dist_id.data(), dist_id_len);
   dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
   m_md5list.to_buffer(dpe->data + dist_id_len + 1, md5_len, false);
-  MY_INFO("posting md5 reply to dist server for dist_id (%s), md5 len = %d\n", dist_id.data(), md5_len - 1);
+  MY_INFO("posting md5 reply to dist server for dist_id (%s), md5 len = %d, data= %s\n", dist_id.data(), md5_len - 1, dpe->data + dist_id_len + 1);
   MyClientAppX::instance()->send_mb_to_dist(mb);
 }
 
@@ -1951,6 +2011,35 @@ bool MyDistInfoMD5Comparer::compute(MyDistInfoHeader * dist_info_header, MyFileM
   //const char * aindex = ftype_is_chn(dist_info_header->ftype)? NULL: dist_info_header->aindex.data();
   return md5list.calculate(target_path.data(), /*aindex,*/ dist_info_header->aindex.data(),
          type_is_single(dist_info_header->type));
+}
+
+bool MyDistInfoMD5Comparer::compute(MyDistInfoMD5 * dist_md5)
+{
+  if (unlikely(!dist_md5))
+    return false;
+
+  MyPooledMemGuard target_parent_path;
+  dist_md5->calc_target_parent_path(target_parent_path, false);
+
+  MyPooledMemGuard target_path;
+  if (!dist_md5->calc_target_path(target_parent_path.data(), target_path))
+    return false;
+
+//  int prefix_len = ACE_OS::strlen(target_parent_path.data());
+//  if (!MyFilePaths::make_path_const(target_path.data(), prefix_len, false, true))
+//  {
+//    MY_ERROR("can not mkdir(%s) %s\n", target_path.data(), (const char *)MyErrno());
+//    return false;
+//  }
+
+  //const char * aindex = ftype_is_chn(dist_info_header->ftype)? NULL: dist_info_header->aindex.data();
+  if (dist_md5->need_spl())
+  {
+    MyMfileSplitter spl;
+    spl.init(dist_md5->aindex.data());
+    return dist_md5->md5list().calculate_diff(target_path.data(), &spl);
+  } else
+    return dist_md5->md5list().calculate_diff(target_path.data(), NULL);
 }
 
 void MyDistInfoMD5Comparer::compare(MyDistInfoHeader * dist_info_header, MyFileMD5s & server_md5, MyFileMD5s & client_md5)
@@ -3207,6 +3296,19 @@ void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
     return;
   }
 
+#if 1
+  if (!MyDistInfoMD5Comparer::compute(p))
+    MY_ERROR("md5 file list generation error\n");
+
+  bool b_saved = false;
+  {
+    MyClientDBGuard dbg;
+    if (dbg.db().open_db(p->client_id.as_string()))
+      b_saved = dbg.db().save_md5_command(p->dist_id.data(), p->md5_text(), "");
+  }
+
+  MY_INFO("client side md5 for dist_id(%s) save: %s\n", p->dist_id.data(), b_saved? "OK":"failed");
+#else
   MyFileMD5s client_md5s;
   if (!MyDistInfoMD5Comparer::compute(p, client_md5s))
     MY_ERROR("md5 file list generation error\n");
@@ -3227,6 +3329,7 @@ void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
   MY_INFO("client side md5 for dist_id(%s) save: %s\n", p->dist_id.data(), b_saved? "OK":"failed");
 
   MyDistInfoMD5Comparer::compare(p, p->md5list(), client_md5s);
+#endif
   p->compare_done(true);
   p->post_md5_message();
   return_back_md5(p);

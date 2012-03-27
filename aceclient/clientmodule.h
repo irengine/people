@@ -209,6 +209,7 @@ public:
   bool calc_target_path(const char * target_parent_path, MyPooledMemGuard & target_path);
   virtual bool validate();
   const char * index_file() const;
+  bool need_spl() const;
 
   MyPooledMemGuard dist_id;
   MyPooledMemGuard findex;
@@ -267,6 +268,7 @@ class MyDistInfoMD5Comparer
 public:
   static bool compute(MyDistInfoHeader * dist_info_header, MyFileMD5s & md5list);
   static void compare(MyDistInfoHeader * dist_info_header, MyFileMD5s & server_md5, MyFileMD5s & client_md5);
+  static bool compute(MyDistInfoMD5 * dist_md5);
 };
 
 class MyDistInfoFtp: public MyDistInfoHeader

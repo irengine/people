@@ -623,6 +623,7 @@ public:
   static int  cat_path(const char * path, const char * subpath, MyPooledMemGuard & result);
   static bool get_correlate_path(MyPooledMemGuard & pathfile, int skip);
   static bool remove(const char *pathfile, bool ignore_error = false);
+  static bool zap(const char *pathfile, bool ignore_error);
   static bool rename(const char *old_path, const char * new_path, bool ignore_eror);
   static bool stat(const char *pathfile, struct stat * _stat);
   static bool zap_path_except_mfile(const MyPooledMemGuard & path, const MyPooledMemGuard & mfile, bool ignore_error);

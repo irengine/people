@@ -432,7 +432,7 @@ int mycomutil_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH
 bool MyFilePaths::exist(const char * path)
 {
   struct stat buf;
-  return (::stat(path, &buf) == 0);
+  return stat(path, &buf);
 }
 
 bool MyFilePaths::make_path(const char* path, bool self_only)
@@ -664,7 +664,7 @@ bool MyFilePaths::remove_old_files(const char * path, time_t deadline)
     return false;
 
   struct stat buf;
-  if (::stat(path, &buf) != 0)
+  if (!stat(path, &buf))
     return false;
 
   if (S_ISREG(buf.st_mode))
@@ -787,6 +787,27 @@ bool MyFilePaths::remove(const char *pathfile, bool ignore_error)
   if (!result && !ignore_error)
     MY_ERROR("remove %s failed %s\n", pathfile, (const char*)MyErrno());
   return result;
+}
+
+bool MyFilePaths::zap(const char *pathfile, bool ignore_error)
+{
+  struct stat _stat;
+  if (!stat(pathfile, &_stat))
+  {
+    if (ACE_OS::last_error() == ENOENT)
+      return true;
+    else
+    {
+      if (!ignore_error)
+        MY_ERROR("stat(%s) failed %s\n", (const char *)MyErrno());
+      return false;
+    }
+  }
+
+  if (S_ISDIR(_stat.st_mode))
+    return remove_path(pathfile, ignore_error);
+  else
+    return remove(pathfile, ignore_error);
 }
 
 bool MyFilePaths::stat(const char *pathfile, struct stat * _stat)

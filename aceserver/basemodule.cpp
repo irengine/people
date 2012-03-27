@@ -481,6 +481,14 @@ void MyFileMD5s::minus(MyFileMD5s & target, MyMfileSplitter * spl, bool do_delet
   }
 }
 
+void MyFileMD5s::trim_garbage(const char * pathname)
+{
+  if (unlikely(!pathname || !*pathname))
+    return;
+
+  do_trim_garbage(pathname, ACE_OS::strlen(pathname) + 1);
+}
+
 void MyFileMD5s::sort()
 {
   std::sort(m_file_md5_list.begin(), m_file_md5_list.end(), MyPointerLess());
@@ -611,7 +619,7 @@ bool MyFileMD5s::from_buffer(char * buff, MyMfileSplitter * spl)
     const char * filename = spl? spl->translate(token): token;
     MyFileMD5 * fm = new(p) MyFileMD5(filename, md5, 0);
     if (m_md5_map != NULL)
-      m_md5_map->insert(std::pair<const char *, MyFileMD5 *>(filename, fm));
+      m_md5_map->insert(std::pair<const char *, MyFileMD5 *>(fm->filename(), fm));
     m_file_md5_list.push_back(fm);
   }
 
@@ -624,6 +632,7 @@ bool MyFileMD5s::calculate_diff(const char * dirname, MyMfileSplitter * spl)
   MyPooledMemGuard fn;
   int n = ACE_OS::strlen(dirname);
   MyFileMD5List::iterator it;
+  MY_DEBUG("on start: md5 list size = %d\n", m_file_md5_list.size());
   for (it = m_file_md5_list.begin(); it != m_file_md5_list.end(); )
   {
     const char * new_name = spl? spl->translate((**it).filename()): (**it).filename();
@@ -635,12 +644,14 @@ bool MyFileMD5s::calculate_diff(const char * dirname, MyMfileSplitter * spl)
     {
       MyFileMD5 * p = *it;
       it = m_file_md5_list.erase(it);
+      MY_DEBUG("after delete one: md5 list size = %d\n", m_file_md5_list.size());
       if (m_md5_map)
         m_md5_map->erase(p->filename());
       MyPooledObjectDeletor dlt;
       dlt(p);
     }
   }
+  MY_DEBUG("on finish: md5 list size = %d\n", m_file_md5_list.size());
   return true;
 }
 
@@ -716,6 +727,46 @@ bool MyFileMD5s::do_scan_directory(const char * dirname, int start_len)
 
   closedir(dir);
   return true;
+}
+
+void MyFileMD5s::do_trim_garbage(const char * dirname, int start_len)
+{
+  DIR * dir = opendir(dirname);
+  if (!dir)
+  {
+    if (ACE_OS::last_error() != ENOENT)
+      MY_ERROR("can not open directory: %s %s\n", dirname, (const char*)MyErrno());
+    return;
+  }
+
+  struct dirent *entry;
+  char buff[PATH_MAX];
+  MyPooledMemGuard fn;
+  while ((entry = readdir(dir)) != NULL)
+  {
+    if (!entry->d_name)
+      continue;
+    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+      continue;
+
+    if (entry->d_type == DT_REG)
+    {
+      fn.init_from_string(dirname, "/", entry->d_name);
+      if (!has_file(fn.data() + start_len))
+        MyFilePaths::remove(fn.data(), true);
+    }
+    else if(entry->d_type == DT_DIR)
+    {
+      ACE_OS::snprintf(buff, PATH_MAX - 1, "%s/%s", dirname, entry->d_name);
+      do_trim_garbage(buff, start_len);
+    } else
+      MY_WARNING("unknown file type (= %d) for file @MyFileMD5s::do_trim_garbage file = %s/%s\n",
+           entry->d_type, dirname, entry->d_name);
+  };
+
+  closedir(dir);
+  MyFilePaths::remove(dirname, true);
+  return;
 }
 
 

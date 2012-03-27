@@ -192,6 +192,7 @@ public:
   bool has_file(const char * fn);
   bool base_dir(const char *);
   void minus(MyFileMD5s & , MyMfileSplitter * spl, bool do_delete);
+  void trim_garbage(const char * pathname);
   bool add_file(const char * filename, const char * md5, int prefix_len);
   bool add_file(const char * pathname, const char * filename, int prefix_len, const char * alias);
   void sort();
@@ -215,6 +216,8 @@ private:
                                 > MyMD5map;
 
   bool do_scan_directory(const char * dirname, int start_len);
+  void do_trim_garbage(const char * pathname, int start_len);
+
   MyFileMD5 * find(const char * fn);
 
   MyFileMD5List m_file_md5_list;
