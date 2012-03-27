@@ -632,7 +632,6 @@ bool MyFileMD5s::calculate_diff(const char * dirname, MyMfileSplitter * spl)
   MyPooledMemGuard fn;
   int n = ACE_OS::strlen(dirname);
   MyFileMD5List::iterator it;
-  MY_DEBUG("on start: md5 list size = %d\n", m_file_md5_list.size());
   for (it = m_file_md5_list.begin(); it != m_file_md5_list.end(); )
   {
     const char * new_name = spl? spl->translate((**it).filename()): (**it).filename();
@@ -644,14 +643,12 @@ bool MyFileMD5s::calculate_diff(const char * dirname, MyMfileSplitter * spl)
     {
       MyFileMD5 * p = *it;
       it = m_file_md5_list.erase(it);
-      MY_DEBUG("after delete one: md5 list size = %d\n", m_file_md5_list.size());
       if (m_md5_map)
         m_md5_map->erase(p->filename());
       MyPooledObjectDeletor dlt;
       dlt(p);
     }
   }
-  MY_DEBUG("on finish: md5 list size = %d\n", m_file_md5_list.size());
   return true;
 }
 
