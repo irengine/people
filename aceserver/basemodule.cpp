@@ -385,12 +385,21 @@ MyFileMD5s::MyFileMD5s()
 {
 //  MY_DEBUG("creating md5s: %X\n", (int)(long)this);
   m_base_dir_len = 0;
+  m_md5_map = NULL;
 }
 
 MyFileMD5s::~MyFileMD5s()
 {
 //  MY_DEBUG("destroying md5s: %X\n", (int)(long)this);
   std::for_each(m_file_md5_list.begin(), m_file_md5_list.end(), MyPooledObjectDeletor());
+  if (m_md5_map)
+    delete m_md5_map;
+}
+
+void MyFileMD5s::enable_map()
+{
+  if (m_md5_map == NULL)
+    m_md5_map = new MyMD5map();
 }
 
 bool MyFileMD5s::base_dir(const char * dir)
@@ -404,6 +413,25 @@ bool MyFileMD5s::base_dir(const char * dir)
   m_base_dir_len = strlen(dir) + 1;
   m_base_dir.init_from_string(dir);
   return true;
+}
+
+bool MyFileMD5s::has_file(const char * fn)
+{
+  return find(fn) != NULL;
+}
+
+MyFileMD5 * MyFileMD5s::find(const char * fn)
+{
+  if (unlikely(!fn || !*fn))
+    return NULL;
+  MY_ASSERT_RETURN(m_md5_map != NULL, "MyFileMD5s::find NULL map\n", NULL);
+
+  MyMD5map::iterator it;
+  it = m_md5_map->find(fn);
+  if (it == m_md5_map->end())
+    return NULL;
+  else
+    return it->second;
 }
 
 void MyFileMD5s::minus(MyFileMD5s & target, MyMfileSplitter * spl, bool do_delete)
@@ -582,16 +610,43 @@ bool MyFileMD5s::from_buffer(char * buff, MyMfileSplitter * spl)
     void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyFileMD5));
     const char * filename = spl? spl->translate(token): token;
     MyFileMD5 * fm = new(p) MyFileMD5(filename, md5, 0);
+    if (m_md5_map != NULL)
+      m_md5_map->insert(std::pair<const char *, MyFileMD5 *>(filename, fm));
     m_file_md5_list.push_back(fm);
   }
 
   return true;
 }
 
+bool MyFileMD5s::calculate_diff(const char * dirname, MyMfileSplitter * spl)
+{
+  MY_ASSERT_RETURN(dirname && *dirname, "NULL dirname @MyFileMD5s::calculate_diff()\n", false);
+  MyPooledMemGuard fn;
+  int n = ACE_OS::strlen(dirname);
+  MyFileMD5List::iterator it;
+  for (it = m_file_md5_list.begin(); it != m_file_md5_list.end(); )
+  {
+    const char * new_name = spl? spl->translate((**it).filename()): (**it).filename();
+    fn.init_from_string(dirname, "/", new_name);
+    MyFileMD5 md5(fn.data(), NULL, n + 1);
+    if (!md5.ok() || !md5.same_md5(**it))
+      ++ it;
+    else
+    {
+      MyFileMD5 * p = *it;
+      it = m_file_md5_list.erase(it);
+      if (m_md5_map)
+        m_md5_map->erase(p->filename());
+      MyPooledObjectDeletor dlt;
+      dlt(p);
+    }
+  }
+  return true;
+}
+
 bool MyFileMD5s::calculate(const char * dirname, const char * mfile, bool single)
 {
-  if (unlikely(!dirname || !*dirname))
-    return false;
+  MY_ASSERT_RETURN(dirname && *dirname, "NULL dirname @MyFileMD5s::calculate()\n", false);
   base_dir(dirname);
 
   if (mfile && *mfile)

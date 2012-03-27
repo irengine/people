@@ -1035,6 +1035,7 @@ bool MyBaseApp::do_sigchild()
   m_sigchld = false;
   while ((pid = ::waitpid(-1, &status, WNOHANG)) > 0)
   {
+    MY_INFO("child process (%d) closes...\n", (int)pid);
     if (!on_sigchild(pid))
       return false;
   }

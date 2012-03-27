@@ -29,6 +29,7 @@
 #include <list>
 #include <string>
 #include <algorithm>
+#include <tr1/unordered_map>
 
 #include "common.h"
 #include "mycomutil.h"
@@ -187,27 +188,39 @@ public:
 
   MyFileMD5s();
   ~MyFileMD5s();
+  void enable_map();
+  bool has_file(const char * fn);
   bool base_dir(const char *);
   void minus(MyFileMD5s & , MyMfileSplitter * spl, bool do_delete);
   bool add_file(const char * filename, const char * md5, int prefix_len);
   bool add_file(const char * pathname, const char * filename, int prefix_len, const char * alias);
   void sort();
-  int count() const
+  int  count() const
   {
     return m_file_md5_list.size();
   }
   bool to_buffer(char * buff, int buff_len, bool include_md5_value);
   bool from_buffer(char * buff, MyMfileSplitter * spl = NULL);
 
-  int total_size(bool include_md5_value);
+  int  total_size(bool include_md5_value);
   bool calculate(const char * dirname, const char * mfile, bool single);
+  bool calculate_diff(const char * dirname, MyMfileSplitter * spl = NULL);
 
 private:
+  typedef std::tr1::unordered_map<const char *,
+                                  MyFileMD5 *,
+                                  MyStringHash,
+                                  MyStringEqual,
+                                  MyAllocator <std::pair<const char *, MyFileMD5 *> >
+                                > MyMD5map;
+
   bool do_scan_directory(const char * dirname, int start_len);
+  MyFileMD5 * find(const char * fn);
 
   MyFileMD5List m_file_md5_list;
   MyPooledMemGuard m_base_dir; //todo: remove m_base_dir
   int m_base_dir_len;
+  MyMD5map * m_md5_map;
 };
 
 class MyBaseArchiveReader
