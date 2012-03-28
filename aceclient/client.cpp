@@ -759,6 +759,15 @@ bool MyClientApp::on_construct()
     }
   }
 
+  if (!full_restore(NULL, true, true, NULL, true))
+  {
+    MY_WARNING("restore of latest data failed, now restoring previous data...\n");
+    if (!full_restore(NULL, true, false, NULL, true))
+    {
+      MY_ERROR("restore of previous data failed\n");
+    }
+  }
+
   add_module(m_client_to_dist_module = new MyClientToDistModule(this));
 
   if (!g_test_mode)
@@ -899,14 +908,6 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
       cleaner.do_clean(mpath, app->client_id(), cfg->adv_expire_days);
     }
 
-    if (!full_restore(NULL, true, true, NULL, true))
-    {
-      MY_WARNING("restore of latest data failed, now restoring previous data...\n");
-      if (!full_restore(NULL, true, false, NULL, true))
-      {
-        MY_ERROR("restore of previous data failed\n");
-      }
-    }
     MyClientToDistHandler::init_mem_pool(100);
   }
 
