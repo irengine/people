@@ -1300,6 +1300,8 @@ bool MyDistInfoHeader::calc_update_ini_value(MyPooledMemGuard & value)
 {
   if (ftype_is_chn(ftype))
     value.init_from_string(adir.data());
+  else if (ftype_is_adv_list(ftype))
+    value.init_from_string("p");
   else if (ftype_is_adv(ftype))
     value.init_from_string("g");
   else if (ftype_is_led(ftype))

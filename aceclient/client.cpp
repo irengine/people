@@ -39,7 +39,7 @@ bool MyProgramLauncher::do_on_terminated()
 {
   if (!MyClientAppX::instance()->running())
     return false;
-  return true;
+  return launch();
 }
 
 bool MyProgramLauncher::launch()
@@ -71,7 +71,10 @@ bool MyProgramLauncher::launch()
 void MyProgramLauncher::on_terminated(pid_t pid)
 {
   if (likely(pid == m_pid))
+  {
     m_pid = INVALID_PID;
+    do_on_terminated();
+  }
 }
 
 bool MyProgramLauncher::running() const
@@ -282,7 +285,7 @@ void MyVLCMonitor::check_relaunch()
 
 void MyVLCMonitor::need_relaunch()
 {
-  m_need_relaunch = true;
+//  m_need_relaunch = true;
 }
 
 void MyVLCMonitor::relaunch()
@@ -294,7 +297,7 @@ void MyVLCMonitor::relaunch()
   }
 
   m_app->vlc_launcher().kill_instance();
-  m_need_relaunch = true;
+//  m_need_relaunch = true;
 }
 
 void MyVLCMonitor::launch_vlc()
@@ -315,7 +318,7 @@ void MyVLCMonitor::launch_vlc()
 
 int MyVLCMonitor::handle_timeout(const ACE_Time_Value &, const void *)
 {
-  relaunch();//launch_vlc();
+  relaunch();
   return 0;
 }
 
@@ -818,8 +821,8 @@ bool MyClientApp::on_sigchild(pid_t pid)
 
 bool MyClientApp::on_event_loop()
 {
-  m_vlc_monitor.check_relaunch();
-  m_opera_launcher.check_relaunch();
+//  m_vlc_monitor.check_relaunch();
+//  m_opera_launcher.check_relaunch();
   return true;
 }
 
