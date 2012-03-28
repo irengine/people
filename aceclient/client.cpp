@@ -786,12 +786,15 @@ bool MyClientApp::on_construct()
     }
   }
 
-  if (!full_restore(NULL, true, true, NULL, true))
+  if (!g_test_mode)
   {
-    MY_WARNING("restore of latest data failed, now restoring previous data...\n");
-    if (!full_restore(NULL, true, false, NULL, true))
+    if (!full_restore(NULL, true, true, NULL, true))
     {
-      MY_ERROR("restore of previous data failed\n");
+      MY_WARNING("restore of latest data failed, now restoring previous data...\n");
+      if (!full_restore(NULL, true, false, NULL, true))
+      {
+        MY_ERROR("restore of previous data failed\n");
+      }
     }
   }
 

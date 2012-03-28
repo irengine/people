@@ -581,6 +581,8 @@ class MyDistToMiddleDispatcher: public MyBaseDispatcher
 {
 public:
   MyDistToMiddleDispatcher(MyBaseModule * pModule, int numThreads = 1);
+  virtual ~MyDistToMiddleDispatcher();
+
   virtual const char * name() const;
   void send_to_bs(ACE_Message_Block * mb);
   void send_to_middle(ACE_Message_Block * mb);
@@ -589,6 +591,7 @@ protected:
   virtual void on_stop();
   virtual bool on_start();
   virtual bool on_event_loop();
+  virtual void on_stop_stage_1();
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };

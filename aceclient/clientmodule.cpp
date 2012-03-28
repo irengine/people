@@ -2465,7 +2465,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
 
       if (g_test_mode && m_client_id_index != 0)
       {
-        ((MyClientToDistHandler*)m_handler)->setup_heart_beat_timer(1 * 60);
+        ((MyClientToDistHandler*)m_handler)->setup_heart_beat_timer(1);
       } else
       {
         MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();

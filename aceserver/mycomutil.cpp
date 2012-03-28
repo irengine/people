@@ -1006,7 +1006,6 @@ void MyMemPoolFactory::init(MyConfig * config)
   const int MB = 1024 * 1024;
   const int pool_size[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8 * KB, 16 * KB, 32 * KB,
                            64 * KB, 128 * KB, 256 * KB, 512 * KB, 2 * MB};
-  //todo: change default pool size
   int count = sizeof (pool_size) / sizeof (int);
   m_pools.reserve(count);
   m_pool_sizes.reserve(count);
@@ -1035,8 +1034,8 @@ void MyMemPoolFactory::init(MyConfig * config)
 
     for(size_t i = 0;i < sizeof (pool_size) / sizeof (int);++i)
     {
-      if (pool_size[i] <= 8 * KB)
-        m = std::max((int)((config->max_clients * 1.2)), 3000);
+      if (pool_size[i] <= 1 * KB)
+        m = std::max((int)((config->max_clients * 2.2)), 3000);
       else if (pool_size[i] < 512 * KB)
         m = 2 * MB / pool_size[i];
       else

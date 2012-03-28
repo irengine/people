@@ -1305,6 +1305,7 @@ MyIPVerSubmitter::MyIPVerSubmitter():
 
 void MyIPVerSubmitter::add_data(const char * client_id, int id_len, const char * ip, const char * ver, const char * hwver)
 {
+  ACE_UNUSED_ARG(hwver);
   bool ret = true;
   if (!m_id_block.add(client_id, id_len))
     ret = false;
@@ -1719,7 +1720,7 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
       MyBaseHandler * handler = m_acceptor->connection_manager()->find_handler_by_index(index);
       if (!handler)
       {
-        MY_WARNING("can not send data to client since connection is lost @ %s::handle_timeout\n", name());
+//        MY_WARNING("can not send data to client since connection is lost @ %s::handle_timeout\n", name());
         mb->release();
         continue;
       }
@@ -2345,6 +2346,21 @@ MyDistToMiddleDispatcher::MyDistToMiddleDispatcher(MyBaseModule * pModule, int n
   m_to_bs_queue.high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
+MyDistToMiddleDispatcher::~MyDistToMiddleDispatcher()
+{
+
+}
+
+void MyDistToMiddleDispatcher::on_stop_stage_1()
+{
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  ACE_Message_Block * mb;
+  while (m_to_bs_queue.dequeue(mb, &tv) != -1)
+    mb->release();
+  while (this->msg_queue()->dequeue(mb, &tv) != -1)
+    mb->release();
+}
+
 bool MyDistToMiddleDispatcher::on_start()
 {
   if (!m_connector)
@@ -2362,12 +2378,12 @@ bool MyDistToMiddleDispatcher::on_event_loop()
   ACE_Message_Block * mb;
   const int const_max_count = 10;
   int i = 0;
-  while (this->getq(mb, &tv) != -1 && ++i < const_max_count)
+  while (++i < const_max_count && this->getq(mb, &tv) != -1)
     m_connector->connection_manager()->broadcast(mb);
 
   tv = ACE_Time_Value::zero;
   i = 0;
-  while (m_to_bs_queue.dequeue(mb, &tv) != -1 && ++i < const_max_count)
+  while (++i < const_max_count && m_to_bs_queue.dequeue(mb, &tv) != -1)
     m_bs_connector->connection_manager()->broadcast(mb);
 
   return true;

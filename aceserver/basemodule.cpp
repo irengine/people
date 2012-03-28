@@ -2879,8 +2879,8 @@ void MyBaseDispatcher::do_stop_i()
   ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
   if (!m_reactor) //reuse m_reactor as cleanup flag
     return;
-  msg_queue()->flush();
   on_stop_stage_1();
+  msg_queue()->flush();
   if (m_reactor && m_clock_interval > 0)
     m_reactor->cancel_timer(this);
   std::for_each(m_connectors.begin(), m_connectors.end(), std::mem_fun(&MyBaseConnector::stop));
