@@ -1493,12 +1493,28 @@ void MyDistInfoFtp::generate_url_ini()
   calc_target_parent_path(path, false);
   file.init_from_string(path.data(), "/index/", adir.data(), "/url.ini");
 
-  MyUnixHandleGuard h;
-  if (unlikely(!h.open_write(file.data(), true, true, false, false)))
-    return;
+  {
+    MyUnixHandleGuard h;
+    if (unlikely(!h.open_write(file.data(), true, true, false, false)))
+      return;
 
-  const char * s = index_file();
-  ::write(h.handle(), s, ACE_OS::strlen(s));
+    const char * s = index_file();
+    ::write(h.handle(), s, ACE_OS::strlen(s));
+  }
+
+  if (ftype == '2')
+  {
+    file.init_from_string(path.data(), "/index/", adir.data(), "/date.ini");
+
+    MyUnixHandleGuard h;
+    if (unlikely(!h.open_write(file.data(), true, true, false, false)))
+      return;
+
+    char buff[50];
+    mycomutil_generate_time_string(buff, 50, false);
+    buff[8] = 0;
+    ::write(h.handle(), buff, 8);
+  }
 }
 
 void MyDistInfoFtp::generate_update_ini()
@@ -3682,15 +3698,18 @@ bool MyClientToDistDispatcher::on_start()
 {
   m_middle_connector = new MyClientToMiddleConnector(this, new MyBaseConnectionManager());
   add_connector(m_middle_connector);
-  m_http1991_acceptor = new MyHttp1991Acceptor(this, new MyBaseConnectionManager());
-  add_acceptor(m_http1991_acceptor);
+  if (!g_test_mode)
+  {
+    m_http1991_acceptor = new MyHttp1991Acceptor(this, new MyBaseConnectionManager());
+    add_acceptor(m_http1991_acceptor);
 
-  ACE_Time_Value interval(WATCH_DOG_INTERVAL * 60);
-  if (reactor()->schedule_timer(this, (const void*)TIMER_ID_WATCH_DOG, interval, interval) < 0)
-    MY_ERROR("setup watch dog timer failed %s %s\n", name(), (const char*)MyErrno());
+    ACE_Time_Value interval(WATCH_DOG_INTERVAL * 60);
+    if (reactor()->schedule_timer(this, (const void*)TIMER_ID_WATCH_DOG, interval, interval) < 0)
+      MY_ERROR("setup watch dog timer failed %s %s\n", name(), (const char*)MyErrno());
 
-  if (MyClientAppX::instance()->opera_launcher().running())
-    start_watch_dog();
+    if (MyClientAppX::instance()->opera_launcher().running())
+      start_watch_dog();
+  }
   return true;
 }
 
