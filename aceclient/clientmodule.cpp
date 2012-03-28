@@ -303,7 +303,7 @@ bool MyClientDB::save_ftp_command(const char * ftp_command, const MyDistInfoFtp 
         dist_ftp.ftype);
 
   } else
-    ACE_OS::snprintf(sql.data(), total_len, sql_tpl, ftp_command, (long)time(NULL), adir, aindex, dist_ftp.ftype, dist_ftp.dist_id.data());
+    ACE_OS::snprintf(sql.data(), total_len, sql_tpl, ftp_command, dist_ftp.recv_time, adir, aindex, dist_ftp.ftype, dist_ftp.dist_id.data());
 
   return do_exec(sql.data());
 }
