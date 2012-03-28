@@ -76,6 +76,7 @@ public:
   MyHttpDistInfos();
   ~MyHttpDistInfos();
 
+  int count() const;
   MyHttpDistInfo * create_http_dist_info(const char * dist_id);
   bool need_reload();
   void prepare_update(const int capacity);

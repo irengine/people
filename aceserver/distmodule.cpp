@@ -565,7 +565,8 @@ void MyDistClients::dist_files()
   }
   if (m_dist_client_finished > 0)
     MY_INFO("number of dist client(s) finished in this round = %d\n", m_dist_client_finished);
-  MY_INFO("after dist_files(), client one = %d, dist client = %d\n", m_dist_client_ones_map.size(), m_dist_clients_map.size());
+  MY_INFO("after dist_files(), dist info = %d, client one = %d, dist client = %d\n",
+     m_dist_infos->count(),  m_dist_client_ones_map.size(), m_dist_clients_map.size());
 }
 
 

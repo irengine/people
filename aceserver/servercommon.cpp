@@ -134,6 +134,11 @@ MyHttpDistInfos::~MyHttpDistInfos()
   clear();
 }
 
+int MyHttpDistInfos::count() const
+{
+  return m_info_map.size();
+}
+
 void MyHttpDistInfos::clear()
 {
   std::for_each(dist_infos.begin(), dist_infos.end(), MyPooledObjectDeletor());
