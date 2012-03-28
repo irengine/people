@@ -3362,7 +3362,7 @@ void MyClientToDistService::do_extract_task(MyDistInfoFtp * dist_info)
     if (!g_test_mode && dist_info->status == 4)
     {
       if (ftype_is_adv_list(dist_info->ftype))
-        MyClientAppX::instance()->vlc_monitor().need_relaunch();
+        MyClientAppX::instance()->vlc_monitor().relaunch();
       else if (ftype_is_frame(dist_info->ftype))
       {
         MyOperaLauncher & ol = MyClientAppX::instance()->opera_launcher();

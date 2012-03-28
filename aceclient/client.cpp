@@ -29,15 +29,24 @@ void MyProgramLauncher::kill_instance()
 {
   if (m_pid != INVALID_PID)
   {
+    MY_INFO("killing child process [%d]...\n", (int)m_pid);
     kill(m_pid, SIGTERM);
     m_wait_for_term = true;
   }
+}
+
+bool MyProgramLauncher::do_on_terminated()
+{
+  if (!MyClientAppX::instance()->running())
+    return false;
+  return true;
 }
 
 bool MyProgramLauncher::launch()
 {
   if (m_pid != INVALID_PID)
   {
+    MY_INFO("killing child process (%d)...\n", (int)m_pid);
     kill(m_pid, SIGTERM);
     m_pid = INVALID_PID;
   }
@@ -265,6 +274,8 @@ void MyVLCMonitor::check_relaunch()
 {
   if (!m_need_relaunch)
     return;
+  if (m_app->vlc_launcher().running())
+    return;
   m_need_relaunch = false;
   launch_vlc();
 }
@@ -274,10 +285,23 @@ void MyVLCMonitor::need_relaunch()
   m_need_relaunch = true;
 }
 
+void MyVLCMonitor::relaunch()
+{
+  if (!m_app->vlc_launcher().running())
+  {
+    launch_vlc();
+    return;
+  }
+
+  m_app->vlc_launcher().kill_instance();
+  m_need_relaunch = true;
+}
+
 void MyVLCMonitor::launch_vlc()
 {
-  m_app->vlc_launcher().launch();
   ACE_Reactor::instance()->cancel_timer(this);
+  if (!m_app->vlc_launcher().launch())
+    return;
   if (m_app->vlc_launcher().next() > 0)
   {
     ACE_Reactor::instance()->cancel_timer(this);
@@ -291,7 +315,7 @@ void MyVLCMonitor::launch_vlc()
 
 int MyVLCMonitor::handle_timeout(const ACE_Time_Value &, const void *)
 {
-  launch_vlc();
+  relaunch();//launch_vlc();
   return 0;
 }
 
@@ -774,7 +798,7 @@ bool MyClientApp::on_construct()
   {
 //    m_opera_launcher.launch();
     m_vlc_launcher.init_mode(false);
-    m_vlc_monitor.launch_vlc();
+    m_vlc_monitor.relaunch();
   }
 
   return true;
