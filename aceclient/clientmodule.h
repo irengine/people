@@ -288,7 +288,7 @@ public:
   void inc_failed(int steps = 1);
   int  failed_count() const;
   void calc_local_file_name();
-  void post_status_message(int _status = -1, bool result_ok = true) const;
+  void post_status_message(int _status = -1) const;
   bool update_db_status() const;
   void generate_update_ini();
   void generate_url_ini();

@@ -1082,8 +1082,8 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
     {
       MY_ERROR("ftp no/bad response on RETR (%s) command to server (%s): %s\n",
           filename, m_ftp_server_addr.data(), m_response.data());
-      if (is_response("550"))
-        m_ftp_info->inc_failed(MyDistInfoFtp::MAX_FAILED_COUNT);
+//      if (is_response("550"))
+//        m_ftp_info->inc_failed(MyDistInfoFtp::MAX_FAILED_COUNT);
       return false;
     }
   }
@@ -1466,9 +1466,14 @@ ACE_Message_Block * MyDistInfoFtp::make_ftp_dist_message(const char * dist_id, i
   return mb;
 }
 
-void MyDistInfoFtp::post_status_message(int _status, bool result_ok) const
+void MyDistInfoFtp::post_status_message(int _status) const
 {
   int m = _status < 0 ? status: _status;
+  bool result_ok;
+  if (m == 5 || m == 7 || m == 6)
+    result_ok = false;
+  else
+    result_ok = true;
   ACE_Message_Block * mb = make_ftp_dist_message(dist_id.data(), m, result_ok, ftype);
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
   if (g_test_mode)
@@ -3801,7 +3806,7 @@ void MyClientToDistDispatcher::check_watch_dog()
 bool MyClientToDistDispatcher::on_event_loop()
 {
   ACE_Message_Block * mb;
-  const int const_batch_count = 10;
+  const int const_batch_count = 30;
   for (int i = 0; i < const_batch_count; ++ i)
   {
     ACE_Time_Value tv(ACE_Time_Value::zero);
@@ -3938,6 +3943,12 @@ MyIpVerReply & MyClientToDistModule::ip_ver_reply()
 
 const char * MyClientToDistModule::hw_ver()
 {
+  if (unlikely(g_test_mode))
+  {
+    m_hw_ver = "1.0";
+    return m_hw_ver.c_str();
+  }
+
   if (m_hw_ver.length() > 0)
     return m_hw_ver.c_str();
   const char * fn = "/tmp/daily/driver.ini";

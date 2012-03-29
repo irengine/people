@@ -951,7 +951,14 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_md5_file_list(ACE_Message
     info_string(info);
     MY_DEBUG("complete md5 list from client %s, length = %d\n", info.data(), mb->length());
   }
-  MyServerAppX::instance()->dist_put_to_service(mb);
+
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (MyServerAppX::instance()->heart_beat_module()->service()->msg_queue()->enqueue_prio(mb, &tv) == -1)
+  {
+    MY_ERROR("can not put md5 list message to service's queue\n");
+    mb->release();
+  }
+
   return ER_OK;
 }
 
@@ -966,7 +973,16 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(ACE_Message_Blo
     return ER_ERROR;
   }
   ACE_Message_Block * mb_reply = MyMemPoolFactoryX::instance()->get_message_block_ack(mb);
-  MyServerAppX::instance()->dist_put_to_service(mb);
+  MY_DEBUG("got one ftp reply packet, size = %d\n", mb->capacity());
+  mb->msg_priority(10);
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (MyServerAppX::instance()->heart_beat_module()->service()->msg_queue()->enqueue_prio(mb, &tv) == -1)
+  {
+    MY_ERROR("can not put ftp reply message to service's queue\n");
+    mb->release();
+  }
+
+//  MyServerAppX::instance()->dist_put_to_service(mb);
   if (mb_reply != NULL)
     if (m_handler->send_data(mb_reply) < 0)
       return ER_ERROR;
@@ -1498,7 +1514,7 @@ int MyHeartBeatService::svc()
 {
   MY_INFO("running %s::svc()\n", name());
 
-  for (ACE_Message_Block * mb; getq(mb) != -1; )
+  for (ACE_Message_Block * mb; this->msg_queue()->dequeue_prio(mb) != -1; )
   {
     MyMessageBlockGuard guard(mb);
     if (mb->capacity() == sizeof(int))
@@ -1517,6 +1533,7 @@ int MyHeartBeatService::svc()
         do_have_dist_task();
       } else if ((dph->command == MyDataPacketHeader::CMD_FTP_FILE))
       {
+        MY_DEBUG("service: got one ftp reply packet, size = %d\n", mb->capacity());
         do_ftp_file_reply(mb);
       } else if ((dph->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST))
       {
@@ -1752,7 +1769,14 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
   {
     ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(int));
     *(int*)mb->base() = MyHeartBeatService::TIMED_DIST_TASK;
-    mycomutil_mb_putq(((MyHeartBeatModule*)module_x())->service(), mb, "dist command to service queue");
+    mb->msg_priority(20);
+    ACE_Time_Value tv(ACE_Time_Value::zero);
+    if (MyServerAppX::instance()->heart_beat_module()->service()->msg_queue()->enqueue_prio(mb, &tv) == -1)
+    {
+      MY_ERROR("can not put timed dist task message to service's queue\n");
+      mb->release();
+    }
+
   } else if ((long)act == TIMER_ID_ADV_CLICK)
   {
     MyHeartBeatProcessor::m_adv_click_submitter->check_time_out();
@@ -2182,9 +2206,10 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_version_check_reply(AC
 MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_have_dist_task(ACE_Message_Block * mb)
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (MyServerAppX::instance()->heart_beat_module()->service()->msg_queue()->enqueue_head(mb, &tv) == -1)
+  mb->msg_priority(30);
+  if (MyServerAppX::instance()->heart_beat_module()->service()->msg_queue()->enqueue_prio(mb, &tv) == -1)
   {
-    MY_ERROR("can not put new dist task message to dispatcher's queue @MyDistToMiddleProcessor::do_have_dist_task\n");
+    MY_ERROR("can not put new dist task message to service's queue @MyDistToMiddleProcessor::do_have_dist_task\n");
     mb->release();
   }
   return ER_OK;
