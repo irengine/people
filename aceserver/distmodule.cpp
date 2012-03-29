@@ -672,12 +672,13 @@ const char * MyHeartBeatProcessor::name() const
 
 MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 {
-  {
-    MyPooledMemGuard info;
-    info_string(info);
-    MY_DEBUG("get client packet header: command = %d, len = %d from %s\n",
-        m_packet_header.command, m_packet_header.length, info.data());
-  }
+//  {
+//    MyPooledMemGuard info;
+//    info_string(info);
+//    if (m_packet_header.command != MyDataPacketHeader::CMD_HEARTBEAT_PING)
+//      MY_DEBUG("get client packet header: command = %d, len = %d from %s\n",
+//          m_packet_header.command, m_packet_header.length, info.data());
+//  }
 
   if (super::on_recv_header() == ER_ERROR)
     return ER_ERROR;
@@ -952,13 +953,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_md5_file_list(ACE_Message
     MY_DEBUG("complete md5 list from client %s, length = %d\n", info.data(), mb->length());
   }
 
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (MyServerAppX::instance()->heart_beat_module()->service()->msg_queue()->enqueue_prio(mb, &tv) == -1)
-  {
-    MY_ERROR("can not put md5 list message to service's queue\n");
-    mb->release();
-  }
-
+  MyServerAppX::instance()->heart_beat_module()->service()->add_request_slow(mb);
   return ER_OK;
 }
 
@@ -973,14 +968,8 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(ACE_Message_Blo
     return ER_ERROR;
   }
   ACE_Message_Block * mb_reply = MyMemPoolFactoryX::instance()->get_message_block_ack(mb);
-  MY_DEBUG("got one ftp reply packet, size = %d\n", mb->capacity());
-  mb->msg_priority(10);
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (MyServerAppX::instance()->heart_beat_module()->service()->msg_queue()->enqueue_prio(mb, &tv) == -1)
-  {
-    MY_ERROR("can not put ftp reply message to service's queue\n");
-    mb->release();
-  }
+//  MY_DEBUG("got one ftp reply packet, size = %d\n", mb->capacity());
+  MyServerAppX::instance()->heart_beat_module()->service()->add_request(mb, true);
 
 //  MyServerAppX::instance()->dist_put_to_service(mb);
   if (mb_reply != NULL)
@@ -1508,41 +1497,93 @@ MyHeartBeatService::MyHeartBeatService(MyBaseModule * module, int numThreads):
     MyBaseService(module, numThreads)
 {
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
+  m_queue2.high_water_mark(MSG_QUEUE_MAX_SIZE * 5);
+}
+
+bool MyHeartBeatService::add_request(ACE_Message_Block * mb, bool btail)
+{
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  int ret;
+  if (btail)
+    ret = this->msg_queue()->enqueue_tail(mb, &tv);
+  else
+    ret = this->msg_queue()->enqueue_head(mb, &tv);
+  if (unlikely(ret < 0))
+  {
+    MY_ERROR("can not put message @MyHeartBeatService::add_request %s\n", (const char *)MyErrno());
+    mb->release();
+    return false;
+  }
+
+  return true;
+}
+
+bool MyHeartBeatService::add_request_slow(ACE_Message_Block * mb)
+{
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  if (unlikely(m_queue2.enqueue_tail(mb, &tv) < 0))
+  {
+    MY_ERROR("can not put message to MyHeartBeatService.m_queue2 %s\n", (const char *)MyErrno());
+    mb->release();
+    return false;
+  }
+
+  return true;
 }
 
 int MyHeartBeatService::svc()
 {
   MY_INFO("running %s::svc()\n", name());
-
-  for (ACE_Message_Block * mb; this->msg_queue()->dequeue_prio(mb) != -1; )
+  ACE_Message_Block * mb;
+  ACE_Time_Value tv(ACE_Time_Value::zero);
+  while (MyServerAppX::instance()->running())
   {
-    MyMessageBlockGuard guard(mb);
-    if (mb->capacity() == sizeof(int))
+    bool idle = true;
+    for (; this->msg_queue()->dequeue(mb, &tv) != -1; )
     {
-      int cmd = *(int*)mb->base();
-      if (cmd == TIMED_DIST_TASK)
+      idle = false;
+      MyMessageBlockGuard guard(mb);
+      if (mb->capacity() == sizeof(int))
       {
-        m_distributor.distribute(false);
+        int cmd = *(int*)mb->base();
+        if (cmd == TIMED_DIST_TASK)
+        {
+          m_distributor.distribute(false);
+        } else
+          MY_ERROR("unknown command recieved(%d)\n", cmd);
       } else
-        MY_ERROR("unknown command recieved(%d)\n", cmd);
-    } else
+      {
+        MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
+        if (dph->command == MyDataPacketHeader::CMD_HAVE_DIST_TASK)
+        {
+          do_have_dist_task();
+        } else if ((dph->command == MyDataPacketHeader::CMD_FTP_FILE))
+        {
+//          MY_DEBUG("service: got one ftp reply packet, size = %d\n", mb->capacity());
+          do_ftp_file_reply(mb);
+        } /*else if ((dph->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST))
+        {
+          do_file_md5_reply(mb);
+        } */else
+          MY_ERROR("unknown packet recieved @%s, cmd = %d\n", name(), dph->command);
+      }
+    }
+
+    if (m_queue2.dequeue_head(mb, &tv) != -1)
     {
+      idle = false;
+      MyMessageBlockGuard guard(mb);
       MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
-      if (dph->command == MyDataPacketHeader::CMD_HAVE_DIST_TASK)
-      {
-        do_have_dist_task();
-      } else if ((dph->command == MyDataPacketHeader::CMD_FTP_FILE))
-      {
-        MY_DEBUG("service: got one ftp reply packet, size = %d\n", mb->capacity());
-        do_ftp_file_reply(mb);
-      } else if ((dph->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST))
+      if ((dph->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST))
       {
         do_file_md5_reply(mb);
       } else
-        MY_ERROR("unknown packet recieved @%s, cmd = %d\n", name(), dph->command);
+        MY_ERROR("unknown packet recieved @%s.queue2, cmd = %d\n", name(), dph->command);
     }
-  }
 
+    if (idle)
+      ACE_OS::sleep(1);
+  }
   MY_INFO("exiting %s::svc()\n", name());
   return 0;
 }
@@ -1663,8 +1704,10 @@ void MyHeartBeatService::do_file_md5_reply(ACE_Message_Block * mb)
   }
   *md5list ++ = 0;
   const char * dist_id = dpe->data;
-  MY_DEBUG("file md5 list from client_id(%s) dist_id(%s): %s\n", client_id.as_string(),
-      dist_id, (*md5list? md5list: "(empty)"));
+//  MY_DEBUG("file md5 list from client_id(%s) dist_id(%s): %s\n", client_id.as_string(),
+//      dist_id, (*md5list? md5list: "(empty)"));
+  MY_DEBUG("file md5 list from client_id(%s) dist_id(%s): len = %d\n", client_id.as_string(), dist_id, ACE_OS::strlen(md5list));
+
   m_distributor.dist_ftp_md5_reply(client_id.as_string(), dist_id, md5list);
 }
 
@@ -1769,14 +1812,7 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
   {
     ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(int));
     *(int*)mb->base() = MyHeartBeatService::TIMED_DIST_TASK;
-    mb->msg_priority(20);
-    ACE_Time_Value tv(ACE_Time_Value::zero);
-    if (MyServerAppX::instance()->heart_beat_module()->service()->msg_queue()->enqueue_prio(mb, &tv) == -1)
-    {
-      MY_ERROR("can not put timed dist task message to service's queue\n");
-      mb->release();
-    }
-
+    MyServerAppX::instance()->heart_beat_module()->service()->add_request(mb, false);
   } else if ((long)act == TIMER_ID_ADV_CLICK)
   {
     MyHeartBeatProcessor::m_adv_click_submitter->check_time_out();
@@ -2205,13 +2241,7 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_version_check_reply(AC
 
 MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_have_dist_task(ACE_Message_Block * mb)
 {
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  mb->msg_priority(30);
-  if (MyServerAppX::instance()->heart_beat_module()->service()->msg_queue()->enqueue_prio(mb, &tv) == -1)
-  {
-    MY_ERROR("can not put new dist task message to service's queue @MyDistToMiddleProcessor::do_have_dist_task\n");
-    mb->release();
-  }
+  MyServerAppX::instance()->heart_beat_module()->service()->add_request(mb, false);
   return ER_OK;
 }
 

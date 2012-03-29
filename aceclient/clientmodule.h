@@ -185,7 +185,7 @@ public:
   static bool download(MyDistInfoFtp * dist_info, const char * server_ip);
 
 private:
-  enum { TIME_OUT_SECONDS = 30, MAX_BUFSIZE = 4096 };
+  enum { TIME_OUT_SECONDS = 90, MAX_BUFSIZE = 4096 };
   bool recv();
   bool send(const char * command);
   bool is_response(const char * res_code);

@@ -403,6 +403,8 @@ public:
 
   MyHeartBeatService(MyBaseModule * module, int numThreads = 1);
   virtual int svc();
+  bool add_request(ACE_Message_Block * mb, bool btail);
+  bool add_request_slow(ACE_Message_Block * mb);
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
@@ -412,6 +414,7 @@ private:
   void do_file_md5_reply(ACE_Message_Block * mb);
 
   MyClientFileDistributor m_distributor;
+  ACE_Message_Queue<ACE_MT_SYNCH> m_queue2;
 };
 
 class MyHeartBeatDispatcher: public MyBaseDispatcher

@@ -1911,7 +1911,10 @@ void MyDistInfoMD5::post_md5_message()
   ACE_OS::memcpy(dpe->data, dist_id.data(), dist_id_len);
   dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
   m_md5list.to_buffer(dpe->data + dist_id_len + 1, md5_len, false);
-  MY_INFO("posting md5 reply to dist server for dist_id (%s), md5 len = %d, data= %s\n", dist_id.data(), md5_len - 1, dpe->data + dist_id_len + 1);
+  if (g_test_mode)
+    MY_INFO("posting md5 reply to dist server for dist_id (%s), md5 len = %d\n", dist_id.data(), md5_len - 1);
+  else
+    MY_INFO("posting md5 reply to dist server for dist_id (%s), md5 len = %d, data= %s\n", dist_id.data(), md5_len - 1, dpe->data + dist_id_len + 1);
   MyClientAppX::instance()->send_mb_to_dist(mb);
 }
 
@@ -2357,7 +2360,8 @@ int MyClientToDistProcessor::on_open()
 
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
 {
-  MY_DEBUG("get dist packet header: command = %d, len = %d\n", m_packet_header.command, m_packet_header.length);
+  if (!g_test_mode)
+    MY_DEBUG("get dist packet header: command = %d, len = %d\n", m_packet_header.command, m_packet_header.length);
 
   MyBaseProcessor::EVENT_RESULT result = super::on_recv_header();
   if (result != ER_CONTINUE)
@@ -2454,7 +2458,8 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
 
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
-  MY_DEBUG("get complete dist packet: command = %d, len = %d\n", m_packet_header.command, m_packet_header.length);
+  if (!g_test_mode)
+    MY_DEBUG("get complete dist packet: command = %d, len = %d\n", m_packet_header.command, m_packet_header.length);
 
   MyBasePacketProcessor::on_recv_packet_i(mb);
   MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
@@ -2714,8 +2719,8 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
 {
   MyMessageBlockGuard guard(mb);
   m_version_check_reply_done = true;
-
-  MY_DEBUG("on ver reply: handler = %X, socket = %d\n", (int)(long)m_handler, m_handler->get_handle());
+  if (!g_test_mode)
+    MY_DEBUG("on ver reply: handler = %X, socket = %d\n", (int)(long)m_handler, m_handler->get_handle());
 
   MyClientVersionCheckReply * vcr;
   vcr = (MyClientVersionCheckReply *)mb->base();
@@ -3164,7 +3169,8 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
 //  MY_DEBUG("MyClientToDistHandler::handle_timeout()\n");
   if (long(act) == HEART_BEAT_PING_TIMER)
   {
-    MY_DEBUG("ping dist server now...\n");
+    if (m_processor->client_id_index() == 0)
+      MY_DEBUG("ping dist server now...\n");
 #if 0
     const int extra_size = 1024 * 1024 * 1;
     ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(extra_size, MyDataPacketHeader::CMD_TEST);
@@ -3812,7 +3818,8 @@ bool MyClientToDistDispatcher::on_event_loop()
     ACE_Time_Value tv(ACE_Time_Value::zero);
     if (this->getq(mb, &tv) != -1)
     {
-      MY_DEBUG("packet to dist: length = %d\n", mb->length());
+      if (!g_test_mode)
+        MY_DEBUG("packet to dist: length = %d\n", mb->length());
       if (g_test_mode)
       {
         int index = ((MyDataPacketHeader*)mb->base())->magic;
