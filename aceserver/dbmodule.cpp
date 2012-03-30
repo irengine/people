@@ -412,6 +412,8 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
       else if (j == 8)
         info->mbz_md5.init_from_string(fvalue);
     }
+
+    info->calc_md5_opt_len();
   }
 
   MY_INFO("MyDB::get %d dist infos from database\n", count);

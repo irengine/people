@@ -45,6 +45,7 @@ public:
   MyHttpDistInfo(const char * dist_id);
   bool need_md5() const;
   bool need_mbz_md5() const;
+  void calc_md5_opt_len();
 
   char ftype[2];
   char type[2];
@@ -66,6 +67,8 @@ public:
   int  findex_len;
   int  aindex_len;
   int  password_len;
+
+  int  md5_opt_len;
 };
 
 class MyHttpDistInfos

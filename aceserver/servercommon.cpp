@@ -24,6 +24,8 @@ MyHttpDistInfo::MyHttpDistInfo(const char * dist_id)
   type[0] = type[1] = 0;
   ver.init_from_string(dist_id);
   ver_len = ACE_OS::strlen(dist_id);
+
+  md5_opt_len = 0;
 }
 
 bool MyHttpDistInfo::need_md5() const
@@ -34,6 +36,18 @@ bool MyHttpDistInfo::need_md5() const
 bool MyHttpDistInfo::need_mbz_md5() const
 {
   return !need_md5();
+}
+
+void MyHttpDistInfo::calc_md5_opt_len()
+{
+  if (need_md5() && md5_len > 0 && md5_opt_len == 0)
+  {
+    MyPooledMemGuard md5_2;
+    md5_2.init_from_string(md5.data());
+    MyFileMD5s md5s;
+    if (md5s.from_buffer(md5_2.data(), NULL))
+      md5_opt_len = md5s.total_size(false) - 1;
+  }
 }
 
 

@@ -177,7 +177,7 @@ bool MyDistClient::do_stage_2()
 {
   if (!mbz_file.data() || !mbz_file.data()[0])
   {
-    if (!generate_diff_mbz())
+    if ((dist_info->md5_opt_len > 0 && (int)ACE_OS::strlen(md5.data()) >= dist_info->md5_opt_len) || !generate_diff_mbz())
     {
       mbz_file.init_from_string(MyDistCompressor::all_in_one_mbz());
       mbz_md5.init_from_string(dist_info->mbz_md5.data());

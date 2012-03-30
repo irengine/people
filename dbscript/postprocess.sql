@@ -1,4 +1,4 @@
-﻿CREATE or replace FUNCTION post_process() RETURNS void AS 
+create or replace FUNCTION post_process() RETURNS void AS 
 $$
 BEGIN
   delete from tb_dist_clients where dc_client_id not in
