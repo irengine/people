@@ -1,4 +1,4 @@
-CREATE or replace FUNCTION post_process() RETURNS void AS 
+﻿CREATE or replace FUNCTION post_process() RETURNS void AS 
 $$
 BEGIN
   delete from tb_dist_clients where dc_client_id not in
@@ -88,7 +88,7 @@ WHERE
 				x_di.dist_ftype IN('3', '5', '6')
 			GROUP BY
 				x_dc.dc_client_id,
-				x_dc.dc_adir
+				COALESCE(x_di.dist_aindex, x_di.dist_findex)
 		)
 	);
 
@@ -132,7 +132,7 @@ WHERE
 				x_di.dist_ftype IN('7', '9')
 			GROUP BY
 				x_dc.dc_client_id,
-				x_dc.dc_adir
+				COALESCE(x_di.dist_aindex, x_di.dist_findex)
 		)
 	);
 
@@ -207,7 +207,7 @@ WHERE
 				x_di.dist_ftype IN('8')
 			GROUP BY
 				x_dc.dc_client_id,
-				x_dc.dc_adir
+				COALESCE(x_di.dist_aindex, x_di.dist_findex)
 		)
 	);
 
