@@ -774,6 +774,7 @@ bool MyClientApp::on_construct()
       ACE_OS::sleep(30);
     }
     MY_INFO("get client id [%s] from %s\n", m_client_id.c_str(), const_id_ini);
+    MyConnectIni::update_connect_status(MyConnectIni::CS_DISCONNECTED);
 
     {
       MyClientDBGuard dbg;
@@ -927,8 +928,6 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
     MyFilePaths::make_path(path_x.c_str(), true);
     path_x = cfg->app_path + "/data/backup";
     MyFilePaths::make_path(path_x.c_str(), true);
-
-    MyConnectIni::update_connect_status(MyConnectIni::CS_DISCONNECTED);
 
     if(cfg->adv_expire_days > 0)
     {
