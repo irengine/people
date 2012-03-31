@@ -801,14 +801,15 @@ bool MyBaseApp::do_constructor()
   MyConfigX::instance()->dump_config_info();
   MY_INFO(ACE_TEXT("loading modules...\n"));
 
+  m_ace_sig_handler.register_handler(SIGTERM, &m_sig_handler);
+  m_ace_sig_handler.register_handler(SIGCHLD, &m_sig_handler);
+  m_ace_sig_handler.register_handler(SIGHUP, &m_sig_handler);
+
   if (!on_construct())
     return false;
 
   MY_INFO(ACE_TEXT("loading modules done!\n"));
 
-  m_ace_sig_handler.register_handler(SIGHUP, &m_sig_handler);
-  m_ace_sig_handler.register_handler(SIGTERM, &m_sig_handler);
-  m_ace_sig_handler.register_handler(SIGCHLD, &m_sig_handler);
   if (MyConfigX::instance()->status_file_check_interval != 0)
   {
     int fd = open(MyConfigX::instance()->status_file_name.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
@@ -952,7 +953,7 @@ void MyBaseApp::start()
   std::for_each(m_modules.begin(), m_modules.end(), std::mem_fun(&MyBaseModule::start));
 
   MY_INFO(ACE_TEXT("starting modules done!\n"));
-  do_sigchild();
+  do_sigchild(); //fast delivery
   do_event_loop();
 }
 
