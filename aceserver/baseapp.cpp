@@ -952,6 +952,7 @@ void MyBaseApp::start()
   std::for_each(m_modules.begin(), m_modules.end(), std::mem_fun(&MyBaseModule::start));
 
   MY_INFO(ACE_TEXT("starting modules done!\n"));
+  do_sigchild();
   do_event_loop();
 }
 

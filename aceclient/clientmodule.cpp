@@ -1110,7 +1110,7 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
   }
 
   all_size = 0;
-  tv.sec(TIME_OUT_SECONDS);
+  tv.sec(TIME_OUT_SECONDS * 2);
   while ((file_size = stream.recv(file_cache, sizeof(file_cache), &tv)) > 0)
   {
     if (unlikely(!MyClientAppX::instance()->running()))
@@ -1122,7 +1122,7 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
       return false;
     }
     all_size += file_size;
-    tv.sec(TIME_OUT_SECONDS);
+    tv.sec(TIME_OUT_SECONDS * 2);
   }
 
   if (file_size < 0)
@@ -1403,7 +1403,8 @@ bool MyDistInfoFtp::load_from_string(char * src)
 
 time_t MyDistInfoFtp::get_delay_penalty() const
 {
-  return (time_t)(std::min(m_failed_count, (int)MAX_FAILED_COUNT) * 60 * FAILED_PENALTY);
+  //return (time_t)(std::min(m_failed_count + 1, (int)MAX_FAILED_COUNT) * 60 * FAILED_PENALTY);
+  return (time_t)(60 * FAILED_PENALTY);
 }
 
 bool MyDistInfoFtp::should_ftp(time_t now) const
@@ -3486,8 +3487,8 @@ bool MyClientFtpService::do_ftp_download(MyDistInfoFtp * dist_info, const char *
   if (unlikely(dist_info->status >=  3))
     return true;
 
-  MY_INFO("processing ftp download for dist_id=%s, filename=%s, password=%s\n",
-      dist_info->dist_id.data(), dist_info->file_name.data(), dist_info->file_password.data());
+  MY_INFO("processing ftp download for dist_id=%s, filename=%s, password=%s, retry_count=%d\n",
+      dist_info->dist_id.data(), dist_info->file_name.data(), dist_info->file_password.data(), dist_info->failed_count());
 
   if (!g_test_mode)
   {
