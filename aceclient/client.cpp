@@ -771,7 +771,7 @@ bool MyClientApp::on_construct()
           break;
         }
       }
-      ACE_OS::sleep(30);
+      ACE_OS::sleep(5);
     }
     MY_INFO("get client id [%s] from %s\n", m_client_id.c_str(), const_id_ini);
     MyConnectIni::update_connect_status(MyConnectIni::CS_DISCONNECTED);
