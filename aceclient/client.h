@@ -69,7 +69,7 @@ public:
   MyOperaLauncher();
 
   virtual bool ready() const;
-  void check_relaunch();
+  void relaunch();
   void need_relaunch();
 
 protected:

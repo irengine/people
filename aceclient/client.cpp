@@ -379,19 +379,12 @@ bool MyOperaLauncher::ready() const
 //  return _stat.st_size > 1;
 }
 
-void MyOperaLauncher::check_relaunch()
+void MyOperaLauncher::relaunch()
 {
-  if (!m_need_relaunch)
-    return;
   if (running())
-  {
-    if (!m_wait_for_term)
-      kill_instance();
-  } else
-  {
-    m_need_relaunch = false;
+    kill_instance();
+  else
     launch();
-  }
 }
 
 void MyOperaLauncher::need_relaunch()
