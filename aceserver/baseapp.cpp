@@ -13,7 +13,7 @@
 
 const ACE_TCHAR * const_app_version = ACE_TEXT("1.0");
 long g_clock_tick = 0;
-bool g_test_mode = true;
+bool g_test_mode = false;
 
 //MyServerConfig//
 
