@@ -275,7 +275,7 @@ class MyDistInfoFtp: public MyDistInfoHeader
 {
 public:
   typedef MyDistInfoHeader super;
-  enum { FAILED_PENALTY = 5, MAX_FAILED_COUNT = 30 };
+  enum { FAILED_PENALTY = 5, MAX_FAILED_COUNT = 40 };
 
   MyDistInfoFtp();
 

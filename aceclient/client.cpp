@@ -780,7 +780,7 @@ bool MyClientApp::on_construct()
       MyClientDBGuard dbg;
       if (dbg.db().open_db(NULL, true))
       {
-        time_t deadline = time_t(NULL) - const_one_day * 10;
+        time_t deadline = time_t(NULL) - const_one_day * 20;
         dbg.db().remove_outdated_ftp_command(deadline);
 //      dbg.db().reset_ftp_command_status();
       }
