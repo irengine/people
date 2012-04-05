@@ -4545,7 +4545,7 @@ void MyHttp1991Processor::do_command_plc(char * parameter)
   }
   else if (x == 7) //pc
     send_string(mod->ip_ver_reply().pc());
-  else if ( x == 1 || x == 2)
+  else if (x == 1 || x == 2)
   {
     send_string("*1");
     if (!y || (*y != '0' && *y != '1'))
