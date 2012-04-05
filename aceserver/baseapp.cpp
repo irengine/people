@@ -39,6 +39,7 @@ const int  DEFAULT_test_client_ftp_thread_number = 50;
 const int  DEFAULT_db_server_port = 5432;
 const int  DEFAULT_http_port = 1922;
 const int  DEFAULT_bs_server_port = 1921;
+const int  DEFAULT_client_ftp_timeout = 120;
 
 //common for all
 const ACE_TCHAR * CONFIG_Section_global = ACE_TEXT("global");
@@ -93,7 +94,7 @@ const ACE_TCHAR * CONFIG_server_id = ACE_TEXT("server_id");
 //client specific
 const ACE_TCHAR * CONFIG_client_heart_beat_interval = ACE_TEXT("module.client_heart_beat_interval");
 const ACE_TCHAR * CONFIG_adv_expire_days = ACE_TEXT("module.adv_expire_days");
-
+const ACE_TCHAR * CONFIG_client_ftp_timeout = ACE_TEXT("module.client_ftp_timeout");
 
 MyConfig::MyConfig()
 {
@@ -128,6 +129,7 @@ MyConfig::MyConfig()
   client_heart_beat_interval = DEFAULT_client_heart_beat_interval;
   test_client_ftp_thread_number = DEFAULT_test_client_ftp_thread_number;
   adv_expire_days = 0;
+  client_ftp_timeout = DEFAULT_client_ftp_timeout;
 
   //middle only
   http_port = DEFAULT_http_port;
@@ -429,7 +431,7 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
   {
     if (cfgHeap.get_integer_value(section, CONFIG_client_heart_beat_interval, ival) == 0)
     {
-      if (ival == 0 || ival > 0xFFFF )
+      if (ival == 0 || ival > 0xFFFF)
       {
         MY_WARNING(ACE_TEXT("Invalid %s value (= %d), using default value = %d\n"),
             CONFIG_module_heart_beat_mem_pool_size, ival, DEFAULT_client_heart_beat_interval);
@@ -443,7 +445,7 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
   {
     if (cfgHeap.get_integer_value(section, CONFIG_test_client_ftp_thread_number, ival) == 0)
     {
-      if (ival == 0 || ival > 500 )
+      if (ival == 0 || ival > 500)
       {
         MY_WARNING(ACE_TEXT("Invalid %s value (= %d), using default value = %d\n"),
             CONFIG_test_client_ftp_thread_number, ival, DEFAULT_test_client_ftp_thread_number);
@@ -455,13 +457,24 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
 
   if (cfgHeap.get_integer_value(section, CONFIG_adv_expire_days, ival) == 0)
   {
-    if (ival > 365 )
+    if (ival > 365)
     {
       MY_WARNING(ACE_TEXT("Invalid %s value (%d), using default value = %d\n"),
           CONFIG_adv_expire_days, ival, 0);
     }
     else
       adv_expire_days = ival;
+  }
+
+  if (cfgHeap.get_integer_value(section, CONFIG_client_ftp_timeout, ival) == 0)
+  {
+    if (ival < 60)
+    {
+      MY_WARNING(ACE_TEXT("Invalid %s value (%d), using default value = %d\n"),
+          CONFIG_client_ftp_timeout, ival, DEFAULT_client_ftp_timeout);
+    }
+    else
+      client_ftp_timeout = ival;
   }
 
   return true;
@@ -687,6 +700,7 @@ void MyConfig::dump_config_info()
     if (g_test_mode)
       ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_heart_beat_interval, client_heart_beat_interval));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_adv_expire_days, adv_expire_days));
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_ftp_timeout, client_ftp_timeout));
   }
 
   //dist only

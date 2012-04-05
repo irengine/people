@@ -272,7 +272,7 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
 
 __exit__:
   if (!result)
-    MY_ERROR("can not generate compressed files for %s from %s\n", http_dist_request.ver, mfile.data());
+    MY_ERROR("can not generate compressed files for %s\n", http_dist_request.ver);
   else
     MY_INFO("generation of compressed files for %s is done\n", http_dist_request.ver);
 

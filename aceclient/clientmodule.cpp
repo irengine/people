@@ -828,7 +828,7 @@ bool MyFTPClient::recv()
   const int BUFF_SIZE = 2048;
   char line[BUFF_SIZE];
   int i = 0;
-  ACE_Time_Value  tv(TIME_OUT_SECONDS);
+  ACE_Time_Value tv(get_timeout_seconds());
 
   while (true)
   {
@@ -874,6 +874,11 @@ bool MyFTPClient::is_response(const char * res_code)
   return res && (ACE_OS::strlen(res) >= 3) && (ACE_OS::memcmp(res, res_code, 3) == 0);
 }
 
+int MyFTPClient::get_timeout_seconds() const
+{
+  return MyConfigX::instance()->client_ftp_timeout;
+}
+
 bool MyFTPClient::send(const char * command)
 {
   int cmd_len = ACE_OS::strlen(command);
@@ -882,13 +887,13 @@ bool MyFTPClient::send(const char * command)
   if (unlikely(!MyClientAppX::instance()->running()))
     return false;
 
-  ACE_Time_Value  tv(TIME_OUT_SECONDS);
+  ACE_Time_Value  tv(get_timeout_seconds());
   return (cmd_len == m_peer.send_n(command, cmd_len, &tv));
 }
 
 bool MyFTPClient::login()
 {
-  ACE_Time_Value  tv(TIME_OUT_SECONDS);
+  ACE_Time_Value  tv(get_timeout_seconds());
   const int CMD_BUFF_LEN = 2048;
   char command[CMD_BUFF_LEN];
 
@@ -974,7 +979,7 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
 {
   MY_ASSERT_RETURN(filename && *filename && localfile && *localfile, "\n", false);
 
-  ACE_Time_Value  tv(TIME_OUT_SECONDS);
+  ACE_Time_Value  tv(get_timeout_seconds());
   int d0, d1, d2, d3, p0, p1;
   char ip[32];
   ACE_INET_Addr ftp_data_addr;
@@ -1020,7 +1025,7 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
       MY_ERROR("bad fs_server value = %d\n", fs_server);
       return false;
     }
-
+    MY_INFO("ftp (%s) server reported size = %d, local size = %d\n", m_ftp_info->dist_id.data(), fs_server, fs_client);
     if (fs_client >= fs_server)
       fs_client = 0;
   }
@@ -1072,6 +1077,7 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
       MY_ERROR("ftp no/bad response on REST command to server (%s): %s\n", m_ftp_server_addr.data(), m_response.data());
       return false;
     }
+    MY_INFO("ftp (%s) continue @%d\n", m_ftp_info->dist_id.data(), fs_client);
   }
 
   MyPooledMemGuard retr;
@@ -1094,7 +1100,7 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
   else
     flag |= O_APPEND;
 
-  tv.sec(TIME_OUT_SECONDS);
+  tv.sec(get_timeout_seconds());
   if (file_con.connect(file_put, ACE_FILE_Addr(localfile), &tv, ACE_Addr::sap_any, 0, flag, S_IRUSR | S_IWUSR) == -1)
   {
     MY_ERROR("ftp failed to open local file %s to save download %s\n", localfile, (const char*)MyErrno());
@@ -1110,7 +1116,7 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
   }
 
   all_size = 0;
-  tv.sec(TIME_OUT_SECONDS * 2);
+  tv.sec(get_timeout_seconds() * 6);
   while ((file_size = stream.recv(file_cache, sizeof(file_cache), &tv)) > 0)
   {
     if (unlikely(!MyClientAppX::instance()->running()))
@@ -1122,12 +1128,13 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
       return false;
     }
     all_size += file_size;
-    tv.sec(TIME_OUT_SECONDS * 2);
+    tv.sec(get_timeout_seconds() * 6);
   }
 
   if (file_size < 0)
   {
-    MY_ERROR("ftp read data for file %s from server %s failed %s\n", filename, m_ftp_server_addr.data(), (const char*)MyErrno());
+    MY_ERROR("ftp read data for file %s from server %s failed %s, completed = %d\n",
+        filename, m_ftp_server_addr.data(), (const char*)MyErrno(), all_size);
     return false;
   }
 

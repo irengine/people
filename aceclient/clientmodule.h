@@ -185,10 +185,11 @@ public:
   static bool download(MyDistInfoFtp * dist_info, const char * server_ip);
 
 private:
-  enum { TIME_OUT_SECONDS = 90, MAX_BUFSIZE = 4096 };
+  enum { MAX_BUFSIZE = 4096 };
   bool recv();
   bool send(const char * command);
   bool is_response(const char * res_code);
+  int  get_timeout_seconds() const;
 
   std::string        m_user_name;
   std::string        m_password;
@@ -275,7 +276,7 @@ class MyDistInfoFtp: public MyDistInfoHeader
 {
 public:
   typedef MyDistInfoHeader super;
-  enum { FAILED_PENALTY = 5, MAX_FAILED_COUNT = 40 };
+  enum { FAILED_PENALTY = 4, MAX_FAILED_COUNT = 40 };
 
   MyDistInfoFtp();
 
