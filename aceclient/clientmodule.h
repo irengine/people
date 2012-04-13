@@ -439,8 +439,10 @@ public:
   void save();
   void load();
 
+  static bool has_cache();
+
 private:
-  void get_file_name(MyPooledMemGuard & file_name);
+  static void get_file_name(MyPooledMemGuard & file_name);
   bool valid_addr(const char * addr) const;
 
   std::vector<std::string> m_server_addrs;

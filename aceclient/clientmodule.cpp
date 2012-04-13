@@ -2974,6 +2974,16 @@ bool MyDistServerAddrList::valid_addr(const char * addr) const
   return (::inet_pton(AF_INET, addr, &ia) == 1);
 }
 
+bool MyDistServerAddrList::has_cache()
+{
+  MyPooledMemGuard file_name;
+  get_file_name(file_name);
+  struct stat st;
+  if (!MyFilePaths::stat(file_name.data(), &st))
+    return false;
+  return st.st_size >= 7;
+}
+
 
 //MyVlcItem//
 
@@ -4406,6 +4416,8 @@ bool MyClientToMiddleConnector::before_reconnect()
 {
   ++m_retried_count;
   if (m_retried_count <= MAX_CONNECT_RETRY_COUNT)
+    return true;
+  if (!MyDistServerAddrList::has_cache())
     return true;
 
   finish();
