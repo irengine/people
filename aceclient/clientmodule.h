@@ -502,10 +502,11 @@ protected:
   virtual int  on_open();
 
 private:
-  enum { HEART_BEAT_PING_TIMER = 1, IP_VER_TIMER, CLICK_SEND_TIMER };
-  enum { IP_VER_INTERVAL = 10 }; //in minutes
+  enum { HEART_BEAT_PING_TIMER = 1, IP_VER_TIMER, CLICK_SEND_TIMER, HEART_BEAT_PING_TMP_TIMER };
+  enum { IP_VER_INTERVAL = 10, HEART_BEAT_PING_TMP_INTERVAL = 3 }; //in minutes
 
   long m_heart_beat_timer;
+  long m_heart_beat_tmp_timer;
 };
 
 class MyClientToDistService: public MyBaseService
@@ -567,6 +568,7 @@ private:
 class MyBufferedMBs
 {
 public:
+  MyBufferedMBs();
   ~MyBufferedMBs();
   void connection_manager(MyBaseConnectionManager * p);
   void add(ACE_Message_Block * mb);

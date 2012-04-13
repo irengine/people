@@ -3111,6 +3111,7 @@ MyClientToDistHandler::MyClientToDistHandler(MyBaseConnectionManager * xptr): My
 {
   m_processor = new MyClientToDistProcessor(this);
   m_heart_beat_timer = -1;
+  m_heart_beat_tmp_timer = -1;
 }
 
 bool MyClientToDistHandler::setup_timer()
@@ -3124,6 +3125,12 @@ bool MyClientToDistHandler::setup_timer()
 
   if (!g_test_mode)
     MY_INFO("MyClientToDistHandler setup ip ver timer: OK\n");
+
+  ACE_Time_Value interval2(HEART_BEAT_PING_TMP_INTERVAL * 60);
+  m_heart_beat_tmp_timer = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TMP_TIMER, interval2, interval2);
+  if (m_heart_beat_tmp_timer < 0)
+    MY_ERROR(ACE_TEXT("MyClientToDistHandler setup tmp heart beat timer failed, %s"), (const char*)MyErrno());
+
   return true;
 }
 
@@ -3147,7 +3154,14 @@ bool MyClientToDistHandler::setup_heart_beat_timer(int heart_beat_interval)
     MY_ERROR(ACE_TEXT("MyClientToDistHandler setup heart beat timer failed, %s"), (const char*)MyErrno());
     return false;
   } else
+  {
+    if (m_heart_beat_tmp_timer >= 0)
+    {
+      reactor()->cancel_timer(m_heart_beat_tmp_timer);
+      m_heart_beat_tmp_timer = -1;
+    }
     return true;
+  }
 }
 
 bool MyClientToDistHandler::setup_click_send_timer()
@@ -3194,6 +3208,12 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
 #else
     return ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
 #endif
+  }
+  else if (long(act) == HEART_BEAT_PING_TMP_TIMER)
+  {
+    if (m_processor->client_id_index() == 0)
+      MY_DEBUG("ping (tmp) dist server now...\n");
+    return ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
   }
   else if (long(act) == IP_VER_TIMER)
     return ((MyClientToDistProcessor*)m_processor)->send_ip_ver_req();
@@ -3650,6 +3670,11 @@ bool MyBufferedMB::match(uuid_t uuid)
 
 //MyBufferedMBs//
 
+MyBufferedMBs::MyBufferedMBs()
+{
+  m_con_manager = NULL;
+}
+
 MyBufferedMBs::~MyBufferedMBs()
 {
   std::for_each(m_mblist.begin(), m_mblist.end(), MyObjectDeletor());
@@ -3670,6 +3695,8 @@ void MyBufferedMBs::add(ACE_Message_Block * mb)
 
 void MyBufferedMBs::check_timeout()
 {
+  if (!m_con_manager)
+    return;
   MyBufferedMBList::iterator it;
   MyBufferedMB * p;
   time_t t = time(NULL);
@@ -3858,7 +3885,10 @@ bool MyClientToDistDispatcher::on_event_loop()
               add_to_buffered_mbs(mb);
           }
         }
-        m_connector->connection_manager()->send_single(mb);
+        if (m_connector && m_connector->connection_manager())
+          m_connector->connection_manager()->send_single(mb);
+        else
+          mb->release();
       }
     } else
       break;
