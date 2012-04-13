@@ -2811,6 +2811,7 @@ int MyClientToDistProcessor::send_ip_ver_req()
   MyIpVerRequest * ivr = (MyIpVerRequest *) mb->base();
   ivr->client_version_major = const_client_version_major;
   ivr->client_version_minor = const_client_version_minor;
+  MY_INFO("sending ip ver to dist server...\n");
   return (m_handler->send_data(mb) < 0? -1: 0);
 }
 
@@ -3121,6 +3122,8 @@ bool MyClientToDistHandler::setup_timer()
     return false;
   }
 
+  if (!g_test_mode)
+    MY_INFO("MyClientToDistHandler setup ip ver timer: OK\n");
   return true;
 }
 
