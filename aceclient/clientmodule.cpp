@@ -3854,7 +3854,7 @@ void MyClientToDistDispatcher::on_stop()
 void MyClientToDistDispatcher::check_watch_dog()
 {
   if (((MyClientToDistModule*)module_x())->watch_dog().expired())
-    MyClientAppX::instance()->opera_launcher().need_relaunch();
+    MyClientAppX::instance()->opera_launcher().relaunch();
 }
 
 bool MyClientToDistDispatcher::on_event_loop()

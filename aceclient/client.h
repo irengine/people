@@ -24,6 +24,7 @@ public:
   bool launch();
   void on_terminated(pid_t pid);
   bool running() const;
+  void check_relaunch();
   virtual bool ready() const;
   void kill_instance();
 
@@ -37,6 +38,7 @@ private:
   enum { INVALID_PID = 0 };
   pid_t m_pid;
   ACE_Process_Options m_options;
+  time_t m_last_kill;
 };
 
 class MyVLCLauncher: public MyProgramLauncher
@@ -70,13 +72,9 @@ public:
 
   virtual bool ready() const;
   void relaunch();
-  void need_relaunch();
 
 protected:
   virtual bool on_launch(ACE_Process_Options & options);
-
-private:
-  bool m_need_relaunch;
 };
 
 class MyVLCMonitor: public ACE_Event_Handler
@@ -84,17 +82,13 @@ class MyVLCMonitor: public ACE_Event_Handler
 public:
   MyVLCMonitor(MyClientApp * app);
 
-  void check_relaunch();
   void relaunch();
-
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
 
 private:
   void launch_vlc();
-  void need_relaunch();
 
   MyClientApp * m_app;
-  bool m_need_relaunch;
 };
 
 

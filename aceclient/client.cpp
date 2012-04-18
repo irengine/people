@@ -18,6 +18,7 @@ MyProgramLauncher::MyProgramLauncher()
 {
   m_pid = INVALID_PID;
   m_wait_for_term = false;
+  m_last_kill = 0;
 }
 
 MyProgramLauncher::~MyProgramLauncher()
@@ -32,6 +33,17 @@ void MyProgramLauncher::kill_instance()
     MY_INFO("killing child process [%d]...\n", (int)m_pid);
     kill(m_pid, SIGTERM);
     m_wait_for_term = true;
+    m_last_kill = time(NULL);
+  }
+}
+
+void MyProgramLauncher::check_relaunch()
+{
+  if (m_wait_for_term && m_pid != INVALID_PID && time(NULL) > m_last_kill + 6)
+  {
+    MY_INFO("killing forcefully child process [%d]...\n", (int)m_pid);
+    kill(m_pid, SIGKILL);
+    m_last_kill = time(NULL);
   }
 }
 
@@ -270,22 +282,6 @@ bool MyVLCLauncher::ready() const
 MyVLCMonitor::MyVLCMonitor(MyClientApp * app)
 {
   m_app = app;
-  m_need_relaunch = false;
-}
-
-void MyVLCMonitor::check_relaunch()
-{
-  if (!m_need_relaunch)
-    return;
-  if (m_app->vlc_launcher().running())
-    return;
-  m_need_relaunch = false;
-  launch_vlc();
-}
-
-void MyVLCMonitor::need_relaunch()
-{
-//  m_need_relaunch = true;
 }
 
 void MyVLCMonitor::relaunch()
@@ -327,7 +323,7 @@ int MyVLCMonitor::handle_timeout(const ACE_Time_Value &, const void *)
 
 MyOperaLauncher::MyOperaLauncher()
 {
-  m_need_relaunch = false;
+
 }
 
 bool MyOperaLauncher::on_launch(ACE_Process_Options & options)
@@ -385,11 +381,6 @@ void MyOperaLauncher::relaunch()
     kill_instance();
   else
     launch();
-}
-
-void MyOperaLauncher::need_relaunch()
-{
-  m_need_relaunch = true;
 }
 
 
@@ -818,8 +809,8 @@ bool MyClientApp::on_sigchild(pid_t pid)
 
 bool MyClientApp::on_event_loop()
 {
-//  m_vlc_monitor.check_relaunch();
-//  m_opera_launcher.check_relaunch();
+  m_opera_launcher.check_relaunch();
+  m_vlc_launcher.check_relaunch();
   return true;
 }
 
