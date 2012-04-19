@@ -227,11 +227,11 @@ bool MyVLCLauncher::parse_line(char * ptr, ACE_Process_Options & options, bool f
     if (mycomutil_string_end_with(token, ".bmp") || mycomutil_string_end_with(token, ".jpg") ||
         mycomutil_string_end_with(token, ".gif") || mycomutil_string_end_with(token, ".png"))
     {
-      ACE_OS::strncat(cmdline.data(), " fake:///tmp/daily/5/", 64000 - 1);
+      ACE_OS::strncat(cmdline.data(), " fake:///tmp/daily/5/", 63000);
       fake = true;
     } else
-      ACE_OS::strncat(cmdline.data(), " /tmp/daily/5/", 64000 - 1);
-    ACE_OS::strncat(cmdline.data(), token, 64000 - 1);
+      ACE_OS::strncat(cmdline.data(), " /tmp/daily/5/", 63000);
+    ACE_OS::strncat(cmdline.data(), token, 63000 - 1);
   }
 
   if (cmdline.data()[0] == 0)
