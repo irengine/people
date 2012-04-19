@@ -1077,7 +1077,8 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
       MY_ERROR("ftp no/bad response on REST command to server (%s): %s\n", m_ftp_server_addr.data(), m_response.data());
       return false;
     }
-    MY_INFO("ftp (%s) continue @%d\n", m_ftp_info->dist_id.data(), fs_client);
+    MY_INFO("ftp (%s) continue @%d, ftype=%c, adir=%s\n", m_ftp_info->dist_id.data(), fs_client,
+        m_ftp_info->ftype, m_ftp_info->adir.data() ? m_ftp_info->adir.data() : "");
   }
 
   MyPooledMemGuard retr;
@@ -1133,8 +1134,9 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
 
   if (file_size < 0)
   {
-    MY_ERROR("ftp read data for file %s from server %s failed %s, completed = %d\n",
-        filename, m_ftp_server_addr.data(), (const char*)MyErrno(), all_size);
+    MY_ERROR("ftp read data for file %s from server %s failed %s, completed = %d, ftype=%c, adir=%s\n",
+        filename, m_ftp_server_addr.data(), (const char*)MyErrno(), all_size,
+        m_ftp_info->ftype, m_ftp_info->adir.data() ? m_ftp_info->adir.data() : "");
     return false;
   }
 
@@ -1144,7 +1146,8 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
 //    return false;
 //  }
 
-  MY_INFO("ftp downloaded file %s as %s size = %d\n", filename, localfile, all_size);
+  MY_INFO("ftp downloaded file %s as %s size = %d, ftype = %c, adir = %s\n", filename, localfile, all_size,
+      m_ftp_info->ftype, m_ftp_info->adir.data() ? m_ftp_info->adir.data() : "");
   return true;
 }
 
@@ -1919,10 +1922,10 @@ void MyDistInfoMD5::post_md5_message()
   ACE_OS::memcpy(dpe->data, dist_id.data(), dist_id_len);
   dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
   m_md5list.to_buffer(dpe->data + dist_id_len + 1, md5_len, false);
-  if (g_test_mode)
+//  if (g_test_mode)
     MY_INFO("posting md5 reply to dist server for dist_id (%s), md5 len = %d\n", dist_id.data(), md5_len - 1);
-  else
-    MY_INFO("posting md5 reply to dist server for dist_id (%s), md5 len = %d, data= %s\n", dist_id.data(), md5_len - 1, dpe->data + dist_id_len + 1);
+//  else
+//    MY_INFO("posting md5 reply to dist server for dist_id (%s), md5 len = %d, data= %s\n", dist_id.data(), md5_len - 1, dpe->data + dist_id_len + 1);
   MyClientAppX::instance()->send_mb_to_dist(mb);
 }
 
@@ -2550,7 +2553,10 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_md5_list_request(ACE_M
   dist_md5->client_id_index = m_client_id_index;
   if (dist_md5->load_from_string(packet->data))
   {
-    MY_INFO("received one md5 file list command for dist %s, client_id=%s\n", dist_md5->dist_id.data(), m_client_id.as_string());
+    MY_INFO("received one md5 file list command for dist %s, client_id=%s, ftype = %c\n",
+        dist_md5->dist_id.data(),
+        m_client_id.as_string(),
+        dist_md5->ftype);
 //    MyDistInfoMD5 * existing = MyClientAppX::instance()->client_to_dist_module()->dist_info_md5s().get_finished(*dist_md5);
 //    if (unlikely(existing != NULL))
 //    {
@@ -2606,8 +2612,10 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_M
 
   if (dist_ftp->load_from_string(packet->data))
   {
-    MY_INFO("received one ftp command for dist(%s) client(%s): password = %s, file name = %s\n",
-            dist_ftp->dist_id.data(), m_client_id.as_string(), dist_ftp->file_password.data(), dist_ftp->file_name.data());
+    MY_INFO("received one ftp command for dist(%s) client(%s): ftype=%c, adir=%s, password=%s, file name=%s\n",
+            dist_ftp->dist_id.data(), m_client_id.as_string(), dist_ftp->ftype,
+            dist_ftp->adir.data() ? dist_ftp->adir.data(): "",
+            dist_ftp->file_password.data(), dist_ftp->file_name.data());
     {
       MyClientDBGuard dbg;
       if (dbg.db().open_db(m_client_id.as_string()))
@@ -2727,8 +2735,8 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
 {
   MyMessageBlockGuard guard(mb);
   m_version_check_reply_done = true;
-  if (!g_test_mode)
-    MY_DEBUG("on ver reply: handler = %X, socket = %d\n", (int)(long)m_handler, m_handler->get_handle());
+//  if (!g_test_mode)
+//    MY_DEBUG("on ver reply: handler = %X, socket = %d\n", (int)(long)m_handler, m_handler->get_handle());
 
   MyClientVersionCheckReply * vcr;
   vcr = (MyClientVersionCheckReply *)mb->base();
@@ -3527,8 +3535,13 @@ bool MyClientFtpService::do_ftp_download(MyDistInfoFtp * dist_info, const char *
   if (unlikely(dist_info->status >=  3))
     return true;
 
-  MY_INFO("processing ftp download for dist_id=%s, filename=%s, password=%s, retry_count=%d\n",
-      dist_info->dist_id.data(), dist_info->file_name.data(), dist_info->file_password.data(), dist_info->failed_count());
+  MY_INFO("processing ftp download for dist_id=%s, filename=%s, ftype=%c, adir=%s, password=%s, retry_count=%d\n",
+      dist_info->dist_id.data(),
+      dist_info->file_name.data(),
+      dist_info->ftype,
+      dist_info->adir.data() ? dist_info->adir.data():"",
+      dist_info->file_password.data(),
+      dist_info->failed_count());
 
   if (!g_test_mode)
   {
