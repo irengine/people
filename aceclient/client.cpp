@@ -218,8 +218,8 @@ bool MyVLCLauncher::parse_line(char * ptr, ACE_Process_Options & options, bool f
     fn.init_from_string("/tmp/daily/5/", token);
     if (!MyFilePaths::exist(fn.data()))
     {
-      //MY_INFO("skipping non-existing adv file %s\n", token);
-      //continue;
+      MY_INFO("skipping non-existing adv file %s\n", token);
+      continue;
     }
     if (!fill_options)
       return true;
