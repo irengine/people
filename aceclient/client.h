@@ -33,11 +33,11 @@ protected:
   virtual bool do_on_terminated();
 
   bool m_wait_for_term;
+  ACE_Process_Options m_options;
 
 private:
   enum { INVALID_PID = 0 };
   pid_t m_pid;
-  ACE_Process_Options m_options;
   time_t m_last_kill;
 };
 

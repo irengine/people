@@ -51,6 +51,7 @@ bool MyProgramLauncher::do_on_terminated()
 {
   if (!MyClientAppX::instance()->running())
     return false;
+  ACE_OS::sleep(2);
   return launch();
 }
 
@@ -63,19 +64,19 @@ bool MyProgramLauncher::launch()
     m_pid = INVALID_PID;
   }
   m_wait_for_term = false;
-  ACE_Process_Options options(true, 64000);
-  if (!on_launch(options))
+//  ACE_Process_Options options(true, 64000);
+  if (!on_launch(m_options))
     return false;
   ACE_Process child;
-  pid_t pid = child.spawn(options);
+  pid_t pid = child.spawn(m_options);
   if (pid == -1)
   {
-    MY_ERROR("failed to launch program %s %s\n", options.command_line_buf(NULL), (const char *)MyErrno());
+    MY_ERROR("failed to launch program %s %s\n", m_options.command_line_buf(), (const char *)MyErrno());
     return false;
   } else
   {
     m_pid = pid;
-    MY_INFO("launch program OK (pid = %d): %s\n", (int)pid, options.command_line_buf(NULL));
+    MY_INFO("launch program OK (pid = %d): %s\n", (int)pid, m_options.command_line_buf());
     return true;
   }
 }
@@ -227,17 +228,21 @@ bool MyVLCLauncher::parse_line(char * ptr, ACE_Process_Options & options, bool f
     if (mycomutil_string_end_with(token, ".bmp") || mycomutil_string_end_with(token, ".jpg") ||
         mycomutil_string_end_with(token, ".gif") || mycomutil_string_end_with(token, ".png"))
     {
-      ACE_OS::strncat(cmdline.data(), " fake:///tmp/daily/5/", 63000);
+      //ACE_OS::strncat(cmdline.data(), " fake:///tmp/daily/5/", 63000);
+      ACE_OS::strncat(cmdline.data(), " fake://", 63000);
+      ACE_OS::strncat(cmdline.data(), token, 63000);
       fake = true;
     } else
-      ACE_OS::strncat(cmdline.data(), " /tmp/daily/5/", 63000);
-    ACE_OS::strncat(cmdline.data(), token, 63000 - 1);
+    {
+      ACE_OS::strncat(cmdline.data(), " ", 63000);
+      ACE_OS::strncat(cmdline.data(), token, 63000);
+    }
   }
 
   if (cmdline.data()[0] == 0)
     return false;
 
-  options.command_line("%s %s %s", vlc, (fake ? " --fake-duration 10000" : ""), cmdline.data());
+  options.command_line("%s%s%s", vlc, (fake ? " --fake-duration 10000 " : ""), cmdline.data());
   return true;
 }
 
@@ -266,6 +271,7 @@ bool MyVLCLauncher::on_launch(ACE_Process_Options & options)
 MyVLCLauncher::MyVLCLauncher()
 {
   m_init_mode = false;
+  m_options.working_directory("/tmp/daily/5");
 }
 
 bool MyVLCLauncher::ready() const
@@ -766,7 +772,6 @@ bool MyClientApp::on_construct()
       {
         time_t deadline = time_t(NULL) - const_one_day * 20;
         dbg.db().remove_outdated_ftp_command(deadline);
-//      dbg.db().reset_ftp_command_status();
       }
     }
   }
@@ -787,7 +792,6 @@ bool MyClientApp::on_construct()
 
   if (!g_test_mode)
   {
-//    m_opera_launcher.launch();
     m_vlc_launcher.init_mode(false);
     m_vlc_monitor.relaunch();
   }
