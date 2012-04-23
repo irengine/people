@@ -3050,6 +3050,8 @@ bool MyVlcItems::empty() const
 
 ACE_Message_Block * MyVlcItems::make_mb()
 {
+  return NULL;
+/*
   int len = total_len();
   MyPooledMemGuard data;
   MyMemPoolFactoryX::instance()->get_mem(len, &data);
@@ -3068,6 +3070,7 @@ ACE_Message_Block * MyVlcItems::make_mb()
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
   ACE_OS::memcpy(dpe->data, ptr, len);
   return mb;
+*/
 }
 
 
@@ -3080,15 +3083,14 @@ void MyVlcHistory::items(MyVlcItems * _items)
 
 void MyVlcHistory::process()
 {
-  std::string vlc2;
-  vlc2 = MyConfigX::instance()->app_data_path + "/vlc-history.txt";
-  const char * vlc1 = "~/vlc-history.txt";
+  std::string vlc2 = MyConfigX::instance()->app_data_path + "/vlc-history2.txt";
+  std::string vlc1 = MyConfigX::instance()->app_data_path + "/vlc-history.txt";
   MyFilePaths::remove(vlc2.c_str(), true);
-  if (!MyFilePaths::exist(vlc1))
+  if (!MyFilePaths::exist(vlc1.c_str()))
     return;
-  if (!MyFilePaths::rename(vlc1, vlc2.c_str(), false))
+  if (!MyFilePaths::rename(vlc1.c_str(), vlc2.c_str(), false))
     return;
-
+/*
   std::ifstream ifs(vlc2.c_str());
   if (!ifs || ifs.bad())
   {
@@ -3120,6 +3122,7 @@ void MyVlcHistory::process()
       continue;
     m_items->add(line + 12 + leading_len, d);
   }
+*/
 }
 
 
@@ -3255,7 +3258,6 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
       if (send_data(mb) < 0)
         return -1;
     }
-
     return 0;
   }
   else if (long(act) == 0)

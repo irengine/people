@@ -19,6 +19,7 @@ MyProgramLauncher::MyProgramLauncher(): m_options(true, 64000)
   m_pid = INVALID_PID;
   m_wait_for_term = false;
   m_last_kill = 0;
+  m_launch_time = 0;
 }
 
 MyProgramLauncher::~MyProgramLauncher()
@@ -76,6 +77,7 @@ bool MyProgramLauncher::launch()
   } else
   {
     m_pid = pid;
+    m_launch_time = time(NULL);
     MY_INFO("launch program OK (pid = %d): %s\n", (int)pid, m_options.command_line_buf());
     return true;
   }
@@ -130,6 +132,45 @@ int MyVLCLauncher::next() const
 void MyVLCLauncher::init_mode(bool b)
 {
   m_init_mode = b;
+}
+
+void MyVLCLauncher::get_file_stat(time_t &t, int & n)
+{
+  std::string fn = MyConfigX::instance()->app_data_path + "/vlc-history.txt";
+  struct stat stat;
+  if (MyFilePaths::stat(fn.c_str(), &stat))
+  {
+    t = stat.st_mtime;
+    n = stat.st_size;
+  } else
+  {
+    t = 0;
+    n = 0;
+  }
+}
+
+void MyVLCLauncher::check_status()
+{
+  if (!m_check)
+    return;
+  if (m_wait_for_term || !running())
+    return;
+  if (time(NULL) <= m_launch_time + 12)
+    return;
+  m_check = false;
+  if (!file_changed())
+  {
+    MY_WARNING("restart vlc for it seems not running...\n");
+    kill_instance();
+  }
+}
+
+bool MyVLCLauncher::file_changed()
+{
+  time_t t;
+  int n;
+  get_file_stat(t, n);
+  return t != m_t || n != m_n;
 }
 
 bool MyVLCLauncher::load(ACE_Process_Options & options)
@@ -251,11 +292,15 @@ bool MyVLCLauncher::on_launch(ACE_Process_Options & options)
   const char * vlc = "vlc -L --fullscreen";
 
   std::vector<std::string> advlist;
+  get_file_stat(m_t, m_n);
 
   if (!m_init_mode)
   {
     if (load(options))
+    {
+      m_check = true;
       return true;
+    }
     MY_INFO("%s not exist or content empty, trying %s\n", adv_txt(), gasket());
   }
 
@@ -265,6 +310,7 @@ bool MyVLCLauncher::on_launch(ACE_Process_Options & options)
     return false;
   }
   options.command_line("%s %s", vlc, gasket());
+  m_check = true;
   return true;
 }
 
@@ -272,6 +318,9 @@ MyVLCLauncher::MyVLCLauncher()
 {
   m_init_mode = false;
   m_options.working_directory("/tmp/daily/5");
+  m_t = 0;
+  m_n = 0;
+  m_check = false;
 }
 
 bool MyVLCLauncher::ready() const
@@ -815,6 +864,7 @@ bool MyClientApp::on_event_loop()
 {
   m_opera_launcher.check_relaunch();
   m_vlc_launcher.check_relaunch();
+  m_vlc_launcher.check_status();
   return true;
 }
 

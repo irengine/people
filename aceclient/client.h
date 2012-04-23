@@ -34,6 +34,7 @@ protected:
 
   bool m_wait_for_term;
   ACE_Process_Options m_options;
+  time_t m_launch_time;
 
 private:
   enum { INVALID_PID = 0 };
@@ -48,21 +49,27 @@ public:
   virtual bool ready() const;
   int next() const;
   void init_mode(bool b);
+  void check_status();
 
 protected:
   virtual bool on_launch(ACE_Process_Options & options);
   bool load(ACE_Process_Options & options);
+  bool file_changed();
 
 private:
   enum { GAP_THREASHHOLD = 2 * 60 };
 
   bool parse_line(char * ptr, ACE_Process_Options & options, bool fill_options);
+  void get_file_stat(time_t & t, int & n);
   const char * adv_txt() const;
   const char * gasket() const;
 
   int m_next;
   MyPooledMemGuard m_current_line;
   bool m_init_mode;
+  time_t m_t;
+  int m_n;
+  bool m_check;
 };
 
 class MyOperaLauncher: public MyProgramLauncher
