@@ -186,7 +186,7 @@ int MyVLCLauncher::next() const
 
 bool MyVLCLauncher::save_file(const char * buff)
 {
-  const char * fn = "/tmp/daily/vlc.txt";
+  const char * fn = "/tmp/daily/video.txt";
   if (!buff || !*buff)
     return false;
   MyUnixHandleGuard h;
@@ -371,7 +371,7 @@ const char * MyVLCLauncher::name() const
 
 void MyVLCLauncher::clean_list() const
 {
-  MyFilePaths::remove("/tmp/daily/vlc.txt");
+  MyFilePaths::remove("/tmp/daily/video.txt");
 }
 
 bool MyVLCLauncher::on_launch(ACE_Process_Options & )

@@ -1,12 +1,12 @@
 #!/bin/bash
 
-fn=/tmp/daily/vlc.txt
+fn=/tmp/daily/video.txt
 
 while true
 do
   if [ ! -s "$fn" ]; then
-    echo "vlc.txt not exist!"
-	sleep 5
+    echo "video.txt not exist!"
+    sleep 3 
     continue
   fi
 
