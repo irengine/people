@@ -3433,9 +3433,8 @@ void MyClientToDistService::do_extract_task(MyDistInfoFtp * dist_info)
       else if (ftype_is_frame(dist_info->ftype))
       {
         MyOperaLauncher & ol = MyClientAppX::instance()->opera_launcher();
-        //if (!ol.running())
         {
-          ol.relaunch();
+          ol.kill_instance();
           MyClientAppX::instance()->client_to_dist_module()->dispatcher()->start_watch_dog();
         }
       }

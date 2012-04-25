@@ -31,6 +31,7 @@ public:
 protected:
   virtual bool on_launch(ACE_Process_Options & options);
   virtual bool do_on_terminated();
+  virtual const char * name() const;
 
   bool m_wait_for_term;
   ACE_Process_Options m_options;
@@ -53,16 +54,19 @@ public:
 
 protected:
   virtual bool on_launch(ACE_Process_Options & options);
-  bool load(ACE_Process_Options & options);
+  virtual const char * name() const;
+  bool load(MyPooledMemGuard & file_list);
   bool file_changed();
 
 private:
   enum { GAP_THREASHHOLD = 2 * 60 };
 
-  bool parse_line(char * ptr, ACE_Process_Options & options, bool fill_options);
+  bool parse_line(char * ptr, MyPooledMemGuard & file_list, bool fill_options);
   void get_file_stat(time_t & t, int & n);
   const char * adv_txt() const;
   const char * gasket() const;
+  bool save_file(const char * buff);
+  void clean_list() const;
 
   int m_next;
   MyPooledMemGuard m_current_line;
@@ -84,6 +88,7 @@ public:
 
 protected:
   virtual bool on_launch(ACE_Process_Options & options);
+  virtual const char * name() const;
 };
 
 class MyVLCMonitor: public ACE_Event_Handler
