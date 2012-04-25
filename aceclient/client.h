@@ -70,6 +70,8 @@ private:
   time_t m_t;
   int m_n;
   bool m_check;
+  std::string m_adv_txt;
+  std::string m_gasket;
 };
 
 class MyOperaLauncher: public MyProgramLauncher

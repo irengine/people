@@ -1268,10 +1268,12 @@ int MyDistInfoHeader::load_header_from_string(char * src)
   return end - src + 1;
 }
 
-void MyDistInfoHeader::calc_target_parent_path(MyPooledMemGuard & target_parent_path, bool extract_only)
+void MyDistInfoHeader::calc_target_parent_path(MyPooledMemGuard & target_parent_path, bool extract_only, bool bv)
 {
   if (extract_only)
     MyClientApp::calc_dist_parent_path(target_parent_path, dist_id.data(), client_id.as_string());
+  else if (bv)
+    MyClientApp::data_path(target_parent_path, client_id.as_string());
   else
     MyClientApp::calc_display_parent_path(target_parent_path, client_id.as_string());
 }
@@ -1508,7 +1510,7 @@ void MyDistInfoFtp::generate_url_ini()
     return;
 
   MyPooledMemGuard path, file;
-  calc_target_parent_path(path, false);
+  calc_target_parent_path(path, false, false);
   file.init_from_string(path.data(), "/index/", adir.data(), "/url.ini");
 
   {
@@ -1542,7 +1544,7 @@ void MyDistInfoFtp::generate_update_ini()
     return;
 
   MyPooledMemGuard path, file;
-  calc_target_parent_path(path, false);
+  calc_target_parent_path(path, false, false);
   file.init_from_string(path.data(), "/update.ini");
   MyUnixHandleGuard h;
   if (unlikely(!h.open_write(file.data(), true, true, false, false)))
@@ -1641,7 +1643,7 @@ MyDistFtpFileExtractor::MyDistFtpFileExtractor()
 bool MyDistFtpFileExtractor::get_true_dest_path(MyDistInfoFtp * dist_info, MyPooledMemGuard & target_path)
 {
   MyPooledMemGuard target_parent_path;
-  dist_info->calc_target_parent_path(target_parent_path, false);
+  dist_info->calc_target_parent_path(target_parent_path, false, ftype_is_vd(dist_info->ftype));
   return dist_info->calc_target_path(target_parent_path.data(), target_path);
 }
 
@@ -1666,7 +1668,7 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
   }
 
   MyPooledMemGuard target_parent_path;
-  dist_info->calc_target_parent_path(target_parent_path, true);
+  dist_info->calc_target_parent_path(target_parent_path, true, false);
   bool result = do_extract(dist_info, target_parent_path);
   if (!result)
   {
@@ -1690,7 +1692,8 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
         cleaner.do_clean(mpath, MyClientAppX::instance()->client_id(), cfg->adv_expire_days);
       }
     }
-    MyClientApp::full_backup(dist_info->dist_id.data(), dist_info->client_id.as_string());
+    if (!ftype_is_vd(dist_info->ftype))
+      MyClientApp::full_backup(dist_info->dist_id.data(), dist_info->client_id.as_string());
   }
   MyFilePaths::remove_path(target_parent_path.data(), true);
   MyFilePaths::remove(dist_info->local_file_name.data());
@@ -1857,7 +1860,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
           result = false;
       }
 
-      if (!result)
+      if (!result && !ftype_is_vd(dist_info->ftype))
       {
         MY_WARNING("doing restore due to deployment error client_id(%s)\n", dist_info->client_id.as_string());
         if (!MyClientApp::full_restore(NULL, true, true, dist_info->client_id.as_string()))
@@ -2032,7 +2035,7 @@ bool MyDistInfoMD5Comparer::compute(MyDistInfoHeader * dist_info_header, MyFileM
     return false;
 
   MyPooledMemGuard target_parent_path;
-  dist_info_header->calc_target_parent_path(target_parent_path, false);
+  dist_info_header->calc_target_parent_path(target_parent_path, false, false);
 
   MyPooledMemGuard target_path;
   if (!dist_info_header->calc_target_path(target_parent_path.data(), target_path))
@@ -2056,7 +2059,7 @@ bool MyDistInfoMD5Comparer::compute(MyDistInfoMD5 * dist_md5)
     return false;
 
   MyPooledMemGuard target_parent_path;
-  dist_md5->calc_target_parent_path(target_parent_path, false);
+  dist_md5->calc_target_parent_path(target_parent_path, false, false);
 
   MyPooledMemGuard target_path;
   if (!dist_md5->calc_target_path(target_parent_path.data(), target_path))

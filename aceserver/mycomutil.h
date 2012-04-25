@@ -648,6 +648,7 @@ private:
 #define ftype_is_chn(ftype) ((ftype) == '1' || (ftype) == '2' || (ftype) == '4')
 #define ftype_is_frame(ftype) ((ftype) == '0')
 #define ftype_is_backgnd(ftype) ((ftype) == '8')
+#define ftype_is_vd(ftype) ((ftype) == '3' || (ftype) == '5' || (ftype) == '6' || (ftype) == '8')
 #define ftype_is_valid(ftype) ((ftype) >= '0' && (ftype) <= '9')
 
 #define type_is_valid(type) ((type) == '0' || (type) == '1' || (type) == '3')

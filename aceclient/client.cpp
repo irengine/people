@@ -116,12 +116,12 @@ bool MyProgramLauncher::on_launch(ACE_Process_Options & options)
 
 const char * MyVLCLauncher::adv_txt() const
 {
-  return "/tmp/daily/5/adv.txt";
+  return m_adv_txt.c_str();
 }
 
 const char * MyVLCLauncher::gasket() const
 {
-  return "/tmp/daily/8/gasket.avi";
+  return m_gasket.c_str();
 }
 
 int MyVLCLauncher::next() const
@@ -132,6 +132,10 @@ int MyVLCLauncher::next() const
 void MyVLCLauncher::init_mode(bool b)
 {
   m_init_mode = b;
+  m_adv_txt = MyConfigX::instance()->app_data_path + "/5/adv.txt";
+  m_gasket = MyConfigX::instance()->app_data_path + "/8/gasket.avi";
+  std::string s = MyConfigX::instance()->app_data_path + "/5";
+  m_options.working_directory(s.c_str());
 }
 
 void MyVLCLauncher::get_file_stat(time_t &t, int & n)
@@ -255,9 +259,10 @@ bool MyVLCLauncher::parse_line(char * ptr, ACE_Process_Options & options, bool f
   char * token;
   cmdline.data()[0] = 0;
   MyPooledMemGuard fn;
+  std::string p5 = MyConfigX::instance()->app_data_path + "/5/";
   while ((token = tkn.get_token()) != NULL)
   {
-    fn.init_from_string("/tmp/daily/5/", token);
+    fn.init_from_string(p5.c_str(), token);
     if (!MyFilePaths::exist(fn.data()))
     {
       MY_INFO("skipping non-existing adv file %s\n", token);
@@ -317,7 +322,6 @@ bool MyVLCLauncher::on_launch(ACE_Process_Options & options)
 MyVLCLauncher::MyVLCLauncher()
 {
   m_init_mode = false;
-  m_options.working_directory("/tmp/daily/5");
   m_t = 0;
   m_n = 0;
   m_check = false;
@@ -325,10 +329,7 @@ MyVLCLauncher::MyVLCLauncher()
 
 bool MyVLCLauncher::ready() const
 {
-  const char * adv = "/tmp/daily/5/adv.txt";
-  const char * gasket = "/tmp/daily/8/gasket.avi";
-
-  return (MyFilePaths::exist(adv) || MyFilePaths::exist(gasket));
+  return (MyFilePaths::exist(m_adv_txt.c_str()) || MyFilePaths::exist(m_gasket.c_str()));
 }
 
 
@@ -651,7 +652,7 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
     }
   }
 
-  src_path.init_from_string(src_parent_path.data(), "/8");
+/*  src_path.init_from_string(src_parent_path.data(), "/8");
   dest_path.init_from_string(dest_parent_path.data(), "/8");
   if (remove_existing)
     MyFilePaths::zap(dest_path.data(), true);
@@ -668,6 +669,12 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
       MyClientAppX::instance()->vlc_launcher().init_mode(true);
       MyClientAppX::instance()->vlc_launcher().launch();
     }
+  }
+*/
+  if (init && !g_test_mode)
+  {
+    MyClientAppX::instance()->vlc_launcher().init_mode(true);
+    MyClientAppX::instance()->vlc_launcher().launch();
   }
 
   src_path.init_from_string(src_parent_path.data(), "/", mfile.data());
@@ -710,6 +717,7 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
   if (init && !g_test_mode)
     MyClientAppX::instance()->opera_launcher().launch();
 
+/*
   src_path.init_from_string(src_parent_path.data(), "/5");
   dest_path.init_from_string(dest_parent_path.data(), "/5");
   if (remove_existing)
@@ -722,6 +730,7 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
       return false;
     }
   }
+*/
 
 //  src_path.init_from_string(src_parent_path.data(), "/", index_frame_file());
 //  dest_path.init_from_string(dest_parent_path.data(), "/", index_frame_file());

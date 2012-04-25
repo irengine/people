@@ -206,7 +206,7 @@ class MyDistInfoHeader
 public:
   MyDistInfoHeader();
   virtual ~MyDistInfoHeader();
-  void calc_target_parent_path(MyPooledMemGuard & target_parent_path, bool extract_only);
+  void calc_target_parent_path(MyPooledMemGuard & target_parent_path, bool extract_only, bool bv);
   bool calc_target_path(const char * target_parent_path, MyPooledMemGuard & target_path);
   virtual bool validate();
   const char * index_file() const;
