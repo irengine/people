@@ -417,6 +417,7 @@ private:
   MyBaseProcessor::EVENT_RESULT do_ack(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_test(ACE_Message_Block * mb);
   void check_offline_report();
+  bool check_vlc_empty();
 
   bool m_version_check_reply_done;
   MyPooledMemGuard m_ftp_password;
@@ -469,7 +470,7 @@ class MyVlcItems
 public:
   typedef std::list<MyVlcItem> MyVlcItemList;
   void add(const char * fn, int duration);
-  int total_len();
+  int  total_len();
   bool empty() const;
   ACE_Message_Block * make_mb();
 

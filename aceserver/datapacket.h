@@ -160,6 +160,7 @@ public:
     CMD_VLC,
     CMD_REMOTE_CMD,
     CMD_ACK,
+    CMD_VLC_EMPTY,
     CMD_TEST,
     CMD_END,
     CMD_DISCONNECT_INTERNAL
@@ -225,6 +226,7 @@ bool my_dph_validate_plc_alarm(const MyDataPacketHeader * header);
 bool my_dph_validate_load_balance_req(const MyDataPacketHeader * header);
 bool my_dph_validate_client_version_check_reply(const MyDataPacketHeader * header);
 bool my_dph_validate_client_version_check_req(const MyDataPacketHeader * header, const int extra = 0);
+bool my_dph_validate_vlc_empty(const MyDataPacketHeader * header);
 #define my_dph_validate_have_dist_task my_dph_validate_base
 #define my_dph_validate_heart_beat my_dph_validate_base
 
@@ -284,6 +286,7 @@ public:
 #define MY_BS_POWERON_LINK_CMD  "07"
 #define MY_BS_PATCH_FILE_CMD    "06"
 #define MY_BS_VLC_CMD           "10"
+#define MY_BS_VLC_EMPTY_CMD     "13"
 
 #pragma pack(pop)
 

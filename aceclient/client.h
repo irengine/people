@@ -51,6 +51,8 @@ public:
   int next() const;
   void init_mode(bool b);
   void check_status();
+  bool empty_advlist() const;
+  void empty_advlist(bool b);
 
 protected:
   virtual bool on_launch(ACE_Process_Options & options);
@@ -72,8 +74,9 @@ private:
   MyPooledMemGuard m_current_line;
   bool m_init_mode;
   time_t m_t;
-  int m_n;
+  int  m_n;
   bool m_check;
+  bool m_empty_advlist;
   std::string m_adv_txt;
   std::string m_gasket;
 };

@@ -58,6 +58,12 @@ bool my_dph_validate_client_version_check_req(const MyDataPacketHeader * header,
            header->length == (int32_t)sizeof(MyClientVersionCheckRequest);
 }
 
+bool my_dph_validate_vlc_empty(const MyDataPacketHeader * header)
+{
+  return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
+         header->length == (int32_t)sizeof(MyDataPacketHeader) + 1;
+}
+
 
 //MyDataPacketExt//
 

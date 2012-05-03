@@ -658,6 +658,7 @@ MyAdvClickSubmitter * MyHeartBeatProcessor::m_adv_click_submitter = NULL;
 MyPcOnOffSubmitter * MyHeartBeatProcessor::m_pc_on_off_submitter = NULL;
 MyHWAlarmSubmitter * MyHeartBeatProcessor::m_hardware_alarm_submitter = NULL;
 MyVLCSubmitter * MyHeartBeatProcessor::m_vlc_submitter = NULL;
+MyVLCEmptySubmitter * MyHeartBeatProcessor::m_vlc_empty_submitter = NULL;
 
 MyHeartBeatProcessor::MyHeartBeatProcessor(MyBaseHandler * handler): MyBaseServerProcessor(handler)
 {
@@ -709,6 +710,19 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
     }
     return ER_OK;
   }
+
+  if (m_packet_header.command == MyDataPacketHeader::CMD_VLC_EMPTY)
+  {
+    if (!my_dph_validate_vlc_empty(&m_packet_header))
+    {
+      MyPooledMemGuard info;
+      info_string(info);
+      MY_ERROR("bad client vlc empty req packet received from %s\n", info.data());
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_HARDWARE_ALARM)
   {
@@ -842,6 +856,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
   MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
   if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
     return do_version_check(mb);
+
+  if (header->command == MyDataPacketHeader::CMD_VLC_EMPTY)
+    return do_vlc_empty_req(mb);
 
   if (header->command == MyDataPacketHeader::CMD_HARDWARE_ALARM)
     return do_hardware_alarm_req(mb);
@@ -1062,6 +1079,21 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_vlc_req(ACE_Message_Block
     *ptr ++ = 0;
     m_vlc_submitter->add_data(m_client_id.as_string(), m_client_id_length, token, ptr);
   }
+  return ER_OK;
+}
+
+MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_vlc_empty_req(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+  char c = dpe->data[0];
+  if (c != '1' && c != '0')
+  {
+    MyPooledMemGuard info;
+    info_string(info);
+    MY_ERROR("bad vlc empty packet from %s, data = %c\n", info.data(), c);
+  } else
+    m_vlc_empty_submitter->add_data(m_client_id.as_string(), m_client_id_length, c);
   return ER_OK;
 }
 
@@ -1301,9 +1333,9 @@ const char * MyPingSubmitter::get_command() const
 MyIPVerSubmitter::MyIPVerSubmitter():
     m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
     m_ip_block(BLOCK_SIZE, INET_ADDRSTRLEN, this),
-    m_ver_block(BLOCK_SIZE * 3 / sizeof(MyClientID) + 1, 7, this)//,
-//    m_hw_ver1_block(BLOCK_SIZE, 12, this),
-//    m_hw_ver2_block(BLOCK_SIZE, 12, this)
+    m_ver_block(BLOCK_SIZE * 3 / sizeof(MyClientID) + 1, 7, this),
+    m_hw_ver1_block(BLOCK_SIZE, 12, this),
+    m_hw_ver2_block(BLOCK_SIZE, 12, this)
 {
 
 }
@@ -1318,10 +1350,10 @@ void MyIPVerSubmitter::add_data(const char * client_id, int id_len, const char *
     ret = false;
   if (!m_ver_block.add(ver, 0))
     ret = false;
-//  if (!m_hw_ver1_block.add(hwver, 0))
-//    ret = false;
-//  if (!m_hw_ver1_block.add(hwver, 0))
-//    ret = false;
+  if (!m_hw_ver1_block.add(hwver, 0))
+    ret = false;
+  if (!m_hw_ver1_block.add(hwver, 0))
+    ret = false;
 
   if (!ret)
     submit();
@@ -1476,6 +1508,33 @@ const char * MyVLCSubmitter::get_command() const
 }
 
 
+//MyVLCEmptySubmitter//
+
+MyVLCEmptySubmitter::MyVLCEmptySubmitter():
+    m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
+    m_state_block(BLOCK_SIZE, 400, this)
+{
+
+}
+
+void MyVLCEmptySubmitter::add_data(const char * client_id, int id_len, const char state)
+{
+  bool ret = true;
+  if (!m_id_block.add(client_id, id_len))
+    ret = false;
+  if (!m_state_block.add(state))
+    ret = false;
+
+  if (!ret)
+    submit();
+}
+
+const char * MyVLCEmptySubmitter::get_command() const
+{
+  return MY_BS_VLC_EMPTY_CMD;
+}
+
+
 //MyHeartBeatHandler//
 
 MyHeartBeatHandler::MyHeartBeatHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
@@ -1578,7 +1637,7 @@ int MyHeartBeatService::svc()
       {
         do_file_md5_reply(mb);
       } else
-        MY_ERROR("unknown packet recieved @%s.queue2, cmd = %d\n", name(), dph->command);
+        MY_ERROR("unknown packet received @%s.queue2, cmd = %d\n", name(), dph->command);
     }
 
     if (idle)
@@ -1819,6 +1878,7 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
     MyHeartBeatProcessor::m_pc_on_off_submitter->check_time_out();
     MyHeartBeatProcessor::m_hardware_alarm_submitter->check_time_out();
     MyHeartBeatProcessor::m_vlc_submitter->check_time_out();
+    MyHeartBeatProcessor::m_vlc_empty_submitter->check_time_out();
   }
   return 0;
 }
@@ -1901,6 +1961,7 @@ MyHeartBeatModule::MyHeartBeatModule(MyBaseApp * app): MyBaseModule(app)
   MyHeartBeatProcessor::m_pc_on_off_submitter = &m_pc_on_off_submitter;
   MyHeartBeatProcessor::m_hardware_alarm_submitter = &m_hardware_alarm_submitter;
   MyHeartBeatProcessor::m_vlc_submitter = &m_vlc_submitter;
+  MyHeartBeatProcessor::m_vlc_empty_submitter = &m_vlc_empty_submitter;
 }
 
 MyHeartBeatModule::~MyHeartBeatModule()

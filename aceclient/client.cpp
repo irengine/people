@@ -184,6 +184,16 @@ int MyVLCLauncher::next() const
   return m_next;
 }
 
+bool MyVLCLauncher::empty_advlist() const
+{
+  return m_empty_advlist;
+}
+
+void MyVLCLauncher::empty_advlist(bool b)
+{
+  m_empty_advlist = b;
+}
+
 bool MyVLCLauncher::save_file(const char * buff)
 {
   const char * fn = "/tmp/daily/video.txt";
@@ -196,9 +206,8 @@ bool MyVLCLauncher::save_file(const char * buff)
   return ::write(h.handle(), buff, len) == len;
 }
 
-void MyVLCLauncher::init_mode(bool b)
+void MyVLCLauncher::init_mode(bool)
 {
-  m_init_mode = b;
   m_adv_txt = MyConfigX::instance()->app_data_path + "/5/adv.txt";
   m_gasket = MyConfigX::instance()->app_data_path + "/8/gasket.avi";
   std::string s = MyConfigX::instance()->app_data_path + "/5";
@@ -377,7 +386,7 @@ void MyVLCLauncher::clean_list() const
 bool MyVLCLauncher::on_launch(ACE_Process_Options & )
 {
 //  const char * vlc = "vlc -L --fullscreen";
-
+  m_empty_advlist = false;
   std::vector<std::string> advlist;
   clean_list();
   get_file_stat(m_t, m_n);
@@ -395,6 +404,8 @@ bool MyVLCLauncher::on_launch(ACE_Process_Options & )
     MY_INFO("%s not exist or content empty, trying %s\n", adv_txt(), gasket());
   }
 
+  m_empty_advlist = true;
+
   if (!MyFilePaths::exist(gasket()))
   {
     MY_ERROR("no %s file\n", gasket());
@@ -410,7 +421,8 @@ bool MyVLCLauncher::on_launch(ACE_Process_Options & )
 
 MyVLCLauncher::MyVLCLauncher()
 {
-  m_init_mode = false;
+  m_init_mode = true;
+  m_empty_advlist = false;
   m_t = 0;
   m_n = 0;
   m_check = false;

@@ -2498,6 +2498,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
           if (!((MyClientToDistHandler *)m_handler)->setup_click_send_timer())
             MY_ERROR("can not set adv click timer %s\n", (const char *)MyErrno());
         }
+        check_vlc_empty();
       }
 
       if (!g_test_mode)
@@ -2529,6 +2530,15 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
   MY_ERROR("unsupported command received @MyClientToDistProcessor::on_recv_packet_i(), command = %d\n",
       header->command);
   return ER_ERROR;
+}
+
+bool MyClientToDistProcessor::check_vlc_empty()
+{
+  MyVLCLauncher & vlc = MyClientAppX::instance()->vlc_launcher();
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(1, MyDataPacketHeader::CMD_VLC_EMPTY);
+  MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+  dpe->data[0] = vlc.empty_advlist() ? '1':'0';
+  return m_handler->send_data(mb) >= 0;
 }
 
 int MyClientToDistProcessor::send_heart_beat()
@@ -2725,7 +2735,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_remote_cmd(ACE_Message
     return ER_OK;
   MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
   char cmd = dpe->data[0];
-  if (cmd > '4' || cmd < '1')
+  if (cmd > '6' || cmd < '1')
   {
     MY_ERROR("invalid remote cmd (=%c) received\n", cmd);
     return ER_ERROR;
@@ -3053,8 +3063,6 @@ bool MyVlcItems::empty() const
 
 ACE_Message_Block * MyVlcItems::make_mb()
 {
-  return NULL;
-/*
   int len = total_len();
   MyPooledMemGuard data;
   MyMemPoolFactoryX::instance()->get_mem(len, &data);
@@ -3073,7 +3081,6 @@ ACE_Message_Block * MyVlcItems::make_mb()
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
   ACE_OS::memcpy(dpe->data, ptr, len);
   return mb;
-*/
 }
 
 
@@ -3093,7 +3100,6 @@ void MyVlcHistory::process()
     return;
   if (!MyFilePaths::rename(vlc1.c_str(), vlc2.c_str(), false))
     return;
-/*
   std::ifstream ifs(vlc2.c_str());
   if (!ifs || ifs.bad())
   {
@@ -3101,31 +3107,39 @@ void MyVlcHistory::process()
     return;
   }
 
-  const char * leading = "/tmp/daily/5/";
-  int leading_len = ACE_OS::strlen(leading);
+//  const char * leading = "/tmp/daily/5/";
+//  int leading_len = ACE_OS::strlen(leading);
   int m, p = 0;
   const int BLOCK_SIZE = 1024;
   char line[BLOCK_SIZE];
+  char pline[BLOCK_SIZE];
+  pline[0] = 0;
   while (!ifs.eof())
   {
     ifs.getline(line, BLOCK_SIZE - 1);
     line[BLOCK_SIZE - 1] = 0;
     int len = ACE_OS::strlen(line);
-    if (len <= 11 || line[10] != ',')
+    if (len <= 12 || line[10] != ',')
       continue;
     line[10] = 0;
     m = atoi(line);
     if (m < 10000)
       continue;
     int d = m - p;
-    if (d < 0)
+    if (d <= 0)
       continue;
     p = m;
-    if (ACE_OS::strncmp(leading, line + 12, leading_len) != 0)
+    if (pline[0] == 0)
       continue;
-    m_items->add(line + 12 + leading_len, d);
+//    if (ACE_OS::strncmp(leading, line + 12, leading_len) != 0)
+//      continue;
+    if (d <= 3 * 60 * 60)
+      m_items->add(pline, d);
+    if (ACE_OS::strcmp(line + 12, "Media Library") == 0 || ACE_OS::strcmp(line + 12, "gasket.avi") == 0)
+      pline[0] = 0;
+    else
+      ACE_OS::strcpy(pline, line + 12);
   }
-*/
 }
 
 
