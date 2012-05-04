@@ -1648,7 +1648,6 @@ int MyBasePacketProcessor::packet_length()
   return m_packet_header.length;
 }
 
-
 MyBaseProcessor::EVENT_RESULT MyBasePacketProcessor::on_recv_header()
 {
   return ER_CONTINUE;

@@ -905,6 +905,13 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
     MY_ERROR(ACE_TEXT("bad client version check packet, dpe->guard() failed: %s\n"), info.data());
     return ER_ERROR;
   }
+
+  {
+    MyClientVersionCheckRequest * vc = (MyClientVersionCheckRequest *)mb->base();
+    if (vc->uuid[0] != 0)
+      ACE_OS::memcpy(m_peer_addr, vc->uuid, 16);
+  }
+
   ACE_OS::strsncpy(m_hw_ver, ((MyClientVersionCheckRequest*)mb->base())->hw_ver, 12);
   if (m_hw_ver[0] == 0)
   {
@@ -914,6 +921,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
     MY_WARNING(ACE_TEXT("client version check packet led/lcd driver version empty: %s\n"), info.data());
   }
   MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, client_id_table);
+
+
+
   m_ip_ver_submitter->add_data(m_client_id.as_string(), m_client_id_length, m_peer_addr, m_client_version.to_string(), m_hw_ver);
 
   if (ret != ER_CONTINUE)
@@ -2242,7 +2252,7 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::on_recv_packet_i(ACE_Mess
   if (m_packet_header.command == MyDataPacketHeader::CMD_REMOTE_CMD)
   {
     MY_INFO("got notification from middle server on remote cmd\n");
-    MyBaseProcessor::EVENT_RESULT result = do_have_dist_task(mb);
+    MyBaseProcessor::EVENT_RESULT result = do_remote_cmd_task(mb);
     return result;
   }
 
@@ -2322,7 +2332,7 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_remote_cmd_task(ACE_Me
     return ER_ERROR;
   }
   char cmd = *(ptr + ACE_OS::strlen("&cmd="));
-  if (cmd < '1' || cmd > '4')
+  if (cmd < '1' || cmd > '6')
   {
     MY_ERROR("bad remote cmd task packet cmd = %c\n", cmd);
     return ER_ERROR;
@@ -2334,6 +2344,8 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_remote_cmd_task(ACE_Me
     return ER_ERROR;
   }
   char * acode = ptr + ACE_OS::strlen("&acode=");
+
+  MY_INFO("get remote cmd (= %c)\n", cmd);
 
   char separators[2] = { ';', 0 };
   MyStringTokenizer tokenizer(acode, separators);

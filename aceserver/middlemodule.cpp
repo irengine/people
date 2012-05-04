@@ -455,7 +455,7 @@ bool MyHttpProcessor::do_process_input_data()
   if (likely(ACE_OS::strncmp(const_dist_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_dist_cmd)) == 0))
     result = (mycomutil_mb_putq(MyServerAppX::instance()->http_module()->http_service(), m_current_block,
               "http request into target queue @MyHttpProcessor::do_process_input_data()"));
-  else if (likely(ACE_OS::strncmp(const_dist_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_remote_cmd)) == 0))
+  else if (likely(ACE_OS::strncmp(const_remote_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_remote_cmd)) == 0))
   {
     ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(m_current_block->length() - 3, MyDataPacketHeader::CMD_REMOTE_CMD);
     MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();

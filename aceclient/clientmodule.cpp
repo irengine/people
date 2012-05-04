@@ -2741,6 +2741,13 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_remote_cmd(ACE_Message
     return ER_ERROR;
   }
 
+  MY_INFO("remote cmd (=%c) received\n", cmd);
+
+  const char * fn = "/tmp/daily/rcmd.txt";
+  MyUnixHandleGuard fh;
+  if (fh.open_write(fn, true, true, false, true))
+    ::write(fh.handle(), &cmd, 1);
+
   return ER_OK;
 }
 
@@ -2814,10 +2821,16 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
 
 int MyClientToDistProcessor::send_version_check_req()
 {
+  ACE_INET_Addr addr;
+  char my_addr[PEER_ADDR_LEN];
+  if (m_handler->peer().get_local_addr(addr) == 0)
+    addr.get_host_addr((char*)my_addr, PEER_ADDR_LEN);
   const char * hw_ver = MyClientAppX::instance()->client_to_dist_module()->hw_ver();
   int len = ACE_OS::strlen(hw_ver) + 1;
   ACE_Message_Block * mb = make_version_check_request_mb(len);
   MyClientVersionCheckRequest * proc = (MyClientVersionCheckRequest *)mb->base();
+  if (my_addr[0] != 0)
+    ACE_OS::memcpy(proc->uuid, my_addr, PEER_ADDR_LEN);
   proc->client_version_major = const_client_version_major;
   proc->client_version_minor = const_client_version_minor;
   proc->client_id = m_client_id;
