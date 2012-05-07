@@ -3093,6 +3093,7 @@ ACE_Message_Block * MyVlcItems::make_mb()
   len = ACE_OS::strlen(ptr) + 1;
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(len, MyDataPacketHeader::CMD_VLC);
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
+  MY_DEBUG("vlc list: %s\n", ptr);
   ACE_OS::memcpy(dpe->data, ptr, len);
   return mb;
 }
@@ -3143,10 +3144,10 @@ void MyVlcHistory::process()
     p = m;
     if (d <= 3 * 60 * 60 && pline[0] != 0 && d > 0)
       m_items->add(pline, d);
-    if (ACE_OS::strcmp(line + 12, "Media Library") == 0 || ACE_OS::strcmp(line + 12, "gasket.avi") == 0)
+    if (ACE_OS::strcmp(line + 11, "Media Library") == 0 || ACE_OS::strcmp(line + 11, "gasket.avi") == 0)
       pline[0] = 0;
     else
-      ACE_OS::strcpy(pline, line + 12);
+      ACE_OS::strcpy(pline, line + 11);
   }
 }
 
