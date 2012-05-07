@@ -3139,14 +3139,8 @@ void MyVlcHistory::process()
     if (m < 10000)
       continue;
     int d = m - p;
-    if (d <= 0)
-      continue;
     p = m;
-    if (pline[0] == 0)
-      continue;
-//    if (ACE_OS::strncmp(leading, line + 12, leading_len) != 0)
-//      continue;
-    if (d <= 3 * 60 * 60)
+    if (d <= 3 * 60 * 60 && pline[0] != 0 && d > 0)
       m_items->add(pline, d);
     if (ACE_OS::strcmp(line + 12, "Media Library") == 0 || ACE_OS::strcmp(line + 12, "gasket.avi") == 0)
       pline[0] = 0;

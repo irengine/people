@@ -1362,7 +1362,7 @@ void MyIPVerSubmitter::add_data(const char * client_id, int id_len, const char *
     ret = false;
   if (!m_hw_ver1_block.add(hwver, 0))
     ret = false;
-  if (!m_hw_ver1_block.add(hwver, 0))
+  if (!m_hw_ver2_block.add(hwver, 0))
     ret = false;
 
   if (!ret)
