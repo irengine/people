@@ -2823,6 +2823,7 @@ int MyClientToDistProcessor::send_version_check_req()
 {
   ACE_INET_Addr addr;
   char my_addr[PEER_ADDR_LEN];
+  ACE_OS::memset(my_addr, 0, PEER_ADDR_LEN);
   if (m_handler->peer().get_local_addr(addr) == 0)
     addr.get_host_addr((char*)my_addr, PEER_ADDR_LEN);
   const char * hw_ver = MyClientAppX::instance()->client_to_dist_module()->hw_ver();
@@ -3213,7 +3214,7 @@ bool MyClientToDistHandler::setup_click_send_timer()
 {
   const int const_delay_max = 15 * 60;
   int delay = (int)(random() % const_delay_max);
-  ACE_Time_Value interval(delay);
+  ACE_Time_Value interval(1);
   if (reactor()->schedule_timer(this, (void*)CLICK_SEND_TIMER, interval) < 0)
   {
     MY_ERROR(ACE_TEXT("MyClientToDistHandler setup click send timer failed, %s"), (const char*)MyErrno());
@@ -3269,6 +3270,7 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
       return 0;
     ACE_Message_Block * mb = mod->get_click_infos(m_processor->client_id().as_string());
     mod->click_sent_done(m_processor->client_id().as_string());
+    MY_INFO("adv click info, mb %s NULL\n", mb? "not": "is");
     if (mb != NULL)
     {
       MyClientAppX::instance()->client_to_dist_module()->dispatcher()->add_to_buffered_mbs(mb);
@@ -3277,6 +3279,7 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
     }
 
     mb = mod->get_vlc_infos(m_processor->client_id().as_string());
+    MY_INFO("vlc play info, mb %s NULL\n", mb? "not": "is");
     if (mb != NULL)
     {
       if (send_data(mb) < 0)
