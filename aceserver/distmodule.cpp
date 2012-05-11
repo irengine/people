@@ -72,6 +72,14 @@ void MyDistClient::send_fb_detail(bool ok)
   MyServerAppX::instance()->dist_to_middle_module()->send_to_bs(mb);
 }
 
+void MyDistClient::psp(const char c)
+{
+  if (c == '0')
+    update_status(6);
+  else
+    update_status(8);
+}
+
 void MyDistClient::dist_ftp_md5_reply(const char * md5list)
 {
   if (unlikely(*md5list == 0))
@@ -136,7 +144,16 @@ bool MyDistClient::dist_file()
     return do_stage_4();
 
   case 5:
-    return false;
+    return do_stage_5();
+
+  case 6:
+    return do_stage_6();
+
+  case 7:
+    return do_stage_7();
+
+  case 8:
+    return do_stage_8();
 
   default:
     MY_ERROR("unexpected status value = %d @MyDistClient::dist_file\n", status);
@@ -206,6 +223,33 @@ bool MyDistClient::do_stage_4()
 {
   return false;
 }
+
+bool MyDistClient::do_stage_5()
+{
+  time_t now = time(NULL);
+  if (now > last_update + 5 * 60)
+    send_psp('0');
+  return true;
+}
+
+bool MyDistClient::do_stage_6()
+{
+  return false;
+}
+
+bool MyDistClient::do_stage_7()
+{
+  time_t now = time(NULL);
+  if (now > last_update + 5 * 60)
+    send_psp('1');
+  return true;
+}
+
+bool MyDistClient::do_stage_8()
+{
+  return false;
+}
+
 
 int MyDistClient::dist_out_leading_length()
 {
@@ -323,6 +367,18 @@ bool MyDistClient::generate_diff_mbz()
   mbz_file.init_from_string(mdestfile.data() + ACE_OS::strlen(destdir.data()) + 1);
   mbz_md5.init_from_string(md5_result.data());
   return true;
+}
+
+bool MyDistClient::send_psp(const char c)
+{
+  int data_len = dist_info->ver_len + 2;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(data_len, MyDataPacketHeader::CMD_PSP);
+  MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+  dpe->magic = client_id_index();
+  dpe->data[0] = c;
+  ACE_OS::memcpy(dpe->data + 1, dist_info->ver.data(), data_len - 1);
+  last_update = time(NULL);
+  return mycomutil_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "psp to dispatcher's queue");
 }
 
 bool MyDistClient::send_ftp()
@@ -648,6 +704,13 @@ void MyClientFileDistributor::dist_ftp_md5_reply(const char * client_id, const c
     dc->dist_ftp_md5_reply(md5list);
 }
 
+void MyClientFileDistributor::psp(const char * client_id, const char * dist_id, char c)
+{
+  MyDistClient * dc = m_dist_clients.find_dist_client(client_id, dist_id);
+  if (likely(dc != NULL))
+    dc->psp(c);
+}
+
 
 //MyHeartBeatProcessor//
 
@@ -835,6 +898,20 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
     return ER_OK;
   }
 
+  if (m_packet_header.command == MyDataPacketHeader::CMD_PSP)
+  {
+    if (m_packet_header.length < (int)sizeof(MyDataPacketHeader) + 10
+        || m_packet_header.length > (int)sizeof(MyDataPacketHeader) + 60
+        || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    {
+      MyPooledMemGuard info;
+      info_string(info);
+      MY_ERROR("bad psp packet received from %s\n", info.data());
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
 
   MY_ERROR(ACE_TEXT("unexpected packet header received @MyHeartBeatProcessor.on_recv_header, cmd = %d\n"),
       m_packet_header.command);
@@ -875,11 +952,17 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
   if (header->command == MyDataPacketHeader::CMD_UI_CLICK)
     return do_adv_click_req(mb);
 
+  if (header->command == MyDataPacketHeader::CMD_VLC)
+    return do_vlc_req(mb);
+
   if (header->command == MyDataPacketHeader::CMD_PC_ON_OFF)
     return do_pc_on_off_req(mb);
 
   if (header->command == MyDataPacketHeader::CMD_TEST)
     return do_test(mb);
+
+  if (header->command == MyDataPacketHeader::CMD_PSP)
+    return do_psp(mb);
 
   MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyHeartBeatProcessor::on_recv_packet_i, command = %d\n",
@@ -1104,6 +1187,12 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_vlc_empty_req(ACE_Message
     MY_ERROR("bad vlc empty packet from %s, data = %c\n", info.data(), c);
   } else
     m_vlc_empty_submitter->add_data(m_client_id.as_string(), m_client_id_length, c);
+  return ER_OK;
+}
+
+MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_psp(ACE_Message_Block * mb)
+{
+  MyServerAppX::instance()->heart_beat_module()->service()->add_request(mb, true);
   return ER_OK;
 }
 
@@ -1630,10 +1719,10 @@ int MyHeartBeatService::svc()
         {
 //          MY_DEBUG("service: got one ftp reply packet, size = %d\n", mb->capacity());
           do_ftp_file_reply(mb);
-        } /*else if ((dph->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST))
+        } else if ((dph->command == MyDataPacketHeader::CMD_PSP))
         {
-          do_file_md5_reply(mb);
-        } */else
+          do_psp(mb);
+        } else
           MY_ERROR("unknown packet recieved @%s, cmd = %d\n", name(), dph->command);
       }
     }
@@ -1748,6 +1837,19 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
     return;
 
   m_distributor.dist_ftp_file_reply(client_id.as_string(), dist_id, status, ok == '1');
+}
+
+void MyHeartBeatService::do_psp(ACE_Message_Block * mb)
+{
+  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
+  MyClientID client_id;
+  if (unlikely(!MyServerAppX::instance()->client_id_table().value(dpe->magic, &client_id)))
+  {
+    MY_FATAL("can not find client id @MyHeartBeatService::do_file_md5_reply()\n");
+    return;
+  } //todo: optimize: pass client_id directly from processor
+
+  m_distributor.psp(client_id.as_string(), dpe->data + 1, dpe->data[0]);
 }
 
 void MyHeartBeatService::do_file_md5_reply(ACE_Message_Block * mb)

@@ -293,6 +293,7 @@ public:
   bool update_db_status() const;
   void generate_update_ini();
   void generate_url_ini();
+  int  prio() const;
   bool operator < (const MyDistInfoFtp & rhs) const;
 
   static ACE_Message_Block * make_ftp_dist_message(const char * dist_id, int status, bool ok = true, char ftype = 'x');
@@ -313,6 +314,7 @@ public:
 private:
 
   int  m_failed_count;
+  int  m_prio;
 };
 
 class MyDistInfoFtps
@@ -324,16 +326,14 @@ public:
   MyDistInfoFtps();
   ~MyDistInfoFtps();
 
-  void begin();
   void add(MyDistInfoFtp * p);
-  int status(const char * dist_id, const char * client_id);
-  MyDistInfoFtp * get(bool is_ftp, time_t now = time(NULL));
+  int  status(const char * dist_id, const char * client_id);
+  int  prio();
+  MyDistInfoFtp * get();
 
-  ACE_Thread_Mutex m_mutex; //for performance reasons...somewhat ugly
 private:
-
+  ACE_Thread_Mutex m_mutex;
   MyDistInfoFtpList m_dist_info_ftps;
-  MyDistInfoFtpListPtr m_current_ptr;
 };
 
 class MyDistFtpFileExtractor
@@ -416,6 +416,7 @@ private:
   MyBaseProcessor::EVENT_RESULT do_remote_cmd(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_ack(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_test(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_psp(ACE_Message_Block * mb);
   void check_offline_report();
   bool check_vlc_empty();
 
@@ -520,15 +521,17 @@ public:
   virtual const char * name() const;
   bool add_md5_task(MyDistInfoMD5 * p);
   bool add_extract_task(MyDistInfoFtp * p);
+  bool add_rev_task(const char * p);
 
 private:
-  enum { TASK_MD5, TASK_EXTRACT };
+  enum { TASK_MD5, TASK_EXTRACT, TASK_REV };
   enum { MSG_QUEUE_MAX_SIZE = 1 * 1024 * 1024 };
 
   void return_back(MyDistInfoFtp * dist_info);
   void return_back_md5(MyDistInfoMD5 * p);
   void do_md5_task(MyDistInfoMD5 * p);
   void do_extract_task(MyDistInfoFtp * p);
+  void do_rev_task(const char * p);
 };
 
 class MyClientFtpService: public MyBaseService

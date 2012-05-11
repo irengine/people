@@ -1149,9 +1149,9 @@ bool MyBZCompressor::do_compress(MyBaseArchiveReader * _reader, MyBaseArchiveWri
          return false;
       }
 
-     if (m_bz_stream.avail_in == 0)
-       break;
-   }
+      if (m_bz_stream.avail_in == 0)
+        break;
+    }
 
    if (n < BUFFER_LEN)
     break;

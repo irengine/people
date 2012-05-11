@@ -269,6 +269,31 @@ int main(int argc, const char * argv[])
   ACE_Sig_Action original_action;
   no_sigpipe.register_action (SIGPIPE, &original_action);
   bool ret;
+  #if 0
+  MyConfig* cfg = MyConfigX::instance();
+  if (!MyConfigX::instance()->load_config("/root/distserver", MyConfig::RM_DIST_SERVER))
+  {
+    std::printf("error loading config file, quitting\n");
+    exit(5);
+  }
+  MyMemPoolFactoryX::instance()->init(cfg);
+  {
+
+  #if 1 //compress/ decompress test
+    {
+    MyBZCompressor c;
+    printf("decompressing multi %d\n", c.decompress("/root/tmp/1112001192.mbz", "/root/testdata/1", "OJZ9l63Zn$@"));
+    printf("decompressing all %d\n", c.decompress("/root/tmp/all_in_one.mbz", "/root/testdata/2", "OJZ9l63Zn$@"));
+    }
+  #endif
+
+  }
+  MyConfigX::close();
+  MyServerApp::dump_mem_pool_info(); //only mem pool info, other objects should gone by now
+  MyMemPoolFactoryX::close();
+  return 0;
+  #endif
+
   if (argc == 3 && strcmp(argv[1], "-home") == 0 && argv[2][0] == '/')
     ret = MyServerApp::app_init(argv[2], MyConfig::RM_UNKNOWN);
   else

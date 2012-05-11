@@ -44,6 +44,7 @@ public:
   const char * client_id() const;
   int client_id_index() const;
   void send_fb_detail(bool ok);
+  void psp(const char c);
 
   MyHttpDistInfo * dist_info;
   MyDistClientOne * dist_one;
@@ -62,8 +63,13 @@ private:
   bool do_stage_2();
   bool do_stage_3();
   bool do_stage_4();
+  bool do_stage_5();
+  bool do_stage_6();
+  bool do_stage_7();
+  bool do_stage_8();
   bool send_md5();
   bool send_ftp();
+  bool send_psp(const char c);
   bool generate_diff_mbz();
   int  dist_out_leading_length();
   void dist_out_leading_data(char * data);
@@ -163,6 +169,7 @@ public:
   bool distribute(bool check_reload);
   void dist_ftp_file_reply(const char * client_id, const char * dist_id, int _status, bool ok);
   void dist_ftp_md5_reply(const char * client_id, const char * dist_id, const char * md5list);
+  void psp(const char * client_id, const char * dist_id, char c);
 
 private:
   enum { IDLE_TIME = 5 }; //in minutes
@@ -212,6 +219,7 @@ private:
   MyBaseProcessor::EVENT_RESULT do_hardware_alarm_req(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_vlc_req(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_test(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_psp(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_vlc_empty_req(ACE_Message_Block * mb);
 
   char m_hw_ver[12];
@@ -431,6 +439,7 @@ private:
   void do_have_dist_task();
   void do_ftp_file_reply(ACE_Message_Block * mb);
   void do_file_md5_reply(ACE_Message_Block * mb);
+  void do_psp(ACE_Message_Block * mb);
 
   MyClientFileDistributor m_distributor;
   ACE_Message_Queue<ACE_MT_SYNCH> m_queue2;

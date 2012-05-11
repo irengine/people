@@ -238,6 +238,7 @@ private:
 
   bool handle_packet(ACE_Message_Block * mb);
   bool do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest & http_dist_request);
+  bool do_handle_packet2(ACE_Message_Block * mb);
   bool parse_request(ACE_Message_Block * mb, MyHttpDistRequest & http_dist_request);
   bool do_compress(MyHttpDistRequest & http_dist_request);
   bool do_calc_md5(MyHttpDistRequest & http_dist_request);

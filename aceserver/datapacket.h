@@ -162,6 +162,7 @@ public:
     CMD_ACK,
     CMD_VLC_EMPTY,
     CMD_TEST,
+    CMD_PSP,
     CMD_END,
     CMD_DISCONNECT_INTERNAL
   };

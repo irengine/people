@@ -452,10 +452,27 @@ bool MyHttpProcessor::do_process_input_data()
   bool result = true;
   const char * const_dist_cmd = "http://127.0.0.1:10092/file?";
   const char * const_remote_cmd = "http://127.0.0.1:10092/ctrl?";
+  const char * const_task_cmd = "http://127.0.0.1:10092/task?";
+  int ntype = -1;
   if (likely(ACE_OS::strncmp(const_dist_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_dist_cmd)) == 0))
+    ntype = 1;
+  else if (ACE_OS::strncmp(const_task_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_task_cmd)) == 0)
+  {
+    ntype = 3;
+    m_current_block->set_self_flags(0x2000);
+  }
+  else if (ACE_OS::strncmp(const_remote_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_remote_cmd)) == 0)
+    ntype = 2;
+  if (ntype == -1)
+  {
+    m_current_block->release();
+    m_current_block = NULL;
+    return false;
+  }
+  if (likely(ntype == 1 || ntype == 3))
     result = (mycomutil_mb_putq(MyServerAppX::instance()->http_module()->http_service(), m_current_block,
               "http request into target queue @MyHttpProcessor::do_process_input_data()"));
-  else if (likely(ACE_OS::strncmp(const_remote_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_remote_cmd)) == 0))
+  else if (ntype == 2)
   {
     ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(m_current_block->length() - 3, MyDataPacketHeader::CMD_REMOTE_CMD);
     MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
@@ -620,22 +637,28 @@ bool MyHttpService::parse_request(ACE_Message_Block * mb, MyHttpDistRequest &htt
 
 bool MyHttpService::handle_packet(ACE_Message_Block * _mb)
 {
-  MyHttpDistRequest http_dist_request;
-  bool result = do_handle_packet(_mb, http_dist_request);
-  if (unlikely(!result && !!http_dist_request.check_valid(true)))
-    return false;
-  int total_len;
-  char buff[32];
-  mycomutil_generate_time_string(buff, 32, true);
-  total_len = ACE_OS::strlen(buff) + ACE_OS::strlen(http_dist_request.ver) + 8;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(total_len, MY_BS_DIST_FEEDBACK_CMD);
-  char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
-  ACE_OS::sprintf(dest, "%s#%c##1#%c#%s", http_dist_request.ver, *http_dist_request.ftype,
-      result? '1':'0', buff);
-  dest[total_len] = MyBSBasePacket::BS_PACKET_END_MARK;
-  MyServerAppX::instance()->dist_load_module()->dispatcher()->send_to_bs(mb);
+  if ((_mb->self_flags() & 0x2000) == 0)
+  {
+    MyHttpDistRequest http_dist_request;
+    bool result = do_handle_packet(_mb, http_dist_request);
+    if (unlikely(!result && !http_dist_request.check_valid(true)))
+      return false;
+    int total_len;
+    char buff[32];
+    mycomutil_generate_time_string(buff, 32, true);
+    total_len = ACE_OS::strlen(buff) + ACE_OS::strlen(http_dist_request.ver) + 8;
+    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(total_len, MY_BS_DIST_FEEDBACK_CMD);
+    char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
+    ACE_OS::sprintf(dest, "%s#%c##1#%c#%s", http_dist_request.ver, *http_dist_request.ftype,
+        result? '1':'0', buff);
+    dest[total_len] = MyBSBasePacket::BS_PACKET_END_MARK;
+    MyServerAppX::instance()->dist_load_module()->dispatcher()->send_to_bs(mb);
 
-  return result;
+    return result;
+  } else
+  {
+    return do_handle_packet2(_mb);
+  }
 }
 
 bool MyHttpService::do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest & http_dist_request)
@@ -713,6 +736,80 @@ bool MyHttpService::do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest &
   if (db.get_dist_ids(path_remover))
     path_remover.check_path(MyConfigX::instance()->compressed_store_path.c_str());
 
+  return true;
+}
+
+bool MyHttpService::do_handle_packet2(ACE_Message_Block * mb)
+{
+  const char const_header[] = "http://127.0.0.1:10092/task?";
+  const int const_header_len = sizeof(const_header) / sizeof(char) - 1;
+  int mb_len = mb->length();
+  ACE_OS::memmove(mb->base(), mb->base() + 4, mb_len - 4);
+  mb->base()[mb_len - 4] = 0;
+  if (unlikely((int)(mb->length()) <= const_header_len + 10))
+  {
+    MY_ERROR("bad http request, packet too short\n", const_header);
+    return false;
+  }
+
+  char * packet = mb->base();
+  if (ACE_OS::memcmp(packet, const_header, const_header_len) != 0)
+  {
+    MY_ERROR("bad http packet, no match header of (%s) found\n", const_header);
+    return false;
+  }
+
+  packet += const_header_len;
+  const char const_separator = '&';
+
+  const char * const_ver = "ver=";
+  char * ver = 0;
+  if (!mycomutil_find_tag_value(packet, const_ver, ver, const_separator))
+  {
+    MY_ERROR("can not find tag %s at http packet\n", const_ver);
+    return false;
+  }
+
+
+  const char * const_cmd = "cmd=";
+  char * cmd = 0;
+  if (!mycomutil_find_tag_value(packet, const_cmd, cmd, const_separator))
+  {
+    MY_ERROR("can not find tag %s at http packet\n", const_cmd);
+    return false;
+  }
+
+  const char * const_backid = "backid=";
+  char * backid = 0;
+  if (!mycomutil_find_tag_value(packet, const_backid, backid, const_separator))
+  {
+    MY_ERROR("can not find tag %s at http packet\n", const_backid);
+    return false;
+  }
+
+  const char * const_acode = "acode=";
+  char * acode = 0;
+  if (!mycomutil_find_tag_value(packet, const_acode, acode, const_separator))
+  {
+    MY_ERROR("can not find tag %s at http packet\n", const_acode);
+    return false;
+  }
+
+  MyDB & db = MyServerAppX::instance()->db();
+  if (!db.ping_db_server())
+  {
+    MY_ERROR("no connection to db, aborting processing\n");
+    return false;
+  }
+
+  db.save_sr(backid, cmd, acode);
+  if (!db.dist_info_update_status())
+  {
+    MY_ERROR("call to dist_info_update_status() failed\n");
+    return false;
+  }
+
+  notify_dist_servers();
   return true;
 }
 

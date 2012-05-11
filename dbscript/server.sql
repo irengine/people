@@ -61,3 +61,7 @@ END;
 $$ 
 LANGUAGE plpgsql;
 
+ALTER TABLE tb_dist_clients
+  drop CONSTRAINT tb_dist_clients_dc_status_check;
+ALTER TABLE tb_dist_clients
+  ADD CONSTRAINT tb_dist_clients_dc_status_check CHECK (dc_status >= 0 AND dc_status <= 8);

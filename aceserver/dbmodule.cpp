@@ -267,6 +267,61 @@ bool MyDB::save_dist(MyHttpDistRequest & http_dist_request, const char * md5, co
   return exec_command(sql.data());
 }
 
+bool MyDB::save_sr(const char * dist_id, const char * cmd, char * idlist)
+{
+  const char * sql_tpl = "update tb_dist_clients set dc_status = %d where dc_dist_id = '%s' and dc_client_id = '%s'";
+  int status = *cmd == '2'? 5: 7;
+
+  char sql[1024];
+
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+
+  char separator[2] = {';', 0};
+  const int BATCH_COUNT = 20;
+  int i = 0, total = 0, ok = 0;
+  MyStringTokenizer client_ids(idlist, separator);
+  char * client_id;
+  while ((client_id = client_ids.get_token()) != NULL)
+  {
+    total ++;
+    if (i == 0)
+    {
+      if (!begin_transaction())
+      {
+        MY_ERROR("failed to begin transaction @MyDB::save_sr\n");
+        return false;
+      }
+    }
+    ACE_OS::snprintf(sql, 1024, sql_tpl, status, dist_id, client_id);
+    exec_command(sql);
+    ++i;
+    if (i == BATCH_COUNT)
+    {
+      if (!commit())
+      {
+        MY_ERROR("failed to commit transaction @MyDB::save_sr\n");
+        rollback();
+      } else
+        ok += i;
+
+      i = 0;
+    }
+  }
+
+  if (i != 0)
+  {
+    if (!commit())
+    {
+      MY_ERROR("failed to commit transaction @MyDB::save_sr\n");
+      rollback();
+    } else
+      ok += i;
+  }
+
+  MY_INFO("MyDB::save_sr success/total = %d/%d\n", ok, total);
+  return true;
+}
+
 bool MyDB::save_dist_clients(char * idlist, char * adirlist, const char * dist_id)
 {
   const char * insert_sql_template1 = "insert into tb_dist_clients(dc_dist_id, dc_client_id, dc_adir) values('%s', '%s', '%s')";
