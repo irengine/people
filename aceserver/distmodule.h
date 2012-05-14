@@ -322,8 +322,8 @@ private:
   MyAccumulatorBlock m_id_block;
   MyAccumulatorBlock m_ip_block;
   MyAccumulatorBlock m_ver_block;
-  MyAccumulatorBlock m_hw_ver1_block;
-  MyAccumulatorBlock m_hw_ver2_block;
+//  MyAccumulatorBlock m_hw_ver1_block;
+//  MyAccumulatorBlock m_hw_ver2_block;
 };
 
 class MyPcOnOffSubmitter: public MyBaseSubmitter

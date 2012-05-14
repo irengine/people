@@ -2786,13 +2786,14 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_psp(ACE_Message_Block 
     if (dbg.db().open_db(MyClientAppX::instance()->client_id()))
       dbg.db().set_ftp_command_status(dpe->data + 1, 6);
   }
-
+/*
   if (dpe->data[0] != '0')
   {
     char * p = new char[strlen(dpe->data + 1) + 2];
     strcpy(p, dpe->data + 1);
     MyClientAppX::instance()->client_to_dist_module()->service()->add_rev_task(p);
   }
+*/
   dpe->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
   if (m_handler->send_data(mb) < 0)
     return ER_ERROR;
@@ -3155,6 +3156,8 @@ bool MyVlcItems::empty() const
 
 ACE_Message_Block * MyVlcItems::make_mb()
 {
+  return NULL;
+/*
   int len = total_len();
   MyPooledMemGuard data;
   MyMemPoolFactoryX::instance()->get_mem(len, &data);
@@ -3174,6 +3177,7 @@ ACE_Message_Block * MyVlcItems::make_mb()
   MY_DEBUG("vlc list: %s\n", ptr);
   ACE_OS::memcpy(dpe->data, ptr, len);
   return mb;
+*/
 }
 
 
@@ -3188,7 +3192,10 @@ void MyVlcHistory::process()
 {
   std::string vlc2 = MyConfigX::instance()->app_data_path + "/vlc-history2.txt";
   std::string vlc1 = MyConfigX::instance()->app_data_path + "/vlc-history.txt";
+  MyFilePaths::remove(vlc1.c_str(), true);
   MyFilePaths::remove(vlc2.c_str(), true);
+  return;
+/*
   if (!MyFilePaths::exist(vlc1.c_str()))
     return;
   if (!MyFilePaths::rename(vlc1.c_str(), vlc2.c_str(), false))
@@ -3227,6 +3234,7 @@ void MyVlcHistory::process()
     else
       ACE_OS::strcpy(pline, line + 11);
   }
+*/
 }
 
 
@@ -3358,12 +3366,12 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
     }
 
     mb = mod->get_vlc_infos(m_processor->client_id().as_string());
-    MY_INFO("vlc play info, mb %s NULL\n", mb? "not": "is");
+    /*MY_INFO("vlc play info, mb %s NULL\n", mb? "not": "is");
     if (mb != NULL)
     {
       if (send_data(mb) < 0)
         return -1;
-    }
+    }*/
     return 0;
   }
   else if (long(act) == 0)
@@ -3537,6 +3545,7 @@ void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
 
 void MyClientToDistService::do_rev_task(const char * p)
 {
+/*
   if (MyClientAppX::instance()->full_restore(p, true, false))
   {
     MyPooledMemGuard p1, p2, p3, p4;
@@ -3549,6 +3558,7 @@ void MyClientToDistService::do_rev_task(const char * p)
     MyFilePaths::rename(p3.data(), p2.data(), false);
     MyFilePaths::remove(p4.data(), true);
   }
+*/
   delete []p;
 }
 
@@ -4171,12 +4181,12 @@ MyIpVerReply & MyClientToDistModule::ip_ver_reply()
 
 const char * MyClientToDistModule::hw_ver()
 {
-  if (unlikely(g_test_mode))
+//  if (unlikely(g_test_mode))
   {
     m_hw_ver = "1.0";
     return m_hw_ver.c_str();
   }
-
+/*
   if (m_hw_ver.length() > 0)
     return m_hw_ver.c_str();
   const char * fn = "/tmp/daily/driver.ini";
@@ -4199,6 +4209,7 @@ const char * MyClientToDistModule::hw_ver()
   m_hw_ver = line;
   MY_INFO("get led/lcd driver version: %s\n", m_hw_ver.c_str());
   return m_hw_ver.c_str();
+*/
 }
 
 const char * MyClientToDistModule::name() const

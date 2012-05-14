@@ -1432,9 +1432,9 @@ const char * MyPingSubmitter::get_command() const
 MyIPVerSubmitter::MyIPVerSubmitter():
     m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
     m_ip_block(BLOCK_SIZE, INET_ADDRSTRLEN, this),
-    m_ver_block(BLOCK_SIZE * 3 / sizeof(MyClientID) + 1, 7, this),
-    m_hw_ver1_block(BLOCK_SIZE, 12, this),
-    m_hw_ver2_block(BLOCK_SIZE, 12, this)
+    m_ver_block(BLOCK_SIZE * 3 / sizeof(MyClientID) + 1, 7, this)//,
+//    m_hw_ver1_block(BLOCK_SIZE, 12, this),
+//    m_hw_ver2_block(BLOCK_SIZE, 12, this)
 {
 
 }
@@ -1449,10 +1449,10 @@ void MyIPVerSubmitter::add_data(const char * client_id, int id_len, const char *
     ret = false;
   if (!m_ver_block.add(ver, 0))
     ret = false;
-  if (!m_hw_ver1_block.add(hwver, 0))
-    ret = false;
-  if (!m_hw_ver2_block.add(hwver, 0))
-    ret = false;
+//  if (!m_hw_ver1_block.add(hwver, 0))
+//    ret = false;
+//  if (!m_hw_ver2_block.add(hwver, 0))
+//    ret = false;
 
   if (!ret)
     submit();

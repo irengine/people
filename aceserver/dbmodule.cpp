@@ -270,7 +270,7 @@ bool MyDB::save_dist(MyHttpDistRequest & http_dist_request, const char * md5, co
 bool MyDB::save_sr(const char * dist_id, const char * cmd, char * idlist)
 {
   const char * sql_tpl = "update tb_dist_clients set dc_status = %d where dc_dist_id = '%s' and dc_client_id = '%s'";
-  int status = *cmd == '2'? 5: 7;
+  int status = *cmd == '1'? 5: 7;
 
   char sql[1024];
 
