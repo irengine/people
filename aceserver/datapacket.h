@@ -163,6 +163,7 @@ public:
     CMD_VLC_EMPTY,
     CMD_TEST,
     CMD_PSP,
+    CMD_TQ,
     CMD_END,
     CMD_DISCONNECT_INTERNAL
   };

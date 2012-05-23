@@ -65,3 +65,4 @@ ALTER TABLE tb_dist_clients
   drop CONSTRAINT tb_dist_clients_dc_status_check;
 ALTER TABLE tb_dist_clients
   ADD CONSTRAINT tb_dist_clients_dc_status_check CHECK (dc_status >= 0 AND dc_status <= 8);
+insert into tb_config(cfg_id, cfg_value) values(2, '');  

@@ -31,10 +31,12 @@ public:
   bool get_client_ids(MyClientIDTable * idtable);
   bool save_client_id(const char * s);
   bool save_dist(MyHttpDistRequest & http_dist_request, const char * md5, const char * mbz_md5);
-  bool save_sr(const char * dist_id, const char * cmd, char * idlist);
+  bool save_sr(char * dist_id, const char * cmd, char * idlist);
+  bool save_prio(const char * prio);
   bool save_dist_clients(char * idlist, char * adirlist, const char * dist_id);
   bool save_dist_cmp_done(const char *dist_id);
   int  load_dist_infos(MyHttpDistInfos & infos);
+  bool load_pl(MyPooledMemGuard & value);
 //  bool dist_take_cmp_ownership(MyHttpDistInfo * info);
 //  bool dist_take_md5_ownership(MyHttpDistInfo * info);
   bool dist_mark_cmp_done(const char * dist_id);

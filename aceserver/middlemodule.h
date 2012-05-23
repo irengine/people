@@ -214,6 +214,7 @@ protected:
 
 private:
   bool do_process_input_data();
+  bool do_prio(ACE_Message_Block * mb);
 };
 
 

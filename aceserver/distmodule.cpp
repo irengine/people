@@ -1577,9 +1577,9 @@ const char * MyHWAlarmSubmitter::get_command() const
 //MyVLCSubmitter//
 
 MyVLCSubmitter::MyVLCSubmitter():
-      m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
-      m_fn_block(BLOCK_SIZE, 200, this),
-      m_number_block(BLOCK_SIZE, 8, this)
+    m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
+    m_fn_block(BLOCK_SIZE, 200, this),
+    m_number_block(BLOCK_SIZE, 8, this)
 {
 
 }
@@ -1611,7 +1611,8 @@ const char * MyVLCSubmitter::get_command() const
 
 MyVLCEmptySubmitter::MyVLCEmptySubmitter():
     m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
-    m_state_block(BLOCK_SIZE, 400, this)
+    m_state_block(BLOCK_SIZE, 400, this),
+    m_datetime_block(BLOCK_SIZE, 25, this)
 {
 
 }
@@ -1622,6 +1623,11 @@ void MyVLCEmptySubmitter::add_data(const char * client_id, int id_len, const cha
   if (!m_id_block.add(client_id, id_len))
     ret = false;
   if (!m_state_block.add(state))
+    ret = false;
+
+  char datetime[32];
+  mycomutil_generate_time_string(datetime, 20, true);
+  if (!m_datetime_block.add(datetime))
     ret = false;
 
   if (!ret)

@@ -267,7 +267,7 @@ bool MyDB::save_dist(MyHttpDistRequest & http_dist_request, const char * md5, co
   return exec_command(sql.data());
 }
 
-bool MyDB::save_sr(const char * dist_id, const char * cmd, char * idlist)
+bool MyDB::save_sr(char * dids, const char * cmd, char * idlist)
 {
   const char * sql_tpl = "update tb_dist_clients set dc_status = %d where dc_dist_id = '%s' and dc_client_id = '%s'";
   int status = *cmd == '1'? 5: 7;
@@ -280,9 +280,13 @@ bool MyDB::save_sr(const char * dist_id, const char * cmd, char * idlist)
   const int BATCH_COUNT = 20;
   int i = 0, total = 0, ok = 0;
   MyStringTokenizer client_ids(idlist, separator);
-  char * client_id;
+  MyStringTokenizer dist_ids(dids, separator);
+  char * client_id, *dist_id;
   while ((client_id = client_ids.get_token()) != NULL)
   {
+    dist_id = dist_ids.get_token();
+    if (dist_id == NULL)
+      break;
     total ++;
     if (i == 0)
     {
@@ -320,6 +324,17 @@ bool MyDB::save_sr(const char * dist_id, const char * cmd, char * idlist)
 
   MY_INFO("MyDB::save_sr success/total = %d/%d\n", ok, total);
   return true;
+}
+
+bool MyDB::save_prio(const char * prio)
+{
+  if (!prio || !*prio)
+    return false;
+  char sql[2048];
+  const char * sql_template = "update tb_config set cfg_value = '%s' where cfg_id = 2";
+  ACE_OS::snprintf(sql, 2048, sql_template, prio);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  return exec_command(sql);
 }
 
 bool MyDB::save_dist_clients(char * idlist, char * adirlist, const char * dist_id)
@@ -763,6 +778,11 @@ bool MyDB::dist_info_is_update(MyHttpDistInfos & infos)
   if (!result)
     infos.last_load_time.init_from_string(value.data());
   return result;
+}
+
+bool MyDB::load_pl(MyPooledMemGuard & value)
+{
+  return load_cfg_value(2, value);
 }
 
 bool MyDB::dist_info_update_status()

@@ -453,6 +453,7 @@ bool MyHttpProcessor::do_process_input_data()
   const char * const_dist_cmd = "http://127.0.0.1:10092/file?";
   const char * const_remote_cmd = "http://127.0.0.1:10092/ctrl?";
   const char * const_task_cmd = "http://127.0.0.1:10092/task?";
+  const char * const_prio_cmd = "http://127.0.0.1:10092/prio?";
   int ntype = -1;
   if (likely(ACE_OS::strncmp(const_dist_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_dist_cmd)) == 0))
     ntype = 1;
@@ -463,6 +464,14 @@ bool MyHttpProcessor::do_process_input_data()
   }
   else if (ACE_OS::strncmp(const_remote_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_remote_cmd)) == 0)
     ntype = 2;
+  else if (ACE_OS::strncmp(const_prio_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_prio_cmd)) == 0)
+  {
+    bool ret = do_prio(m_current_block);
+    m_current_block->release();
+    m_current_block = NULL;
+    return ret;
+  }
+
   if (ntype == -1)
   {
     m_current_block->release();
@@ -478,11 +487,63 @@ bool MyHttpProcessor::do_process_input_data()
     MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
     ACE_OS::memcpy(dpe->data, m_current_block->base() + 4, m_current_block->length() - 4);
     dpe->data[m_current_block->length() - 4] = 0;
-    result = mycomutil_mb_putq(MyServerAppX::instance()->dist_load_module()->dispatcher(), mb, "remote cmd to target queue");
+    result = mycomutil_mb_putq(MyServerAppX::instance()->dist_load_module()->dispatcher(), mb, "rcmd to target queue");
     m_current_block->release();
   }
   m_current_block = NULL;
   return result;
+}
+
+bool MyHttpProcessor::do_prio(ACE_Message_Block * mb)
+{
+  const char const_header[] = "http://127.0.0.1:10092/prio?";
+  const int const_header_len = sizeof(const_header) / sizeof(char) - 1;
+  int mb_len = mb->length();
+  ACE_OS::memmove(mb->base(), mb->base() + 4, mb_len - 4);
+  mb->base()[mb_len - 4] = 0;
+  if (unlikely((int)(mb->length()) <= const_header_len + 10))
+  {
+    MY_ERROR("bad http request, packet too short\n", const_header);
+    return false;
+  }
+
+  char * packet = mb->base();
+  if (ACE_OS::memcmp(packet, const_header, const_header_len) != 0)
+  {
+    MY_ERROR("bad http packet, no match header of (%s) found\n", const_header);
+    return false;
+  }
+
+  packet += const_header_len;
+  const char const_separator = '&';
+
+  const char * const_ver = "ver=";
+  char * ver = 0;
+  if (!mycomutil_find_tag_value(packet, const_ver, ver, const_separator))
+  {
+    MY_ERROR("can not find tag %s at http packet\n", const_ver);
+    return false;
+  }
+
+
+  const char * const_plist = "plist=";
+  char * plist = 0;
+  if (!mycomutil_find_tag_value(packet, const_plist, plist, const_separator))
+  {
+    MY_ERROR("can not find tag %s at http packet\n", const_plist);
+    return false;
+  }
+
+
+  MyDB & db = MyServerAppX::instance()->db();
+  if (!db.ping_db_server())
+  {
+    MY_ERROR("no connection to db, aborting processing\n");
+    return false;
+  }
+
+  MY_INFO("prio list = %s\n", plist? plist:"NULL");
+  return db.save_prio(plist);
 }
 
 PREPARE_MEMORY_POOL(MyHttpProcessor);

@@ -411,6 +411,7 @@ private:
   enum { BLOCK_SIZE = 4096 };
   MyAccumulatorBlock m_id_block;
   MyAccumulatorBlock m_state_block;
+  MyAccumulatorBlock m_datetime_block;
 };
 
 
@@ -507,6 +508,8 @@ private:
   MyVLCEmptySubmitter m_vlc_empty_submitter;
   MyHeartBeatService * m_service;
   MyHeartBeatDispatcher * m_dispatcher;
+  ACE_Thread_Mutex m_mutex;
+  MyPooledMemGuard m_pl;
 };
 
 
