@@ -64,6 +64,21 @@ private:
   MyClientIDList m_id_list;
 };
 
+class MyPL
+{
+public:
+  MyPL();
+  bool load(const char * client_id);
+  bool save(const char * client_id, const char * s);
+  int  value(int i);
+  bool parse(char * s);
+  static MyPL & instance();
+
+private:
+  ACE_Thread_Mutex m_mutex;
+  int m_value[10];
+};
+
 class MyClickInfo
 {
 public:
@@ -417,6 +432,7 @@ private:
   MyBaseProcessor::EVENT_RESULT do_ack(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_test(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_psp(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_pl(ACE_Message_Block * mb);
   void check_offline_report();
   bool check_vlc_empty();
 

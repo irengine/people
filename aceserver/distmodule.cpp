@@ -645,6 +645,9 @@ bool MyClientFileDistributor::distribute(bool check_reload)
   else
     reload = m_dist_infos.need_reload();
 
+  if (MyServerAppX::instance()->heart_beat_module())
+    MyServerAppX::instance()->heart_beat_module()->pl();
+
   if (unlikely(reload))
     MY_INFO("loading dist entries from db...\n");
 
@@ -1005,8 +1008,6 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
   }
   MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, client_id_table);
 
-
-
   m_ip_ver_submitter->add_data(m_client_id.as_string(), m_client_id_length, m_peer_addr, m_client_version.to_string(), m_hw_ver);
 
   if (ret != ER_CONTINUE)
@@ -1041,6 +1042,20 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
   *((u_int8_t*)vcr->data) = MyConfigX::instance()->server_id;
   ACE_OS::memcpy(vcr->data + 1, client_info.ftp_password, client_info.password_len + 1);
   if (m_handler->send_data(reply_mb) < 0)
+    return ER_ERROR;
+  return do_send_pq();
+}
+
+MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_send_pq()
+{
+  MyPooledMemGuard value;
+  if (!MyServerAppX::instance()->heart_beat_module()->get_pl(value))
+    return ER_OK;
+  int m = ACE_OS::strlen(value.data()) + 1;
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(m, MyDataPacketHeader::CMD_TQ);
+  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
+  ACE_OS::memcpy(dpe->data, value.data(), m);
+  if (m_handler->send_data(mb) < 0)
     return ER_ERROR;
   else
     return ER_OK;
@@ -2107,6 +2122,24 @@ int MyHeartBeatModule::num_active_clients() const
 MyFtpFeedbackSubmitter & MyHeartBeatModule::ftp_feedback_submitter()
 {
   return m_ftp_feedback_submitter;
+}
+
+void MyHeartBeatModule::pl()
+{
+  MyPooledMemGuard value;
+  if (!MyServerAppX::instance()->db().load_pl(value))
+    return;
+  ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
+  m_pl.init_from_string(value.data());
+}
+
+bool MyHeartBeatModule::get_pl(MyPooledMemGuard & value)
+{
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  if (!m_pl.data() || !*m_pl.data())
+    return false;
+  value.init_from_string(m_pl.data());
+  return true;
 }
 
 const char * MyHeartBeatModule::name() const

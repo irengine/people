@@ -221,6 +221,7 @@ private:
   MyBaseProcessor::EVENT_RESULT do_test(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_psp(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_vlc_empty_req(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_send_pq();
 
   char m_hw_ver[12];
 };
@@ -492,6 +493,8 @@ public:
   MyHeartBeatService * service() const;
   int num_active_clients() const;
   MyFtpFeedbackSubmitter & ftp_feedback_submitter();
+  void pl();
+  bool get_pl(MyPooledMemGuard & value);
 
 protected:
   virtual bool on_start();

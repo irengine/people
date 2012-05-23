@@ -15,6 +15,85 @@
 #include "client.h"
 
 
+//MyPL//
+
+MyPL::MyPL()
+{
+  for (int i = 0; i < 10; ++ i)
+    m_value[i] = 0;
+}
+
+bool MyPL::load(const char * client_id)
+{
+  MyPooledMemGuard data_path, fn;
+  MyClientApp::data_path(data_path, client_id);
+  fn.init_from_string(data_path.data(), "/plist");
+  MyUnixHandleGuard fh;
+  fh.error_report(false);
+  if (!fh.open_read(fn.data()))
+    return false;
+  char buff[100];
+  int m = ::read(fh.handle(), buff, 100);
+  if (m <= 0)
+    return false;
+  buff[std::min(99, m)] = 0;
+  return parse(buff);
+}
+
+bool MyPL::save(const char * client_id, const char * s)
+{
+  if (!s)
+    return false;
+  MyPooledMemGuard data_path, fn;
+  MyClientApp::data_path(data_path, client_id);
+  fn.init_from_string(data_path.data(), "/plist");
+  MyUnixHandleGuard fh;
+  if (fh.open_write(fn.data(), true, true, false, true))
+  {
+    int m = strlen(s);
+    return m == ::write(fh.handle(), s, m);
+  }
+  return false;
+}
+
+int MyPL::value(int i)
+{
+  if (i < 0 || i > 10)
+    return 0;
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, 0);
+  return m_value[i];
+}
+
+MyPL & MyPL::instance()
+{
+  static MyPL g_pl;
+  return g_pl;
+}
+
+bool MyPL::parse(char * s)
+{
+  if (!s || !*s)
+  {
+    MY_INFO("empty plist\n");
+    return false;
+  }
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  MY_INFO("plist = %s\n", s);
+  const char separator[] = {';', 0};
+  MyStringTokenizer tknz(s, separator);
+  char * token;
+  int i = 0;
+  while ((token = tknz.get_token()) != NULL)
+  {
+    m_value[i] = atoi(token);
+    ++i;
+    if (i >= 10)
+      break;
+  }
+  return true;
+}
+
+
 //MyClickInfo//
 
 MyClickInfo::MyClickInfo()
@@ -807,7 +886,10 @@ bool MyFTPClient::download(MyDistInfoFtp * dist_info, const char * server_ip)
   MyPooledMemGuard ftp_file_name;
   ftp_file_name.init_from_string(dist_info->dist_id.data(), "/", dist_info->file_name.data());
   if (!ftp_client.get_file(ftp_file_name.data(), dist_info->local_file_name.data()))
+  {
+    ftp_client.logout();
     return false;
+  }
   ftp_client.logout();
   if (dist_info->ftp_md5.data() && *dist_info->ftp_md5.data())
   {
@@ -1064,6 +1146,7 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
     MY_ERROR("ftp failed to establish data connection to server %s\n", m_ftp_server_addr.data());
     return false;
   }
+  MySStreamGuard gs(stream);
 //  else
 //    MY_INFO("ftp establish data connection OK to server %s\n", m_ftp_server_addr.data());
 
@@ -1107,6 +1190,7 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
     MY_ERROR("ftp failed to open local file %s to save download %s\n", localfile, (const char*)MyErrno());
     return false;
   }
+  MyFIOGuard g(file_put);
   if (unlikely(!MyClientAppX::instance()->running()))
     return false;
 
@@ -1425,10 +1509,7 @@ bool MyDistInfoFtp::load_from_string(char * src)
   this->file_password.init_from_string(file_password);
   bool ret = validate();
   if (ret)
-  {
-    const int const_prio[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    m_prio = const_prio[ftype - '0'];
-  }
+    m_prio = MyPL::instance().value(ftype - '0');
   return ret;
 };
 
@@ -2479,6 +2560,17 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
       return ER_OK;
   }
 
+  if (m_packet_header.command == MyDataPacketHeader::CMD_TQ)
+  {
+    if (m_packet_header.length <= (int)sizeof(MyDataPacketHeader) || m_packet_header.length >= 512
+        || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    {
+      MY_ERROR("failed to validate header for plist\n");
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
+
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_REMOTE_CMD)
   {
@@ -2574,6 +2666,10 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
 
   if (header->command == MyDataPacketHeader::CMD_PSP)
     return do_psp(mb);
+
+  if (header->command == MyDataPacketHeader::CMD_TQ)
+    return do_pl(mb);
+
 
   MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyClientToDistProcessor::on_recv_packet_i(), command = %d\n",
@@ -2800,6 +2896,21 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_psp(ACE_Message_Block 
   return ER_OK;
 }
 
+MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_pl(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  MyDataPacketExt * packet = (MyDataPacketExt *) mb->base();
+  if (!packet->guard())
+  {
+    MY_ERROR("bad pl packet client_id(%s)\n", m_client_id.as_string());
+    return ER_OK;
+  }
+
+  MyPL::instance().save(m_client_id.as_string(), packet->data);
+  MyPL::instance().parse(packet->data);
+  return ER_OK;
+}
+
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_test(ACE_Message_Block * mb)
 {
   MyMessageBlockGuard guard(mb);
@@ -2817,7 +2928,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_remote_cmd(ACE_Message
   if (cmd > '6' || cmd < '1')
   {
     MY_ERROR("invalid remote cmd (=%c) received\n", cmd);
-    return ER_ERROR;
+    return ER_OK;
   }
 
   MY_INFO("remote cmd (=%c) received\n", cmd);
@@ -2925,7 +3036,8 @@ int MyClientToDistProcessor::send_ip_ver_req()
   MyIpVerRequest * ivr = (MyIpVerRequest *) mb->base();
   ivr->client_version_major = const_client_version_major;
   ivr->client_version_minor = const_client_version_minor;
-  MY_INFO("sending ip ver to dist server...\n");
+  if (!g_test_mode || m_client_id_index == 0)
+    MY_INFO("sending ip ver to dist server...\n");
   return (m_handler->send_data(mb) < 0? -1: 0);
 }
 

@@ -14,6 +14,7 @@
 #include <ace/SOCK_Stream.h>
 #include <ace/Svc_Handler.h>
 #include <ace/Malloc_T.h>
+#include <ace/FILE_IO.h>
 #include <new>
 #include <vector>
 
@@ -215,6 +216,34 @@ private:
   bool do_open(const char * filename, bool readonly, bool create, bool truncate, bool append, bool self_only);
   int  m_handle;
   bool m_error_report;
+};
+
+
+class MySStreamGuard
+{
+public:
+  MySStreamGuard(ACE_SOCK_Stream & s): m_ss(s)
+  {}
+  ~MySStreamGuard()
+  {
+    m_ss.close();
+  }
+private:
+  ACE_SOCK_Stream & m_ss;
+};
+
+
+class MyFIOGuard
+{
+public:
+  MyFIOGuard(ACE_FILE_IO & fio): m_fio(fio)
+  {}
+  ~MyFIOGuard()
+  {
+    m_fio.close();
+  }
+private:
+  ACE_FILE_IO & m_fio;
 };
 
 template <class ACE_LOCK> class My_Cached_Allocator: public ACE_Dynamic_Cached_Allocator<ACE_LOCK>

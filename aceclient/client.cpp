@@ -942,6 +942,7 @@ bool MyClientApp::on_construct()
         dbg.db().remove_outdated_ftp_command(deadline);
       }
     }
+    MyPL::instance().load(m_client_id.c_str());
   }
 
   if (!g_test_mode)
