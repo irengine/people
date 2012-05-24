@@ -40,6 +40,8 @@ const int  DEFAULT_db_server_port = 5432;
 const int  DEFAULT_http_port = 1922;
 const int  DEFAULT_bs_server_port = 1921;
 const int  DEFAULT_client_ftp_timeout = 120;
+const int  DEFAULT_client_ftp_retry_count = 30;
+const int  DEFAULT_client_ftp_retry_interval = 3;
 
 //common for all
 const ACE_TCHAR * CONFIG_Section_global = ACE_TEXT("global");
@@ -95,6 +97,7 @@ const ACE_TCHAR * CONFIG_server_id = ACE_TEXT("server_id");
 const ACE_TCHAR * CONFIG_client_heart_beat_interval = ACE_TEXT("module.client_heart_beat_interval");
 const ACE_TCHAR * CONFIG_adv_expire_days = ACE_TEXT("module.adv_expire_days");
 const ACE_TCHAR * CONFIG_client_ftp_timeout = ACE_TEXT("module.client_ftp_timeout");
+const ACE_TCHAR * CONFIG_client_ftp_retry_count = ACE_TEXT("module.client_ftp_retry_count");
 
 MyConfig::MyConfig()
 {
@@ -130,6 +133,8 @@ MyConfig::MyConfig()
   test_client_ftp_thread_number = DEFAULT_test_client_ftp_thread_number;
   adv_expire_days = 0;
   client_ftp_timeout = DEFAULT_client_ftp_timeout;
+  client_ftp_retry_count = DEFAULT_client_ftp_retry_count;
+  client_ftp_retry_interval = DEFAULT_client_ftp_retry_interval;
 
   //middle only
   http_port = DEFAULT_http_port;
@@ -477,6 +482,17 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
       client_ftp_timeout = ival;
   }
 
+  if (cfgHeap.get_integer_value(section, CONFIG_client_ftp_retry_count, ival) == 0)
+  {
+    if (ival < 1 || ival > 100000)
+    {
+      MY_WARNING(ACE_TEXT("Invalid %s value (%d), using default value = %d\n"),
+          CONFIG_client_ftp_retry_count, ival, DEFAULT_client_ftp_retry_count);
+    }
+    else
+      client_ftp_timeout = ival;
+  }
+
   return true;
 }
 
@@ -701,6 +717,7 @@ void MyConfig::dump_config_info()
       ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_heart_beat_interval, client_heart_beat_interval));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_adv_expire_days, adv_expire_days));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_ftp_timeout, client_ftp_timeout));
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_ftp_retry_count, client_ftp_retry_count));
   }
 
   //dist only
