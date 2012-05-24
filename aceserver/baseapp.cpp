@@ -98,6 +98,8 @@ const ACE_TCHAR * CONFIG_client_heart_beat_interval = ACE_TEXT("module.client_he
 const ACE_TCHAR * CONFIG_adv_expire_days = ACE_TEXT("module.adv_expire_days");
 const ACE_TCHAR * CONFIG_client_ftp_timeout = ACE_TEXT("module.client_ftp_timeout");
 const ACE_TCHAR * CONFIG_client_ftp_retry_count = ACE_TEXT("module.client_ftp_retry_count");
+const ACE_TCHAR * CONFIG_client_ftp_retry_interval = ACE_TEXT("module.client_ftp_retry_interval");
+
 
 MyConfig::MyConfig()
 {
@@ -490,8 +492,20 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
           CONFIG_client_ftp_retry_count, ival, DEFAULT_client_ftp_retry_count);
     }
     else
-      client_ftp_timeout = ival;
+      client_ftp_retry_count = ival;
   }
+
+  if (cfgHeap.get_integer_value(section, CONFIG_client_ftp_retry_interval, ival) == 0)
+  {
+    if (ival < 1 || ival > 60)
+    {
+      MY_WARNING(ACE_TEXT("Invalid %s value (%d), using default value = %d\n"),
+          CONFIG_client_ftp_retry_interval, ival, DEFAULT_client_ftp_retry_interval);
+    }
+    else
+      client_ftp_retry_interval = ival;
+  }
+
 
   return true;
 }
