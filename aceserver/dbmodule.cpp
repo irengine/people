@@ -281,34 +281,41 @@ bool MyDB::save_sr(char * dids, const char * cmd, char * idlist)
   int i = 0, total = 0, ok = 0;
   MyStringTokenizer client_ids(idlist, separator);
   MyStringTokenizer dist_ids(dids, separator);
+  std::list<char *> l_client_ids, l_dist_ids;
   char * client_id, *dist_id;
   while ((client_id = client_ids.get_token()) != NULL)
+    l_client_ids.push_back(client_id);
+  while((dist_id = dist_ids.get_token()) != NULL)
+    l_dist_ids.push_back(dist_id);
+  std::list<char *>::iterator it1, it2;
+  for (it1 = l_dist_ids.begin(); it1 != l_dist_ids.end(); ++ it1)
   {
-    dist_id = dist_ids.get_token();
-    if (dist_id == NULL)
-      break;
-    total ++;
-    if (i == 0)
+    dist_id = *it1;
+    for (it2 = l_client_ids.begin(); it2 != l_client_ids.end(); ++ it2)
     {
-      if (!begin_transaction())
+      total ++;
+      client_id = *it2;
+      if (i == 0)
       {
-        MY_ERROR("failed to begin transaction @MyDB::save_sr\n");
-        return false;
+        if (!begin_transaction())
+        {
+          MY_ERROR("failed to begin transaction @MyDB::save_sr\n");
+          return false;
+        }
       }
-    }
-    ACE_OS::snprintf(sql, 1024, sql_tpl, status, dist_id, client_id);
-    exec_command(sql);
-    ++i;
-    if (i == BATCH_COUNT)
-    {
-      if (!commit())
+      ACE_OS::snprintf(sql, 1024, sql_tpl, status, dist_id, client_id);
+      exec_command(sql);
+      ++i;
+      if (i == BATCH_COUNT)
       {
-        MY_ERROR("failed to commit transaction @MyDB::save_sr\n");
-        rollback();
-      } else
-        ok += i;
-
-      i = 0;
+        if (!commit())
+        {
+          MY_ERROR("failed to commit transaction @MyDB::save_sr\n");
+          rollback();
+        } else
+          ok += i;
+        i = 0;
+      }
     }
   }
 

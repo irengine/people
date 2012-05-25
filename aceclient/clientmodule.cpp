@@ -1516,7 +1516,7 @@ bool MyDistInfoFtp::load_from_string(char * src)
 time_t MyDistInfoFtp::get_delay_penalty() const
 {
   //return (time_t)(std::min(m_failed_count + 1, (int)MAX_FAILED_COUNT) * 60 * FAILED_PENALTY);
-  return (time_t)(60 * FAILED_PENALTY);
+  return (time_t)(60 * MyConfigX::instance()->client_ftp_retry_interval);
 }
 
 bool MyDistInfoFtp::should_ftp(time_t now) const
@@ -1537,7 +1537,7 @@ void MyDistInfoFtp::touch()
 void MyDistInfoFtp::inc_failed(int steps)
 {
   m_failed_count += steps;
-  if (m_failed_count >= MAX_FAILED_COUNT)
+  if (m_failed_count >= MyConfigX::instance()->client_ftp_retry_count)
   {
     if (status <= 3)
     {
@@ -1973,7 +1973,12 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
           result = false;
       } else if (type_is_all(dist_info->type) || type_is_multi(dist_info->type))
       {
-        if (!MyFilePaths::copy_path_zap(target_path.data(), true_dest_path.data(), true, ftype_is_chn(dist_info->ftype)))
+        if (ftype_is_frame(dist_info->ftype) && type_is_multi(dist_info->type))
+        {
+          if (!MyFilePaths::copy_path(target_path.data(), true_dest_path.data(), true))
+            result = false;
+        }
+        else if (!MyFilePaths::copy_path_zap(target_path.data(), true_dest_path.data(), true, ftype_is_chn(dist_info->ftype)))
           result = false;
       }
 
@@ -1993,17 +1998,6 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
     }
   }
 
-//  if (result)
-//  {
-//    if (ftype_is_frame(dist_info->ftype))
-//    {
-//      MyPooledMemGuard indexfile;
-//      indexfile.init_from_string(true_dest_path.data(), "/", MyClientApp::index_frame_file());
-//      MyUnixHandleGuard fh;
-//      if (fh.open_write(indexfile.data(), true, true, false, true))
-//        ::write(fh.handle(), dist_info->aindex.data(), ACE_OS::strlen(dist_info->aindex.data()));
-//    }
-//  }
   return result;
 }
 

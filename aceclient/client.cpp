@@ -1032,6 +1032,11 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
     std::printf("error loading config file, quitting\n");
     exit(5);
   }
+  if (geteuid() == 0 && cfg->client_enable_root == 0)
+  {
+    std::printf("error run as root, quitting\n");
+    exit(6);
+  }
   if (cfg->run_as_demon)
     MyBaseApp::app_demonize();
 
