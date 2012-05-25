@@ -15,6 +15,14 @@
 #include "client.h"
 
 
+std::string get_app_ver()
+{
+  char buff[100];
+  ACE_OS::snprintf(buff, 99, "%d.%d build 120525", const_client_version_major, const_client_version_minor);
+  std::string result = buff;
+  return result;
+}
+
 //MyPL//
 
 MyPL::MyPL()
@@ -144,93 +152,6 @@ void MyServerID::save(const char * client_id, int server_id)
   }
 }
 
-
-//MyAdvCleaner//
-
-void MyAdvCleaner::do_clean(const MyPooledMemGuard & path, const char * client_id, int expire_days)
-{
-  MyClientDBGuard dbg;
-  if (!dbg.db().open_db(client_id))
-    return;
-  time_t deadline = time(NULL) - expire_days * const_one_day;
-  process_adv_txt(path, dbg.db());
-  dbg.db().delete_old_adv(deadline);
-  if (dbg.db().adv_db_is_older(deadline))
-    process_files(path, dbg.db());
-}
-
-void MyAdvCleaner::process_adv_txt(const MyPooledMemGuard & path, MyClientDB & db)
-{
-  MyPooledMemGuard adv_txt;
-  adv_txt.init_from_string(path.data(), "/5/adv.txt");
-  std::ifstream ifs(adv_txt.data());
-  if (!ifs || ifs.bad())
-    return;
-
-  MyPooledMemGuard line;
-  MyMemPoolFactoryX::instance()->get_mem(16000, &line);
-  time_t t = time(NULL);
-  char * ptr;
-  while (!ifs.eof())
-  {
-    ifs.getline(line.data(), 16000);
-    line.data()[16000 - 1] = 0;
-    ptr = ACE_OS::strchr(line.data(), ':');
-    if (!ptr)
-      continue;
-    *ptr ++ = 0;
-
-    const char separators[2] = {' ', 0 };
-    MyStringTokenizer tkn(ptr, separators);
-    char * token;
-    while ((token = tkn.get_token()) != NULL)
-    {
-      db.update_adv_time(token, t);
-    }
-  }
-}
-
-void MyAdvCleaner::process_files(const MyPooledMemGuard & _path, MyClientDB & db)
-{
-  MyPooledMemGuard path;
-  path.init_from_string(_path.data(), "/5");
-
-  if (!MyFilePaths::exist(path.data()))
-    return;
-
-  DIR * dir = opendir(path.data());
-  if (!dir)
-  {
-    MY_ERROR("can not open directory: %s %s\n", path.data(), (const char*)MyErrno());
-    return;
-  }
-
-  int len1 = ACE_OS::strlen(path.data());
-  MyPooledMemGuard msrc;
-
-  struct dirent *entry;
-  while ((entry = readdir(dir)) != NULL)
-  {
-    if (!entry->d_name)
-      continue;
-    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..") || !strcmp(entry->d_name, "adv.txt"))
-      continue;
-
-    if(entry->d_type == DT_REG)
-    {
-      if (!db.adv_has_file(entry->d_name))
-      {
-        int len = ACE_OS::strlen(entry->d_name);
-        MyMemPoolFactoryX::instance()->get_mem(len1 + len + 2, &msrc);
-        ACE_OS::sprintf(msrc.data(), "%s/%s", path.data(), entry->d_name);
-        MY_INFO("removing obsolete adv file: %s\n", msrc.data());
-        MyFilePaths::remove(msrc.data());
-      }
-    }
-  };
-
-  closedir(dir);
-}
 
 
 //MyClientDB//
@@ -1284,6 +1205,15 @@ bool MyDistInfoHeader::validate()
     return false;
   }
 
+  if (!(adir.data() && adir.data()[0]))
+  {
+    if (ftype_is_chn(ftype))
+    {
+      MY_ERROR("invalid MyDistInfoHeader, dist_id=%s, ftype=%c, adir is null\n", dist_id.data(), ftype);
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -1798,17 +1728,17 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
     MY_INFO("apply update OK for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
     dist_info->generate_update_ini();
     dist_info->generate_url_ini();
-    if (!g_test_mode && ftype_is_adv_list(dist_info->ftype))
-    {
-      MyConfig * cfg = MyConfigX::instance();
-      if(cfg->adv_expire_days > 0)
-      {
-        MyPooledMemGuard mpath;
-        MyClientApp::calc_display_parent_path(mpath, MyClientAppX::instance()->client_id());
-        MyAdvCleaner cleaner;
-        cleaner.do_clean(mpath, MyClientAppX::instance()->client_id(), cfg->adv_expire_days);
-      }
-    }
+//    if (!g_test_mode && ftype_is_adv_list(dist_info->ftype))
+//    {
+//      MyConfig * cfg = MyConfigX::instance();
+//      if(cfg->adv_expire_days > 0)
+//      {
+//        MyPooledMemGuard mpath;
+//        MyClientApp::calc_display_parent_path(mpath, MyClientAppX::instance()->client_id());
+//        MyAdvCleaner cleaner;
+//        cleaner.do_clean(mpath, MyClientAppX::instance()->client_id(), cfg->adv_expire_days);
+//      }
+//    }
     if (!ftype_is_vd(dist_info->ftype))
       MyClientApp::full_backup(dist_info->dist_id.data(), dist_info->client_id.as_string());
   }
@@ -1951,8 +1881,8 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
   bool result = c.decompress(dist_info->local_file_name.data(), target_path.data(), dist_info->file_password.data(), dist_info->aindex.data());
   if (result)
   {
-//    MY_INFO("extract mbz ok: %s to %s\n", dist_info->local_file_name.data(), target_path.data());
-    if (ftype_is_frame(dist_info->ftype))
+/*
+    if (ftype_is_frame(dist_info->ftype) && type_is_all(dist_info->type))
     {
       MyPooledMemGuard mfile;
       if (MyClientApp::get_mfile(true_dest_path, mfile))
@@ -1964,7 +1894,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
         MyFilePaths::zap(mfilex.data(), true);
       }
     }
-
+*/
     if (type_is_valid(dist_info->type))
     {
       if (type_is_single(dist_info->type))
@@ -1973,7 +1903,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
           result = false;
       } else if (type_is_all(dist_info->type) || type_is_multi(dist_info->type))
       {
-        if (ftype_is_frame(dist_info->ftype) && type_is_multi(dist_info->type))
+        if (ftype_is_frame(dist_info->ftype) /*&& type_is_multi(dist_info->type)*/)
         {
           if (!MyFilePaths::copy_path(target_path.data(), true_dest_path.data(), true))
             result = false;
@@ -2915,23 +2845,6 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_test(ACE_Message_Block
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_remote_cmd(ACE_Message_Block * mb)
 {
   MyMessageBlockGuard guard(mb);
-  if (g_test_mode)
-    return ER_OK;
-  MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
-  char cmd = dpe->data[0];
-  if (cmd > '6' || cmd < '1')
-  {
-    MY_ERROR("invalid remote cmd (=%c) received\n", cmd);
-    return ER_OK;
-  }
-
-  MY_INFO("remote cmd (=%c) received\n", cmd);
-
-  const char * fn = "/tmp/daily/rcmd.txt";
-  MyUnixHandleGuard fh;
-  if (fh.open_write(fn, true, true, false, true))
-    ::write(fh.handle(), &cmd, 1);
-
   return ER_OK;
 }
 
@@ -3128,6 +3041,26 @@ bool MyDistServerAddrList::empty() const
   return m_server_addrs.empty();
 }
 
+const char * MyDistServerAddrList::rnd()
+{
+  ACE_MT(ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, NULL));
+  int m = m_ftp_addrs.size();
+  if (m <= 0)
+    return NULL;
+  if (m == 1)
+  {
+    m_ftp_index = 0;
+    return m_ftp_addrs[0].c_str();
+  }
+  int i = random() % m;
+  if (i < 0)
+    i = i * -1;
+  if (i < 0 || i > m)
+    i = 0;
+  m_ftp_index = i;
+  return m_ftp_addrs[m_ftp_index].c_str();
+}
+
 const char * MyDistServerAddrList::begin_ftp()
 {
   ACE_MT(ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, NULL));
@@ -3230,20 +3163,8 @@ MyVlcItem * MyVlcItems::find(const char * fn)
   return NULL;
 }
 
-void MyVlcItems::add(const char * fn, int duration)
+void MyVlcItems::add(const char * , int )
 {
-  if (!fn || !*fn)
-    return;
-  MyVlcItem * p = find(fn);
-  if (p != NULL)
-    p->duration += duration;
-  else
-  {
-    MyVlcItem item;
-    item.filename = fn;
-    item.duration = duration;
-    m_vlcs.push_back(item);
-  }
 }
 
 int MyVlcItems::total_len()
@@ -3263,27 +3184,6 @@ bool MyVlcItems::empty() const
 ACE_Message_Block * MyVlcItems::make_mb()
 {
   return NULL;
-/*
-  int len = total_len();
-  MyPooledMemGuard data;
-  MyMemPoolFactoryX::instance()->get_mem(len, &data);
-  MyVlcItemList::iterator it = m_vlcs.begin();
-  char * ptr = data.data();
-  ptr[0] = 0;
-  char buff[20];
-  for (; it != m_vlcs.end(); ++it)
-  {
-    ACE_OS::strcat(ptr, it->filename.c_str());
-    ACE_OS::snprintf(buff, 20, "%c%d%c", MyDataPacketHeader::MIDDLE_SEPARATOR, it->duration, MyDataPacketHeader::ITEM_SEPARATOR);
-    ACE_OS::strcat(ptr, buff);
-  }
-  len = ACE_OS::strlen(ptr) + 1;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(len, MyDataPacketHeader::CMD_VLC);
-  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
-  MY_DEBUG("vlc list: %s\n", ptr);
-  ACE_OS::memcpy(dpe->data, ptr, len);
-  return mb;
-*/
 }
 
 
@@ -3651,20 +3551,6 @@ void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
 
 void MyClientToDistService::do_rev_task(const char * p)
 {
-/*
-  if (MyClientAppX::instance()->full_restore(p, true, false))
-  {
-    MyPooledMemGuard p1, p2, p3, p4;
-    MyClientAppX::instance()->calc_backup_parent_path(p1);
-    p2.init_from_string(p1.data(), "/new");
-    p3.init_from_string(p1.data(), "/old");
-    p4.init_from_string(p1.data(), "/tmp");
-    MyFilePaths::remove(p4.data(), true);
-    MyFilePaths::rename(p2.data(), p4.data(), false);
-    MyFilePaths::rename(p3.data(), p2.data(), false);
-    MyFilePaths::remove(p4.data(), true);
-  }
-*/
   delete []p;
 }
 
@@ -3710,7 +3596,7 @@ int MyClientFtpService::svc()
     MY_INFO(ACE_TEXT ("running %s::svc()\n"), name());
     bprinted = true;
   }
-  std::string server_addr = ((MyClientToDistModule*)module_x())->server_addr_list().begin_ftp();
+  std::string server_addr = ((MyClientToDistModule*)module_x())->server_addr_list().rnd();
   int failed_count = 0;
 
   while (MyClientAppX::instance()->running())

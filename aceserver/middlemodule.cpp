@@ -451,7 +451,6 @@ bool MyHttpProcessor::do_process_input_data()
 {
   bool result = true;
   const char * const_dist_cmd = "http://127.0.0.1:10092/file?";
-  const char * const_remote_cmd = "http://127.0.0.1:10092/ctrl?";
   const char * const_task_cmd = "http://127.0.0.1:10092/task?";
   const char * const_prio_cmd = "http://127.0.0.1:10092/prio?";
   int ntype = -1;
@@ -462,8 +461,6 @@ bool MyHttpProcessor::do_process_input_data()
     ntype = 3;
     m_current_block->set_self_flags(0x2000);
   }
-  else if (ACE_OS::strncmp(const_remote_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_remote_cmd)) == 0)
-    ntype = 2;
   else if (ACE_OS::strncmp(const_prio_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_prio_cmd)) == 0)
   {
     bool ret = do_prio(m_current_block);
@@ -481,15 +478,6 @@ bool MyHttpProcessor::do_process_input_data()
   if (likely(ntype == 1 || ntype == 3))
     result = (mycomutil_mb_putq(MyServerAppX::instance()->http_module()->http_service(), m_current_block,
               "http request into target queue @MyHttpProcessor::do_process_input_data()"));
-  else if (ntype == 2)
-  {
-    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(m_current_block->length() - 3, MyDataPacketHeader::CMD_REMOTE_CMD);
-    MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
-    ACE_OS::memcpy(dpe->data, m_current_block->base() + 4, m_current_block->length() - 4);
-    dpe->data[m_current_block->length() - 4] = 0;
-    result = mycomutil_mb_putq(MyServerAppX::instance()->dist_load_module()->dispatcher(), mb, "rcmd to target queue");
-    m_current_block->release();
-  }
   m_current_block = NULL;
   return result;
 }

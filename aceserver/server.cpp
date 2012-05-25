@@ -11,6 +11,13 @@
 #include "distmodule.h"
 #include "middlemodule.h"
 
+std::string get_app_ver()
+{
+  std::string result = "1.1 build 120525";
+  return result;
+}
+
+
 //MyServerApp//
 
 MyServerApp::MyServerApp()

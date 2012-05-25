@@ -323,14 +323,6 @@ bool MyConfig::load_config_common(ACE_Configuration_Heap & cfgHeap, ACE_Configur
   if (cfgHeap.get_integer_value (section,  CONFIG_mem_pool_dump_interval, ival) == 0)
     mem_pool_dump_interval = ival;
 
-//  if (cfgHeap.get_integer_value (section,  CONFIG_message_control_block_mem_pool_size, ival) == 0)
-//  {
-//    if (ival > 0 && ival < 1000000)
-//      message_control_block_mem_pool_size = ival;
-//  }
-//  else if (is_client())
-//    message_control_block_mem_pool_size = 1000;
-
   return true;
 }
 
@@ -689,7 +681,6 @@ void MyConfig::dump_config_info()
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_run_as_demon, run_as_demon));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_use_mem_pool, use_mem_pool));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_mem_pool_dump_interval, mem_pool_dump_interval));
-//ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_message_control_block_mem_pool_size, message_control_block_mem_pool_size));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_status_file_check_interval, status_file_check_interval));
 
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_file_number, log_file_number));
@@ -734,7 +725,7 @@ void MyConfig::dump_config_info()
   {
     if (g_test_mode)
       ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_heart_beat_interval, client_heart_beat_interval));
-    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_adv_expire_days, adv_expire_days));
+//    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_adv_expire_days, adv_expire_days));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_ftp_timeout, client_ftp_timeout));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_ftp_retry_count, client_ftp_retry_count));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_ftp_retry_interval, client_ftp_retry_interval));
@@ -957,16 +948,12 @@ void MyBaseApp::init_log()
     log_mask |= LM_DEBUG;
   ACE_LOG_MSG->priority_mask (log_mask, ACE_Log_Msg::PROCESS);
 
-//  ACE_LOG_MSG->open ("aceserver", ACE_Log_Msg::OSTREAM | ACE_Log_Msg::STDERR);
-//  ACE_OSTREAM_TYPE *output = new ofstream (m_config.log_file_name.c_str(), ios::app | ios::out);
-//  ACE_LOG_MSG->msg_ostream (output);
-
   if (MyConfigX::instance()->run_as_demon || !MyConfigX::instance()->log_to_stderr)
     ACE_LOG_MSG->clr_flags(ACE_Log_Msg::STDERR);
   if (MyConfigX::instance()->is_server())
-    MY_INFO("Starting server (Ver: %s)...\n", const_app_version);
+    MY_INFO("Starting server (Ver: %s)...\n", get_app_ver().c_str());
   else
-    MY_INFO("Starting client (Ver: %s)...\n", const_app_version);
+    MY_INFO("Starting client (Ver: %s)...\n", get_app_ver().c_str());
 }
 
 void MyBaseApp::do_dump_info()

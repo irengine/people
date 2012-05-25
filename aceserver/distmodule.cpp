@@ -72,12 +72,14 @@ void MyDistClient::send_fb_detail(bool ok)
   MyServerAppX::instance()->dist_to_middle_module()->send_to_bs(mb);
 }
 
-void MyDistClient::psp(const char c)
+void MyDistClient::psp(const char /*c*/)
 {
-  if (c == '0')
+  delete_self();
+/*  if (c == '0')
     update_status(6);
   else
     update_status(8);
+*/
 }
 
 void MyDistClient::dist_ftp_md5_reply(const char * md5list)
@@ -2460,53 +2462,6 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_have_dist_task(ACE_Mes
 MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_remote_cmd_task(ACE_Message_Block * mb)
 {
   MyMessageBlockGuard guard(mb);
-  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
-  if (!dpe->guard())
-  {
-    MY_ERROR("bad remote cmd task packet received\n");
-    return ER_ERROR;
-  }
-  char * ptr = ACE_OS::strstr(dpe->data, "&cmd=");
-  if (!ptr)
-  {
-    MY_ERROR("bad remote cmd task packet received, no '&cmd='\n");
-    return ER_ERROR;
-  }
-  char cmd = *(ptr + ACE_OS::strlen("&cmd="));
-  if (cmd < '1' || cmd > '6')
-  {
-    MY_ERROR("bad remote cmd task packet cmd = %c\n", cmd);
-    return ER_ERROR;
-  }
-  ptr = ACE_OS::strstr(ptr, "&acode=");
-  if (!ptr)
-  {
-    MY_ERROR("bad remote cmd task packet received, no '&acode='\n");
-    return ER_ERROR;
-  }
-  char * acode = ptr + ACE_OS::strlen("&acode=");
-
-  MY_INFO("get remote cmd (= %c)\n", cmd);
-
-  char separators[2] = { ';', 0 };
-  MyStringTokenizer tokenizer(acode, separators);
-  char * token;
-  bool switched;
-  MyClientID _client_id;
-  int _index;
-  while ((token = tokenizer.get_token()) != NULL)
-  {
-    _index = -1;
-    _client_id = token;
-    if (!g_client_id_table->active(_client_id, _index, switched))
-      continue;
-    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(1, MyDataPacketHeader::CMD_REMOTE_CMD);
-    MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
-    dpe->magic = _index;
-    dpe->data[0] = cmd;
-    mycomutil_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "remote cmd to dispatcher's queue");
-  }
-
   return ER_OK;
 }
 

@@ -68,7 +68,7 @@ private:
   const char * adv_txt() const;
   const char * gasket() const;
   bool save_file(const char * buff);
-  void clean_list() const;
+  void clean_list(bool no_error) const;
 
   int m_next;
   MyPooledMemGuard m_current_line;

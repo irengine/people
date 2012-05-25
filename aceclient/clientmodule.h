@@ -25,7 +25,7 @@ class MyDistInfoFtps;
 class MyHttp1991Acceptor;
 
 const u_int8_t const_client_version_major = 1;
-const u_int8_t const_client_version_minor = 0;
+const u_int8_t const_client_version_minor = 1;
 
 //simple implementation, not thread safe, multiple calls to put on the same id will generate duplicate
 //IDs for later gets. but it works for our test. that is enough
@@ -166,16 +166,6 @@ public:
 
 private:
   MyClientDB m_db;
-};
-
-class MyAdvCleaner
-{
-public:
-  void do_clean(const MyPooledMemGuard & path, const char * client_id, int expire_days);
-
-private:
-  void process_adv_txt(const MyPooledMemGuard & path, MyClientDB & db);
-  void process_files(const MyPooledMemGuard & path, MyClientDB & db);
 };
 
 class MyConnectIni
@@ -452,6 +442,7 @@ public:
 
   const char * begin_ftp();
   const char * next_ftp();
+  const char * rnd();
   bool empty_ftp();
 
   void save();

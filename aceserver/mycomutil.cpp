@@ -1022,7 +1022,7 @@ void MyMemPoolFactory::init(MyConfig * config)
       else if (pool_size[i] < 512 * KB)
         m = 20;
       else
-        m = 2;
+        m = 4;
       m_pool_sizes.push_back(pool_size[i]);
       m_pools.push_back(new My_Cached_Allocator<ACE_Thread_Mutex>(m, pool_size[i]));
       m_pools[i]->setup();
@@ -1034,12 +1034,14 @@ void MyMemPoolFactory::init(MyConfig * config)
 
     for(size_t i = 0;i < sizeof (pool_size) / sizeof (int);++i)
     {
-      if (pool_size[i] <= 1 * KB)
-        m = std::max((int)((config->max_clients * 2.2)), 3000);
+      if (pool_size[i] == 32 || pool_size[i] == 128)
+        m = std::max((int)((config->max_clients * 20)), 10000);
+      else if (pool_size[i] <= 1 * KB)
+        m = std::max((int)((config->max_clients * 2)), 3000);
       else if (pool_size[i] < 512 * KB)
         m = 2 * MB / pool_size[i];
       else
-        m = 2;
+        m = 4;
       m_pool_sizes.push_back(pool_size[i]);
       m_pools.push_back(new My_Cached_Allocator<ACE_Thread_Mutex>(m, pool_size[i]));
       m_pools[i]->setup();
@@ -1239,8 +1241,8 @@ void * MyMemPoolFactory::get_mem_x(int size)
   int idx = g_use_mem_pool? find_first_index(size): INVALID_INDEX;
   if (idx == INVALID_INDEX || (p = m_pools[idx]->malloc()) == NULL)
   {
-    if (g_use_mem_pool)
-      MY_DEBUG("global alloc of size(%d)\n", size);
+//    if (g_use_mem_pool)
+//      MY_DEBUG("global alloc of size(%d)\n", size);
     ++ m_global_alloc_count;
     p = (void*)new char[size];
   }

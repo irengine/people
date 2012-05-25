@@ -378,9 +378,9 @@ const char * MyVLCLauncher::name() const
   return "vlc";
 }
 
-void MyVLCLauncher::clean_list() const
+void MyVLCLauncher::clean_list(bool no_error) const
 {
-  MyFilePaths::remove("/tmp/daily/video.txt");
+  MyFilePaths::remove("/tmp/daily/video.txt", no_error);
 }
 
 bool MyVLCLauncher::on_launch(ACE_Process_Options & )
@@ -388,7 +388,7 @@ bool MyVLCLauncher::on_launch(ACE_Process_Options & )
 //  const char * vlc = "vlc -L --fullscreen";
   m_empty_advlist = false;
   std::vector<std::string> advlist;
-  clean_list();
+  clean_list(true);
   get_file_stat(m_t, m_n);
   MyPooledMemGuard file_list;
   //if (!m_init_mode)
@@ -1091,13 +1091,13 @@ bool MyClientApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
     path_x = cfg->app_path + "/data/backup";
     MyFilePaths::make_path(path_x.c_str(), true);
 
-    if(cfg->adv_expire_days > 0)
-    {
-      MyPooledMemGuard mpath;
-      mpath.init_from_string(cfg->app_path.c_str(), "/data/backup/new");
-      MyAdvCleaner cleaner;
-      cleaner.do_clean(mpath, app->client_id(), cfg->adv_expire_days);
-    }
+//    if(cfg->adv_expire_days > 0)
+//    {
+//      MyPooledMemGuard mpath;
+//      mpath.init_from_string(cfg->app_path.c_str(), "/data/backup/new");
+//      MyAdvCleaner cleaner;
+//      cleaner.do_clean(mpath, app->client_id(), cfg->adv_expire_days);
+//    }
 
     MyClientToDistHandler::init_mem_pool(100);
   }

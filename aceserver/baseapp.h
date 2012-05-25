@@ -156,7 +156,6 @@ private:
   MyBaseApp * m_app;
 };
 
-
 class MyBaseApp
 {
 public:
@@ -212,5 +211,7 @@ private:
   bool m_status_file_ok;
   bool m_status_file_checking;
 };
+
+std::string get_app_ver();
 
 #endif /* SERVERAPP_H_ */
