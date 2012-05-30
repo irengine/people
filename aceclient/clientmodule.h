@@ -410,7 +410,7 @@ protected:
   virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
-  enum { OFFLINE_THREASH_HOLD = 3 }; //in minutes
+  enum { OFFLINE_THREASH_HOLD = 20 }; //in seconds
   enum { MSG_QUEUE_MAX_SIZE = 2 * 1024 * 1024 };
 
   int send_version_check_req();

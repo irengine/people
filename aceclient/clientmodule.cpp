@@ -2740,27 +2740,26 @@ void MyClientToDistProcessor::check_offline_report()
 {
   time_t t = ((MyClientToDistConnector *)m_handler->connector())->reset_last_connect_time();
   time_t now = time(NULL);
-  if (now <= t + OFFLINE_THREASH_HOLD * 60)
+  MY_INFO("offline report now = %d, old = %d\n", (int)now, (int)t);
+  if (now <= t + OFFLINE_THREASH_HOLD)
     return;
 
-  char buff[32], buff2[32];
+  char buff[64], buff2[64];
   if (unlikely(!mycomutil_generate_time_string(buff2, 32, false, now) || ! mycomutil_generate_time_string(buff, 32, false, t)))
   {
     MY_ERROR("mycomutil_generate_time_string failed @MyClientToDistProcessor::check_offline_report()\n");
     return;
   }
-  ACE_OS::strncat(buff, "-", 32 - 1);
-  ACE_OS::strncat(buff, buff2 + 9, 32 -1);
+  ACE_OS::strncat(buff, "-", 64 - 1);
+  ACE_OS::strncat(buff, buff2 + 9, 64 -1);
   int len = ACE_OS::strlen(buff);
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(len + 1 + 1,
       MyDataPacketHeader::CMD_PC_ON_OFF);
-  if (g_test_mode)
-    ((MyDataPacketHeader *)mb->base())->magic = 0;
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
   dpe->data[0] = '3';
   ACE_OS::memcpy(dpe->data + 1, buff, len + 1);
-
-  mycomutil_mb_putq(MyClientAppX::instance()->client_to_dist_module()->dispatcher(), mb, "client off-line report to dist queue");
+  m_handler->send_data(mb);
+//  mycomutil_mb_putq(MyClientAppX::instance()->client_to_dist_module()->dispatcher(), mb, "client off-line report to dist queue");
 }
 
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ip_ver_reply(ACE_Message_Block * mb)
@@ -2862,6 +2861,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
   case MyClientVersionCheckReply::VER_OK:
     if (!g_test_mode || m_client_id_index == 0)
       MY_INFO("handshake response from dist server: OK\n");
+    client_id_verified(true);
     if (vcr->length > (int)sizeof(MyClientVersionCheckReply) + 1)
     {
       MyServerID::save(m_client_id.as_string(), (int)(u_int8_t)vcr->data[0]);
@@ -2874,6 +2874,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
     return MyBaseProcessor::ER_OK;
 
   case MyClientVersionCheckReply::VER_OK_CAN_UPGRADE:
+    client_id_verified(true);
     if (vcr->length > (int)sizeof(MyClientVersionCheckReply) + 1)
     {
       MyServerID::save(m_client_id.as_string(), (int)(u_int8_t)vcr->data[0]);
@@ -3772,7 +3773,7 @@ void MyClientToDistConnector::dist_server_addr(const char * addr)
 time_t MyClientToDistConnector::reset_last_connect_time()
 {
   time_t result = m_last_connect_time;
-  m_last_connect_time = 0;
+  m_last_connect_time = time(NULL);
   return result;
 }
 
