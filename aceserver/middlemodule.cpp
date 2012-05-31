@@ -1134,7 +1134,10 @@ void MyDistLoadDispatcher::send_to_bs(ACE_Message_Block * mb)
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);
   if (m_to_bs_queue.enqueue(mb, &tv) < 0)
+  {
+    MY_ERROR("MyDistLoadDispatcher::send_to_bs() failed, %s\n", (const char*)MyErrno());
     mb->release();
+  }
 }
 
 int MyDistLoadDispatcher::handle_timeout(const ACE_Time_Value &, const void *)

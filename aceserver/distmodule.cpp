@@ -228,8 +228,8 @@ bool MyDistClient::do_stage_4()
 
 bool MyDistClient::do_stage_5()
 {
-  time_t now = time(NULL);
-  if (now > last_update + 5 * 60)
+//  time_t now = time(NULL);
+//  if (now > last_update + 5 * 60)
     send_psp('0');
   return true;
 }
@@ -241,8 +241,8 @@ bool MyDistClient::do_stage_6()
 
 bool MyDistClient::do_stage_7()
 {
-  time_t now = time(NULL);
-  if (now > last_update + 5 * 60)
+//  time_t now = time(NULL);
+//  if (now > last_update + 5 * 60)
     send_psp('1');
   return true;
 }
