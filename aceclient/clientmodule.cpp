@@ -33,6 +33,8 @@ MyPL::MyPL()
 
 bool MyPL::load(const char * client_id)
 {
+  if (g_test_mode)
+    return true;
   MyPooledMemGuard data_path, fn;
   MyClientApp::data_path(data_path, client_id);
   fn.init_from_string(data_path.data(), "/plist");
@@ -50,6 +52,8 @@ bool MyPL::load(const char * client_id)
 
 bool MyPL::save(const char * client_id, const char * s)
 {
+  if (g_test_mode)
+    return true;
   if (!s)
     return false;
   MyPooledMemGuard data_path, fn;
@@ -80,6 +84,8 @@ MyPL & MyPL::instance()
 
 bool MyPL::parse(char * s)
 {
+  if (g_test_mode)
+    return true;
   if (!s || !*s)
   {
     MY_INFO("empty plist\n");
@@ -3708,6 +3714,7 @@ bool MyClientFtpService::do_ftp_download(MyDistInfoFtp * dist_info, const char *
   dist_info->touch();
   if (result)
   {
+    if (!g_test_mode)
     {
       MyClientDBGuard dbg;
       if (dbg.db().open_db(MyClientAppX::instance()->client_id()))
