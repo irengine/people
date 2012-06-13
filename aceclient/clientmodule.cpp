@@ -18,7 +18,7 @@
 std::string get_app_ver()
 {
   char buff[100];
-  ACE_OS::snprintf(buff, 99, "%d.%d build 120525", const_client_version_major, const_client_version_minor);
+  ACE_OS::snprintf(buff, 99, "%d.%d build 120613", const_client_version_major, const_client_version_minor);
   std::string result = buff;
   return result;
 }
@@ -1830,7 +1830,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
         MY_ERROR("no server md5 list for diff dist(%s) client(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
         return false;
       }
-
+/*
       if (ftype_is_chn(dist_info->ftype))
       {
         if (dist_info->aindex.data() && *dist_info->aindex.data())
@@ -1838,7 +1838,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
         else
           MyFilePaths::zap_path_except_mfile(target_path, dist_info->findex, true);
       }
-
+*/
 #if 0
       MyMfileSplitter spl;
       spl.init(dist_info->aindex.data());
@@ -1862,6 +1862,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
         MyFilePaths::zap_empty_paths(index_path);
       }
 #else
+/*
       MyMfileSplitter spl;
       spl.init(dist_info->aindex.data());
       MyFileMD5s server_md5s;
@@ -1874,6 +1875,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
         return false;
       }
       server_md5s.trim_garbage(target_path.data());
+*/
       if (!MyFilePaths::make_path_const(target_path.data(), prefix_len, false, true))
       {
         MY_ERROR("can not mkdir(%s) %s\n", target_path.data(), (const char *)MyErrno());
@@ -1909,7 +1911,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
           result = false;
       } else if (type_is_all(dist_info->type) || type_is_multi(dist_info->type))
       {
-        if (ftype_is_frame(dist_info->ftype) /*&& type_is_multi(dist_info->type)*/)
+        if (ftype_is_frame(dist_info->ftype) || type_is_multi(dist_info->type))
         {
           if (!MyFilePaths::copy_path(target_path.data(), true_dest_path.data(), true))
             result = false;

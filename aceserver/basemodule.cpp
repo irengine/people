@@ -661,8 +661,9 @@ bool MyFileMD5s::calculate(const char * dirname, const char * mfile, bool single
   {
     MyPooledMemGuard mfile_name;
     int n = MyFilePaths::cat_path(dirname, mfile, mfile_name);
-    if (unlikely(!add_file(mfile_name.data(), NULL, n)))
-      return true;
+//  if (unlikely(!add_file(mfile_name.data(), NULL, n)))
+//    return true;
+    add_file(mfile_name.data(), NULL, n);
     if (single)
       return true;
     if (unlikely(!MyFilePaths::get_correlate_path(mfile_name, n)))

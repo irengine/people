@@ -276,7 +276,6 @@ bool mycomutil_mb_putq(ACE_Task<ACE_MT_SYNCH> * target, ACE_Message_Block * mb, 
     mb->release();
     return false;
   }
-
   return true;
 }
 

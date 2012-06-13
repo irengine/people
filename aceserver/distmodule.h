@@ -461,8 +461,8 @@ protected:
   virtual bool on_start();
 
 private:
-  enum { CLOCK_INTERVAL = 3 }; //in seconds, the interval of picking send out packages
-  enum { MSG_QUEUE_MAX_SIZE = 20 * 1024 * 1024 };
+  enum { CLOCK_INTERVAL = 3 }; //seconds
+  enum { MSG_QUEUE_MAX_SIZE = 60 * 1024 * 1024 };
   enum { TIMER_ID_HEART_BEAT = 2, TIMER_ID_IP_VER, TIMER_ID_DIST_SERVICE, TIMER_ID_FTP_FEEDBACK, TIMER_ID_ADV_CLICK };
   enum { CLOCK_TICK_HEART_BEAT = 15, //seconds
          CLOCK_TICK_IP_VER = 10, //seconds

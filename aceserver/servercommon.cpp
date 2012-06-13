@@ -214,6 +214,7 @@ void MyDistCompressor::get_all_in_one_mbz_file_name(const char * dist_id, MyPool
 bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
 {
   bool result = false;
+  bool bm = false;
   int prefix_len = ACE_OS::strlen(http_dist_request.fdir) - 1;
   MyPooledMemGuard destdir;
   MyPooledMemGuard composite_dir;
@@ -241,13 +242,14 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
 
   MyFilePaths::cat_path(http_dist_request.fdir, http_dist_request.findex, mfile);
   mdestfile.init_from_string(destdir.data(), "/", (http_dist_request.findex? http_dist_request.findex: http_dist_request.aindex), ".mbz");
-  if (!m_compressor.compress(mfile.data(), prefix_len, mdestfile.data(), http_dist_request.password))
+  bm = m_compressor.compress(mfile.data(), prefix_len, mdestfile.data(), http_dist_request.password);
+  if (!bm && !type_is_multi(*http_dist_request.type))
   {
     MY_ERROR("compress(%s) to (%s) failed\n", mfile.data(), mdestfile.data());
     m_compositor.close();
     return false;
   }
-  if (!type_is_single(*http_dist_request.type) && !m_compositor.add(mdestfile.data()))
+  if (!type_is_single(*http_dist_request.type) && bm && !m_compositor.add(mdestfile.data()))
   {
     m_compositor.close();
     return false;

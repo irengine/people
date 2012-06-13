@@ -13,7 +13,7 @@
 
 std::string get_app_ver()
 {
-  std::string result = "1.1 build 120525";
+  std::string result = "1.1 build 120613";
   return result;
 }
 
@@ -224,7 +224,6 @@ bool MyServerApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
     std::printf("error loading config file, quitting\n");
     exit(5);
   }
-  app->init_log();
   if (cfg->run_as_demon)
     MyBaseApp::app_demonize();
   if (cfg->is_dist_server())
@@ -245,6 +244,7 @@ bool MyServerApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mo
     MyMiddleToBSProcessor::init_mem_pool(20);
   }
   MyMemPoolFactoryX::instance()->init(cfg);
+  app->init_log();
   return app->do_constructor();
 }
 
