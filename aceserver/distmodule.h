@@ -26,6 +26,7 @@ class MyPcOnOffSubmitter;
 class MyHWAlarmSubmitter;
 class MyVLCSubmitter;
 class MyVLCEmptySubmitter;
+class MyRLSubmitter;
 class MyHeartBeatAcceptor;
 class MyDistClients;
 class MyDistClientOne;
@@ -200,6 +201,7 @@ public:
   static MyHWAlarmSubmitter * m_hardware_alarm_submitter;
   static MyVLCSubmitter * m_vlc_submitter;
   static MyVLCEmptySubmitter * m_vlc_empty_submitter;
+  static MyRLSubmitter * m_rl_submitter;
 
   DECLARE_MEMORY_POOL__NOTHROW(MyHeartBeatProcessor, ACE_Thread_Mutex);
 
@@ -221,6 +223,7 @@ private:
   MyBaseProcessor::EVENT_RESULT do_test(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_psp(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_vlc_empty_req(ACE_Message_Block * mb);
+  MyBaseProcessor::EVENT_RESULT do_rl(ACE_Message_Block * mb);
   MyBaseProcessor::EVENT_RESULT do_send_pq();
 
   char m_hw_ver[12];
@@ -415,6 +418,22 @@ private:
   MyAccumulatorBlock m_datetime_block;
 };
 
+class MyRLSubmitter: public MyBaseSubmitter
+{
+public:
+  enum {ID_SEPARATOR = ';' };
+  MyRLSubmitter();
+  void add_data(const char * client_id, int id_len, const char * state);
+
+protected:
+  virtual const char * get_command() const;
+
+private:
+  enum { BLOCK_SIZE = 4096 };
+  MyAccumulatorBlock m_id_block;
+  MyAccumulatorBlock m_state_block;
+  MyAccumulatorBlock m_datetime_block;
+};
 
 class MyHeartBeatHandler: public MyBaseHandler
 {
@@ -509,6 +528,7 @@ private:
   MyHWAlarmSubmitter m_hardware_alarm_submitter;
   MyVLCSubmitter m_vlc_submitter;
   MyVLCEmptySubmitter m_vlc_empty_submitter;
+  MyRLSubmitter m_rl_submitter;
   MyHeartBeatService * m_service;
   MyHeartBeatDispatcher * m_dispatcher;
   ACE_Thread_Mutex m_mutex;

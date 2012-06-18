@@ -727,6 +727,7 @@ MyPcOnOffSubmitter * MyHeartBeatProcessor::m_pc_on_off_submitter = NULL;
 MyHWAlarmSubmitter * MyHeartBeatProcessor::m_hardware_alarm_submitter = NULL;
 MyVLCSubmitter * MyHeartBeatProcessor::m_vlc_submitter = NULL;
 MyVLCEmptySubmitter * MyHeartBeatProcessor::m_vlc_empty_submitter = NULL;
+MyRLSubmitter * MyHeartBeatProcessor::m_rl_submitter = NULL;
 
 MyHeartBeatProcessor::MyHeartBeatProcessor(MyBaseHandler * handler): MyBaseServerProcessor(handler)
 {
@@ -917,6 +918,19 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
     return ER_OK;
   }
 
+  if (m_packet_header.command == MyDataPacketHeader::CMD_RL)
+  {
+    if (m_packet_header.length < (int)sizeof(MyDataPacketHeader) + 2
+        || m_packet_header.length > (int)sizeof(MyDataPacketHeader) + 30
+        || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    {
+      MyPooledMemGuard info;
+      info_string(info);
+      MY_ERROR("bad rl request packet received from %s\n", info.data());
+      return ER_ERROR;
+    }
+    return ER_OK;
+  }
 
   MY_ERROR(ACE_TEXT("unexpected packet header received @MyHeartBeatProcessor.on_recv_header, cmd = %d\n"),
       m_packet_header.command);
@@ -968,6 +982,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message
 
   if (header->command == MyDataPacketHeader::CMD_PSP)
     return do_psp(mb);
+
+  if (header->command == MyDataPacketHeader::CMD_RL)
+    return do_rl(mb);
 
   MyMessageBlockGuard guard(mb);
   MY_ERROR("unsupported command received @MyHeartBeatProcessor::on_recv_packet_i, command = %d\n",
@@ -1232,6 +1249,20 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_pc_on_off_req(ACE_Message
   }
 
   m_pc_on_off_submitter->add_data(m_client_id.as_string(), m_client_id_length, dpe->data[0], dpe->data + 1);
+  return ER_OK;
+}
+
+MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_rl(ACE_Message_Block * mb)
+{
+  MyMessageBlockGuard guard(mb);
+  MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+  if (unlikely(!dpe->guard()))
+  {
+    MyPooledMemGuard info;
+    info_string(info);
+    MY_ERROR("bad rl packet from %s, data = %c\n", info.data());
+  } else
+    m_rl_submitter->add_data(m_client_id.as_string(), m_client_id_length, dpe->data);
   return ER_OK;
 }
 
@@ -1657,6 +1688,44 @@ const char * MyVLCEmptySubmitter::get_command() const
 }
 
 
+//MyRLSubmitter//
+
+MyRLSubmitter::MyRLSubmitter():
+    m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
+    m_state_block(BLOCK_SIZE, 10, this),
+    m_datetime_block(BLOCK_SIZE, 25, this)
+{
+
+}
+
+void MyRLSubmitter::add_data(const char * client_id, int id_len, const char * state)
+{
+  if (!state || !*state)
+    return;
+  int len = ACE_OS::strlen(state);
+  if (len > 10)
+    return;
+  bool ret = true;
+  if (!m_id_block.add(client_id, id_len))
+    ret = false;
+  if (!m_state_block.add(state, len))
+    ret = false;
+
+  char datetime[32];
+  mycomutil_generate_time_string(datetime, 20, true);
+  if (!m_datetime_block.add(datetime))
+    ret = false;
+
+  if (!ret)
+    submit();
+}
+
+const char * MyRLSubmitter::get_command() const
+{
+  return MY_BS_RL_CMD;
+}
+
+
 //MyHeartBeatHandler//
 
 MyHeartBeatHandler::MyHeartBeatHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
@@ -2014,6 +2083,7 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
     MyHeartBeatProcessor::m_hardware_alarm_submitter->check_time_out();
     MyHeartBeatProcessor::m_vlc_submitter->check_time_out();
     MyHeartBeatProcessor::m_vlc_empty_submitter->check_time_out();
+    MyHeartBeatProcessor::m_rl_submitter->check_time_out();
   }
   return 0;
 }
@@ -2097,6 +2167,7 @@ MyHeartBeatModule::MyHeartBeatModule(MyBaseApp * app): MyBaseModule(app)
   MyHeartBeatProcessor::m_hardware_alarm_submitter = &m_hardware_alarm_submitter;
   MyHeartBeatProcessor::m_vlc_submitter = &m_vlc_submitter;
   MyHeartBeatProcessor::m_vlc_empty_submitter = &m_vlc_empty_submitter;
+  MyHeartBeatProcessor::m_rl_submitter = &m_rl_submitter;
 }
 
 MyHeartBeatModule::~MyHeartBeatModule()

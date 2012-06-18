@@ -2348,15 +2348,18 @@ const char * MyIpVerReply::search(char * src)
   return NULL;
 }
 
-const char * MyIpVerReply::pc()
+void MyIpVerReply::pc(MyPooledMemGuard & _pc)
 {
   time_t t = time(NULL);
   struct tm _tm;
   localtime_r(&t, &_tm);
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, "");
+  ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
   if (ACE_OS::strlen(m_pc.data()) <= 5)
-    return m_pc.data();
+  {
+    _pc.init_from_string(m_pc.data());
+    return;
+  }
 
   char hour[3], minx[3];
   ACE_OS::memcpy(hour, m_pc.data() + 1, 2);
@@ -2364,10 +2367,27 @@ const char * MyIpVerReply::pc()
   hour[2] = 0;
   minx[2] = 0;
   if (_tm.tm_hour < atoi(hour))
-    return m_pc.data();
+    _pc.init_from_string(m_pc.data());
   else if (_tm.tm_hour == atoi(hour) && _tm.tm_min <= atoi(minx))
-    return m_pc.data();
-  return m_pc_x.data();
+    _pc.init_from_string(m_pc.data());
+  else
+    _pc.init_from_string(m_pc_x.data());
+}
+
+bool MyIpVerReply::on(int & h, int &m)
+{
+  MyPooledMemGuard _pc;
+  pc(_pc);
+  if (!_pc.data() || ACE_OS::strlen(_pc.data()) < 5)
+    return false;
+  char _h[3], _m[3];
+  ACE_OS::memcpy(_h, m_pc.data() + 1, 2);
+  ACE_OS::memcpy(_m, m_pc.data() + 3, 2);
+  _h[2] = 0;
+  _m[2] = 0;
+  h = atoi(_h);
+  m = atoi(_m);
+  return true;
 }
 
 int MyIpVerReply::heart_beat_interval()
@@ -3946,9 +3966,17 @@ bool MyClientToDistDispatcher::on_start()
     m_http1991_acceptor = new MyHttp1991Acceptor(this, new MyBaseConnectionManager());
     add_acceptor(m_http1991_acceptor);
 
-    ACE_Time_Value interval(WATCH_DOG_INTERVAL * 60);
-    if (reactor()->schedule_timer(this, (const void*)TIMER_ID_WATCH_DOG, interval, interval) < 0)
-      MY_ERROR("setup watch dog timer failed %s %s\n", name(), (const char*)MyErrno());
+    {
+      ACE_Time_Value interval(WATCH_DOG_INTERVAL * 60);
+      if (reactor()->schedule_timer(this, (const void*)TIMER_ID_WATCH_DOG, interval, interval) < 0)
+        MY_ERROR("setup watch dog timer failed %s %s\n", name(), (const char*)MyErrno());
+    }
+
+    {
+      ACE_Time_Value interval(PCOFF_INTERVAL * 60);
+      if (reactor()->schedule_timer(this, (const void*)TIMER_ID_PCOFF, interval, interval) < 0)
+        MY_ERROR("setup PCOFF timer failed %s %s\n", name(), (const char*)MyErrno());
+    }
 
     if (MyClientAppX::instance()->opera_launcher().running())
       start_watch_dog();
@@ -3977,6 +4005,8 @@ int MyClientToDistDispatcher::handle_timeout(const ACE_Time_Value &, const void 
   }
   else if ((long)act == (long)TIMER_ID_WATCH_DOG)
     check_watch_dog();
+  else if ((long)act == (long)TIMER_ID_PCOFF)
+    check_pcoff();
   else
     MY_ERROR("unknown timer id (%d) @%s::handle_timeout()\n", (int)(long)act);
   return 0;
@@ -4037,6 +4067,34 @@ void MyClientToDistDispatcher::check_watch_dog()
 {
   if (((MyClientToDistModule*)module_x())->watch_dog().expired())
     MyClientAppX::instance()->opera_launcher().relaunch();
+}
+
+void MyClientToDistDispatcher::check_pcoff()
+{
+  MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
+  MyPooledMemGuard pc;
+  mod->ip_ver_reply().pc(pc);
+  if (!pc.data() || ACE_OS::strlen(pc.data()) != 10)
+    return;
+  struct tm _tm;
+  time_t t = time(NULL);
+  localtime_r(&t, &_tm);
+  char hour[3], minx[3];
+  ACE_OS::memcpy(hour, pc.data() + 5, 2);
+  ACE_OS::memcpy(minx, pc.data() + 7, 2);
+  hour[2] = 0;
+  minx[2] = 0;
+  if (_tm.tm_hour > atoi(hour) || (_tm.tm_hour == atoi(hour) && _tm.tm_min >= atoi(minx)))
+  {
+    MY_INFO("pcoff due to policy %s\n", pc.data());
+    std::string fn = MyConfigX::instance()->app_data_path + "/shutdown.txt";
+    MyUnixHandleGuard h;
+    if (!h.open_write(fn.c_str(), true, true, false, true))
+      return;
+    const char * buff = "shutdown";
+    int len = ACE_OS::strlen(buff);
+    ::write(h.handle(), buff, len);
+  }
 }
 
 bool MyClientToDistDispatcher::on_event_loop()
@@ -4746,7 +4804,11 @@ void MyHttp1991Processor::do_command_plc(char * parameter)
     mod->lcd_alarm.y(p);
   }
   else if (x == 7) //pc
-    send_string(mod->ip_ver_reply().pc());
+  {
+    MyPooledMemGuard pc;
+    mod->ip_ver_reply().pc(pc);
+    send_string(pc.data());
+  }
   else if (x == 1 || x == 2)
   {
     send_string("*1");

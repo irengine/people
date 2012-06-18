@@ -11,6 +11,53 @@
 #include "client.h"
 #include "clientmodule.h"
 
+//MyRelay//
+
+const char * MyRelay::dev()
+{
+  return "/dev/ttyS0";
+}
+
+unsigned char MyRelay::sum(const unsigned char * begin, int len)
+{
+  unsigned char ret = 0;
+  for (int i = 0; i < len; ++ i)
+    ret += *(begin + i);
+  return ret;
+}
+
+bool MyRelay::wrap(unsigned char * data, int & len, const unsigned char * _data, int _len, bool chk)
+{
+  int extra = chk ? 1 : 0;
+  if (len < (_len + 4 + extra))
+    return false;
+  *data = 0xAA;
+  *(data + 1) = 0x55;
+  ACE_OS::memcpy(data + 2, _data, _len);
+  if (chk)
+    *(data + _len + 2) = sum(_data, _len);
+  *(data + _len + 2 + extra) = 0x55;
+  *(data + _len + 3 + extra) = 0xAA;
+  len = _len + 4 + extra;
+  return true;
+}
+
+bool MyRelay::open(MyUnixHandleGuard & h)
+{
+  return h.open_read(dev());
+}
+
+void MyRelay::sync()
+{
+  MyUnixHandleGuard h;
+  if (!open(h))
+    return;
+  time_t now = time(NULL);
+  struct tm _tm;
+  localtime_r(&now, &_tm);
+
+}
+
 
 //MyProgramLauncher//
 

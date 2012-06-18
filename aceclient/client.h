@@ -15,6 +15,18 @@
 class MyClientToDistModule;
 class MyClientApp;
 
+class MyRelay
+{
+public:
+  void sync();
+
+private:
+  bool open(MyUnixHandleGuard & h);
+  const char * dev();
+  unsigned char sum(const unsigned char * begin, int len);
+  bool wrap(unsigned char * data, int & len, const unsigned char * _data, int _len, bool chk);
+};
+
 class MyProgramLauncher
 {
 public:

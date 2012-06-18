@@ -164,6 +164,7 @@ public:
     CMD_TEST,
     CMD_PSP,
     CMD_TQ,
+    CMD_RL,
     CMD_END,
     CMD_DISCONNECT_INTERNAL
   };
@@ -289,6 +290,7 @@ public:
 #define MY_BS_PATCH_FILE_CMD    "06"
 #define MY_BS_VLC_CMD           "10"
 #define MY_BS_VLC_EMPTY_CMD     "13"
+#define MY_BS_RL_CMD            "20"
 
 #pragma pack(pop)
 

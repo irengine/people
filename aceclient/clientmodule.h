@@ -373,7 +373,8 @@ class MyIpVerReply
 public:
   MyIpVerReply();
   void init(char * data);
-  const char * pc();
+  void pc(MyPooledMemGuard & _pc);
+  bool on(int & h, int &m);
   int heart_beat_interval();
 
 private:
@@ -615,10 +616,11 @@ protected:
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
-  enum { FTP_CHECK_INTERVAL = 1, WATCH_DOG_INTERVAL = 5 }; //in minutes
-  enum { TIMER_ID_WATCH_DOG = 2 };
+  enum { FTP_CHECK_INTERVAL = 1, WATCH_DOG_INTERVAL = 5, PCOFF_INTERVAL = 2 }; //in minutes
+  enum { TIMER_ID_WATCH_DOG = 2, TIMER_ID_PCOFF };
 
   void check_watch_dog();
+  void check_pcoff();
 
   MyClientToDistConnector * m_connector;
   MyClientToMiddleConnector * m_middle_connector;
