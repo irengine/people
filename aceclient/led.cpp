@@ -299,7 +299,9 @@ bool MyApp::display_text()
 {
   if (!check_open())
     return false;
-    
+
+  fprintf(stderr, "start display text\n");
+      
   myStaticDisplayReqFrame req;
   req.setinfo(m_value.c_str());
   req.gen_crc16();
@@ -322,6 +324,8 @@ bool MyApp::led_control(unsigned char line_1_prop, unsigned char op)
 {
   if (!check_open())
     return false;
+    
+  fprintf(stderr, "start led control(%d, %d)\n", line_1_prop, op);
     
   myControlReqFrame req;
   req.m_line_1_prop = line_1_prop;
