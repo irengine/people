@@ -44,6 +44,8 @@ const int  DEFAULT_client_ftp_retry_count = 30;
 const int  DEFAULT_client_ftp_retry_interval = 4;
 const int  DEFAULT_client_enable_root = 0;
 
+const ACE_TCHAR * DEFAULT_client_hd_dev = ACE_TEXT("");
+
 //common for all
 const ACE_TCHAR * CONFIG_Section_global = ACE_TEXT("global");
 
@@ -101,7 +103,7 @@ const ACE_TCHAR * CONFIG_client_ftp_timeout = ACE_TEXT("module.client_ftp_timeou
 const ACE_TCHAR * CONFIG_client_ftp_retry_count = ACE_TEXT("module.client_ftp_retry_count");
 const ACE_TCHAR * CONFIG_client_ftp_retry_interval = ACE_TEXT("module.client_ftp_retry_interval");
 const ACE_TCHAR * CONFIG_client_enable_root = ACE_TEXT("module.client_enable_root");
-
+const ACE_TCHAR * CONFIG_client_hd_dev = ACE_TEXT("module.client_hd_dev");
 
 MyConfig::MyConfig()
 {
@@ -140,6 +142,7 @@ MyConfig::MyConfig()
   client_ftp_retry_count = DEFAULT_client_ftp_retry_count;
   client_ftp_retry_interval = DEFAULT_client_ftp_retry_interval;
   client_enable_root = DEFAULT_client_enable_root;
+  client_hd_dev = DEFAULT_client_hd_dev;
 
   //middle only
   http_port = DEFAULT_http_port;
@@ -504,6 +507,13 @@ bool MyConfig::load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configur
   if (cfgHeap.get_integer_value(section, CONFIG_client_enable_root, ival) == 0)
     client_enable_root = ival;
 
+  if (!g_test_mode)
+  {
+    ACE_TString sval;
+    if (cfgHeap.get_string_value(section, CONFIG_client_hd_dev, sval) == 0)
+      client_hd_dev = sval.c_str();
+  }
+
   return true;
 }
 
@@ -730,6 +740,8 @@ void MyConfig::dump_config_info()
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_ftp_retry_count, client_ftp_retry_count));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_ftp_retry_interval, client_ftp_retry_interval));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_enable_root, client_enable_root));
+    if (!g_test_mode)
+      ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_client_hd_dev, client_hd_dev.c_str()));
   }
 
   //dist only

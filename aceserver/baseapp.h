@@ -84,6 +84,7 @@ public:
   int client_ftp_retry_count;
   int client_ftp_retry_interval;
   int client_enable_root;
+  std::string client_hd_dev;
 
   //dist only
   int module_heart_beat_mem_pool_size;
