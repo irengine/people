@@ -106,6 +106,7 @@ private:
   bool display_text();
   bool check_open();
   bool read_port(char * data, int len);
+  bool led_control(unsigned char line_1_prop, unsigned char op);
   
   std::string m_value;
   int m_port;

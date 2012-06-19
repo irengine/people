@@ -1,6 +1,7 @@
 #include <time.h>
 #include <string.h>
 #include <unistd.h>
+#include <fstream>
 
 #include "led.h"
 
@@ -181,10 +182,10 @@ bool MyApp::init()
   return setup_port(m_fd, 19200, 8, 'N', 1) != -1;
 }
 
-void clean_up()
+void MyApp::clean_up()
 {
   if (m_fd == -1)
-    return true;
+    return;
   close_port(m_fd);
   m_fd = -1;
 }
@@ -226,7 +227,7 @@ bool MyApp::read_port(char * data, int len)
 {
   if (len <= 0)
     return false;
-  int m = 0, n, can_try = 6;
+  int m = 0, n, can_try = 10;
   while (len > m)
   {
     n = read(m_fd, data + m, len - m);
@@ -259,6 +260,27 @@ bool MyApp::display_text()
   }
   
   myStaticDisplayReplyFrame reply;
+  if (!read_port(reply.data(), reply.length()))
+    return false;
+  return reply.valid();  
+}
+
+bool MyApp::led_control(unsigned char line_1_prop, unsigned char op)
+{
+  if (!check_open())
+    return false;
+    
+  myControlReqFrame req;
+  req.m_line_1_prop = line_1_prop;
+  req.m_op = op;
+  req.gen_crc16();
+  if (write(m_fd, req.data(), req.length()) != req.length())
+  {
+    unix_print_error("write of control frame failed");
+    return false;
+  }
+  
+  myControlReplyFrame reply;
   if (!read_port(reply.data(), reply.length()))
     return false;
   return reply.valid();  
