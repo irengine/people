@@ -99,6 +99,7 @@ public:
   MyApp(int port);
   bool init();
   void clean_up();
+  void loop();
   
 private:
   bool read_text();
@@ -106,11 +107,15 @@ private:
   bool display_text();
   bool check_open();
   bool read_port(char * data, int len);
+  bool get_fstate();
   bool led_control(unsigned char line_1_prop, unsigned char op);
+  const char * led_file();
   
   std::string m_value;
   int m_port;
   int m_fd;
+  off_t m_fsize;
+  time_t m_ftime;
 };
 
 #endif

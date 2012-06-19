@@ -2,6 +2,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <fstream>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <stdlib.h>
 
 #include "led.h"
 
@@ -172,6 +175,8 @@ MyApp::MyApp(int port)
 {
   m_port = port;
   m_fd = -1;
+  m_fsize = 0;
+  m_ftime = 0;
 }
 
 bool MyApp::init()
@@ -197,10 +202,32 @@ bool MyApp::check_open()
   return init();
 }
 
+const char * MyApp::led_file()
+{
+  return "/tmp/daily/5/led.txt";
+}
+
+bool MyApp::get_fstate()
+{
+  struct stat st;
+  if (lstat(led_file(), &st) >= 0)
+  {
+    if (m_ftime != st.st_mtime || m_fsize != st.st_size)
+    {
+      m_ftime = st.st_mtime;
+      m_fsize = st.st_size;
+      return true;
+    }
+    else
+      return false;
+  } 
+  else
+    return false;
+}
+
 bool MyApp::read_text()
 {
-  const char * LED_FILE = "/tmp/daily/5/led.txt";
-  std::ifstream ifs(LED_FILE);
+  std::ifstream ifs(led_file());
   if (!ifs || ifs.bad())
     return false;
 
@@ -223,6 +250,26 @@ bool MyApp::has_text() const
   return m_value.length() > 0;
 }
 
+void MyApp::loop()
+{
+  while(true)
+  {
+    sleep(6);
+    if (!get_fstate())
+      continue;
+    sleep(3);  
+    if (!read_text())
+      continue;
+    if (has_text())
+    {
+      display_text();
+      led_control(0x02, 0x01);
+    }
+    else
+      led_control(0x03, 0x02);
+  }
+}
+
 bool MyApp::read_port(char * data, int len)
 {
   if (len <= 0)
@@ -238,7 +285,10 @@ bool MyApp::read_port(char * data, int len)
       if (--can_try >= 0)
         sleep(1);  
       else
+      {
+        fprintf(stderr, "read port failed, completed = %d/%d\n", m, len);
         return false;  
+      }  
     }  
   }
   
@@ -262,7 +312,10 @@ bool MyApp::display_text()
   myStaticDisplayReplyFrame reply;
   if (!read_port(reply.data(), reply.length()))
     return false;
-  return reply.valid();  
+  bool ret = reply.valid();  
+  if (!ret)
+    fprintf(stderr, "static frame reply error\n");
+  return ret;
 }
 
 bool MyApp::led_control(unsigned char line_1_prop, unsigned char op)
@@ -283,7 +336,10 @@ bool MyApp::led_control(unsigned char line_1_prop, unsigned char op)
   myControlReplyFrame reply;
   if (!read_port(reply.data(), reply.length()))
     return false;
-  return reply.valid();  
+  bool ret = reply.valid();  
+  if (!ret)
+    fprintf(stderr, "control frame reply error\n");
+  return ret;
 }
 
 
@@ -291,6 +347,15 @@ bool MyApp::led_control(unsigned char line_1_prop, unsigned char op)
 
 int main(int argc, const char * argv[])
 {
+  if (argc != 2)
+  {
+    printf("usage: %s port_num\n", argv[0]);
+    return 1;
+  }
+  int port = atoi(argv[1]);
+  MyApp g_app(port);
+  g_app.loop();
+  
   return 0;
 }
 
