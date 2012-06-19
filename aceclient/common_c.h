@@ -36,7 +36,6 @@
         fprintf(stderr, "Error: File:%s Line:%d Function:%s:\n",  \
                 __FILE__, __LINE__, __func__);                      \
         perror(error);                                              \
-        exit(0);                                                    \
     } while(0)
 
 

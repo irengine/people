@@ -6,7 +6,7 @@
 #include <termios.h>
 
 #include "common_c.h"
-#include "serail.h"
+#include "serial.h"
 
 int open_port(int port)
 {

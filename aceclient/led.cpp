@@ -1,4 +1,7 @@
 #include <time.h>
+#include <string.h>
+#include <unistd.h>
+
 #include "led.h"
 
 static const unsigned char aucCRCHi[] = 
@@ -67,6 +70,9 @@ unsigned short myCRC16( const unsigned char * data, int usLen)
   return (unsigned short)(ucCRCHi << 8 | ucCRCLo);
 }
 
+
+//myControlReqFrame//
+
 myControlReqFrame::myControlReqFrame()
 {
   m_head = 0x5AA5;
@@ -79,13 +85,13 @@ myControlReqFrame::myControlReqFrame()
   m_line_4_prop = 0;
   m_port_error_time = 0;
   m_move_speed = 1; //slow
-  m_brightness = 0xB0;
+  m_brightness = 0x20;
   
   time_t now = time(NULL);
   struct tm _tm;
   localtime_r(&now, &_tm);
   m_year = _tm.tm_year - 100;
-  m_month = _tm.tm_month + 1;
+  m_month = _tm.tm_mon + 1;
   m_day = _tm.tm_mday;
   m_hour = _tm.tm_hour;
   m_minute = _tm.tm_min;
@@ -97,10 +103,172 @@ void myControlReqFrame::gen_crc16()
   m_crc16 = myCRC16((const unsigned char *)&m_head, sizeof(myControlReqFrame) - sizeof(unsigned short));
 }
 
+//myControlReplyFrame//
 
-bool myControlReplyFrame::check()
+bool myControlReplyFrame::valid()
 {
-  return  (m_head == 0x5AA5 && m_length = sizeof(myControlReplyFrame) && m_type = 0xC5);
+  return (m_head == 0x5AA5 && m_length == sizeof(myControlReplyFrame) && m_type == 0xC5);
 
+}
+
+
+//myStaticDisplayReqFrame//
+
+myStaticDisplayReqFrame::myStaticDisplayReqFrame()
+{
+  m_head = 0x5AA5;
+  m_length = 0;
+  m_type = 0x52;
+  m_line_no = 0;
+  m_display_mode = 0x01;
+  m_info_no = 0;
+  m_info_id = 0;
+  for (int i = 0; i < 6; ++ i)
+    m_time_expire[i] = 0;
+  m_info_length = 0;
+}
+
+void myStaticDisplayReqFrame::gen_crc16()
+{
+  int len = length();
+  *(unsigned short*)(data() + len - 2) = myCRC16((const unsigned char *)&m_head, len - 2);
+}
+
+void myStaticDisplayReqFrame::setinfo(const char * txt)
+{
+  if (!txt || !*txt)
+    return;
+  int len = strlen(txt);
+  if (len > 384)
+    len = 384;
+  memcpy(m_data, txt, len);  
+  m_info_length = len;
+  m_length = length();    
+}
+
+
+//myStaticDisplayReplyFrame//
+
+myStaticDisplayReplyFrame::myStaticDisplayReplyFrame()
+{
+  memset(data(), length(), 0);
+}
+
+void myStaticDisplayReplyFrame::gen_crc16()
+{
+
+}
+
+bool myStaticDisplayReplyFrame::valid() const
+{
+  return (m_head == 0xA55A && m_type == 0xC2 && m_length == length() && m_info_id == 0);
+}
+
+
+//MyApp//
+
+MyApp::MyApp(int port)
+{
+  m_port = port;
+  m_fd = -1;
+}
+
+bool MyApp::init()
+{
+  m_fd = open_port(m_port);
+  if (m_fd == -1)
+    return false;
+  return setup_port(m_fd, 19200, 8, 'N', 1) != -1;
+}
+
+void clean_up()
+{
+  if (m_fd == -1)
+    return true;
+  close_port(m_fd);
+  m_fd = -1;
+}
+
+bool MyApp::check_open()
+{
+  if (m_fd != -1)
+    return true;
+  return init();
+}
+
+bool MyApp::read_text()
+{
+  const char * LED_FILE = "/tmp/daily/5/led.txt";
+  std::ifstream ifs(LED_FILE);
+  if (!ifs || ifs.bad())
+    return false;
+
+  const int BLOCK_SIZE = 400;
+  char buff[BLOCK_SIZE];
+  ifs.getline(buff, BLOCK_SIZE - 1);
+  buff[BLOCK_SIZE - 1] = 0;
+  int len = strlen(buff);
+  while (len > 0 && (buff[len - 1] == '\r' || buff[len - 1] == '\n' || buff[len - 1] == ' '))
+    buff[--len] = 0;
+  std::string s(buff);
+  bool ret = (s.compare(m_value) != 0);
+  if (ret)
+    m_value = s;
+  return ret;
+}
+
+bool MyApp::has_text() const
+{
+  return m_value.length() > 0;
+}
+
+bool MyApp::read_port(char * data, int len)
+{
+  if (len <= 0)
+    return false;
+  int m = 0, n, can_try = 6;
+  while (len > m)
+  {
+    n = read(m_fd, data + m, len - m);
+    if (n > 0)
+      m += n;
+    if (len > m)
+    {
+      if (--can_try >= 0)
+        sleep(1);  
+      else
+        return false;  
+    }  
+  }
+  
+  return len == m;    
+}
+  
+bool MyApp::display_text()
+{
+  if (!check_open())
+    return false;
+    
+  myStaticDisplayReqFrame req;
+  req.setinfo(m_value.c_str());
+  req.gen_crc16();
+  if (write(m_fd, req.data(), req.length()) != req.length())
+  {
+    unix_print_error("write of static frame failed");
+    return false;
+  }
+  
+  myStaticDisplayReplyFrame reply;
+  if (!read_port(reply.data(), reply.length()))
+    return false;
+  return reply.valid();  
+}
+
+
+//application//
+
+int main(int argc, const char * argv[])
+{
+  return 0;
 }
 

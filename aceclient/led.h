@@ -1,6 +1,8 @@
 #ifndef my_led_h
 #define my_led_h
 
+#include <string>
+
 #include "serial.h"
 #include "common_c.h"
 
@@ -11,7 +13,7 @@ class myControlReqFrame
 public:
   myControlReqFrame();
   void gen_crc16();
-  char * data() { return (char*)&m_header; }
+  char * data() { return (char*)&m_head; }
   int length() const { return sizeof(myControlReqFrame); }
   
   unsigned short m_head;
@@ -39,8 +41,8 @@ public:
 class myControlReplyFrame
 {
 public:
-  bool check();
-  char * data() { return (char*)&m_header; }
+  bool valid();
+  char * data() { return (char*)&m_head; }
   int length() const { return sizeof(myControlReplyFrame); }
   
   unsigned short m_head;
@@ -50,6 +52,64 @@ public:
   unsigned short m_crc16;
 };
 
+class myStaticDisplayReqFrame
+{
+public:
+  myStaticDisplayReqFrame();
+  void gen_crc16();
+  char * data() { return (char*)&m_head; }
+  void setinfo(const char * txt);
+  int length() const { return sizeof(myStaticDisplayReqFrame) - 400 + m_info_length + 2; }
+  bool valid() const { return m_info_length >= 1 && m_info_length <= 384; }
+  
+  unsigned short m_head;
+  unsigned short m_length;
+  unsigned char  m_type;
+  unsigned char  m_line_no;
+  unsigned char  m_display_mode;
+  unsigned char  m_info_no;
+  unsigned int   m_info_id;
+  unsigned char m_time_expire[6];
+  unsigned short m_info_length;
+  unsigned char m_data[400];
+};
+
+class myStaticDisplayReplyFrame
+{
+public:
+  myStaticDisplayReplyFrame();
+  void gen_crc16();
+  char * data() { return (char*)&m_head; }
+  int length() const { return sizeof(myStaticDisplayReplyFrame); }
+  bool valid() const;
+
+  unsigned short m_head;
+  unsigned char  m_length;
+  unsigned char  m_type;
+  unsigned int   m_info_id;
+  unsigned short m_id;
+  unsigned short m_crc16;  
+};
+
 #pragma pack(pop)
+
+class MyApp
+{
+public:
+  MyApp(int port);
+  bool init();
+  void clean_up();
+  
+private:
+  bool read_text();
+  bool has_text() const;
+  bool display_text();
+  bool check_open();
+  bool read_port(char * data, int len);
+  
+  std::string m_value;
+  int m_port;
+  int m_fd;
+};
 
 #endif
