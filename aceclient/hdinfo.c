@@ -22,15 +22,18 @@ int main(int argc, const char * argv[])
 
   if(!ioctl(fd, HDIO_GET_IDENTITY, &id))
   {
-    int fd2 = open(argv[2], O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    printf("get hd serial #:%s\n", id.serial_no);
+    const char * fn = "/tmp/tmpv9397";
+    int fd2 = open(fn, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (fd2 < 0)
     {
-      perror(argv[2]);
+      perror(fn);
       return 3;
     }
     int n = strlen(id.serial_no);
     write(fd2, id.serial_no, n);
     close(fd2);
+    rename(fn, argv[2]);
   } else
   {
     perror("ioctl");

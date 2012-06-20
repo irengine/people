@@ -257,7 +257,7 @@ void MyApp::loop()
     sleep(6);
     if (!get_fstate())
       continue;
-    sleep(3);  
+    sleep(4);  
     if (!read_text())
       continue;
     if (has_text())
@@ -342,7 +342,7 @@ bool MyApp::led_control(unsigned char line_1_prop, unsigned char op)
     return false;
   bool ret = reply.valid();  
   if (!ret)
-    fprintf(stderr, "control frame reply error\n");
+    fprintf(stderr, "control frame reply error\n");greg
   return ret;
 }
 
