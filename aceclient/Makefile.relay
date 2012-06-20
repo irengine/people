@@ -1,0 +1,7 @@
+CC=g++
+CFLAGS=-Wall
+
+relay: relay.o serial.o
+
+clean:
+	rm -f relay relay.o serial.o

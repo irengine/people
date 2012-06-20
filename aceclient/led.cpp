@@ -342,7 +342,7 @@ bool MyApp::led_control(unsigned char line_1_prop, unsigned char op)
     return false;
   bool ret = reply.valid();  
   if (!ret)
-    fprintf(stderr, "control frame reply error\n");greg
+    fprintf(stderr, "control frame reply error\n");
   return ret;
 }
 
