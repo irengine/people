@@ -94,7 +94,7 @@ myControlReqFrame::myControlReqFrame()
   time_t now = time(NULL);
   struct tm _tm;
   localtime_r(&now, &_tm);
-  m_year = _tm.tm_year - 100;
+  m_year = _tm.tm_year % 100;
   m_month = _tm.tm_mon + 1;
   m_day = _tm.tm_mday;
   m_hour = _tm.tm_hour;
