@@ -4076,25 +4076,36 @@ void MyClientToDistDispatcher::check_pcoff()
   mod->ip_ver_reply().pc(pc);
   if (!pc.data() || ACE_OS::strlen(pc.data()) != 10)
     return;
-  struct tm _tm;
-  time_t t = time(NULL);
-  localtime_r(&t, &_tm);
-  char hour[3], minx[3];
-  ACE_OS::memcpy(hour, pc.data() + 5, 2);
-  ACE_OS::memcpy(minx, pc.data() + 7, 2);
-  hour[2] = 0;
-  minx[2] = 0;
-  if (_tm.tm_hour > atoi(hour) || (_tm.tm_hour == atoi(hour) && _tm.tm_min >= atoi(minx)))
+  std::string s;
+  const char * FN = "/tmp/daily/pctime.txt";
   {
-    MY_INFO("pcoff due to policy %s\n", pc.data());
-    std::string fn = MyConfigX::instance()->app_data_path + "/shutdown.txt";
-    MyUnixHandleGuard h;
-    if (!h.open_write(fn.c_str(), true, true, false, true))
-      return;
-    const char * buff = "shutdown";
-    int len = ACE_OS::strlen(buff);
-    ::write(h.handle(), buff, len);
+    std::ifstream ifs(FN);
+    if (ifs && !ifs.bad())
+    {
+      char line[100];
+      ifs.getline(line, 100 - 1);
+      line[100 - 1] = 0;
+      s = line;
+    }
   }
+  if (s.length() == 10 && ACE_OS::strcmp(pc.data(), s.c_str()) == 0)
+    return;
+  MY_INFO("writing power time as [%s]\n", pc.data());
+  const char * FN2 = "/tmp/daily/pctime.ttt";
+  MyFilePaths::remove(FN2, true);
+  {
+    MyUnixHandleGuard h;
+    if (!h.open_write(FN2, true, true, false, true))
+      return;
+    if (::write(h.handle(), pc.data(), 10) != 10)
+    {
+      MY_ERROR("failed to write %s, %s\n", FN2, (const char*)MyErrno());
+      MyFilePaths::remove(FN2, true);
+      return;
+    }
+  }
+  MyFilePaths::remove(FN, true);
+  MyFilePaths::rename(FN2, FN, false);
 }
 
 bool MyClientToDistDispatcher::on_event_loop()

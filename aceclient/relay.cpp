@@ -104,3 +104,57 @@ bool MyConfigReplyFrame::failed() const
 }
 
 
+//MyApp//
+
+MyApp::MyApp(int port): MyBaseApp(port)
+{
+
+}
+ 
+void MyApp::loop()
+{
+
+}
+  
+const char * MyApp::data_file() const
+{
+  return "/tmp/daily/pctime.txt";
+}
+
+bool MyApp::has_text() const
+{
+  if (!MyBaseApp::has_text())
+    return false;
+  std::string s & = get_value();
+  if (s.length() != 10)
+    return false;
+  if (s[0] != '*')
+    return false;
+  for (int i = 1; i <= 9; ++i)
+    if (s[i] > '9' || s[i] < '0')
+      return false;
+  return true;          
+}
+
+bool MyApp::setup_port()
+{
+  return ::setup_port(get_fd(), 19200, 8, 'N', 1) != -1;
+}
+
+
+//Application//
+
+int main(int argc, const char * argv[])
+{
+  if (argc != 2)
+  {
+    printf("usage: %s port_num\n", argv[0]);
+    return 1;
+  }
+  int port = atoi(argv[1]);
+  MyApp g_app(port);
+  g_app.loop();
+  
+  return 0;
+}
+

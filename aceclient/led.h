@@ -93,29 +93,19 @@ public:
 
 #pragma pack(pop)
 
-class MyApp
+class MyApp: public MyBaseApp
 {
 public:
   MyApp(int port);
-  bool init();
-  void clean_up();
-  void loop();
+  virtual void loop();
   
+protected:
+  const char * data_file() const;
+  virtual bool setup_port();
+    
 private:
-  bool read_text();
-  bool has_text() const;
   bool display_text();
-  bool check_open();
-  bool read_port(char * data, int len);
-  bool get_fstate();
   bool led_control(unsigned char line_1_prop, unsigned char op);
-  const char * led_file();
-  
-  std::string m_value;
-  int m_port;
-  int m_fd;
-  off_t m_fsize;
-  time_t m_ftime;
 };
 
 #endif

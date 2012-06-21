@@ -171,83 +171,19 @@ bool myStaticDisplayReplyFrame::valid() const
 
 //MyApp//
 
-MyApp::MyApp(int port)
+MyApp::MyApp(int port): MyBaseApp(port)
 {
-  m_port = port;
-  m_fd = -1;
-  m_fsize = 0;
-  m_ftime = 0;
+
 }
 
-bool MyApp::init()
-{
-  m_fd = open_port(m_port);
-  if (m_fd == -1)
-    return false;
-  return setup_port(m_fd, 19200, 8, 'N', 1) != -1;
-}
-
-void MyApp::clean_up()
-{
-  if (m_fd == -1)
-    return;
-  close_port(m_fd);
-  m_fd = -1;
-}
-
-bool MyApp::check_open()
-{
-  if (m_fd != -1)
-    return true;
-  return init();
-}
-
-const char * MyApp::led_file()
+const char * MyApp::data_file() const
 {
   return "/tmp/daily/5/led.txt";
 }
 
-bool MyApp::get_fstate()
+bool MyApp::setup_port()
 {
-  struct stat st;
-  if (lstat(led_file(), &st) >= 0)
-  {
-    if (m_ftime != st.st_mtime || m_fsize != st.st_size)
-    {
-      m_ftime = st.st_mtime;
-      m_fsize = st.st_size;
-      return true;
-    }
-    else
-      return false;
-  } 
-  else
-    return false;
-}
-
-bool MyApp::read_text()
-{
-  std::ifstream ifs(led_file());
-  if (!ifs || ifs.bad())
-    return false;
-
-  const int BLOCK_SIZE = 400;
-  char buff[BLOCK_SIZE];
-  ifs.getline(buff, BLOCK_SIZE - 1);
-  buff[BLOCK_SIZE - 1] = 0;
-  int len = strlen(buff);
-  while (len > 0 && (buff[len - 1] == '\r' || buff[len - 1] == '\n' || buff[len - 1] == ' '))
-    buff[--len] = 0;
-  std::string s(buff);
-  bool ret = (s.compare(m_value) != 0);
-  if (ret)
-    m_value = s;
-  return ret;
-}
-
-bool MyApp::has_text() const
-{
-  return m_value.length() > 0;
+  return ::setup_port(get_fd(), 19200, 8, 'N', 1) != -1;
 }
 
 void MyApp::loop()
@@ -270,31 +206,6 @@ void MyApp::loop()
   }
 }
 
-bool MyApp::read_port(char * data, int len)
-{
-  if (len <= 0)
-    return false;
-  int m = 0, n, can_try = 10;
-  while (len > m)
-  {
-    n = read(m_fd, data + m, len - m);
-    if (n > 0)
-      m += n;
-    if (len > m)
-    {
-      if (--can_try >= 0)
-        sleep(1);  
-      else
-      {
-        fprintf(stderr, "read port failed, completed = %d/%d\n", m, len);
-        return false;  
-      }  
-    }  
-  }
-  
-  return len == m;    
-}
-  
 bool MyApp::display_text()
 {
   if (!check_open())
@@ -303,9 +214,9 @@ bool MyApp::display_text()
   fprintf(stderr, "start display text\n");
       
   myStaticDisplayReqFrame req;
-  req.setinfo(m_value.c_str());
+  req.setinfo(get_value().c_str());
   req.gen_crc16();
-  if (write(m_fd, req.data(), req.length()) != req.length())
+  if (write(get_fd(), req.data(), req.length()) != req.length())
   {
     unix_print_error("write of static frame failed");
     return false;
@@ -331,7 +242,7 @@ bool MyApp::led_control(unsigned char line_1_prop, unsigned char op)
   req.m_line_1_prop = line_1_prop;
   req.m_op = op;
   req.gen_crc16();
-  if (write(m_fd, req.data(), req.length()) != req.length())
+  if (write(get_fd(), req.data(), req.length()) != req.length())
   {
     unix_print_error("write of control frame failed");
     return false;

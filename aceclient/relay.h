@@ -113,7 +113,22 @@ public:
   unsigned char m_data;
 };
 
-
 #pragma pack(pop)
+
+class MyApp: public MyBaseApp
+{
+public:
+  MyApp(int port);
+  virtual void loop();
+  
+protected:
+  const char * data_file() const;
+  virtual bool setup_port();
+  virtual bool has_text() const;  
+    
+private:
+
+};
+
 
 #endif
