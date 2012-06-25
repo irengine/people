@@ -7,6 +7,7 @@ int  open_port(int port);
 int  close_port(int fd);
 int  setup_port(int fd, int speed, int data_bits, int parity, int stop_bits);
 bool read_port(int fd, char * data, int len);
+int  write_port(int fd, const char * data, int len);
 
 class MyBaseApp
 {
@@ -22,6 +23,7 @@ protected:
   virtual bool has_text() const;
   
   bool read_port(char * data, int len);
+  bool write_port(char * data, int len);
   bool check_open();
   bool read_text();
   bool get_fstate();

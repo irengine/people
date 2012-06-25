@@ -99,6 +99,11 @@ int setup_port(int fd, int speed, int data_bits, int parity, int stop_bits)
     opt.c_cflag |= PARENB;
     opt.c_cflag &= ~PARODD;
     break;
+  case 'S':
+  case 's':    
+    options.c_cflag &= ~PARENB;
+    options.c_cflag &= ~CSTOPB;
+    break;  
   default:
     error_ret("Unsupported parity bits.");
   }
@@ -153,6 +158,16 @@ bool read_port(int fd, char * data, int len)
   
   return len == m;    
 }
+
+int  write_port(int fd, const char * data, int len)
+{
+  if (len <= 0 || !data)
+    return 0;
+  int n = write(fd, data, len);
+  if (n < 0)
+    return -1;  
+  return len - n;
+};
 
 
 //MyBaseApp//
@@ -258,7 +273,22 @@ void MyBaseApp::loop()
 
 bool MyBaseApp::read_port(char * data, int len)
 {
+  if (!check_open())
+    return false;
   return ::read_port(m_fd, data, len);
 }
  
-
+bool MyBaseApp::write_port(char * data, int len)
+{
+  if (!check_open())
+    return false;
+  int m = ::write_port(m_fd, data, len);
+  if (m < 0)
+  {
+    unix_print_error("write to port failed");
+    clean_up();
+    init();
+    return false;
+  }
+  return m == 0;
+}
