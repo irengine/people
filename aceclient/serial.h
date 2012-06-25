@@ -3,7 +3,7 @@
 
 #include <string>
 
-int  open_port(int port);
+int  open_port(const char * dev);
 int  close_port(int fd);
 int  setup_port(int fd, int speed, int data_bits, int parity, int stop_bits);
 bool read_port(int fd, char * data, int len);
@@ -12,7 +12,7 @@ int  write_port(int fd, const char * data, int len);
 class MyBaseApp
 {
 public:
-  MyBaseApp(int port);
+  MyBaseApp(const char * dev);
   bool init();
   void clean_up();
   virtual void loop();
@@ -28,11 +28,11 @@ protected:
   bool read_text();
   bool get_fstate();
   int get_fd() const;
-  const std::string & get_value();
+  const std::string & get_value() const;
   
 private:
   std::string m_value;
-  int m_port;
+  std::string m_port;
   int m_fd;
   off_t m_fsize;
   time_t m_ftime;

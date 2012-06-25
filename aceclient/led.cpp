@@ -171,7 +171,7 @@ bool myStaticDisplayReplyFrame::valid() const
 
 //MyApp//
 
-MyApp::MyApp(int port): MyBaseApp(port)
+MyApp::MyApp(const char * dev): MyBaseApp(dev)
 {
 
 }
@@ -264,11 +264,10 @@ int main(int argc, const char * argv[])
 {
   if (argc != 2)
   {
-    printf("usage: %s port_num\n", argv[0]);
+    printf("usage: %s port_dev\n", argv[0]);
     return 1;
   }
-  int port = atoi(argv[1]);
-  MyApp g_app(port);
+  MyApp g_app(argv[1]);
   g_app.loop();
   
   return 0;

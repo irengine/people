@@ -6,24 +6,57 @@
 #include "serial.h"
 #include "common_c.h"
 
-#pragma pack(push, 1)
-
 extern unsigned char g_dev_id;
+
+#pragma pack(push, 1)
 
 class MyBaseFrame
 {
 public:
   MyBaseFrame();
-  MyBaseFrame(unsigned char dev_id, unsigned char command);
   bool check_lead() const;
+  
+  char * data()
+  {
+    return (char*)&m_lead_1;
+  }
   
   unsigned char m_lead_1;
   unsigned char m_lead_2;  
+};
+
+template <typename T> int my_len(T & t)
+{
+  return sizeof(t);
+}
+
+template <typename T> void my_dump(T & t)
+{
+  int len = my_len(t);
+  const unsigned char * ptr = (unsigned char*)t.data();
+  printf("dump(%03d): ", len);
+  for (int i = 0; i < len; ++ i)
+    printf("%02X  ", *(ptr + i));
+  printf("\n         : ");
+  for (int i = 0; i < len; ++ i)
+    printf("%-3.u ", *(ptr + i));
+  printf("\n");
+}
+
+
+
+class MyBaseReqFrame: public MyBaseFrame
+{
+public:
+  MyBaseReqFrame();
+  MyBaseReqFrame(unsigned char dev_id, unsigned char command);
+  
   unsigned char m_dev_id;
   unsigned char m_command;
 };
 
-class MySetTimeFrame: public MyBaseFrame
+
+class MySetTimeFrame: public MyBaseReqFrame
 {
 public:
   MySetTimeFrame();
@@ -37,7 +70,7 @@ public:
   unsigned char  m_year;
 };
 
-class MyCheckStatusFrame: public MyBaseFrame
+class MyCheckStatusFrame: public MyBaseReqFrame
 {
 public:
   MyCheckStatusFrame();
@@ -49,7 +82,7 @@ public:
   unsigned char m_status;  
 };
 
-class MyQueryDevIDFrame: public MyBaseFrame
+class MyQueryDevIDFrame: public MyBaseReqFrame
 {
 public:
   MyQueryDevIDFrame();
@@ -63,7 +96,7 @@ public:
   unsigned char m_answer_id;
 };
 
-class MyModeFrame: public MyBaseFrame
+class MyModeFrame: public MyBaseReqFrame
 {
 public:
   MyModeFrame(unsigned char mode);
@@ -71,7 +104,7 @@ public:
   unsigned char m_mode;
 };
 
-class MyOffModeFrame: public MyBaseFrame
+class MyOffModeFrame: public MyBaseReqFrame
 {
 public:
   MyOffModeFrame(unsigned char mode);
@@ -79,7 +112,7 @@ public:
   unsigned char m_mode;
 };
 
-class MyOffTimeFrame: public MyBaseFrame
+class MyOffTimeFrame: public MyBaseReqFrame
 {
 public:
   MyOffTimeFrame();
@@ -95,7 +128,7 @@ public:
 
 
 
-class MySetModeFrame: public MyBaseFrame
+class MySetModeFrame: public MyBaseReqFrame
 {
 public:
   MySetModeFrame(unsigned char mode);
@@ -118,13 +151,38 @@ public:
 class MyApp: public MyBaseApp
 {
 public:
-  MyApp(int port);
+  MyApp(const char * dev);
   virtual void loop();
   
 protected:
+  template <typename T> bool write_command(T & t)
+  {
+    unsigned char buff[200];
+    int len = my_len(t);
+    memcpy(buff, t.data(), len);
+    buff[len ++] = 0x55;
+    buff[len ++] = 0xAA;
+    return write_port(buff, len);
+  }
+
+  template <typename T> bool read_reply(T & t)
+  {
+    unsigned char buff[200];
+    int len = my_len(t);
+    if (!read_port(buff, len + 2))
+      return false;
+    if (buff[len] != 0x55 || buff[len + 1] != 0xAA)
+    {
+      fprintf(stderr, "read reply failed, tail is not '55AA'\n");
+      return false;
+    }
+    memcpy(t.data(), buff, len);
+    return true;
+  }
+  
   const char * data_file() const;
   virtual bool setup_port();
-  virtual bool has_text() const;  
+  virtual bool has_text() const;
     
 private:
 

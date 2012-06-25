@@ -11,17 +11,15 @@
 #include "common_c.h"
 #include "serial.h"
 
-int open_port(int port)
+int open_port(const char * dev)
 {
   int fd = -1; 
   int ret;
-  char device[20] = {0}; 
 
-  if (port < 1 || port > 4)
-    error_ret("port number must be 1~4.");
+  if (!dev || !*dev)
+    error_ret("port dev is null.");
 
-  sprintf(device, "/dev/ttyS%d", port-1);
-  fd = open(device, O_RDWR | O_NOCTTY | O_NDELAY);
+  fd = open(dev, O_RDWR | O_NOCTTY | O_NDELAY);
   if (fd == -1)
     unix_error_ret("Unable to open the port");
 
@@ -90,20 +88,20 @@ int setup_port(int fd, int speed, int data_bits, int parity, int stop_bits)
     break;
   case 'O':
   case 'o':
-    opt.c_cflag|=(INPCK|ISTRIP); 
+    opt.c_cflag |= (INPCK|ISTRIP); 
     opt.c_cflag |= (PARODD | PARENB);
     break;
   case 'E':
   case 'e':
-    opt.c_cflag|=(INPCK|ISTRIP); 
+    opt.c_cflag |= (INPCK|ISTRIP); 
     opt.c_cflag |= PARENB;
     opt.c_cflag &= ~PARODD;
     break;
   case 'S':
-  case 's':    
-    options.c_cflag &= ~PARENB;
-    options.c_cflag &= ~CSTOPB;
-    break;  
+  case 's':
+    opt.c_cflag &= ~PARENB;
+    opt.c_cflag &= ~CSTOPB;    
+    break;
   default:
     error_ret("Unsupported parity bits.");
   }
@@ -172,17 +170,18 @@ int  write_port(int fd, const char * data, int len)
 
 //MyBaseApp//
 
-MyBaseApp::MyBaseApp(int port)
+MyBaseApp::MyBaseApp(const char * dev)
 {
-  m_port = port;
   m_fd = -1;
   m_fsize = 0;
   m_ftime = 0;
+  if (dev && *dev)
+    m_port = dev;
 }
 
 bool MyBaseApp::init()
 {
-  m_fd = open_port(m_port);
+  m_fd = open_port(m_port.c_str());
   if (m_fd == -1)
     return false;
   return setup_port();
@@ -206,7 +205,7 @@ int MyBaseApp::get_fd() const
   return m_fd;
 }
 
-const std::string & MyBaseApp::get_value()
+const std::string & MyBaseApp::get_value() const
 {
   return m_value;
 }

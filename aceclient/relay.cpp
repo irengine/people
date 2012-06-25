@@ -18,23 +18,27 @@ MyBaseFrame::MyBaseFrame()
   m_lead_2 = 0x55;  
 }
 
-MyBaseFrame::MyBaseFrame(unsigned char dev_id, unsigned char command)
-{
-  m_lead_1 = 0xAA;
-  m_lead_2 = 0x55;  
-  m_dev_id = dev_id;
-  m_command = command;
-}
-
 bool MyBaseFrame::check_lead() const
 {
   return (m_lead_1 == 0xAA && m_lead_2 == 0x55);
 }
 
+//MyBaseReqFrame//
+MyBaseReqFrame::MyBaseReqFrame(): MyBaseFrame()
+{
+
+}
+ 
+MyBaseReqFrame::MyBaseReqFrame(unsigned char dev_id, unsigned char command): MyBaseFrame()
+{
+  m_dev_id = dev_id;
+  m_command = command;
+}
+
 
 //MySetTimeFrame//
 
-MySetTimeFrame::MySetTimeFrame(): MyBaseFrame(g_dev_id, 0xFC)
+MySetTimeFrame::MySetTimeFrame(): MyBaseReqFrame(g_dev_id, 0xFC)
 {
   time_t now = time(NULL);
   struct tm _tm;
@@ -51,7 +55,7 @@ MySetTimeFrame::MySetTimeFrame(): MyBaseFrame(g_dev_id, 0xFC)
 
 //MyCheckStatusFrame//
 
-MyCheckStatusFrame::MyCheckStatusFrame(): MyBaseFrame(g_dev_id, 0xC1)
+MyCheckStatusFrame::MyCheckStatusFrame(): MyBaseReqFrame(g_dev_id, 0xC1)
 {
 
 }
@@ -59,7 +63,7 @@ MyCheckStatusFrame::MyCheckStatusFrame(): MyBaseFrame(g_dev_id, 0xC1)
 
 //MyQueryDevIDFrame//
 
-MyQueryDevIDFrame::MyQueryDevIDFrame(): MyBaseFrame(g_dev_id, 0xCF)
+MyQueryDevIDFrame::MyQueryDevIDFrame(): MyBaseReqFrame(g_dev_id, 0xCF)
 {
 
 }
@@ -67,7 +71,7 @@ MyQueryDevIDFrame::MyQueryDevIDFrame(): MyBaseFrame(g_dev_id, 0xCF)
 
 //MyModeFrame//
 
-MyModeFrame::MyModeFrame(unsigned char mode): MyBaseFrame(g_dev_id, 0xFB)
+MyModeFrame::MyModeFrame(unsigned char mode): MyBaseReqFrame(g_dev_id, 0xFB)
 {
   m_mode = mode;
 }
@@ -75,7 +79,7 @@ MyModeFrame::MyModeFrame(unsigned char mode): MyBaseFrame(g_dev_id, 0xFB)
 
 //MyOffModeFrame//
 
-MyOffModeFrame::MyOffModeFrame(unsigned char mode): MyBaseFrame(g_dev_id, 0xFE)
+MyOffModeFrame::MyOffModeFrame(unsigned char mode): MyBaseReqFrame(g_dev_id, 0xFE)
 {
   m_mode = mode;
 }
@@ -83,7 +87,7 @@ MyOffModeFrame::MyOffModeFrame(unsigned char mode): MyBaseFrame(g_dev_id, 0xFE)
 
 //MyOffTimeFrame//
 
-MyOffTimeFrame::MyOffTimeFrame(): MyBaseFrame(g_dev_id, 0xEA)
+MyOffTimeFrame::MyOffTimeFrame(): MyBaseReqFrame(g_dev_id, 0xEA)
 {
   m_second = 0;
   
@@ -106,7 +110,7 @@ bool MyConfigReplyFrame::failed() const
 
 //MyApp//
 
-MyApp::MyApp(int port): MyBaseApp(port)
+MyApp::MyApp(const char * dev): MyBaseApp(dev)
 {
 
 }
@@ -125,7 +129,7 @@ bool MyApp::has_text() const
 {
   if (!MyBaseApp::has_text())
     return false;
-  std::string s & = get_value();
+  const std::string & s = get_value();
   if (s.length() != 10)
     return false;
   if (s[0] != '*')
@@ -138,7 +142,7 @@ bool MyApp::has_text() const
 
 bool MyApp::setup_port()
 {
-  return ::setup_port(get_fd(), 19200, 8, 'N', 1) != -1;
+  return ::setup_port(get_fd(), 9600, 8, 'N', 1) != -1;
 }
 
 
@@ -148,11 +152,12 @@ int main(int argc, const char * argv[])
 {
   if (argc != 2)
   {
-    printf("usage: %s port_num\n", argv[0]);
+    printf("usage: %s port_dev\n", argv[0]);
     return 1;
   }
-  int port = atoi(argv[1]);
-  MyApp g_app(port);
+  MySetTimeFrame m;
+  my_dump(m);
+  MyApp g_app(argv[1]);
   g_app.loop();
   
   return 0;

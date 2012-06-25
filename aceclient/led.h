@@ -96,7 +96,7 @@ public:
 class MyApp: public MyBaseApp
 {
 public:
-  MyApp(int port);
+  MyApp(const char * dev);
   virtual void loop();
   
 protected:
