@@ -162,14 +162,14 @@ protected:
     memcpy(buff, t.data(), len);
     buff[len ++] = 0x55;
     buff[len ++] = 0xAA;
-    return write_port(buff, len);
+    return write_port((char*)buff, len);
   }
 
   template <typename T> bool read_reply(T & t)
   {
     unsigned char buff[200];
     int len = my_len(t);
-    if (!read_port(buff, len + 2))
+    if (!read_port((char*)buff, len + 2))
       return false;
     if (buff[len] != 0x55 || buff[len + 1] != 0xAA)
     {
@@ -183,6 +183,7 @@ protected:
   const char * data_file() const;
   virtual bool setup_port();
   virtual bool has_text() const;
+  void get_dev_id();
     
 private:
 
