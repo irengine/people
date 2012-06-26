@@ -67,10 +67,26 @@ public:
   MyCheckStatusFrame();
 };
 
+class MySetStatusFrame: public MyBaseReqFrame
+{
+public:
+  MySetStatusFrame(unsigned char index, unsigned char status);
+  
+  unsigned char m_index;
+  unsigned char m_status;
+};
+
+
 class MyCheckStatusReplyFrame: public MyCheckStatusFrame
 {
 public:
   unsigned char m_status;
+};
+
+class MyQueryDevTimeFrame: public MyBaseReqFrame
+{
+public:
+  MyQueryDevTimeFrame();
 };
 
 class MyQueryDevIDFrame: public MyBaseReqFrame
@@ -82,7 +98,6 @@ public:
 class MyReplyDevIDFrame: public MyBaseFrame
 {
 public:
-//  int length() const { return ; }
   
   unsigned char m_answer_id;
 };
@@ -170,13 +185,24 @@ protected:
   bool check_status(unsigned char & status);
   bool set_mode1(unsigned char mode);
   bool set_mode2(unsigned char mode);
-    
+  bool sync_time();
+  bool set_status(unsigned char idx, bool on);
+  bool clear_offtime();
+  bool query_time(MySetTimeFrame & reply);
+  bool offtime(unsigned char day, unsigned char hour, unsigned char minute); //f alone
+  bool onofftime(unsigned char ohour, unsigned char ominute, unsigned char fhour, unsigned char fminute);
+  
 private:
   bool do_get_dev_id();
   bool do_check_status(unsigned char & status);
   bool do_set_mode1(unsigned char mode);
   bool do_set_mode2(unsigned char mode);
-
+  bool do_sync_time();
+  bool do_set_status(unsigned char idx, bool on);
+  bool do_clear_offtime(unsigned char idx);
+  bool do_set_offtime(unsigned char day, unsigned char hour, unsigned char minute, bool on); 
+  bool do_offtime(unsigned char day, unsigned char hour, unsigned char minute); //f alone
+  bool do_query_time(MySetTimeFrame & reply);
 };
 
 

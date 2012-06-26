@@ -43,14 +43,14 @@ int setup_port(int fd, int speed, int data_bits, int parity, int stop_bits)
   int speed_arr[] = {B115200, B9600, B38400, B19200, B4800};
   int name_arr[] = {115200, 9600, 38400, 19200, 4800};
   struct termios opt;
-  int ret=-1;
-  int i=0;
-  int len=0;
+  int ret = -1;
+  int i = 0;
+  int len = 0;
 
   ret = tcgetattr(fd, &opt);
   if (ret < 0)
     unix_error_ret("Unable to get the attribute.1");
-  
+
   len = sizeof(speed_arr) / sizeof(int);
   for (i = 0; i < len; i++)
   {
@@ -132,7 +132,7 @@ int setup_port(int fd, int speed, int data_bits, int parity, int stop_bits)
   tcflush(fd, TCIFLUSH);
   opt.c_cc[VTIME] = 0; 
   opt.c_cc[VMIN] = 0; 
-
+  printf("i=%08o c=%08o, o=%08o\n", opt.c_iflag, opt.c_cflag, opt.c_oflag);
   ret = tcsetattr(fd, TCSANOW, &opt);
   if (ret < 0)
     unix_error_ret("Unable to setup the port.2");
