@@ -33,17 +33,8 @@ template <typename T> int my_len(T & t)
 template <typename T> void my_dump(T & t)
 {
   int len = my_len(t);
-  const unsigned char * ptr = (unsigned char*)t.data();
-  printf("dump(%03d): ", len);
-  for (int i = 0; i < len; ++ i)
-    printf("%02X  ", *(ptr + i));
-  printf("\n         : ");
-  for (int i = 0; i < len; ++ i)
-    printf("%-3.u ", *(ptr + i));
-  printf("\n");
+  my_dump_base(t.data(), len);
 }
-
-
 
 class MyBaseReqFrame: public MyBaseFrame
 {
@@ -76,10 +67,10 @@ public:
   MyCheckStatusFrame();
 };
 
-class MyCheckStatusReplyFrame: public MyBaseFrame
+class MyCheckStatusReplyFrame: public MyCheckStatusFrame
 {
 public:
-  unsigned char m_status;  
+  unsigned char m_status;
 };
 
 class MyQueryDevIDFrame: public MyBaseReqFrame
@@ -96,18 +87,10 @@ public:
   unsigned char m_answer_id;
 };
 
-class MyModeFrame: public MyBaseReqFrame
+class MySetMode1Frame: public MyBaseReqFrame
 {
 public:
-  MyModeFrame(unsigned char mode);
-  
-  unsigned char m_mode;
-};
-
-class MyOffModeFrame: public MyBaseReqFrame
-{
-public:
-  MyOffModeFrame(unsigned char mode);
+  MySetMode1Frame(unsigned char mode);
   
   unsigned char m_mode;
 };
@@ -127,22 +110,22 @@ public:
 };
 
 
-
-class MySetModeFrame: public MyBaseReqFrame
+class MySetMode2Frame: public MyBaseReqFrame
 {
 public:
-  MySetModeFrame(unsigned char mode);
+  MySetMode2Frame(unsigned char mode);
   
   unsigned char m_mode;
 };
 
 
-class MyConfigReplyFrame
+class MyConfigReplyFrame: public MyBaseFrame
 {
 public:
   bool ok() const;
   bool failed() const;
-
+  
+  unsigned char m_dev_id;
   unsigned char m_data;
 };
 
@@ -183,9 +166,16 @@ protected:
   const char * data_file() const;
   virtual bool setup_port();
   virtual bool has_text() const;
-  void get_dev_id();
+  bool get_dev_id();
+  bool check_status(unsigned char & status);
+  bool set_mode1(unsigned char mode);
+  bool set_mode2(unsigned char mode);
     
 private:
+  bool do_get_dev_id();
+  bool do_check_status(unsigned char & status);
+  bool do_set_mode1(unsigned char mode);
+  bool do_set_mode2(unsigned char mode);
 
 };
 

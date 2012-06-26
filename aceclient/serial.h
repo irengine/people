@@ -8,6 +8,7 @@ int  close_port(int fd);
 int  setup_port(int fd, int speed, int data_bits, int parity, int stop_bits);
 bool read_port(int fd, char * data, int len);
 int  write_port(int fd, const char * data, int len);
+void my_dump_base(const char * data, int len);
 
 class MyBaseApp
 {

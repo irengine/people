@@ -23,9 +23,9 @@ int open_port(const char * dev)
   if (fd == -1)
     unix_error_ret("Unable to open the port");
 
-  ret = fcntl(fd, F_SETFL, 0);
-  if (ret < 0)
-    unix_error_ret("fcntl");
+//  ret = fcntl(fd, F_SETFL, 0);
+//  if (ret < 0)
+//    unix_error_ret("fcntl");
   debug_msg("Open the port success!\n");
   
   return fd;
@@ -47,26 +47,28 @@ int setup_port(int fd, int speed, int data_bits, int parity, int stop_bits)
   int i=0;
   int len=0;
 
-  ret = tcgetattr(fd, &opt);	
+  ret = tcgetattr(fd, &opt);
   if (ret < 0)
-    unix_error_ret("Unable to get the attribute");
-
-  opt.c_cflag |= (CLOCAL | CREAD); 
-  opt.c_cflag &= ~CSIZE;			
-
+    unix_error_ret("Unable to get the attribute.1");
+  
   len = sizeof(speed_arr) / sizeof(int);
   for (i = 0; i < len; i++)
   {
     if (speed == name_arr[i])
     {
+      tcflush(fd, TCIOFLUSH);
       cfsetispeed(&opt, speed_arr[i]);
       cfsetospeed(&opt, speed_arr[i]);
+      tcflush(fd, TCIOFLUSH);
       break;
     }
   }
   if (i == len)
     error_ret("Unsupported baud rate.");
-  
+
+  opt.c_cflag |= (CLOCAL | CREAD); 
+  opt.c_cflag &= ~CSIZE;
+    
   switch (data_bits)
   {
   case 8:
@@ -84,16 +86,16 @@ int setup_port(int fd, int speed, int data_bits, int parity, int stop_bits)
   case 'N':
   case 'n':
     opt.c_cflag &= ~PARENB;
-    opt.c_cflag &= ~INPCK;
+    opt.c_iflag &= ~INPCK;
     break;
   case 'O':
   case 'o':
-    opt.c_cflag |= (INPCK|ISTRIP); 
+    opt.c_iflag |= (INPCK|ISTRIP); 
     opt.c_cflag |= (PARODD | PARENB);
     break;
   case 'E':
   case 'e':
-    opt.c_cflag |= (INPCK|ISTRIP); 
+    opt.c_iflag |= (INPCK|ISTRIP); 
     opt.c_cflag |= PARENB;
     opt.c_cflag &= ~PARODD;
     break;
@@ -101,6 +103,7 @@ int setup_port(int fd, int speed, int data_bits, int parity, int stop_bits)
   case 's':
     opt.c_cflag &= ~PARENB;
     opt.c_cflag &= ~CSTOPB;    
+    opt.c_iflag |= INPCK;    
     break;
   default:
     error_ret("Unsupported parity bits.");
@@ -119,15 +122,20 @@ int setup_port(int fd, int speed, int data_bits, int parity, int stop_bits)
   }
 
   opt.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
-  opt.c_oflag &= ~OPOST;
+  opt.c_oflag &= ~OPOST;  
 
+  opt.c_iflag &= ~(IXON | IXOFF | IXANY);
+  opt.c_iflag &= ~(ICRNL | INLCR);  
+  opt.c_oflag &= ~(ONLCR | OCRNL);
+  opt.c_cflag &= ~CRTSCTS;  
+  
   tcflush(fd, TCIFLUSH);
   opt.c_cc[VTIME] = 0; 
   opt.c_cc[VMIN] = 0; 
 
   ret = tcsetattr(fd, TCSANOW, &opt);
   if (ret < 0)
-    unix_error_ret("Unable to setup the port.");
+    unix_error_ret("Unable to setup the port.2");
 
   return 0;
 }
@@ -145,7 +153,7 @@ bool read_port(int fd, char * data, int len)
     if (len > m)
     {
       if (--can_try >= 0)
-        sleep(1);  
+        sleep(2);
       else
       {
         fprintf(stderr, "read port failed, completed = %d/%d\n", m, len);
@@ -166,6 +174,18 @@ int  write_port(int fd, const char * data, int len)
     return -1;  
   return len - n;
 };
+
+void my_dump_base(const char * data, int len)
+{
+  const unsigned char * ptr = (unsigned char*)data;
+  printf("dump(%03d): ", len);
+  for (int i = 0; i < len; ++ i)
+    printf("%02X  ", *(ptr + i));
+  printf("\n         : ");
+  for (int i = 0; i < len; ++ i)
+    printf("%-3.u ", *(ptr + i));
+  printf("\n");
+}
 
 
 //MyBaseApp//
@@ -274,7 +294,13 @@ bool MyBaseApp::read_port(char * data, int len)
 {
   if (!check_open())
     return false;
-  return ::read_port(m_fd, data, len);
+  if (!::read_port(m_fd, data, len))
+  {  
+    clean_up();
+    init();
+    return false;
+  }  
+  return true;
 }
  
 bool MyBaseApp::write_port(char * data, int len)
