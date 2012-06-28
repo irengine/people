@@ -100,7 +100,6 @@ void myControlReqFrame::gen_crc16()
 bool myControlReplyFrame::valid()
 {
   return (m_head == const_in_lead && m_length == sizeof(myControlReplyFrame) && m_type == 0xC5);
-
 }
 
 
@@ -197,6 +196,7 @@ bool MyApp::setup_port()
 
 void MyApp::loop()
 {
+  led_control(0x2, 0x3);
   set_text("");
   display_text();
 
