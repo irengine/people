@@ -7,6 +7,7 @@ int  open_port(const char * dev);
 int  close_port(int fd);
 int  setup_port(int fd, int speed, int data_bits, int parity, int stop_bits);
 bool read_port(int fd, char * data, int len);
+bool read_port_x(int fd, char * data, int len, unsigned char mark1, unsigned char mark2);
 int  write_port(int fd, const char * data, int len);
 void my_dump_base(const char * data, int len);
 
@@ -30,6 +31,10 @@ protected:
   bool get_fstate();
   int get_fd() const;
   const std::string & get_value() const;
+  void set_text(const char * text);
+  
+  unsigned char m_mark1;
+  unsigned char m_mark2;
   
 private:
   std::string m_value;

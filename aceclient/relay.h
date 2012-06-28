@@ -92,7 +92,7 @@ public:
 class MyQueryDevIDFrame: public MyBaseReqFrame
 {
 public:
-  MyQueryDevIDFrame();
+  MyQueryDevIDFrame(unsigned char dev_id);
 };
 
 class MyReplyDevIDFrame: public MyBaseFrame
@@ -155,7 +155,7 @@ public:
 protected:
   template <typename T> bool write_command(T & t)
   {
-    unsigned char buff[200];
+    unsigned char buff[400];
     int len = my_len(t);
     memcpy(buff, t.data(), len);
     buff[len ++] = 0x55;
@@ -165,7 +165,7 @@ protected:
 
   template <typename T> bool read_reply(T & t)
   {
-    unsigned char buff[200];
+    unsigned char buff[400];
     int len = my_len(t);
     if (!read_port((char*)buff, len + 2))
       return false;

@@ -6,6 +6,15 @@
 #include "serial.h"
 #include "common_c.h"
 
+const unsigned short const_out_lead = 0xA55A;
+const unsigned short const_in_lead =  0x5AA5;
+
+unsigned short swap_byte(unsigned short value)
+{
+  unsigned short ret = (value >> 8) | (value << 8);
+  return ret;
+}
+
 #pragma pack(push, 1)
 
 class myControlReqFrame
@@ -59,7 +68,7 @@ public:
   void gen_crc16();
   char * data() { return (char*)&m_head; }
   void setinfo(const char * txt);
-  int length() const { return sizeof(myStaticDisplayReqFrame) - 400 + m_info_length + 2; }
+  int length() const { return sizeof(myStaticDisplayReqFrame) - 400 + swap_byte(m_info_length) + 2; }
   bool valid() const { return m_info_length >= 1 && m_info_length <= 384; }
   
   unsigned short m_head;
@@ -91,6 +100,30 @@ public:
   unsigned short m_crc16;  
 };
 
+class myInfoQueryFrame
+{
+public:
+  myInfoQueryFrame();
+  void gen_crc16();
+  char * data() { return (char*)&m_head; }
+  int length() const { return sizeof(myInfoQueryFrame); }
+
+  unsigned short m_head;
+  unsigned short m_length;
+  unsigned char  m_type;
+  unsigned char  m_line_no;
+  unsigned short m_crc16;  
+};
+
+class myInfoReplyFrame
+{
+public:
+  char * data() { return m_data; }
+  int length() const { return sizeof(myInfoReplyFrame); }
+
+  char m_data[128 + 11];
+};
+
 #pragma pack(pop)
 
 class MyApp: public MyBaseApp
@@ -106,6 +139,7 @@ protected:
 private:
   bool display_text();
   bool led_control(unsigned char line_1_prop, unsigned char op);
+  bool query_info();
 };
 
 #endif

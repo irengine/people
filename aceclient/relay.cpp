@@ -24,6 +24,7 @@ bool MyBaseFrame::check_lead() const
 }
 
 //MyBaseReqFrame//
+
 MyBaseReqFrame::MyBaseReqFrame(): MyBaseFrame()
 {
 
@@ -80,7 +81,7 @@ MyQueryDevTimeFrame::MyQueryDevTimeFrame(): MyBaseReqFrame(g_dev_id, 0xC4)
 
 //MyQueryDevIDFrame//
 
-MyQueryDevIDFrame::MyQueryDevIDFrame(): MyBaseReqFrame(g_dev_id, 0xCF)
+MyQueryDevIDFrame::MyQueryDevIDFrame(unsigned char dev_id): MyBaseReqFrame(dev_id, 0xCF)
 {
 
 }
@@ -133,7 +134,9 @@ MyApp::MyApp(const char * dev): MyBaseApp(dev)
  
 void MyApp::loop()
 {
-  get_dev_id();
+  do_get_dev_id();
+//  return;
+//  get_dev_id();
   MySetTimeFrame stime;
   query_time(stime);
   sync_time();
@@ -141,13 +144,15 @@ void MyApp::loop()
   check_status(status);
   set_mode1(2); //3: online 2: offline  
   set_mode2(1); //1: week; 2 day
+  onofftime(9, 31, 21, 24);    
   clear_offtime();
-  onofftime(8, 30, 20, 25);  
+//  onofftime(8, 30, 20, 25);  
 /*  
   set_status(2, true);
   sleep(3);
   set_status(2, false);*/
   check_status(status);
+  do_get_dev_id();  
 }
 
 const char * MyApp::data_file() const
@@ -177,7 +182,8 @@ bool MyApp::setup_port()
 
 bool MyApp::do_get_dev_id()
 {
-  MyQueryDevIDFrame f;
+  MyQueryDevIDFrame f(0);
+//  my_dump(f);
   if (!write_command(f))
     return false;
   MyReplyDevIDFrame ff;
@@ -202,7 +208,7 @@ bool MyApp::do_check_status(unsigned char & status)
   unsigned char t = status & 0x0F;
   for (int i = 0; i < 4; ++ i)
   {
-    buff[i] = (t & 0x1 == 1)? '1':'0';
+    buff[i] = ((t & 0x1) == 1)? '1':'0';
     t = t >> 1;
   }
   printf("got dev status: %02X %s\n", status, buff);
@@ -272,9 +278,9 @@ bool MyApp::do_clear_offtime(unsigned char idx)
   req.m_hour = 0;
   req.m_weekday = 0;
   req.m_status = 0;
-  printf("debug_offtime: index=%d, hour=%d, minute=%d, wday=%d, status=%02X\n", 
-         req.m_index, req.m_hour, req.m_minute, req.m_weekday, req.m_status);
-  my_dump(req);
+//  printf("debug_offtime: index=%d, hour=%d, minute=%d, wday=%d, status=%02X\n", 
+//         req.m_index, req.m_hour, req.m_minute, req.m_weekday, req.m_status);
+//  my_dump(req);
   if (!write_command(req))
     return false;
   MyConfigReplyFrame reply;
@@ -293,9 +299,9 @@ bool MyApp::do_set_offtime(unsigned char day, unsigned char hour, unsigned char 
   req.m_hour = hour;
   req.m_weekday = day;
   req.m_status = on? 0xF7: 0;
-  printf("debug_offtime: index=%d, hour=%d, minute=%d, wday=%d, status=%02X\n", 
-         req.m_index, req.m_hour, req.m_minute, req.m_weekday, req.m_status);
-  my_dump(req);         
+//  printf("debug_offtime: index=%d, hour=%d, minute=%d, wday=%d, status=%02X\n", 
+//         req.m_index, req.m_hour, req.m_minute, req.m_weekday, req.m_status);
+//  my_dump(req);         
   if (!write_command(req))
     return false;
   MyConfigReplyFrame reply;
@@ -331,6 +337,7 @@ bool MyApp::do_offtime(unsigned char day, unsigned char hour, unsigned char minu
   }
   
   yminute = xminute + 2;
+  yhour = xhour;
   if (yminute >= 60)
   {
     yminute -= 60;
@@ -409,12 +416,14 @@ bool MyApp::get_dev_id()
 {
   if (!do_get_dev_id())
     return do_get_dev_id();
+  return true;  
 }
 
 bool MyApp::check_status(unsigned char & status)
 {
   if (!do_check_status(status))
     return do_check_status(status);
+  return true;  
 }
 
 bool MyApp::set_mode1(unsigned char mode)
@@ -427,6 +436,7 @@ bool MyApp::set_mode1(unsigned char mode)
     printf("set_mode1(%d): %s\n", mode, ret? "ok": "failed");
     return ret;
   }
+  return true;
 }
 
 bool MyApp::set_mode2(unsigned char mode)
@@ -439,6 +449,7 @@ bool MyApp::set_mode2(unsigned char mode)
     printf("set_mode2(%d): %s\n", mode, ret? "ok": "failed");
     return ret;
   }
+  return true;
 }
 
 bool MyApp::sync_time()
@@ -451,6 +462,7 @@ bool MyApp::sync_time()
     printf("set_time: %s\n", ret? "ok": "failed");
     return ret;
   }
+  return true;
 }
 
 bool MyApp::set_status(unsigned char idx, bool on)
@@ -463,12 +475,13 @@ bool MyApp::set_status(unsigned char idx, bool on)
     printf("set_status: %s\n", ret? "ok": "failed");
     return ret;
   }
+  return true;
 }
 
 bool MyApp::clear_offtime()
 {
   bool ret, xret = true;;
-  for (int i = 1; i <= 20; ++ i)
+  for (int i = 8; i <= 20; ++ i)
   {
 		ret = do_clear_offtime(i);
 		printf("clear_offtime(%d): %s\n", i, ret? "ok": "failed");
@@ -481,6 +494,7 @@ bool MyApp::clear_offtime()
       xret = false;
   }
   printf("clear_offtime(all): %s\n", xret? "ok": "failed");  
+  return xret;
 }
 
 bool MyApp::query_time(MySetTimeFrame & reply)
@@ -501,6 +515,7 @@ bool MyApp::query_time(MySetTimeFrame & reply)
 
 int main(int argc, const char * argv[])
 {
+
   if (argc != 2)
   {
     printf("usage: %s port_dev\n", argv[0]);
@@ -508,7 +523,62 @@ int main(int argc, const char * argv[])
   }
   MyApp g_app(argv[1]);
   g_app.loop();
-  
   return 0;
+#define FALSE  -1
+#define TRUE   0
+    int fd = FALSE;    	  
+    int ret;      	  
+    char rcv_buf[512];
+    int i;
+    if(argc != 2)
+    {
+     printf("Usage: %s /dev/ttySn \n",argv[0]);	
+     return FALSE;	
+    }
+    fd = open_port(argv[1]); 
+    if(fd < 0)
+    {	
+      printf("open error\n");	
+      exit(1);
+    }
+    ret  = setup_port(fd,9600, 8,'N', 1);
+    if (FALSE == fd)
+    {	
+      printf("Set Port Error\n");	
+      exit(1); 
+    }
+    unsigned char buff[] = {0xAA, 0x55, 0x00, 0xcf, 0x55, 0xaa};
+    ret = write_port(fd, (char*)buff, 6);
+    if(FALSE == ret)
+    {
+      printf("write error!\n");
+      exit(1);
+    }
+    printf("command: %s\n","*IDN?");
+    memset(rcv_buf,0,sizeof(rcv_buf));
+    for(i=0;;i++)
+    {
+      printf("trying to read, i = %d\n", i);
+      ret = read_port(fd, rcv_buf,512);	
+      if( ret > 0)
+      {
+      	rcv_buf[ret]='\0';
+      	int j;
+      	for (j = 0; j < ret; ++ j)
+      	{	
+   	      printf("%02X-%u ",(unsigned char)rcv_buf[j], (unsigned char)rcv_buf[j]);	
+   	    }
+   	    printf("\n");  
+      } else 
+      {	
+        printf("cannot receive data1\n");	
+        break;
+      }
+ 
+      if('\n' == rcv_buf[ret-1])
+        break;
+   }
+   close_port(fd);  
+   return 0;  
 }
 

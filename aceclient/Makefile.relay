@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-Wall
+CPPFLAGS=-Wall -g
 
 relay: relay.o serial.o
 

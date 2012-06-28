@@ -20,12 +20,12 @@ int open_port(const char * dev)
     error_ret("port dev is null.");
 
   fd = open(dev, O_RDWR | O_NOCTTY | O_NDELAY);
-  if (fd == -1)
+  if (fd < 0)
     unix_error_ret("Unable to open the port");
 
-//  ret = fcntl(fd, F_SETFL, 0);
-//  if (ret < 0)
-//    unix_error_ret("fcntl");
+  ret = fcntl(fd, F_SETFL, 0);
+  if (ret < 0)
+    unix_error_ret("fcntl");
   debug_msg("Open the port success!\n");
   
   return fd;
@@ -56,10 +56,10 @@ int setup_port(int fd, int speed, int data_bits, int parity, int stop_bits)
   {
     if (speed == name_arr[i])
     {
-      tcflush(fd, TCIOFLUSH);
+//      tcflush(fd, TCIOFLUSH);
       cfsetispeed(&opt, speed_arr[i]);
       cfsetospeed(&opt, speed_arr[i]);
-      tcflush(fd, TCIOFLUSH);
+//      tcflush(fd, TCIOFLUSH);
       break;
     }
   }
@@ -130,9 +130,9 @@ int setup_port(int fd, int speed, int data_bits, int parity, int stop_bits)
   opt.c_cflag &= ~CRTSCTS;  
   
   tcflush(fd, TCIFLUSH);
-  opt.c_cc[VTIME] = 0; 
-  opt.c_cc[VMIN] = 0; 
-  printf("i=%08o c=%08o, o=%08o\n", opt.c_iflag, opt.c_cflag, opt.c_oflag);
+  opt.c_cc[VTIME] = 1;
+  opt.c_cc[VMIN] = 1;
+
   ret = tcsetattr(fd, TCSANOW, &opt);
   if (ret < 0)
     unix_error_ret("Unable to setup the port.2");
@@ -140,29 +140,101 @@ int setup_port(int fd, int speed, int data_bits, int parity, int stop_bits)
   return 0;
 }
 
+
+static int do_read_port(int fd, char * data, int len)
+{
+  int xlen,fs_sel;
+  fd_set fs_read;
+  
+  struct timeval time;
+  
+  FD_ZERO(&fs_read);
+  FD_SET(fd, &fs_read);
+  
+  time.tv_sec = 10;
+  time.tv_usec = 0;
+  
+  fs_sel = select(fd + 1,&fs_read, NULL, NULL, &time);
+  if(fs_sel)
+  {
+    xlen = read(fd, data, len);
+/*
+    printf("do_read get %d/%d bytes!\n", xlen, len);
+    int j;
+	  for (j = 0; j < xlen; ++ j)
+	  {
+      printf("%02X-%u ",(unsigned char)data[j], (unsigned char)data[j])
+    }
+*/
+    return xlen;
+  } else 
+  {
+//    printf("do_read get 0/%d bytes!\n", len);  
+    return 0;
+  }	
+}
+
 bool read_port(int fd, char * data, int len)
 {
   if (len <= 0)
-    return false;
-  int m = 0, n, can_try = 10;
+    return true;
+  int m = 0, n;
   while (len > m)
   {
-    n = read(fd, data + m, len - m);
+    n = do_read_port(fd, data + m, len - m);
     if (n > 0)
       m += n;
-    if (len > m)
+    else
     {
-      if (--can_try >= 0)
-        sleep(2);
+      fprintf(stderr, "read port failed, completed = %d/%d\n", m, len);
+      return false;
+    }
+  }
+
+  return len == m;
+}
+
+bool read_port_x(int fd, char * data, int len, unsigned char mark1, unsigned char mark2)
+{
+  if (len <= 2)
+    return true;
+  int i, m = 0;
+  if (!read_port(fd, data, len))
+    return false;
+    
+__loop:
+  for (i = 0; i < len - 2; ++i)
+  {
+    if ((unsigned char)data[i] == mark1 && (unsigned char)data[i + 1] == mark2)
+    {
+      if (i == 0)
+        return true;
       else
-      {
-        fprintf(stderr, "read port failed, completed = %d/%d\n", m, len);
-        return false;  
-      }  
-    }  
+        break;  
+    }
+  }
+  ++m;
+  if (m > 10)
+    return false;
+  
+  if (i < len - 2)
+  {
+    memmove(data, data + i, len - i);
+    return read_port(fd, data + (len - i), i);
   }
   
-  return len == m;    
+  if ((unsigned char)data[len - 1] == mark1)
+  {
+    *(unsigned char*)data = mark1;
+    if (!read_port(fd, data + 1, len - 1))
+      return false;
+    goto __loop;
+  }
+  if (!read_port(fd, data, len))
+    return false;
+  goto __loop;
+  
+  return true; //make compiler happy  
 }
 
 int  write_port(int fd, const char * data, int len)
@@ -171,7 +243,14 @@ int  write_port(int fd, const char * data, int len)
     return 0;
   int n = write(fd, data, len);
   if (n < 0)
-    return -1;  
+    return -1;
+  my_dump_base(data, len);
+  if (n != len)
+  {
+    tcflush(fd,TCOFLUSH);  
+    printf("write_port failed: %d/%d\n", n, len);
+  } else
+    printf("write_port ok: %d\n", len);   
   return len - n;
 };
 
@@ -195,6 +274,9 @@ MyBaseApp::MyBaseApp(const char * dev)
   m_fd = -1;
   m_fsize = 0;
   m_ftime = 0;
+  m_mark1 = 0;
+  m_mark2 = 0;
+  
   if (dev && *dev)
     m_port = dev;
 }
@@ -290,16 +372,24 @@ void MyBaseApp::loop()
 
 }
 
+void MyBaseApp::set_text(const char * text)
+{
+  if (!text)
+    text = "";
+  m_value = text;
+}
+
 bool MyBaseApp::read_port(char * data, int len)
 {
   if (!check_open())
     return false;
-  if (!::read_port(m_fd, data, len))
+  
+  if (!::read_port_x(m_fd, data, len, m_mark1, m_mark2))
   {  
     clean_up();
     init();
     return false;
-  }  
+  }
   return true;
 }
  
@@ -308,12 +398,12 @@ bool MyBaseApp::write_port(char * data, int len)
   if (!check_open())
     return false;
   int m = ::write_port(m_fd, data, len);
-  if (m < 0)
+  if (m != 0)
   {
     unix_print_error("write to port failed");
     clean_up();
     init();
     return false;
   }
-  return m == 0;
+  return true;
 }
