@@ -1,0 +1,7 @@
+CC=g++
+CFLAGS=-Wall
+
+led: led.o serial.o
+
+clean:
+	rm -f led led.o serial.o
