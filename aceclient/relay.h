@@ -193,14 +193,14 @@ protected:
   bool onofftime(unsigned char ohour, unsigned char ominute, unsigned char fhour, unsigned char fminute);
   
 private:
-  bool do_get_dev_id();
+  bool do_get_dev_id(unsigned char c);
   bool do_check_status(unsigned char & status);
   bool do_set_mode1(unsigned char mode);
   bool do_set_mode2(unsigned char mode);
   bool do_sync_time();
   bool do_set_status(unsigned char idx, bool on);
   bool do_clear_offtime(unsigned char idx);
-  bool do_set_offtime(unsigned char day, unsigned char hour, unsigned char minute, bool on); 
+  bool do_set_offtime(unsigned char index, unsigned char day, unsigned char hour, unsigned char minute, bool on); 
   bool do_offtime(unsigned char day, unsigned char hour, unsigned char minute); //f alone
   bool do_query_time(MySetTimeFrame & reply);
 };

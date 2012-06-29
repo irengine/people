@@ -129,30 +129,27 @@ bool MyConfigReplyFrame::failed() const
 
 MyApp::MyApp(const char * dev): MyBaseApp(dev)
 {
-
+  m_mark1 = 0xAA;
+  m_mark2 = 0x55;
 }
  
 void MyApp::loop()
 {
-  do_get_dev_id();
-//  return;
-//  get_dev_id();
+  if (!get_dev_id())
+  {
+    fprintf(stderr, "Fatal: can not get device id\n");
+    return;
+  }
   MySetTimeFrame stime;
   query_time(stime);
-  sync_time();
+//  sync_time();
   unsigned char status;
   check_status(status);
   set_mode1(2); //3: online 2: offline  
   set_mode2(1); //1: week; 2 day
-  onofftime(9, 31, 21, 24);    
   clear_offtime();
-//  onofftime(8, 30, 20, 25);  
-/*  
-  set_status(2, true);
-  sleep(3);
-  set_status(2, false);*/
+  onofftime(9, 31, 20, 24);    
   check_status(status);
-  do_get_dev_id();  
 }
 
 const char * MyApp::data_file() const
@@ -180,9 +177,9 @@ bool MyApp::setup_port()
   return ::setup_port(get_fd(), 9600, 8, 'N', 1) != -1;
 }
 
-bool MyApp::do_get_dev_id()
+bool MyApp::do_get_dev_id(unsigned char c)
 {
-  MyQueryDevIDFrame f(0);
+  MyQueryDevIDFrame f(c);
 //  my_dump(f);
   if (!write_command(f))
     return false;
@@ -291,17 +288,21 @@ bool MyApp::do_clear_offtime(unsigned char idx)
   return reply.ok();
 }
 
-bool MyApp::do_set_offtime(unsigned char day, unsigned char hour, unsigned char minute, bool on)
+bool MyApp::do_set_offtime(unsigned char index, unsigned char day, unsigned char hour, unsigned char minute, bool on)
 {
+  int xday = day % 7;
+  if (xday == 0)
+    xday = 7;
   MyOffTimeFrame req;
-  req.m_index = day;
+  req.m_index = index;
+  req.m_second = index;
   req.m_minute = minute;
   req.m_hour = hour;
-  req.m_weekday = day;
+  req.m_weekday = xday;
   req.m_status = on? 0xF7: 0;
 //  printf("debug_offtime: index=%d, hour=%d, minute=%d, wday=%d, status=%02X\n", 
 //         req.m_index, req.m_hour, req.m_minute, req.m_weekday, req.m_status);
-//  my_dump(req);         
+//  my_dump(req);
   if (!write_command(req))
     return false;
   MyConfigReplyFrame reply;
@@ -314,6 +315,8 @@ bool MyApp::do_set_offtime(unsigned char day, unsigned char hour, unsigned char 
 
 bool MyApp::do_offtime(unsigned char day, unsigned char hour, unsigned char minute)
 {
+  return do_set_offtime(8, day, hour, minute, false);
+  /*
   time_t now = time(NULL);
   struct tm _tm;
   localtime_r(&now, &_tm);
@@ -352,6 +355,7 @@ bool MyApp::do_offtime(unsigned char day, unsigned char hour, unsigned char minu
   }
   
   return do_set_offtime(day, yhour, yminute, false);
+  */
 }
 
 bool MyApp::offtime(unsigned char day, unsigned char hour, unsigned char minute)
@@ -373,26 +377,52 @@ bool MyApp::onofftime(unsigned char ohour, unsigned char ominute, unsigned char 
   localtime_r(&now, &_tm);
   int day = _tm.tm_wday? _tm.tm_wday: 7;
   bool ret, xret = true;
-  for (int i = 1; i <= 7; ++ i)
+  
+  printf("day(%d):\n", day);
+
+  ret = do_set_offtime(day, day, 0, 1, true);
+  printf("do_set_offtime(%d): %s\n", day, ret? "ok":"failed");
+  if (!ret)
   {
-    if (i == day)
+    ret = do_set_offtime(day, day, 0, 1, true);
+    printf("do_set_offtime(%d): %s\n", day, ret? "ok":"failed");
+  }
+  if (!ret)
+    xret = false;
+    
+  int j;
+  for (int i = 1; i <= 8; ++ i)
+  {
+    if (i != day && i != day + 1)
     {
-      if (!offtime(day, fhour, fminute))
-        xret = false;
-    } else
-    {
-      ret = do_set_offtime(i, ohour, ominute, true);
+      j = (i < day? i: i-1);
+      ret = do_set_offtime(i, j, ohour, ominute, true);
       printf("do_set_offtime(%d): %s\n", i, ret? "ok":"failed");
       if (!ret)
       {
-		    ret = do_set_offtime(i, ohour, ominute, true);
+		    ret = do_set_offtime(i, j, ohour, ominute, true);
 		    printf("do_set_offtime(%d): %s\n", i, ret? "ok":"failed");
       }
       if (!ret)
         xret = false;
     }
   }
+
+  ret = do_set_offtime(day + 1, day, fhour, fminute, false);
+  printf("do_set_offtime(%d): %s\n", day, ret? "ok":"failed");
+  if (!ret)
+  {
+    ret = do_set_offtime(day + 1, day, fhour, fminute, false);
+    printf("do_set_offtime(%d): %s\n", day, ret? "ok":"failed");
+  }
+  if (!ret)
+    xret = false;
+
+  sync_time();
   
+//  if (!offtime(day, fhour, fminute))
+//    xret = false;
+    
   printf("do_set_offtime(all): %s\n", xret? "ok":"failed");
   return xret;
 }
@@ -414,8 +444,8 @@ bool MyApp::do_query_time(MySetTimeFrame & reply)
 
 bool MyApp::get_dev_id()
 {
-  if (!do_get_dev_id())
-    return do_get_dev_id();
+  if (!do_get_dev_id(0x12))
+    return do_get_dev_id(0x13);
   return true;  
 }
 
@@ -481,7 +511,7 @@ bool MyApp::set_status(unsigned char idx, bool on)
 bool MyApp::clear_offtime()
 {
   bool ret, xret = true;;
-  for (int i = 8; i <= 20; ++ i)
+  for (int i = 9; i <= 20; ++ i)
   {
 		ret = do_clear_offtime(i);
 		printf("clear_offtime(%d): %s\n", i, ret? "ok": "failed");
@@ -524,61 +554,5 @@ int main(int argc, const char * argv[])
   MyApp g_app(argv[1]);
   g_app.loop();
   return 0;
-#define FALSE  -1
-#define TRUE   0
-    int fd = FALSE;    	  
-    int ret;      	  
-    char rcv_buf[512];
-    int i;
-    if(argc != 2)
-    {
-     printf("Usage: %s /dev/ttySn \n",argv[0]);	
-     return FALSE;	
-    }
-    fd = open_port(argv[1]); 
-    if(fd < 0)
-    {	
-      printf("open error\n");	
-      exit(1);
-    }
-    ret  = setup_port(fd,9600, 8,'N', 1);
-    if (FALSE == fd)
-    {	
-      printf("Set Port Error\n");	
-      exit(1); 
-    }
-    unsigned char buff[] = {0xAA, 0x55, 0x00, 0xcf, 0x55, 0xaa};
-    ret = write_port(fd, (char*)buff, 6);
-    if(FALSE == ret)
-    {
-      printf("write error!\n");
-      exit(1);
-    }
-    printf("command: %s\n","*IDN?");
-    memset(rcv_buf,0,sizeof(rcv_buf));
-    for(i=0;;i++)
-    {
-      printf("trying to read, i = %d\n", i);
-      ret = read_port(fd, rcv_buf,512);	
-      if( ret > 0)
-      {
-      	rcv_buf[ret]='\0';
-      	int j;
-      	for (j = 0; j < ret; ++ j)
-      	{	
-   	      printf("%02X-%u ",(unsigned char)rcv_buf[j], (unsigned char)rcv_buf[j]);	
-   	    }
-   	    printf("\n");  
-      } else 
-      {	
-        printf("cannot receive data1\n");	
-        break;
-      }
- 
-      if('\n' == rcv_buf[ret-1])
-        break;
-   }
-   close_port(fd);  
-   return 0;  
 }
 

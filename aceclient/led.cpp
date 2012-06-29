@@ -76,7 +76,7 @@ myControlReqFrame::myControlReqFrame()
   m_line_3_prop = 0;
   m_line_4_prop = 0;
   m_port_error_time = 0;
-  m_move_speed = 1; //slow
+  m_move_speed = 0x2; //0x01 slow, 0x2 medium; 0x3 fast
   m_brightness = 0x20;
   
   time_t now = time(NULL);
