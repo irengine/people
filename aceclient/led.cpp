@@ -87,7 +87,7 @@ static std::string gbk_from_hex(const std::string & src)
   int len = src.length();
   if (len % 2 != 0)
     len --;
-  unsigned char * buff = new unsigned char[len / 2];
+  unsigned char * buff = new unsigned char[len / 2 + 2];
   unsigned char m;
   const char * ptr = src.c_str();
   buff[0] = 0;
