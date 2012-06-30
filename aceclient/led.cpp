@@ -61,6 +61,57 @@ unsigned int myCRC16(const unsigned char * data, unsigned int len)
   return result;
 }
 
+static unsigned char char_from_hex(char c, char d)
+{
+  unsigned char result;
+  if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')))
+    return 0;
+  if (!((d >= '0' && d <= '9') || (d >= 'a' && d <= 'f')))
+    return 0;
+  if (c >= '0' && c <= '9')
+    result = c - '0';
+  else
+    result = c - 'a' + 10;
+  result = result << 4;
+  if (d >= '0' && d <= '9')
+    result += d - '0';
+  else
+    result += d - 'a' + 10;
+  return result;
+}
+
+static std::string gbk_from_hex(const std::string & src)
+{
+  if (src.length() < 2)
+    return "";
+  int len = src.length();
+  if (len % 2 != 0)
+    len --;
+  unsigned char * buff = new unsigned char[len / 2];
+  unsigned char m;
+  const char * ptr = src.c_str();
+  buff[0] = 0;
+  std::string result;
+  for (int i = 0; i < len / 2; ++i)
+  {
+    m = char_from_hex(*ptr, *(ptr + 1));
+    if (m == 0)
+    {
+      buff[i] = 0;
+      result = (const char*)buff;
+      delete [] buff;
+      return result;
+    }
+    buff[i] = m;
+    ptr += 2;
+  }
+
+  buff[len / 2] = 0;
+  result = (const char*)buff;
+  delete [] buff;
+  return result;
+}
+
 
 //myControlReqFrame//
 
@@ -251,9 +302,9 @@ bool MyApp::display_text()
     return false;
 
   fprintf(stderr, "start display text\n");
-      
+  std::string s = gbk_from_hex(get_value());
   myStaticDisplayReqFrame req;
-  req.setinfo(get_value().c_str());
+  req.setinfo(s.c_str());
   req.gen_crc16();
   if (!write_port(req.data(), req.length()))
   {
