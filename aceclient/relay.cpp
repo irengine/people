@@ -147,9 +147,22 @@ void MyApp::loop()
   check_status(status);
   set_mode1(2); //3: online 2: offline  
   set_mode2(1); //1: week; 2 day
-  clear_offtime();
-  onofftime(9, 31, 20, 24);    
-  check_status(status);
+  
+  while(true)
+  {
+    sleep(6);
+    if (!get_fstate())
+      continue;
+    sleep(4);
+    if (!read_text())
+      continue;
+    if (!parse())
+      continue;
+
+    clear_offtime();
+    onofftime(m_on_hour, m_on_minute, m_off_hour, m_off_minute, m_off);    
+        
+  }
 }
 
 const char * MyApp::data_file() const
@@ -170,6 +183,25 @@ bool MyApp::has_text() const
     if (s[i] > '9' || s[i] < '0')
       return false;
   return true;
+}
+
+unsigned char MyApp::do_parse(const char * ptr)
+{
+  char buff[3];
+  memcpy(buff, ptr, 2);
+  buff[2] = 0;
+  return (unsigned char)atoi(buff);
+}
+
+bool MyApp::parse()
+{
+  const char * ptr = get_value().c_str();
+  m_on_hour = do_parse(ptr + 1);
+  m_on_minute = do_parse(ptr + 3);
+  m_off_hour = do_parse(ptr + 5);
+  m_off_minute = do_parse(ptr + 7);
+  m_off = (*(ptr + 9) == '1');
+  return (m_on_hour <= 23 && m_off_hour <= 23 && m_on_minute <= 59 && m_off_minute <= 59);
 }
 
 bool MyApp::setup_port()
@@ -370,7 +402,7 @@ bool MyApp::offtime(unsigned char day, unsigned char hour, unsigned char minute)
   return ret;
 }
 
-bool MyApp::onofftime(unsigned char ohour, unsigned char ominute, unsigned char fhour, unsigned char fminute)
+bool MyApp::onofftime(unsigned char ohour, unsigned char ominute, unsigned char fhour, unsigned char fminute, bool off)
 {
   time_t now = time(NULL);
   struct tm _tm;
@@ -380,11 +412,11 @@ bool MyApp::onofftime(unsigned char ohour, unsigned char ominute, unsigned char 
   
   printf("day(%d):\n", day);
 
-  ret = do_set_offtime(day, day, 0, 1, true);
+  ret = do_set_offtime(day, day, 0, 0, true);
   printf("do_set_offtime(%d): %s\n", day, ret? "ok":"failed");
   if (!ret)
   {
-    ret = do_set_offtime(day, day, 0, 1, true);
+    ret = do_set_offtime(day, day, 0, 0, true);
     printf("do_set_offtime(%d): %s\n", day, ret? "ok":"failed");
   }
   if (!ret)
@@ -408,6 +440,11 @@ bool MyApp::onofftime(unsigned char ohour, unsigned char ominute, unsigned char 
     }
   }
 
+  if (off)
+  {
+    fhour = 0; 
+    fminute = 1;
+  }
   ret = do_set_offtime(day + 1, day, fhour, fminute, false);
   printf("do_set_offtime(%d): %s\n", day, ret? "ok":"failed");
   if (!ret)
