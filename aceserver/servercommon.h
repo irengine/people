@@ -122,4 +122,22 @@ public:
   static bool calculate_all_in_one_ftp_md5(const char * dist_id, MyPooledMemGuard & md5_result);
 };
 
+ACE_Message_Block * my_get_hb_mb();
+
+class MyActChecker
+{
+public:
+  void update()
+  {
+    m_tm = time(NULL);
+  }
+  bool expired() const
+  {
+    return time(NULL) - m_tm >= 85;
+  }
+
+private:
+  time_t m_tm;
+};
+
 #endif /* SERVERCOMMON_H_ */

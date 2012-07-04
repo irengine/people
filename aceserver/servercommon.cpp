@@ -419,3 +419,15 @@ bool MyDistMd5Calculator::calculate_all_in_one_ftp_md5(const char * dist_id, MyP
   MyDistCompressor::get_all_in_one_mbz_file_name(dist_id, filename);
   return mycomutil_calculate_file_md5(filename.data(), md5_result);
 }
+
+
+ACE_Message_Block * my_get_hb_mb()
+{
+  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(1, "99");
+  if (!mb)
+    return NULL;
+  char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
+  *dest = '1';
+  *(dest + 1) = MyBSBasePacket::BS_PACKET_END_MARK;
+  return mb;
+}

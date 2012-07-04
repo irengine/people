@@ -405,12 +405,17 @@ class MyMiddleToBSHandler: public MyBaseHandler
 {
 public:
   MyMiddleToBSHandler(MyBaseConnectionManager * xptr = NULL);
+  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
+  void checker_update();
   MyDistLoadModule * module_x() const;
   DECLARE_MEMORY_POOL__NOTHROW(MyMiddleToBSHandler, ACE_Thread_Mutex);
 
 protected:
   virtual void on_close();
   virtual int  on_open();
+
+private:
+  MyActChecker m_checker;
 };
 
 class MyMiddleToBSConnector: public MyBaseConnector
@@ -421,7 +426,7 @@ public:
   virtual const char * name() const;
 
 protected:
-  enum { RECONNECT_INTERVAL = 3 }; //time in minutes
+  enum { RECONNECT_INTERVAL = 1 }; //time in minutes
 };
 
 

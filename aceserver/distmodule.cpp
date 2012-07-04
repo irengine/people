@@ -2190,6 +2190,8 @@ MyBaseProcessor::EVENT_RESULT MyDistToBSProcessor::on_recv_packet_i(ACE_Message_
     process_ip_ver_reply(bspacket);
 //  MY_INFO("got a bs reply packet:%s\n", mb->base());
 
+  ((MyDistToBSHandler*)m_handler)->checker_update();
+
   return ER_OK;
 }
 
@@ -2250,8 +2252,47 @@ MyDistToMiddleModule * MyDistToBSHandler::module_x() const
   return (MyDistToMiddleModule *)connector()->module_x();
 }
 
+void MyDistToBSHandler::checker_update()
+{
+  m_checker.update();
+}
+
+int MyDistToBSHandler::handle_timeout(const ACE_Time_Value &, const void *)
+{
+  if (m_checker.expired())
+  {
+    MY_ERROR("no data received from bs @MyDistToBSHandler ...\n");
+    return -1;
+  }
+  ACE_Message_Block * mb = my_get_hb_mb();
+  if (mb)
+  {
+    if (send_data(mb) < 0)
+      return -1;
+  }
+  return 0;
+}
+
 int MyDistToBSHandler::on_open()
 {
+  ACE_Time_Value interval(30);
+  if (reactor()->schedule_timer(this, (void*)0, interval, interval) < 0)
+  {
+    MY_ERROR(ACE_TEXT("MyDistToBSHandler setup timer failed, %s"), (const char*)MyErrno());
+    return -1;
+  }
+
+  if (!g_test_mode)
+    MY_INFO("MyDistToBSHandler setup timer: OK\n");
+
+  ACE_Message_Block * mb = my_get_hb_mb();
+  if (mb)
+  {
+    if (send_data(mb) < 0)
+      return -1;
+  }
+  m_checker.update();
+
   return 0;
 }
 

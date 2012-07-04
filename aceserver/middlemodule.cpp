@@ -1242,6 +1242,7 @@ MyBaseProcessor::EVENT_RESULT MyMiddleToBSProcessor::on_recv_packet_i(ACE_Messag
 {
   if (mb)
     mb->release();
+  ((MyMiddleToBSHandler*)m_handler)->checker_update();
   return ER_OK;
 }
 
@@ -1260,8 +1261,47 @@ MyDistLoadModule * MyMiddleToBSHandler::module_x() const
   return (MyDistLoadModule *)connector()->module_x();
 }
 
+void MyMiddleToBSHandler::checker_update()
+{
+  m_checker.update();
+}
+
+int MyMiddleToBSHandler::handle_timeout(const ACE_Time_Value &, const void *)
+{
+  if (m_checker.expired())
+  {
+    MY_ERROR("no data received from bs @MyMiddleToBSHandler ...\n");
+    return -1;
+  }
+  ACE_Message_Block * mb = my_get_hb_mb();
+  if (mb)
+  {
+    if (send_data(mb) < 0)
+      return -1;
+  }
+  return 0;
+}
+
 int MyMiddleToBSHandler::on_open()
 {
+  ACE_Time_Value interval(30);
+  if (reactor()->schedule_timer(this, (void*)0, interval, interval) < 0)
+  {
+    MY_ERROR(ACE_TEXT("MyMiddleToBSHandler setup timer failed, %s"), (const char*)MyErrno());
+    return -1;
+  }
+
+  if (!g_test_mode)
+    MY_INFO("MyMiddleToBSHandler setup timer: OK\n");
+
+  ACE_Message_Block * mb = my_get_hb_mb();
+  if (mb)
+  {
+    if (send_data(mb) < 0)
+      return -1;
+  }
+  m_checker.update();
+
   return 0;
 }
 
