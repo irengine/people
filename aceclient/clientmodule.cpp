@@ -1545,10 +1545,12 @@ void MyDistInfoFtp::generate_url_ini()
   if (!ftype_is_chn(ftype))
     return;
 
-  MyPooledMemGuard path, file;
-  calc_target_parent_path(path, false, false);
+  MyPooledMemGuard path, file, dest_parent_path, true_dest_p_path, t_file;
+  MyClientApp::calc_backup_parent_path(dest_parent_path, client_id.as_string());
+  MyClientApp::calc_display_parent_path(true_dest_p_path, client_id.as_string());
+  path.init_from_string(dest_parent_path.data(), "/new");
   file.init_from_string(path.data(), "/index/", adir.data(), "/url.ini");
-
+  t_file.init_from_string(true_dest_p_path.data(), "/index/", adir.data(), "/url.ini");
   {
     MyUnixHandleGuard h;
     if (unlikely(!h.open_write(file.data(), true, true, false, false)))
@@ -1556,20 +1558,26 @@ void MyDistInfoFtp::generate_url_ini()
 
     const char * s = index_file();
     ::write(h.handle(), s, ACE_OS::strlen(s));
+    fsync(h.handle());
   }
+  MyFilePaths::copy_file(file.data(), t_file.data(), true, false);
 
   if (ftype == '2')
   {
     file.init_from_string(path.data(), "/index/", adir.data(), "/date.ini");
+    t_file.init_from_string(true_dest_p_path.data(), "/index/", adir.data(), "/date.ini");
+    {
+      MyUnixHandleGuard h;
+      if (unlikely(!h.open_write(file.data(), true, true, false, false)))
+        return;
 
-    MyUnixHandleGuard h;
-    if (unlikely(!h.open_write(file.data(), true, true, false, false)))
-      return;
-
-    char buff[50];
-    mycomutil_generate_time_string(buff, 50, false);
-    buff[8] = 0;
-    ::write(h.handle(), buff, 8);
+      char buff[50];
+      mycomutil_generate_time_string(buff, 50, false);
+      buff[8] = 0;
+      ::write(h.handle(), buff, 8);
+      fsync(h.handle());
+    }
+    MyFilePaths::copy_file(file.data(), t_file.data(), true, false);
   }
 }
 
@@ -1722,6 +1730,7 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
 
   MyPooledMemGuard target_parent_path;
   dist_info->calc_target_parent_path(target_parent_path, true, false);
+  MY_INFO("Updating dist(%s) client_id(%s)...\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
   bool result = do_extract(dist_info, target_parent_path);
   if (!result)
   {
@@ -1750,6 +1759,7 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
   }
   MyFilePaths::remove_path(target_parent_path.data(), true);
   MyFilePaths::remove(dist_info->local_file_name.data());
+  ACE_OS::sleep(30);
   return result;
 }
 
@@ -1777,6 +1787,17 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
   if (unlikely(!get_true_dest_path(dist_info,  true_dest_path)))
     return false;
 
+  MyPooledMemGuard s_n, dest_parent_path, dest_path;
+  MyClientApp::calc_backup_parent_path(dest_parent_path, dist_info->client_id.as_string());
+  s_n.init_from_string(dest_parent_path.data(), "/new");
+  prefix_len = ACE_OS::strlen(dest_parent_path.data());
+  if (!MyFilePaths::make_path_const(s_n.data(), prefix_len, false, true))
+  {
+    MY_ERROR("can not mkdir(%s) %s\n", s_n.data(), (const char *)MyErrno());
+    return false;
+  }
+  dist_info->calc_target_path(s_n.data(), dest_path);
+/*
   if (type_is_multi(dist_info->type))
   {
     if (!mycomutil_string_end_with(dist_info->file_name.data(), "/all_in_one.mbz"))
@@ -1830,15 +1851,6 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
         MY_ERROR("no server md5 list for diff dist(%s) client(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
         return false;
       }
-/*
-      if (ftype_is_chn(dist_info->ftype))
-      {
-        if (dist_info->aindex.data() && *dist_info->aindex.data())
-          MyFilePaths::zap_path_except_mfile(target_path, dist_info->aindex, true);
-        else
-          MyFilePaths::zap_path_except_mfile(target_path, dist_info->findex, true);
-      }
-*/
 #if 0
       MyMfileSplitter spl;
       spl.init(dist_info->aindex.data());
@@ -1862,20 +1874,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
         MyFilePaths::zap_empty_paths(index_path);
       }
 #else
-/*
-      MyMfileSplitter spl;
-      spl.init(dist_info->aindex.data());
-      MyFileMD5s server_md5s;
-      server_md5s.enable_map();
-//    MY_DEBUG("cmp md5 server: %s\n", dist_info->server_md5.data());
-//    MY_DEBUG("cmp md5 client: %s\n", dist_info->client_md5.data());
-      if (!server_md5s.from_buffer(dist_info->server_md5.data(), &spl))
-      {
-        MY_ERROR("bad server md5 list @MyDistFtpFileExtractor::do_extract\n");
-        return false;
-      }
-      server_md5s.trim_garbage(target_path.data());
-*/
+
       if (!MyFilePaths::make_path_const(target_path.data(), prefix_len, false, true))
       {
         MY_ERROR("can not mkdir(%s) %s\n", target_path.data(), (const char *)MyErrno());
@@ -1884,6 +1883,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
 #endif
     }
   }
+*/
 
   MyBZCompressor c;
   bool result = c.decompress(dist_info->local_file_name.data(), target_path.data(), dist_info->file_password.data(), dist_info->aindex.data());
@@ -1907,20 +1907,28 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
     {
       if (type_is_single(dist_info->type))
       {
-        if (!MyFilePaths::copy_path(target_path.data(), true_dest_path.data(), true))
+        if (!MyFilePaths::copy_path(target_path.data(), dest_path.data(), true, true))
           result = false;
+        if (!MyFilePaths::copy_path(target_path.data(), true_dest_path.data(), true, false))
+          MY_WARNING("failed to copy_path for true_dest_path\n");
       } else if (type_is_all(dist_info->type) || type_is_multi(dist_info->type))
       {
         if (ftype_is_frame(dist_info->ftype) || type_is_multi(dist_info->type))
         {
-          if (!MyFilePaths::copy_path(target_path.data(), true_dest_path.data(), true))
+          if (!MyFilePaths::copy_path(target_path.data(), dest_path.data(), true, true))
             result = false;
+          if (!MyFilePaths::copy_path(target_path.data(), true_dest_path.data(), true, false))
+            MY_WARNING("failed to copy_path for true_dest_path\n");
         }
-        else if (!MyFilePaths::copy_path_zap(target_path.data(), true_dest_path.data(), true, ftype_is_chn(dist_info->ftype)))
-          result = false;
-      }
+        else
+        {
+          if (!MyFilePaths::copy_path_zap(target_path.data(), dest_path.data(), true, ftype_is_chn(dist_info->ftype), true))
+            result = false;
+          if (!MyFilePaths::copy_path_zap(target_path.data(), true_dest_path.data(), true, ftype_is_chn(dist_info->ftype), false))
+            MY_WARNING("failed to copy_path_zap for true_dest_path\n");
+        }
 
-      if (!result && !ftype_is_vd(dist_info->ftype))
+/*      if (!result && !ftype_is_vd(dist_info->ftype))
       {
         MY_WARNING("doing restore due to deployment error client_id(%s)\n", dist_info->client_id.as_string());
         if (!MyClientApp::full_restore(NULL, true, true, dist_info->client_id.as_string()))
@@ -1933,6 +1941,9 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
     {
       MY_ERROR("unknown dist type(%d) for dist_id(%s)\n", dist_info->type, dist_info->dist_id.data());
       result = false;
+    }
+*/
+      }
     }
   }
 
@@ -3571,6 +3582,7 @@ void MyClientToDistService::do_extract_task(MyDistInfoFtp * dist_info)
     dist_info->status = extractor.extract(dist_info) ? 4:5;
     dist_info->update_db_status();
     dist_info->post_status_message();
+    MY_INFO("update done for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
     if (!g_test_mode && dist_info->status == 4)
     {
       if (ftype_is_adv_list(dist_info->ftype))

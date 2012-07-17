@@ -663,41 +663,20 @@ bool MyClientApp::full_backup(const char * dist_id, const char * client_id)
   MyPooledMemGuard src_parent_path;
   calc_display_parent_path(src_parent_path, client_id);
 
-  MyPooledMemGuard tmp, dest_parent_path;
+  MyPooledMemGuard snew, dest_parent_path, sold;
   calc_backup_parent_path(dest_parent_path, client_id);
 
-  tmp.init_from_string(dest_parent_path.data(), "/tmp");
-  MyFilePaths::remove_path(tmp.data(), true);
+  snew.init_from_string(dest_parent_path.data(), "/new");
+  sold.init_from_string(dest_parent_path.data(), "/old");
+  MyFilePaths::remove_path(sold.data(), true);
 
-  if (!MyFilePaths::make_path(tmp.data(), true))
+  if (!MyFilePaths::make_path(sold.data(), true))
   {
-    MY_ERROR("can not mkdir(%s) %s\n", tmp.data(), (const char *)MyErrno());
+    MY_ERROR("can not mkdir(%s) %s\n", sold.data(), (const char *)MyErrno());
     return false;
   }
 
-  if (!do_backup_restore(src_parent_path, tmp, false, false))
-    return false;
-
-  if (dist_id && *dist_id)
-  {
-    MyPooledMemGuard dest_path;
-    dest_path.init_from_string(tmp.data(), "/dist_id.txt");
-    MyUnixHandleGuard fh;
-    if (fh.open_write(dest_path.data(), true, true, false, true))
-      ::write(fh.handle(), dist_id, strlen(dist_id));
-  }
-
-  MyPooledMemGuard old_path, new_path;
-  old_path.init_from_string(dest_parent_path.data(), "/old");
-  new_path.init_from_string(dest_parent_path.data(), "/new");
-  MyFilePaths::remove_path(old_path.data(), true);
-  if (MyFilePaths::exist(new_path.data()))
-  {
-    if (!MyFilePaths::rename(new_path.data(), old_path.data(), false))
-      return false;
-  }
-
-  return MyFilePaths::rename(tmp.data(), new_path.data(), false);
+  return MyFilePaths::copy_path(snew.data(), sold.data(), true, false);
 }
 
 bool MyClientApp::full_restore(const char * dist_id, bool remove_existing, bool is_new, const char * client_id, bool init)
@@ -792,7 +771,7 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
     MyFilePaths::zap(dest_path.data(), true);
   if (MyFilePaths::stat(src_path.data(), &buf) && S_ISDIR(buf.st_mode))
   {
-    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
+    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true, false))
     {
       MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
       return false;
@@ -803,7 +782,7 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
   if (MyFilePaths::stat(src_path.data(), &buf) && S_ISREG(buf.st_mode))
   {
     dest_path.init_from_string(dest_parent_path.data(), "/", mfile.data());
-    if (!MyFilePaths::copy_file(src_path.data(), dest_path.data(), true))
+    if (!MyFilePaths::copy_file(src_path.data(), dest_path.data(), true, false))
     {
       MY_ERROR("failed to copy file (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
       return false;
@@ -817,7 +796,7 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
     MyFilePaths::zap(dest_path.data(), true);
   if (MyFilePaths::stat(src_path.data(), &buf) && S_ISDIR(buf.st_mode))
   {
-    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
+    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true, false))
     {
       MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
       return false;

@@ -25,7 +25,7 @@ class MyDistInfoFtps;
 class MyHttp1991Acceptor;
 
 const u_int8_t const_client_version_major = 1;
-const u_int8_t const_client_version_minor = 1;
+const u_int8_t const_client_version_minor = 2;
 
 //simple implementation, not thread safe, multiple calls to put on the same id will generate duplicate
 //IDs for later gets. but it works for our test. that is enough

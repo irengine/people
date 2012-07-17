@@ -481,7 +481,7 @@ bool MyFilePaths::make_path(const char * path, const char * subpath, bool is_fil
   return make_path(path_x.data(), strlen(path) + 1, is_file, self_only);
 }
 
-bool MyFilePaths::copy_path(const char * srcdir, const char * destdir, bool self_only)
+bool MyFilePaths::copy_path(const char * srcdir, const char * destdir, bool self_only, bool syn)
 {
   if (unlikely(!srcdir || !*srcdir || !destdir || !*destdir))
     return false;
@@ -518,7 +518,7 @@ bool MyFilePaths::copy_path(const char * srcdir, const char * destdir, bool self
 
     if (entry->d_type == DT_REG)
     {
-      if (!copy_file(msrc.data(), mdest.data(), self_only))
+      if (!copy_file(msrc.data(), mdest.data(), self_only, syn))
       {
         MY_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (const char *)MyErrno());
         closedir(dir);
@@ -527,7 +527,7 @@ bool MyFilePaths::copy_path(const char * srcdir, const char * destdir, bool self
     }
     else if(entry->d_type == DT_DIR)
     {
-      if (!copy_path(msrc.data(), mdest.data(), self_only))
+      if (!copy_path(msrc.data(), mdest.data(), self_only, syn))
       {
         closedir(dir);
         return false;
@@ -541,7 +541,7 @@ bool MyFilePaths::copy_path(const char * srcdir, const char * destdir, bool self
   return true;
 }
 
-bool MyFilePaths::copy_path_zap(const char * srcdir, const char * destdir, bool self_only, bool zap)
+bool MyFilePaths::copy_path_zap(const char * srcdir, const char * destdir, bool self_only, bool zap, bool syn)
 {
   if (unlikely(!srcdir || !*srcdir || !destdir || !*destdir))
     return false;
@@ -582,7 +582,7 @@ bool MyFilePaths::copy_path_zap(const char * srcdir, const char * destdir, bool 
 
     if (entry->d_type == DT_REG)
     {
-      if (!copy_file(msrc.data(), mdest.data(), self_only))
+      if (!copy_file(msrc.data(), mdest.data(), self_only, syn))
       {
         MY_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (const char *)MyErrno());
         closedir(dir);
@@ -591,7 +591,7 @@ bool MyFilePaths::copy_path_zap(const char * srcdir, const char * destdir, bool 
     }
     else if(entry->d_type == DT_DIR)
     {
-      if (!copy_path_zap(msrc.data(), mdest.data(), self_only, true))
+      if (!copy_path_zap(msrc.data(), mdest.data(), self_only, true, syn))
       {
         closedir(dir);
         return false;
@@ -740,14 +740,17 @@ bool MyFilePaths::copy_file_by_fd(int src_fd, int dest_fd)
   ACE_NOTREACHED(return true);
 }
 
-bool MyFilePaths::copy_file(const char * src, const char * dest, bool self_only)
+bool MyFilePaths::copy_file(const char * src, const char * dest, bool self_only, bool syn)
 {
   MyUnixHandleGuard hsrc, hdest;
   if (!hsrc.open_read(src))
     return false;
   if (!hdest.open_write(dest, true, true, false, self_only))
     return false;
-  return copy_file_by_fd(hsrc.handle(), hdest.handle());
+  bool ret = copy_file_by_fd(hsrc.handle(), hdest.handle());
+  if (ret && syn)
+    fsync(hdest.handle());
+  return ret;
 }
 
 int MyFilePaths::cat_path(const char * path, const char * subpath, MyPooledMemGuard & result)
