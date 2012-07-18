@@ -2022,7 +2022,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
     dist_info->generate_url_ini();
     if (!bv)
       dist_info->generate_dist_id_txt(s_n);
-    ACE_OS::sleep(30);
+    ACE_OS::sleep(20);
   }
   return result;
 }
@@ -2049,9 +2049,9 @@ bool MyDistFtpFileExtractor::syn(MyDistInfoFtp * dist_info)
 
   if (!MyClientApp::do_backup_restore(pn, po, true, false, true))
     return false;
-  ACE_OS::sleep(5);
+  ACE_OS::sleep(10);
   bool result = dist_info->generate_dist_id_txt(po);
-  ACE_OS::sleep(25);
+  ACE_OS::sleep(20);
   return result;
 }
 
