@@ -655,6 +655,7 @@ public:
   static bool zap(const char *pathfile, bool ignore_error);
   static bool rename(const char *old_path, const char * new_path, bool ignore_eror);
   static bool stat(const char *pathfile, struct stat * _stat);
+  static int  filesize(const char *pathfile);
   static bool zap_path_except_mfile(const MyPooledMemGuard & path, const MyPooledMemGuard & mfile, bool ignore_error);
   static void zap_empty_paths(const MyPooledMemGuard & parent_path);
 };

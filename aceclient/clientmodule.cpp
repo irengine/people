@@ -1607,6 +1607,27 @@ bool MyDistInfoFtp::operator < (const MyDistInfoFtp & rhs) const
   return recv_time < rhs.recv_time;
 }
 
+bool MyDistInfoFtp::generate_dist_id_txt(const MyPooledMemGuard & path)
+{
+  MyPooledMemGuard fn;
+  fn.init_from_string(path.data(), "/dist_id.txt");
+  char buff[32];
+  char * ptr;
+  if (!dist_id.data() || ACE_OS::strlen(dist_id.data()) < 32)
+  {
+    ptr = buff;
+    ACE_OS::memset(buff, '1', 32);
+  } else
+    ptr = dist_id.data();
+
+  MyUnixHandleGuard h;
+  if (unlikely(!h.open_write(fn.data(), true, true, false, false)))
+    return false;
+  bool ret = ::write(h.handle(), ptr, 32) == 32;
+  fsync(h.handle());
+  return ret;
+}
+
 
 //MyDistInfoFtps//
 
@@ -1728,10 +1749,40 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
     return false;
   }
 
-  MyPooledMemGuard target_parent_path;
+  MyPooledMemGuard target_parent_path, pn, po, dest_parent_path;
+  MyClientApp::calc_backup_parent_path(dest_parent_path, dist_info->client_id.as_string());
+  pn.init_from_string(dest_parent_path.data(), "/new");
+  po.init_from_string(dest_parent_path.data(), "/old");
   dist_info->calc_target_parent_path(target_parent_path, true, false);
   MY_INFO("Updating dist(%s) client_id(%s)...\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
-  bool result = do_extract(dist_info, target_parent_path);
+  bool bn, bo, bv;
+  bv = ftype_is_adv(dist_info->ftype);
+  bn = has_id(pn);
+  bo = has_id(po);
+
+  if (!bo && !bn)
+    MY_WARNING("no id found\n");
+
+  bool result = true;
+  if (bn && !bo)
+  {
+    if (!bv)
+    {
+      if (!syn(dist_info))
+        result = false;
+    }
+    if (result)
+      result = do_extract(dist_info, target_parent_path);
+  } else
+  {
+    result = do_extract(dist_info, target_parent_path);
+    if (result)
+    {
+      if (!bv)
+        syn(dist_info);
+    }
+  }
+
   if (!result)
   {
     MY_ERROR("apply update failed for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
@@ -1741,8 +1792,6 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
   else
   {
     MY_INFO("apply update OK for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
-    dist_info->generate_update_ini();
-    dist_info->generate_url_ini();
 //    if (!g_test_mode && ftype_is_adv_list(dist_info->ftype))
 //    {
 //      MyConfig * cfg = MyConfigX::instance();
@@ -1754,19 +1803,17 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
 //        cleaner.do_clean(mpath, MyClientAppX::instance()->client_id(), cfg->adv_expire_days);
 //      }
 //    }
-    if (!ftype_is_vd(dist_info->ftype))
-      MyClientApp::full_backup(dist_info->dist_id.data(), dist_info->client_id.as_string());
   }
   MyFilePaths::remove_path(target_parent_path.data(), true);
+  ACE_OS::sleep(20);
   MyFilePaths::remove(dist_info->local_file_name.data());
-  ACE_OS::sleep(30);
   return result;
 }
 
 bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPooledMemGuard & target_parent_path)
 {
   dist_info->calc_local_file_name();
-
+  bool bv = ftype_is_adv(dist_info->ftype);
   if (!MyFilePaths::make_path(target_parent_path.data(), true))
   {
     MY_ERROR("can not mkdir(%s) %s\n", target_parent_path.data(), (const char *)MyErrno());
@@ -1788,15 +1835,29 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
     return false;
 
   MyPooledMemGuard s_n, dest_parent_path, dest_path;
-  MyClientApp::calc_backup_parent_path(dest_parent_path, dist_info->client_id.as_string());
-  s_n.init_from_string(dest_parent_path.data(), "/new");
-  prefix_len = ACE_OS::strlen(dest_parent_path.data());
-  if (!MyFilePaths::make_path_const(s_n.data(), prefix_len, false, true))
+  if (!bv)
   {
-    MY_ERROR("can not mkdir(%s) %s\n", s_n.data(), (const char *)MyErrno());
-    return false;
+    MyClientApp::calc_backup_parent_path(dest_parent_path, dist_info->client_id.as_string());
+    s_n.init_from_string(dest_parent_path.data(), "/new");
+    prefix_len = ACE_OS::strlen(dest_parent_path.data());
+    if (!MyFilePaths::make_path_const(s_n.data(), prefix_len, false, true))
+    {
+      MY_ERROR("can not mkdir(%s) %s\n", s_n.data(), (const char *)MyErrno());
+      return false;
+    }
+    dist_info->calc_target_path(s_n.data(), dest_path);
+  } else
+  {
+    MyClientApp::data_path(dest_parent_path, dist_info->client_id.as_string());
+    prefix_len = ACE_OS::strlen(dest_parent_path.data());
+    dest_path.init_from_string(dest_parent_path.data(), "/5");
+    if (!MyFilePaths::make_path_const(dest_path.data(), prefix_len, false, true))
+    {
+      MY_ERROR("can not mkdir(%s) %s\n", s_n.data(), (const char *)MyErrno());
+      return false;
+    }
+
   }
-  dist_info->calc_target_path(s_n.data(), dest_path);
 /*
   if (type_is_multi(dist_info->type))
   {
@@ -1886,6 +1947,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
 */
 
   MyBZCompressor c;
+
   bool result = c.decompress(dist_info->local_file_name.data(), target_path.data(), dist_info->file_password.data(), dist_info->aindex.data());
   if (result)
   {
@@ -1903,13 +1965,20 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
       }
     }
 */
+    if (!bv)
+    {
+      MyPooledMemGuard fn;
+      fn.init_from_string(s_n.data(), "/dist_id.txt");
+      if (!MyFilePaths::remove(fn.data(), false))
+        return false;
+    }
     if (type_is_valid(dist_info->type))
     {
       if (type_is_single(dist_info->type))
       {
         if (!MyFilePaths::copy_path(target_path.data(), dest_path.data(), true, true))
           result = false;
-        if (!MyFilePaths::copy_path(target_path.data(), true_dest_path.data(), true, false))
+        if (!bv && !MyFilePaths::copy_path(target_path.data(), true_dest_path.data(), true, false))
           MY_WARNING("failed to copy_path for true_dest_path\n");
       } else if (type_is_all(dist_info->type) || type_is_multi(dist_info->type))
       {
@@ -1917,7 +1986,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
         {
           if (!MyFilePaths::copy_path(target_path.data(), dest_path.data(), true, true))
             result = false;
-          if (!MyFilePaths::copy_path(target_path.data(), true_dest_path.data(), true, false))
+          if (!ftype_is_adv(dist_info->ftype) && !MyFilePaths::copy_path(target_path.data(), true_dest_path.data(), true, false))
             MY_WARNING("failed to copy_path for true_dest_path\n");
         }
         else
@@ -1947,6 +2016,43 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
     }
   }
 
+  if (result)
+  {
+    ACE_OS::sleep(5);
+    dist_info->generate_update_ini();
+    dist_info->generate_url_ini();
+    if (!bv)
+      dist_info->generate_dist_id_txt(s_n);
+    ACE_OS::sleep(25);
+  }
+  return result;
+}
+
+bool MyDistFtpFileExtractor::has_id(const MyPooledMemGuard & target_parent_path)
+{
+  MyPooledMemGuard fn;
+  fn.init_from_string(target_parent_path.data(), "/dist_id.txt");
+  return MyFilePaths::filesize(fn.data()) >= 32;
+}
+
+bool MyDistFtpFileExtractor::syn(MyDistInfoFtp * dist_info)
+{
+  MyPooledMemGuard pn, po, dest_parent_path, dest_path;
+  MyClientApp::calc_backup_parent_path(dest_parent_path, dist_info->client_id.as_string());
+  pn.init_from_string(dest_parent_path.data(), "/new");
+  po.init_from_string(dest_parent_path.data(), "/old");
+  MyFilePaths::remove_path(po.data(), true);
+  if (!MyFilePaths::make_path(po.data(), true))
+  {
+    MY_ERROR("can not mkdir(%s) %s\n", po.data(), (const char *)MyErrno());
+    return false;
+  }
+
+  if (!MyClientApp::do_backup_restore(pn, po, true, false, true))
+    return false;
+  ACE_OS::sleep(5);
+  bool result = dist_info->generate_dist_id_txt(po);
+  ACE_OS::sleep(25);
   return result;
 }
 
@@ -2118,8 +2224,9 @@ bool MyDistInfoMD5Comparer::compute(MyDistInfoMD5 * dist_md5)
   if (unlikely(!dist_md5))
     return false;
 
-  MyPooledMemGuard target_parent_path;
-  dist_md5->calc_target_parent_path(target_parent_path, false, false);
+  MyPooledMemGuard target_parent_path, px;
+  dist_md5->calc_target_parent_path(px, false, true);
+  target_parent_path.init_from_string(px.data(), "/new");
 
   MyPooledMemGuard target_path;
   if (!dist_md5->calc_target_path(target_parent_path.data(), target_path))

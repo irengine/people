@@ -141,6 +141,7 @@ public:
   static bool get_mfile(const MyPooledMemGuard & parent_path, MyPooledMemGuard & mfile);
   static void check_prev_extract_task(const char * client_id);
   static void dump_mem_pool_info();
+  static bool do_backup_restore(const MyPooledMemGuard & src_parent_path, const MyPooledMemGuard & dest_path, bool remove_existing, bool init, bool syn);
 
 protected:
   virtual bool on_start();
@@ -151,7 +152,6 @@ protected:
   virtual bool on_event_loop();
 
 private:
-  static bool do_backup_restore(const MyPooledMemGuard & src_parent_path, const MyPooledMemGuard & dest_path, bool remove_existing, bool init);
   static bool get_mfile_from_file(const MyPooledMemGuard & parent_path, MyPooledMemGuard & mfile);
 
   MyClientToDistModule * m_client_to_dist_module;

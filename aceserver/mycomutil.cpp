@@ -785,7 +785,7 @@ bool MyFilePaths::rename(const char *old_path, const char * new_path, bool ignor
 
 bool MyFilePaths::remove(const char *pathfile, bool ignore_error)
 {
-  bool result = (::remove(pathfile) == 0);
+  bool result = (::remove(pathfile) == 0 || ACE_OS::last_error() == ENOENT);
   if (!result && !ignore_error)
     MY_ERROR("remove %s failed %s\n", pathfile, (const char*)MyErrno());
   return result;
@@ -815,6 +815,14 @@ bool MyFilePaths::zap(const char *pathfile, bool ignore_error)
 bool MyFilePaths::stat(const char *pathfile, struct stat * _stat)
 {
   return (::stat(pathfile, _stat) == 0);
+}
+
+int MyFilePaths::filesize(const char *pathfile)
+{
+  struct stat _stat;
+  if (!stat(pathfile, &_stat))
+    return 0;
+  return (int)_stat.st_size;
 }
 
 bool MyFilePaths::zap_path_except_mfile(const MyPooledMemGuard & path, const MyPooledMemGuard & mfile, bool ignore_error)

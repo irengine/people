@@ -660,6 +660,7 @@ void MyClientApp::calc_download_parent_path(MyPooledMemGuard & parent_path, cons
 
 bool MyClientApp::full_backup(const char * dist_id, const char * client_id)
 {
+  ACE_UNUSED_ARG(dist_id);
   MyPooledMemGuard src_parent_path;
   calc_display_parent_path(src_parent_path, client_id);
 
@@ -711,10 +712,10 @@ bool MyClientApp::full_restore(const char * dist_id, bool remove_existing, bool 
       return false;
   }
 
-  return do_backup_restore(src_parent_path, dest_parent_path, remove_existing, init);
+  return do_backup_restore(src_parent_path, dest_parent_path, remove_existing, init, false);
 }
 
-bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, const MyPooledMemGuard & dest_parent_path, bool remove_existing, bool init)
+bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, const MyPooledMemGuard & dest_parent_path, bool remove_existing, bool init, bool syn)
 {
   MyPooledMemGuard src_path, dest_path;
   MyPooledMemGuard mfile;
@@ -738,25 +739,6 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
     }
   }
 
-/*  src_path.init_from_string(src_parent_path.data(), "/8");
-  dest_path.init_from_string(dest_parent_path.data(), "/8");
-  if (remove_existing)
-    MyFilePaths::zap(dest_path.data(), true);
-  if (MyFilePaths::stat(src_path.data(), &buf) && S_ISDIR(buf.st_mode))
-  {
-    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
-    {
-      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
-      return false;
-    }
-
-    if (init && !g_test_mode)
-    {
-      MyClientAppX::instance()->vlc_launcher().init_mode(true);
-      MyClientAppX::instance()->vlc_launcher().launch();
-    }
-  }
-*/
   if (init && !g_test_mode)
   {
     MyClientAppX::instance()->vlc_launcher().init_mode(true);
@@ -771,7 +753,7 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
     MyFilePaths::zap(dest_path.data(), true);
   if (MyFilePaths::stat(src_path.data(), &buf) && S_ISDIR(buf.st_mode))
   {
-    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true, false))
+    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true, syn))
     {
       MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
       return false;
@@ -782,13 +764,12 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
   if (MyFilePaths::stat(src_path.data(), &buf) && S_ISREG(buf.st_mode))
   {
     dest_path.init_from_string(dest_parent_path.data(), "/", mfile.data());
-    if (!MyFilePaths::copy_file(src_path.data(), dest_path.data(), true, false))
+    if (!MyFilePaths::copy_file(src_path.data(), dest_path.data(), true, syn))
     {
       MY_ERROR("failed to copy file (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
       return false;
     }
   }
-
 
   src_path.init_from_string(src_parent_path.data(), "/led");
   dest_path.init_from_string(dest_parent_path.data(), "/led");
@@ -796,7 +777,7 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
     MyFilePaths::zap(dest_path.data(), true);
   if (MyFilePaths::stat(src_path.data(), &buf) && S_ISDIR(buf.st_mode))
   {
-    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true, false))
+    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true, syn))
     {
       MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
       return false;
@@ -805,21 +786,6 @@ bool MyClientApp::do_backup_restore(const MyPooledMemGuard & src_parent_path, co
 
 //  if (init && !g_test_mode)
 //    MyClientAppX::instance()->opera_launcher().launch();
-
-/*
-  src_path.init_from_string(src_parent_path.data(), "/5");
-  dest_path.init_from_string(dest_parent_path.data(), "/5");
-  if (remove_existing)
-    MyFilePaths::zap(dest_path.data(), true);
-  if (MyFilePaths::stat(src_path.data(), &buf) && S_ISDIR(buf.st_mode))
-  {
-    if (!MyFilePaths::copy_path(src_path.data(), dest_path.data(), true))
-    {
-      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)MyErrno());
-      return false;
-    }
-  }
-*/
 
 //  src_path.init_from_string(src_parent_path.data(), "/", index_frame_file());
 //  dest_path.init_from_string(dest_parent_path.data(), "/", index_frame_file());
@@ -926,23 +892,32 @@ bool MyClientApp::on_construct()
 
   if (!g_test_mode)
   {
-    if (!full_restore(NULL, true, true, NULL, true))
+    MyPooledMemGuard pn, po, dest_parent_path;
+    MyClientApp::calc_backup_parent_path(dest_parent_path, NULL);
+    pn.init_from_string(dest_parent_path.data(), "/new");
+    po.init_from_string(dest_parent_path.data(), "/old");
+    bool bn = MyDistFtpFileExtractor::has_id(pn);
+    bool bo = MyDistFtpFileExtractor::has_id(po);
+    bool b = bn && full_restore(NULL, true, true, NULL, true);
+    if (!b)
     {
-      MY_WARNING("restore of latest data failed, now restoring previous data...\n");
-      if (!full_restore(NULL, true, false, NULL, true))
+      MY_WARNING("restore of latest data failed\n");
+      if (bo)
       {
-        MY_ERROR("restore of previous data failed\n");
+        MY_WARNING("restoring previous data...\n");
+        b = full_restore(NULL, true, false, NULL, true);
+        if (!b)
+          MY_WARNING("restore of previous data failed\n");
       }
+      if (!b && !bn)
+        b = full_restore(NULL, true, true, NULL, true);
+      if (!b)
+        MY_ERROR("restore of data failed\n");
     }
   }
 
   add_module(m_client_to_dist_module = new MyClientToDistModule(this));
 
-//  if (!g_test_mode)
-//  {
-//    m_vlc_launcher.init_mode(false);
-//    m_vlc_monitor.relaunch();
-//  }
   return true;
 }
 
@@ -960,9 +935,6 @@ bool MyClientApp::on_sigchild(pid_t pid)
 
 bool MyClientApp::on_event_loop()
 {
-//  m_opera_launcher.check_relaunch();
-//  m_vlc_launcher.check_relaunch();
-//  m_vlc_launcher.check_status();
   return true;
 }
 
@@ -1116,8 +1088,6 @@ void MyClientApp::check_prev_extract_task(const char * client_id)
         if (dbg.db().open_db(client_id))
           dbg.db().load_ftp_command(*dist_info, msrc.data());
       }
-//      if (dist_info->status == -2)
-//        dist_info->status = 2;
       if (dist_info->validate() && (dist_info->status == 3 || dist_info->status == 2))
       {
         //MyClientAppX::instance()->client_to_dist_module()->dist_info_ftps().add(dist_info);

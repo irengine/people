@@ -298,6 +298,7 @@ public:
   bool update_db_status() const;
   void generate_update_ini();
   void generate_url_ini();
+  bool generate_dist_id_txt(const MyPooledMemGuard & path);
   int  prio() const;
   bool operator < (const MyDistInfoFtp & rhs) const;
 
@@ -348,9 +349,11 @@ public:
 
   bool extract(MyDistInfoFtp * dist_info);
   bool get_true_dest_path(MyDistInfoFtp * dist_info, MyPooledMemGuard & target_path);
+  static bool has_id(const MyPooledMemGuard & target_parent_path);
 
 private:
   bool do_extract(MyDistInfoFtp * dist_info, const MyPooledMemGuard & target_parent_path);
+  bool syn(MyDistInfoFtp * dist_info);
   MyDistInfoFtp * m_dist_info;
 };
 
