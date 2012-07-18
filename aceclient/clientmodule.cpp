@@ -1805,7 +1805,7 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
 //    }
   }
   MyFilePaths::remove_path(target_parent_path.data(), true);
-  ACE_OS::sleep(20);
+  ACE_OS::sleep(30);
   MyFilePaths::remove(dist_info->local_file_name.data());
   return result;
 }
@@ -1853,10 +1853,9 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
     dest_path.init_from_string(dest_parent_path.data(), "/5");
     if (!MyFilePaths::make_path_const(dest_path.data(), prefix_len, false, true))
     {
-      MY_ERROR("can not mkdir(%s) %s\n", s_n.data(), (const char *)MyErrno());
+      MY_ERROR("can not mkdir(%s) %s\n", dest_path.data(), (const char *)MyErrno());
       return false;
     }
-
   }
 /*
   if (type_is_multi(dist_info->type))
@@ -2018,12 +2017,12 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const MyPoole
 
   if (result)
   {
-    ACE_OS::sleep(5);
+    ACE_OS::sleep(10);
     dist_info->generate_update_ini();
     dist_info->generate_url_ini();
     if (!bv)
       dist_info->generate_dist_id_txt(s_n);
-    ACE_OS::sleep(25);
+    ACE_OS::sleep(30);
   }
   return result;
 }
