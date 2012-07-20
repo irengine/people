@@ -18,7 +18,7 @@
 std::string get_app_ver()
 {
   char buff[100];
-  ACE_OS::snprintf(buff, 99, "%d.%d build 120613", const_client_version_major, const_client_version_minor);
+  ACE_OS::snprintf(buff, 99, "%d.%d build 120717", const_client_version_major, const_client_version_minor);
   std::string result = buff;
   return result;
 }
