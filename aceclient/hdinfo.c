@@ -20,10 +20,13 @@ int main(int argc, const char * argv[])
     return 2; 
   }
 
+  printf("hdinfo (version %s), querying %s\n", "1.1", argv[1]);
+
   if(!ioctl(fd, HDIO_GET_IDENTITY, &id))
   {
     int m = sizeof(id.serial_no);
     char buff[100];
+    printf("raw data: [%s], len=%d\n", (const char*)id.serial_no, strlen((const char*)id.serial_no));
     memcpy(buff, id.serial_no, sizeof(id.serial_no));
     char * ptr = buff;
     ptr[m] = 0;
@@ -42,7 +45,7 @@ int main(int argc, const char * argv[])
       --len;
     }
 
-    printf("get hd serial #:%s\n", ptr);
+    printf("get hd serial #:[%s], len=%d\n", ptr, strlen(ptr));
     const char * fn = "/tmp/tmpv9397";
     int fd2 = open(fn, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (fd2 < 0)
