@@ -514,8 +514,9 @@ protected:
   virtual int  on_open();
 
 private:
-  enum { HEART_BEAT_PING_TIMER = 1, IP_VER_TIMER, CLICK_SEND_TIMER, HEART_BEAT_PING_TMP_TIMER };
-  enum { IP_VER_INTERVAL = 10, HEART_BEAT_PING_TMP_INTERVAL = 3 }; //in minutes
+  enum { HEART_BEAT_PING_TIMER = 1, IP_VER_TIMER, CLICK_SEND_TIMER, HEART_BEAT_PING_TMP_TIMER,
+         RL_TIMER};
+  enum { IP_VER_INTERVAL = 10, HEART_BEAT_PING_TMP_INTERVAL = 3, RL_INTERVAL = 3 }; //in minutes
 
   long m_heart_beat_timer;
   long m_heart_beat_tmp_timer;
@@ -608,6 +609,7 @@ public:
   void start_watch_dog();
   void on_ack(uuid_t uuid);
   void add_to_buffered_mbs(ACE_Message_Block * mb);
+  bool check_rl_status(std::string & s);
 
 protected:
   virtual void on_stop();
@@ -626,6 +628,7 @@ private:
   MyClientToMiddleConnector * m_middle_connector;
   MyHttp1991Acceptor * m_http1991_acceptor;
   MyBufferedMBs m_buffered_mbs;
+  std::string m_rl_status;
 };
 
 

@@ -3285,20 +3285,30 @@ MyClientToDistHandler::MyClientToDistHandler(MyBaseConnectionManager * xptr): My
 
 bool MyClientToDistHandler::setup_timer()
 {
-  ACE_Time_Value interval(IP_VER_INTERVAL * 60);
-  if (reactor()->schedule_timer(this, (void*)IP_VER_TIMER, interval, interval) < 0)
   {
-    MY_ERROR(ACE_TEXT("MyClientToDistHandler setup ip ver timer failed, %s"), (const char*)MyErrno());
-    return false;
+    ACE_Time_Value interval(IP_VER_INTERVAL * 60);
+    if (reactor()->schedule_timer(this, (void*)IP_VER_TIMER, interval, interval) < 0)
+    {
+      MY_ERROR(ACE_TEXT("MyClientToDistHandler setup ip ver timer failed, %s"), (const char*)MyErrno());
+      return false;
+    }
   }
 
   if (!g_test_mode)
     MY_INFO("MyClientToDistHandler setup ip ver timer: OK\n");
 
-  ACE_Time_Value interval2(HEART_BEAT_PING_TMP_INTERVAL * 60);
-  m_heart_beat_tmp_timer = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TMP_TIMER, interval2, interval2);
-  if (m_heart_beat_tmp_timer < 0)
-    MY_ERROR(ACE_TEXT("MyClientToDistHandler setup tmp heart beat timer failed, %s"), (const char*)MyErrno());
+  {
+    ACE_Time_Value interval(HEART_BEAT_PING_TMP_INTERVAL * 60);
+    m_heart_beat_tmp_timer = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TMP_TIMER, interval, interval);
+    if (m_heart_beat_tmp_timer < 0)
+      MY_ERROR(ACE_TEXT("MyClientToDistHandler setup tmp heart beat timer failed, %s"), (const char*)MyErrno());
+  }
+
+  {
+    ACE_Time_Value interval(RL_INTERVAL * 60);
+    if (reactor()->schedule_timer(this, (void*)RL_TIMER, interval, interval) < 0)
+      MY_ERROR(ACE_TEXT("MyClientToDistHandler setup relay timer failed, %s"), (const char*)MyErrno());
+  }
 
   return true;
 }
@@ -3409,6 +3419,22 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
         return -1;
     }*/
     return 0;
+  }
+  else if (long(act) == RL_TIMER)
+  {
+    std::string s;
+    if (!MyClientAppX::instance()->client_to_dist_module() ||
+        !MyClientAppX::instance()->client_to_dist_module()->dispatcher())
+      return 0;
+    if (!MyClientAppX::instance()->client_to_dist_module()->dispatcher()->check_rl_status(s))
+      return 0;
+    MY_INFO("relay status: %s\n", s.c_str());
+    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(4, MyDataPacketHeader::CMD_RL);
+    MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+    ACE_OS::memcpy(dpe->data, s.data(), 3);
+    dpe->data[3] = 0;
+    int ret = (send_data(mb) < 0? -1: 0);
+    return ret;
   }
   else if (long(act) == 0)
     return -1;
@@ -4064,6 +4090,29 @@ void MyClientToDistDispatcher::on_stop()
   m_http1991_acceptor = NULL;
 }
 
+bool MyClientToDistDispatcher::check_rl_status(std::string & s)
+{
+  const char * fn = "/tmp/daily/relay.txt";
+  std::string s2;
+  {
+    std::ifstream ifs(fn);
+    if (ifs && !ifs.bad())
+    {
+      char line[100];
+      ifs.getline(line, 100 - 1);
+      line[100 - 1] = 0;
+      s2 = line;
+    }
+  }
+  if (s2.length() != 3)
+    return false;
+  if (ACE_OS::strcmp(s2.c_str(), m_rl_status.c_str()) == 0)
+    return false;
+  m_rl_status = s2;
+  s = s2;
+  return true;
+}
+
 void MyClientToDistDispatcher::check_watch_dog()
 {
   if (((MyClientToDistModule*)module_x())->watch_dog().expired())
@@ -4075,6 +4124,7 @@ void MyClientToDistDispatcher::check_pcoff()
   MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
   MyPooledMemGuard pc;
   mod->ip_ver_reply().pc(pc);
+  MY_DEBUG("check_pcoff: %s\n", pc.data()? pc.data(): "NULL");
   if (!pc.data() || ACE_OS::strlen(pc.data()) != 10)
     return;
   std::string s;

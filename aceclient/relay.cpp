@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <stdlib.h>
+#include <fcntl.h>
 
 #include "relay.h"
 
@@ -140,16 +141,34 @@ void MyApp::loop()
     fprintf(stderr, "Fatal: can not get device id\n");
     return;
   }
-  MySetTimeFrame stime;
-  query_time(stime);
-//  sync_time();
-  unsigned char status;
-  check_status(status);
   set_mode1(2); //3: online 2: offline  
   set_mode2(1); //1: week; 2 day
-  clear_offtime();
-  onofftime(9, 31, 20, 24);    
-  check_status(status);
+  save_status();
+  unsigned int count = 0;
+  while(true)
+  {
+    sleep(6);
+    count ++;
+    if (count % 20 == 0)
+    {
+			if (!get_dev_id())
+			{
+				fprintf(stderr, "Fatal: can not get device id\n");
+				return;
+			}
+      save_status();
+    }  
+    if (!get_fstate())
+      continue;
+    sleep(4);
+    if (!read_text())
+      continue;
+    if (!parse())
+      continue;
+
+    clear_offtime();
+    onofftime(m_on_hour, m_on_minute, m_off_hour, m_off_minute, m_off);    
+  }
 }
 
 const char * MyApp::data_file() const
@@ -170,6 +189,25 @@ bool MyApp::has_text() const
     if (s[i] > '9' || s[i] < '0')
       return false;
   return true;
+}
+
+unsigned char MyApp::do_parse(const char * ptr)
+{
+  char buff[3];
+  memcpy(buff, ptr, 2);
+  buff[2] = 0;
+  return (unsigned char)atoi(buff);
+}
+
+bool MyApp::parse()
+{
+  const char * ptr = get_value().c_str();
+  m_on_hour = do_parse(ptr + 1);
+  m_on_minute = do_parse(ptr + 3);
+  m_off_hour = do_parse(ptr + 5);
+  m_off_minute = do_parse(ptr + 7);
+  m_off = (*(ptr + 9) == '1');
+  return (m_on_hour <= 23 && m_off_hour <= 23 && m_on_minute <= 59 && m_off_minute <= 59);
 }
 
 bool MyApp::setup_port()
@@ -370,7 +408,7 @@ bool MyApp::offtime(unsigned char day, unsigned char hour, unsigned char minute)
   return ret;
 }
 
-bool MyApp::onofftime(unsigned char ohour, unsigned char ominute, unsigned char fhour, unsigned char fminute)
+bool MyApp::onofftime(unsigned char ohour, unsigned char ominute, unsigned char fhour, unsigned char fminute, bool off)
 {
   time_t now = time(NULL);
   struct tm _tm;
@@ -380,11 +418,11 @@ bool MyApp::onofftime(unsigned char ohour, unsigned char ominute, unsigned char 
   
   printf("day(%d):\n", day);
 
-  ret = do_set_offtime(day, day, 0, 1, true);
+  ret = do_set_offtime(day, day, 0, 0, true);
   printf("do_set_offtime(%d): %s\n", day, ret? "ok":"failed");
   if (!ret)
   {
-    ret = do_set_offtime(day, day, 0, 1, true);
+    ret = do_set_offtime(day, day, 0, 0, true);
     printf("do_set_offtime(%d): %s\n", day, ret? "ok":"failed");
   }
   if (!ret)
@@ -408,6 +446,11 @@ bool MyApp::onofftime(unsigned char ohour, unsigned char ominute, unsigned char 
     }
   }
 
+  if (off)
+  {
+    fhour = 0; 
+    fminute = 1;
+  }
   ret = do_set_offtime(day + 1, day, fhour, fminute, false);
   printf("do_set_offtime(%d): %s\n", day, ret? "ok":"failed");
   if (!ret)
@@ -420,9 +463,6 @@ bool MyApp::onofftime(unsigned char ohour, unsigned char ominute, unsigned char 
 
   sync_time();
   
-//  if (!offtime(day, fhour, fminute))
-//    xret = false;
-    
   printf("do_set_offtime(all): %s\n", xret? "ok":"failed");
   return xret;
 }
@@ -439,7 +479,7 @@ bool MyApp::do_query_time(MySetTimeFrame & reply)
   printf("got dev time: %d/%d/%d w(%d) %d:%d:%d\n", 
           reply.m_year, reply.m_month, reply.m_day, reply.m_weekday, 
           reply.m_hour, reply.m_minute, reply.m_second);  
-  return true;  
+  return true;
 }
 
 bool MyApp::get_dev_id()
@@ -539,6 +579,56 @@ bool MyApp::query_time(MySetTimeFrame & reply)
   }
   return true;
 };
+
+bool MyApp::do_save_status(const char * s)
+{
+  if (!s) 
+    return false;
+  printf("saving status: %s\n", s);
+  if (m_status.compare(s) == 0)
+    return false;  
+  const char * fn2 = "/tmp/daily/relay.ttt";
+  const char * fn = "/tmp/daily/relay.txt";
+  remove(fn2);
+  {
+    int fd;
+    fd = ::open(fn2, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    if (fd < 0)
+    {
+      unix_print_error("can not open /tmp/daily/relay.ttt file");
+      return false;
+    }  
+    if (::write(fd, s, 3) != 3)
+    {
+      unix_print_error("can not write to /tmp/daily/relay.ttt file");
+      close(fd);
+      remove(fn2);
+      return false;
+    }
+    close(fd);
+  }
+  remove(fn);
+  rename(fn2, fn);
+  m_status = s;
+  return true;
+}
+
+bool MyApp::save_status()
+{
+  unsigned char status;
+  if (!do_check_status(status))
+    return false;
+  char buff[5];
+  const int COUNT = 3;
+  buff[COUNT] = 0;
+  unsigned char t = status & 0x0F;
+  for (int i = 0; i < COUNT; ++ i)
+  {
+    buff[i] = ((t & 0x1) == 1)? '1':'0';
+    t = t >> 1;
+  }
+  return do_save_status(buff);
+}
 
 
 //Application//

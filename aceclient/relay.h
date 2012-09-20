@@ -190,7 +190,7 @@ protected:
   bool clear_offtime();
   bool query_time(MySetTimeFrame & reply);
   bool offtime(unsigned char day, unsigned char hour, unsigned char minute); //f alone
-  bool onofftime(unsigned char ohour, unsigned char ominute, unsigned char fhour, unsigned char fminute);
+  bool onofftime(unsigned char ohour, unsigned char ominute, unsigned char fhour, unsigned char fminute, bool off);
   
 private:
   bool do_get_dev_id(unsigned char c);
@@ -203,6 +203,17 @@ private:
   bool do_set_offtime(unsigned char index, unsigned char day, unsigned char hour, unsigned char minute, bool on); 
   bool do_offtime(unsigned char day, unsigned char hour, unsigned char minute); //f alone
   bool do_query_time(MySetTimeFrame & reply);
+  bool do_save_status(const char * s);
+  bool save_status();
+  bool parse();
+  unsigned char do_parse(const char * ptr);
+  
+  unsigned char m_on_hour;
+  unsigned char m_on_minute;
+  unsigned char m_off_hour;
+  unsigned char m_off_minute;
+  bool m_off;
+  std::string m_status;
 };
 
 

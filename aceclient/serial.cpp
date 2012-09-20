@@ -333,6 +333,7 @@ bool MyBaseApp::get_fstate()
     {
       m_ftime = st.st_mtime;
       m_fsize = st.st_size;
+      printf("get_fstate() return true\n");
       return true;
     }
     else
@@ -346,8 +347,10 @@ bool MyBaseApp::read_text()
 {
   std::ifstream ifs(data_file());
   if (!ifs || ifs.bad())
+  {
+    unix_print_error("can not open file @read_text()");  
     return false;
-
+  }
   const int BLOCK_SIZE = 400;
   char buff[BLOCK_SIZE];
   ifs.getline(buff, BLOCK_SIZE - 1);
@@ -359,6 +362,7 @@ bool MyBaseApp::read_text()
   bool ret = (s.compare(m_value) != 0);
   if (ret)
     m_value = s;
+  printf("got text: [%s], return %s\n", s.c_str(), ret?"true":"false");
   return ret;
 }
 

@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-Wall
+CPPFLAGS=-Wall -g
 
 led: led.o serial.o
 
