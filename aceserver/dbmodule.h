@@ -36,7 +36,7 @@ public:
   bool save_dist_clients(char * idlist, char * adirlist, const char * dist_id);
   bool save_dist_cmp_done(const char *dist_id);
   int  load_dist_infos(MyHttpDistInfos & infos);
-  bool load_pl(MyPooledMemGuard & value);
+  bool load_pl(CMemGuard & value);
 //  bool dist_take_cmp_ownership(MyHttpDistInfo * info);
 //  bool dist_take_md5_ownership(MyHttpDistInfo * info);
   bool dist_mark_cmp_done(const char * dist_id);
@@ -63,18 +63,18 @@ private:
   bool commit();
   bool rollback();
   bool exec_command(const char * sql_command, int * affected = NULL);
-  void wrap_str(const char * s, MyPooledMemGuard & wrapped) const;
+  void wrap_str(const char * s, CMemGuard & wrapped) const;
   time_t get_db_time_i();
-  bool take_owner_ship(const char * table, const char * field, MyPooledMemGuard & old_time, const char * where_clause);
+  bool take_owner_ship(const char * table, const char * field, CMemGuard & old_time, const char * where_clause);
   bool set_cfg_value(const int id, const char * value);
-  bool load_cfg_value(const int id, MyPooledMemGuard & value);
-  bool load_cfg_value_i(const int id, MyPooledMemGuard & value);
+  bool load_cfg_value(const int id, CMemGuard & value);
+  bool load_cfg_value_i(const int id, CMemGuard & value);
 
   PGconn * m_connection;
-  MyPooledMemGuard m_server_addr;
+  CMemGuard m_server_addr;
   int m_server_port;
-  MyPooledMemGuard m_user_name;
-  MyPooledMemGuard m_password;
+  CMemGuard m_user_name;
+  CMemGuard m_password;
   ACE_Thread_Mutex m_mutex;
 };
 

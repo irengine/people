@@ -49,10 +49,10 @@ public:
   MyHttpDistInfo * dist_info;
   MyDistClientOne * dist_one;
   int status;
-  MyPooledMemGuard adir;
-  MyPooledMemGuard md5;
-  MyPooledMemGuard mbz_file;
-  MyPooledMemGuard mbz_md5;
+  CMemGuard adir;
+  CMemGuard md5;
+  CMemGuard mbz_file;
+  CMemGuard mbz_md5;
   time_t last_update;
 
 private:
@@ -131,8 +131,8 @@ public:
                                 > MyDistClientMap;
   typedef std::tr1::unordered_map<const char *,
                                   MyDistClientOne *,
-                                  MyStringHash,
-                                  MyStringEqual,
+                                  CStrHasher,
+                                  CStrEqual,
                                   MyAllocator <std::pair<const char *, MyDistClientOne *>>
                                 > MyDistClientOneMap;
 
@@ -430,7 +430,7 @@ class MyHeartBeatService: public MyBaseService
 public:
   enum { TIMED_DIST_TASK = 1 };
 
-  MyHeartBeatService(MyBaseModule * module, int numThreads = 1);
+  MyHeartBeatService(CMod * module, int numThreads = 1);
   virtual int svc();
   bool add_request(ACE_Message_Block * mb, bool btail);
   bool add_request_slow(ACE_Message_Block * mb);
@@ -450,7 +450,7 @@ private:
 class MyHeartBeatDispatcher: public MyBaseDispatcher
 {
 public:
-  MyHeartBeatDispatcher(MyBaseModule * pModule, int numThreads = 1);
+  MyHeartBeatDispatcher(CMod * pModule, int numThreads = 1);
   virtual const char * name() const;
   virtual int handle_timeout (const ACE_Time_Value &tv, const void *act);
   MyHeartBeatAcceptor * acceptor() const;
@@ -483,10 +483,10 @@ public:
 };
 
 
-class MyHeartBeatModule: public MyBaseModule
+class MyHeartBeatModule: public CMod
 {
 public:
-  MyHeartBeatModule(MyBaseApp * app);
+  MyHeartBeatModule(CApp * app);
   virtual ~MyHeartBeatModule();
   MyHeartBeatDispatcher * dispatcher() const;
   virtual const char * name() const;
@@ -494,7 +494,7 @@ public:
   int num_active_clients() const;
   MyFtpFeedbackSubmitter & ftp_feedback_submitter();
   void pl();
-  bool get_pl(MyPooledMemGuard & value);
+  bool get_pl(CMemGuard & value);
 
 protected:
   virtual bool on_start();
@@ -512,7 +512,7 @@ private:
   MyHeartBeatService * m_service;
   MyHeartBeatDispatcher * m_dispatcher;
   ACE_Thread_Mutex m_mutex;
-  MyPooledMemGuard m_pl;
+  CMemGuard m_pl;
 };
 
 
@@ -623,7 +623,7 @@ private:
 class MyDistToMiddleDispatcher: public MyBaseDispatcher
 {
 public:
-  MyDistToMiddleDispatcher(MyBaseModule * pModule, int numThreads = 1);
+  MyDistToMiddleDispatcher(CMod * pModule, int numThreads = 1);
   virtual ~MyDistToMiddleDispatcher();
 
   virtual const char * name() const;
@@ -656,10 +656,10 @@ protected:
   enum { RECONNECT_INTERVAL = 3 }; //time in minutes
 };
 
-class MyDistToMiddleModule: public MyBaseModule
+class MyDistToMiddleModule: public CMod
 {
 public:
-  MyDistToMiddleModule(MyBaseApp * app);
+  MyDistToMiddleModule(CApp * app);
   virtual ~MyDistToMiddleModule();
   virtual const char * name() const;
   void send_to_bs(ACE_Message_Block * mb);

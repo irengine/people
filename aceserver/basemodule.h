@@ -37,11 +37,11 @@
 #include "md5.h"
 #include "aes.h"
 
-class MyBaseModule;
+class CMod;
 class MyBaseHandler;
 class MyBaseAcceptor;
 class MyBaseConnectionManager;
-class MyBaseApp;
+class CApp;
 class MyBaseDispatcher;
 class MyBaseConnector;
 class MyBaseProcessor;
@@ -75,9 +75,9 @@ public:
   const char * translate(const char * src);
 
 private:
-  MyPooledMemGuard m_mfile;
-  MyPooledMemGuard m_path;
-  MyPooledMemGuard m_translated_name;
+  CMemGuard m_mfile;
+  CMemGuard m_path;
+  CMemGuard m_translated_name;
 };
 
 class MyClientInfo
@@ -176,7 +176,7 @@ public:
 
 private:
 
-  MyPooledMemGuard m_file_name;
+  CMemGuard m_file_name;
   char m_md5[MD5_STRING_LENGTH];
   int m_size;
 };
@@ -210,8 +210,8 @@ public:
 private:
   typedef std::tr1::unordered_map<const char *,
                                   MyFileMD5 *,
-                                  MyStringHash,
-                                  MyStringEqual,
+                                  CStrHasher,
+                                  CStrEqual,
                                   MyAllocator <std::pair<const char *, MyFileMD5 *> >
                                 > MyMD5map;
 
@@ -221,7 +221,7 @@ private:
   MyFileMD5 * find(const char * fn);
 
   MyFileMD5List m_file_md5_list;
-  MyPooledMemGuard m_base_dir; //todo: remove m_base_dir
+  CMemGuard m_base_dir; //todo: remove m_base_dir
   int m_base_dir_len;
   MyMD5map * m_md5_map;
 };
@@ -239,8 +239,8 @@ public:
 protected:
   int do_read(char * buff, int buff_len);
 
-  MyUnixHandleGuard m_file;
-  MyPooledMemGuard m_file_name;
+  CUnixFileGuard m_file;
+  CMemGuard m_file_name;
   int m_file_length;
 };
 
@@ -273,7 +273,7 @@ public:
 
 private:
   bool read_header();
-  MyPooledMemGuard m_wrapped_header;
+  CMemGuard m_wrapped_header;
   int  m_remain_length;
   int  m_remain_encrypted_length;
   aes_context m_aes_context;
@@ -294,8 +294,8 @@ protected:
   bool do_open();
   bool do_write(char * buff, int buff_len);
 
-  MyUnixHandleGuard m_file;
-  MyPooledMemGuard m_file_name;
+  CUnixFileGuard m_file;
+  CMemGuard m_file_name;
 };
 
 class MyWrappedArchiveWriter: public MyBaseArchiveWriter
@@ -318,7 +318,7 @@ private:
   int  m_encrypted_length;
   aes_context m_aes_context;
   int m_remain_encrypted_length;
-  MyPooledMemGuard m_encrypt_buffer;
+  CMemGuard m_encrypt_buffer;
 };
 
 class MyBZMemPoolAdaptor
@@ -342,8 +342,8 @@ private:
   bool do_compress(MyBaseArchiveReader * _reader, MyBaseArchiveWriter * _writer);
   bool do_decompress(MyBaseArchiveReader * _reader, MyBaseArchiveWriter * _writer);
 
-  MyPooledMemGuard m_buff_in;
-  MyPooledMemGuard m_buff_out;
+  CMemGuard m_buff_in;
+  CMemGuard m_buff_out;
   bz_stream m_bz_stream;
 };
 
@@ -356,7 +356,7 @@ public:
   void close();
 
 private:
-  MyUnixHandleGuard m_file;
+  CUnixFileGuard m_file;
 };
 
 class MyBaseHandler: public ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH>
@@ -486,7 +486,7 @@ public:
   MyBaseProcessor(MyBaseHandler * handler);
   virtual ~MyBaseProcessor();
 
-  virtual void info_string(MyPooledMemGuard & info) const;
+  virtual void info_string(CMemGuard & info) const;
   virtual int on_open();
   virtual void on_close();
   virtual int handle_input();
@@ -628,7 +628,7 @@ protected:
     case MyBaseProcessor::ER_OK_FINISHED:
       if (packet_length() != sizeof(m_packet_header))
       {
-        MY_FATAL("got ER_OK_FINISHED for packet header with more data remain to process.\n");
+        C_FATAL("got ER_OK_FINISHED for packet header with more data remain to process.\n");
         return -1;
       }
       if (m_handler->connection_manager())
@@ -638,7 +638,7 @@ protected:
     case MyBaseProcessor::ER_OK:
       return 0;
     default:
-      MY_FATAL(ACE_TEXT("unexpected MyVeryBasePacketProcessor::EVENT_RESULT value = %d.\n"), er);
+      C_FATAL(ACE_TEXT("unexpected MyVeryBasePacketProcessor::EVENT_RESULT value = %d.\n"), er);
       return -1;
     }
   }
@@ -652,7 +652,7 @@ protected:
         return -1;
       if (copy_header_to_mb(m_current_block, m_packet_header) < 0)
       {
-        MY_ERROR(ACE_TEXT("Message block copy header: m_current_block.copy() failed\n"));
+        C_ERROR(ACE_TEXT("Message block copy header: m_current_block.copy() failed\n"));
         return -1;
       }
     }
@@ -690,7 +690,7 @@ protected:
   {
     if (mb->size() < sizeof(T))
     {
-      MY_ERROR(ACE_TEXT("message block size too little ( = %d)"), mb->size());
+      C_ERROR(ACE_TEXT("message block size too little ( = %d)"), mb->size());
       mb->release();
       return ER_ERROR;
     }
@@ -716,7 +716,7 @@ public:
   typedef MyVeryBasePacketProcessor<MyDataPacketHeader> super;
 
   MyBasePacketProcessor(MyBaseHandler * handler);
-  virtual void info_string(MyPooledMemGuard & info) const;
+  virtual void info_string(CMemGuard & info) const;
   virtual int on_open();
   virtual const char * name() const;
 
@@ -799,7 +799,7 @@ public:
   MyBaseAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
   virtual ~MyBaseAcceptor();
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
-  MyBaseModule * module_x() const;
+  CMod * module_x() const;
   MyBaseConnectionManager * connection_manager() const;
   MyBaseDispatcher * dispatcher() const;
 
@@ -821,7 +821,7 @@ protected:
   virtual void on_stop();
 
   MyBaseDispatcher * m_dispatcher;
-  MyBaseModule * m_module;
+  CMod * m_module;
   MyBaseConnectionManager * m_connection_manager;
   int m_tcp_port;
   int m_idle_time_as_dead; //in minutes
@@ -840,7 +840,7 @@ public:
 
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
 
-  MyBaseModule * module_x() const;
+  CMod * module_x() const;
   MyBaseConnectionManager * connection_manager() const;
   MyBaseDispatcher * dispatcher() const;
   void tcp_addr(const char * addr);
@@ -868,7 +868,7 @@ protected:
   virtual bool before_reconnect();
 
   MyBaseDispatcher * m_dispatcher;
-  MyBaseModule * m_module;
+  CMod * m_module;
   MyBaseConnectionManager * m_connection_manager;
   int m_tcp_port;
   std::string m_tcp_addr;
@@ -885,8 +885,8 @@ protected:
 class MyBaseService: public ACE_Task<ACE_MT_SYNCH>
 {
 public:
-  MyBaseService(MyBaseModule * module, int numThreads);
-  MyBaseModule * module_x() const; //name collision with parent class
+  MyBaseService(CMod * module, int numThreads);
+  CMod * module_x() const; //name collision with parent class
   int start();
   int stop();
   void dump_info();
@@ -898,7 +898,7 @@ protected:
   void * get_task(ACE_Message_Block * mb, int & task_type) const;
 
 private:
-  MyBaseModule * m_module;
+  CMod * m_module;
   int m_numThreads;
 };
 
@@ -906,14 +906,14 @@ private:
 class MyBaseDispatcher: public ACE_Task<ACE_MT_SYNCH>
 {
 public:
-  MyBaseDispatcher(MyBaseModule * pModule, int numThreads = 1);
+  MyBaseDispatcher(CMod * pModule, int numThreads = 1);
 
   virtual ~MyBaseDispatcher();
   virtual int open (void * p= 0);
   virtual int svc();
   int start();
   int stop();
-  MyBaseModule * module_x() const;
+  CMod * module_x() const;
   void dump_info();
   virtual const char * name() const;
 
@@ -930,7 +930,7 @@ protected:
   void add_acceptor(MyBaseAcceptor * _acceptor);
   virtual void do_dump_info();
 
-  MyBaseModule * m_module;
+  CMod * m_module;
   int m_clock_interval;
   MyConnectors m_connectors;
   MyAcceptors m_acceptors;
@@ -947,16 +947,16 @@ private:
 };
 
 
-class MyBaseModule
+class CMod
 {
 public:
-  MyBaseModule(MyBaseApp * app);
-  virtual ~MyBaseModule();
+  CMod(CApp * app);
+  virtual ~CMod();
   //module specific
   bool running() const;
   //both module and app
   bool running_with_app() const;
-  MyBaseApp * app() const;
+  CApp * app() const;
   int start();
   int stop();
   void dump_info();
@@ -972,7 +972,7 @@ protected:
   void add_dispatcher(MyBaseDispatcher * _dispatcher);
   virtual void do_dump_info();
 
-  MyBaseApp * m_app;
+  CApp * m_app;
   bool m_running;
 
   MyServices m_services;

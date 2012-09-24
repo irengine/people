@@ -34,6 +34,7 @@ private:
 MyDB::MyDB()
 {
   m_connection = NULL;
+  m_server_port = 0;
 }
 
 MyDB::~MyDB()
@@ -69,23 +70,23 @@ bool MyDB::connect()
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   if (connected())
     return true;
-  MyConfig * cfg = MyConfigX::instance();
+  CCfg * cfg = CCfgX::instance();
   const char * connect_str_template = "hostaddr=%s port=%d user='%s' password='%s' dbname=acedb";
   const int STRING_LEN = 1024;
   char connect_str[STRING_LEN];
   ACE_OS::snprintf(connect_str, STRING_LEN - 1, connect_str_template,
       cfg->db_server_addr.c_str(), cfg->db_server_port, cfg->db_user_name.c_str(), cfg->db_password.c_str());
   m_connection = PQconnectdb(connect_str);
-  MY_INFO("start connecting to database\n");
+  C_INFO("start connecting to database\n");
   bool result = (PQstatus(m_connection) == CONNECTION_OK);
   if (!result)
   {
-    MY_ERROR("connect to database failed, msg = %s\n", PQerrorMessage(m_connection));
+    C_ERROR("connect to database failed, msg = %s\n", PQerrorMessage(m_connection));
     PQfinish(m_connection);
     m_connection = NULL;
   }
   else
-    MY_INFO("connect to database OK\n");
+    C_INFO("connect to database OK\n");
   return result;
 }
 
@@ -104,15 +105,15 @@ bool MyDB::check_db_connection()
   ConnStatusType cst = PQstatus(m_connection);
   if (cst == CONNECTION_BAD)
   {
-    MY_ERROR("connection to db lost, trying to re-connect...\n");
+    C_ERROR("connection to db lost, trying to re-connect...\n");
     PQreset(m_connection);
     cst = PQstatus(m_connection);
     if (cst == CONNECTION_BAD)
     {
-      MY_ERROR("reconnect to db failed: %s\n", PQerrorMessage(m_connection));
+      C_ERROR("reconnect to db failed: %s\n", PQerrorMessage(m_connection));
       return false;
     } else
-      MY_INFO("reconnect to db OK!\n");
+      C_INFO("reconnect to db OK!\n");
   }
   return true;
 }
@@ -146,12 +147,12 @@ bool MyDB::rollback()
   return exec_command("ROLLBACK");
 }
 
-void MyDB::wrap_str(const char * s, MyPooledMemGuard & wrapped) const
+void MyDB::wrap_str(const char * s, CMemGuard & wrapped) const
 {
   if (!s || !*s)
-    wrapped.init_from_string("null");
+    wrapped.from_string("null");
   else
-    wrapped.init_from_string("'", s, "'");
+    wrapped.from_string("'", s, "'");
 }
 
 time_t MyDB::get_db_time_i()
@@ -161,7 +162,7 @@ time_t MyDB::get_db_time_i()
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
   {
-    MY_ERROR("MyDB::sql (%s) failed: %s\n", CONST_select_sql, PQerrorMessage(m_connection));
+    C_ERROR("MyDB::sql (%s) failed: %s\n", CONST_select_sql, PQerrorMessage(m_connection));
     return 0;
   }
   if (unlikely(PQntuples(pres) <= 0))
@@ -177,7 +178,7 @@ bool MyDB::exec_command(const char * sql_command, int * affected)
   MyPGResultGuard guard(pres);
   if (!pres || (PQresultStatus(pres) != PGRES_COMMAND_OK && PQresultStatus(pres) != PGRES_TUPLES_OK))
   {
-    MY_ERROR("MyDB::exec_command(%s) failed: %s\n", sql_command, PQerrorMessage(m_connection));
+    C_ERROR("MyDB::exec_command(%s) failed: %s\n", sql_command, PQerrorMessage(m_connection));
     return false;
   } else
   {
@@ -195,7 +196,7 @@ bool MyDB::exec_command(const char * sql_command, int * affected)
 
 bool MyDB::get_client_ids(MyClientIDTable * id_table)
 {
-  MY_ASSERT_RETURN(id_table != NULL, "null id_table @MyDB::get_client_ids\n", false);
+  C_ASSERT_RETURN(id_table != NULL, "null id_table @MyDB::get_client_ids\n", false);
 
   const char * CONST_select_sql_template = "select client_id, client_password, client_expired, auto_seq "
                                            "from tb_clients where auto_seq > %d order by auto_seq";
@@ -207,7 +208,7 @@ bool MyDB::get_client_ids(MyClientIDTable * id_table)
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
   {
-    MY_ERROR("MyDB::sql (%s) failed: %s\n", select_sql, PQerrorMessage(m_connection));
+    C_ERROR("MyDB::sql (%s) failed: %s\n", select_sql, PQerrorMessage(m_connection));
     return false;
   }
   int count = PQntuples(pres);
@@ -226,7 +227,7 @@ bool MyDB::get_client_ids(MyClientIDTable * id_table)
     id_table->last_sequence(last_seq);
   }
 
-  MY_INFO("MyDB::get %d client_IDs from database\n", count);
+  C_INFO("MyDB::get %d client_IDs from database\n", count);
   return true;
 }
 
@@ -254,9 +255,9 @@ bool MyDB::save_dist(MyHttpDistRequest & http_dist_request, const char * md5, co
   const char * _md5 = md5 ? md5 : "";
   const char * _mbz_md5 = mbz_md5 ? mbz_md5 : "";
   int len = ACE_OS::strlen(insert_sql_template) + ACE_OS::strlen(_md5) + ACE_OS::strlen(_mbz_md5) + 2000;
-  MyPooledMemGuard sql;
+  CMemGuard sql;
   MyMemPoolFactoryX::instance()->get_mem(len, &sql);
-  MyPooledMemGuard aindex;
+  CMemGuard aindex;
   wrap_str(http_dist_request.aindex, aindex);
   ACE_OS::snprintf(sql.data(), len - 1, insert_sql_template,
       http_dist_request.ver, http_dist_request.type, aindex.data(),
@@ -279,8 +280,8 @@ bool MyDB::save_sr(char * dids, const char * cmd, char * idlist)
   char separator[2] = {';', 0};
   const int BATCH_COUNT = 20;
   int i = 0, total = 0, ok = 0;
-  MyStringTokenizer client_ids(idlist, separator);
-  MyStringTokenizer dist_ids(dids, separator);
+  CStringTokenizer client_ids(idlist, separator);
+  CStringTokenizer dist_ids(dids, separator);
   std::list<char *> l_client_ids, l_dist_ids;
   char * client_id, *dist_id;
   while ((client_id = client_ids.get_token()) != NULL)
@@ -299,7 +300,7 @@ bool MyDB::save_sr(char * dids, const char * cmd, char * idlist)
       {
         if (!begin_transaction())
         {
-          MY_ERROR("failed to begin transaction @MyDB::save_sr\n");
+          C_ERROR("failed to begin transaction @MyDB::save_sr\n");
           return false;
         }
       }
@@ -310,7 +311,7 @@ bool MyDB::save_sr(char * dids, const char * cmd, char * idlist)
       {
         if (!commit())
         {
-          MY_ERROR("failed to commit transaction @MyDB::save_sr\n");
+          C_ERROR("failed to commit transaction @MyDB::save_sr\n");
           rollback();
         } else
           ok += i;
@@ -323,13 +324,13 @@ bool MyDB::save_sr(char * dids, const char * cmd, char * idlist)
   {
     if (!commit())
     {
-      MY_ERROR("failed to commit transaction @MyDB::save_sr\n");
+      C_ERROR("failed to commit transaction @MyDB::save_sr\n");
       rollback();
     } else
       ok += i;
   }
 
-  MY_INFO("MyDB::save_sr success/total = %d/%d\n", ok, total);
+  C_INFO("MyDB::save_sr success/total = %d/%d\n", ok, total);
   return true;
 }
 
@@ -355,8 +356,8 @@ bool MyDB::save_dist_clients(char * idlist, char * adirlist, const char * dist_i
   char separator[2] = {';', 0};
   const int BATCH_COUNT = 20;
   int i = 0, total = 0, ok = 0;
-  MyStringTokenizer client_ids(idlist, separator);
-  MyStringTokenizer adirs(adirlist, separator);
+  CStringTokenizer client_ids(idlist, separator);
+  CStringTokenizer adirs(adirlist, separator);
   char * client_id, * adir;
   while ((client_id = client_ids.get_token()) != NULL)
   {
@@ -366,7 +367,7 @@ bool MyDB::save_dist_clients(char * idlist, char * adirlist, const char * dist_i
     {
       if (!begin_transaction())
       {
-        MY_ERROR("failed to begin transaction @MyDB::save_dist_clients\n");
+        C_ERROR("failed to begin transaction @MyDB::save_dist_clients\n");
         return false;
       }
     }
@@ -380,7 +381,7 @@ bool MyDB::save_dist_clients(char * idlist, char * adirlist, const char * dist_i
     {
       if (!commit())
       {
-        MY_ERROR("failed to commit transaction @MyDB::save_dist_clients\n");
+        C_ERROR("failed to commit transaction @MyDB::save_dist_clients\n");
         rollback();
       } else
         ok += i;
@@ -393,13 +394,13 @@ bool MyDB::save_dist_clients(char * idlist, char * adirlist, const char * dist_i
   {
     if (!commit())
     {
-      MY_ERROR("failed to commit transaction @MyDB::save_dist_clients\n");
+      C_ERROR("failed to commit transaction @MyDB::save_dist_clients\n");
       rollback();
     } else
       ok += i;
   }
 
-  MY_INFO("MyDB::save_dist_clients success/total = %d/%d\n", ok, total);
+  C_INFO("MyDB::save_dist_clients success/total = %d/%d\n", ok, total);
   return true;
 }
 
@@ -433,7 +434,7 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
   {
-    MY_ERROR("MyDB::sql (%s) failed: %s\n", CONST_select_sql, PQerrorMessage(m_connection));
+    C_ERROR("MyDB::sql (%s) failed: %s\n", CONST_select_sql, PQerrorMessage(m_connection));
     return -1;
   }
 
@@ -441,7 +442,7 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
   int field_count = PQnfields(pres);
   if (unlikely(field_count != 10))
   {
-    MY_ERROR("incorrect column count(%d) @MyDB::load_dist_infos\n", field_count);
+    C_ERROR("incorrect column count(%d) @MyDB::load_dist_infos\n", field_count);
     return -1;
   }
 
@@ -459,41 +460,41 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
       if (j == 5)
         info->ftype[0] = *fvalue;
       else if (j == 4)
-        info->fdir.init_from_string(fvalue);
+        info->fdir.from_string(fvalue);
       else if (j == 3)
       {
-        info->findex.init_from_string(fvalue);
+        info->findex.from_string(fvalue);
         info->findex_len = ACE_OS::strlen(fvalue);
       }
       else if (j == 9)
       {
-        info->md5.init_from_string(fvalue);
+        info->md5.from_string(fvalue);
         info->md5_len = ACE_OS::strlen(fvalue);
       }
       else if (j == 1)
         info->type[0] = *fvalue;
       else if (j == 7)
       {
-        info->password.init_from_string(fvalue);
+        info->password.from_string(fvalue);
         info->password_len = ACE_OS::strlen(fvalue);
       }
       else if (j == 6)
       {
-        info->dist_time.init_from_string(fvalue);
+        info->dist_time.from_string(fvalue);
       }
       else if (j == 2)
       {
-        info->aindex.init_from_string(fvalue);
+        info->aindex.from_string(fvalue);
         info->aindex_len = ACE_OS::strlen(fvalue);
       }
       else if (j == 8)
-        info->mbz_md5.init_from_string(fvalue);
+        info->mbz_md5.from_string(fvalue);
     }
 
     info->calc_md5_opt_len();
   }
 
-  MY_INFO("MyDB::get %d dist infos from database\n", count);
+  C_INFO("MyDB::get %d dist infos from database\n", count);
   return count;
 }
 
@@ -517,7 +518,7 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
 //  return take_owner_ship("tb_dist_info", "dist_md5_time", info->md5_time, where);
 //}
 
-bool MyDB::take_owner_ship(const char * table, const char * field, MyPooledMemGuard & old_time, const char * where_clause)
+bool MyDB::take_owner_ship(const char * table, const char * field, CMemGuard & old_time, const char * where_clause)
 {
   const char * update_sql_template = "update %s set "
                                      "%s = ('now'::text)::timestamp(0) without time zone "
@@ -525,7 +526,7 @@ bool MyDB::take_owner_ship(const char * table, const char * field, MyPooledMemGu
   char sql[1024];
   if (old_time.data() && old_time.data()[0])
   {
-    MyPooledMemGuard wrapped_time;
+    CMemGuard wrapped_time;
     wrap_str(old_time.data(), wrapped_time);
     ACE_OS::snprintf(sql, 1024, update_sql_template, table, field, where_clause, field, "=", wrapped_time.data());
   }
@@ -545,12 +546,12 @@ bool MyDB::take_owner_ship(const char * table, const char * field, MyPooledMemGu
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
   {
-    MY_ERROR("MyDB::sql (%s) failed: %s\n", sql, PQerrorMessage(m_connection));
+    C_ERROR("MyDB::sql (%s) failed: %s\n", sql, PQerrorMessage(m_connection));
     return result;
   }
   int count = PQntuples(pres);
   if (count > 0)
-    old_time.init_from_string(PQgetvalue(pres, 0, 0));
+    old_time.from_string(PQgetvalue(pres, 0, 0));
   return result;
 }
 
@@ -590,7 +591,7 @@ bool MyDB::save_dist_md5(const char * dist_id, const char * md5, int md5_len)
   const char * update_sql_template = "update tb_dist_info set dist_md5 = '%s' "
                                      "where dist_id = '%s'";
   int len = md5_len + ACE_OS::strlen(update_sql_template) + ACE_OS::strlen(dist_id) + 20;
-  MyPooledMemGuard sql;
+  CMemGuard sql;
   MyMemPoolFactoryX::instance()->get_mem(len, &sql);
   ACE_OS::snprintf(sql.data(), len, update_sql_template, md5, dist_id);
 
@@ -614,7 +615,7 @@ bool MyDB::save_dist_ftp_md5(const char * dist_id, const char * md5)
 
 bool MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne * _dc_one)
 {
-  MY_ASSERT_RETURN(dist_clients != NULL, "null dist_clients @MyDB::load_dist_clients\n", false);
+  C_ASSERT_RETURN(dist_clients != NULL, "null dist_clients @MyDB::load_dist_clients\n", false);
 
   const char * CONST_select_sql_1 = "select dc_dist_id, dc_client_id, dc_status, dc_adir, dc_last_update,"
       " dc_mbz_file, dc_mbz_md5, dc_md5"
@@ -638,7 +639,7 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne * _dc
 //  dist_clients->db_time = get_db_time_i();
 //  if (unlikely(dist_clients->db_time == 0))
 //  {
-//    MY_ERROR("can not get db server time\n");
+//    C_ERROR("can not get db server time\n");
 //    return false;
 //  }
 
@@ -646,7 +647,7 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne * _dc
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
   {
-    MY_ERROR("MyDB::sql (%s) failed: %s\n", const_select_sql, PQerrorMessage(m_connection));
+    C_ERROR("MyDB::sql (%s) failed: %s\n", const_select_sql, PQerrorMessage(m_connection));
     return -1;
   }
   int count = PQntuples(pres);
@@ -658,7 +659,7 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne * _dc
     goto __exit__;
   if (unlikely(field_count != 8))
   {
-    MY_ERROR("wrong column number(%d) @MyDB::load_dist_clients()\n", field_count);
+    C_ERROR("wrong column number(%d) @MyDB::load_dist_clients()\n", field_count);
     return false;
   }
 
@@ -692,26 +693,26 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne * _dc
       if (j == 2)
         dc->status = atoi(fvalue);
       else if (j == 3)
-        dc->adir.init_from_string(fvalue);
+        dc->adir.from_string(fvalue);
       else if (j == 7)
         md5 = fvalue;
       else if (j == 5)
-        dc->mbz_file.init_from_string(fvalue);
+        dc->mbz_file.from_string(fvalue);
       else if (j == 4)
         dc->last_update = get_time_from_string(fvalue);
       else if (j == 6)
-        dc->mbz_md5.init_from_string(fvalue);
+        dc->mbz_md5.from_string(fvalue);
     }
 
     if (dc->status < 3 && md5 != NULL)
-      dc->md5.init_from_string(md5);
+      dc->md5.from_string(md5);
 
     ++ count_added;
   }
 
 __exit__:
   if (!_dc_one)
-    MY_INFO("MyDB::get %d/%d dist client infos from database\n", count_added, count);
+    C_INFO("MyDB::get %d/%d dist client infos from database\n", count_added, count);
   return count;
 }
 
@@ -737,7 +738,7 @@ bool MyDB::set_dist_client_md5(const char * client_id, const char * dist_id, con
                                      "where dc_dist_id = '%s' and dc_client_id='%s' and dc_status < %d";
   int len = ACE_OS::strlen(update_sql_template) + ACE_OS::strlen(md5) + ACE_OS::strlen(client_id)
     + ACE_OS::strlen(dist_id) + 40;
-  MyPooledMemGuard sql;
+  CMemGuard sql;
   MyMemPoolFactoryX::instance()->get_mem(len, &sql);
   ACE_OS::snprintf(sql.data(), len, update_sql_template, new_status, md5, dist_id, client_id, new_status);
 
@@ -752,7 +753,7 @@ bool MyDB::set_dist_client_mbz(const char * client_id, const char * dist_id, con
                                      "where dc_dist_id = '%s' and dc_client_id='%s' and dc_status < 3";
   int len = ACE_OS::strlen(update_sql_template) + ACE_OS::strlen(mbz) + ACE_OS::strlen(client_id)
           + ACE_OS::strlen(dist_id) + 40 + ACE_OS::strlen(mbz_md5);
-  MyPooledMemGuard sql;
+  CMemGuard sql;
   MyMemPoolFactoryX::instance()->get_mem(len, &sql);
   ACE_OS::snprintf(sql.data(), len, update_sql_template, mbz, mbz_md5, dist_id, client_id);
 
@@ -778,16 +779,16 @@ bool MyDB::dist_info_is_update(MyHttpDistInfos & infos)
     if (!check_db_connection())
       return true;
   }
-  MyPooledMemGuard value;
+  CMemGuard value;
   if (!load_cfg_value(1, value))
     return true;
   bool result = ACE_OS::strcmp(infos.last_load_time.data(), value.data()) == 0;
   if (!result)
-    infos.last_load_time.init_from_string(value.data());
+    infos.last_load_time.from_string(value.data());
   return result;
 }
 
-bool MyDB::load_pl(MyPooledMemGuard & value)
+bool MyDB::load_pl(CMemGuard & value)
 {
   return load_cfg_value(2, value);
 }
@@ -818,7 +819,7 @@ bool MyDB::get_dist_ids(MyUnusedPathRemover & path_remover)
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
   {
-    MY_ERROR("MyDB::sql (%s) failed: %s\n", sql, PQerrorMessage(m_connection));
+    C_ERROR("MyDB::sql (%s) failed: %s\n", sql, PQerrorMessage(m_connection));
     return false;
   }
   int count = PQntuples(pres);
@@ -857,13 +858,13 @@ bool MyDB::set_cfg_value(const int id, const char * value)
   return exec_command(sql);
 }
 
-bool MyDB::load_cfg_value(const int id, MyPooledMemGuard & value)
+bool MyDB::load_cfg_value(const int id, CMemGuard & value)
 {
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return load_cfg_value_i(id, value);
 }
 
-bool MyDB::load_cfg_value_i(const int id, MyPooledMemGuard & value)
+bool MyDB::load_cfg_value_i(const int id, CMemGuard & value)
 {
   const char * CONST_select_sql_template = "select cfg_value from tb_config where cfg_id = %d";
   char select_sql[1024];
@@ -873,13 +874,13 @@ bool MyDB::load_cfg_value_i(const int id, MyPooledMemGuard & value)
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
   {
-    MY_ERROR("MyDB::sql (%s) failed: %s\n", select_sql, PQerrorMessage(m_connection));
+    C_ERROR("MyDB::sql (%s) failed: %s\n", select_sql, PQerrorMessage(m_connection));
     return false;
   }
   int count = PQntuples(pres);
   if (count > 0)
   {
-    value.init_from_string(PQgetvalue(pres, 0, 0));
+    value.from_string(PQgetvalue(pres, 0, 0));
     return true;
   } else
     return false;
@@ -893,7 +894,7 @@ bool MyDB::load_db_server_time_i(time_t &t)
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
   {
-    MY_ERROR("MyDB::sql (%s) failed: %s\n", select_sql, PQerrorMessage(m_connection));
+    C_ERROR("MyDB::sql (%s) failed: %s\n", select_sql, PQerrorMessage(m_connection));
     return false;
   }
   if (PQntuples(pres) <= 0)

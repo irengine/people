@@ -100,13 +100,13 @@ void MyDistLoads::calc_server_list()
   }
   *ptr = 0;
 
-  int ftp_list_len = MyConfigX::instance()->ftp_addr_list.length();
+  int ftp_list_len = CCfgX::instance()->ftp_addr_list.length();
   if (unlikely(ftp_list_len + 3 > remain_len))
     MY_ERROR("ftp server addr list is too long @MyDistLoads::calc_server_list()\n");
   else
   {
     *ptr++ = MyDataPacketHeader::FINISH_SEPARATOR;
-    ACE_OS::strsncpy(ptr, MyConfigX::instance()->ftp_addr_list.c_str(), remain_len + 1);
+    ACE_OS::strsncpy(ptr, CCfgX::instance()->ftp_addr_list.c_str(), remain_len + 1);
   }
 
   m_server_list_length = ACE_OS::strlen(m_server_list);
@@ -128,7 +128,7 @@ void MyDistLoads::scan_for_dead()
   MyDistLoadVecIt it;
   for (it = m_loads.begin(); it != m_loads.end(); )
   {
-    if (it->m_last_access + int(DEAD_TIME * 60 / MyBaseApp::CLOCK_INTERVAL) < g_clock_tick)
+    if (it->m_last_access + int(DEAD_TIME * 60 / CApp::CLOCK_INTERVAL) < g_clock_tick)
       it = m_loads.erase(it);
     else
       ++it;
@@ -142,13 +142,13 @@ void MyDistLoads::scan_for_dead()
 
 MyUnusedPathRemover::~MyUnusedPathRemover()
 {
-  std::for_each(m_path_list.begin(), m_path_list.end(), MyObjectDeletor());
+  std::for_each(m_path_list.begin(), m_path_list.end(), CObjDeletor());
 }
 
 void MyUnusedPathRemover::add_dist_id(const char * dist_id)
 {
-  MyPooledMemGuard * guard = new MyPooledMemGuard;
-  guard->init_from_string(dist_id);
+  CMemGuard * guard = new CMemGuard;
+  guard->from_string(dist_id);
   m_path_list.push_back(guard);
   m_path_set.insert(guard->data());
 }
@@ -163,7 +163,7 @@ void MyUnusedPathRemover::check_path(const char * path)
   DIR * dir = opendir(path);
   if (!dir)
   {
-    MY_ERROR("can not open directory: %s %s\n", path, (const char*)MyErrno());
+    MY_ERROR("can not open directory: %s %s\n", path, (const char*)CErrno());
     return;
   }
 
@@ -181,9 +181,9 @@ void MyUnusedPathRemover::check_path(const char * path)
       if(!path_ok(entry->d_name))
       {
         ++count;
-        MyPooledMemGuard mpath;
-        mpath.init_from_string(path, "/", entry->d_name);
-        if (MyFilePaths::remove_path(mpath.data(), true))
+        CMemGuard mpath;
+        mpath.from_string(path, "/", entry->d_name);
+        if (CSysFS::remove_path(mpath.data(), true))
           ++ ok_count;
       }
     }
@@ -234,7 +234,7 @@ MyBaseProcessor::EVENT_RESULT MyLocationProcessor::on_recv_packet_i(ACE_Message_
   if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
     return do_version_check(mb);
 
-  MyMessageBlockGuard guard(mb);
+  CMBGuard guard(mb);
   MY_ERROR("unsupported command received, command = %d\n", header->command);
   return ER_ERROR;
 }
@@ -242,7 +242,7 @@ MyBaseProcessor::EVENT_RESULT MyLocationProcessor::on_recv_packet_i(ACE_Message_
 
 MyBaseProcessor::EVENT_RESULT MyLocationProcessor::do_version_check(ACE_Message_Block * mb)
 {
-  MyMessageBlockGuard guard(mb);
+  CMBGuard guard(mb);
 
 //  MyClientIDTable & client_id_table = MyServerAppX::instance()->client_id_table();
 //
@@ -279,7 +279,7 @@ PREPARE_MEMORY_POOL(MyLocationHandler);
 
 //MyLocationService//
 
-MyLocationService::MyLocationService(MyBaseModule * module, int numThreads):
+MyLocationService::MyLocationService(CMod * module, int numThreads):
     MyBaseService(module, numThreads)
 {
 
@@ -305,7 +305,7 @@ int MyLocationService::svc()
 MyLocationAcceptor::MyLocationAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
     MyBaseAcceptor(_dispatcher, _manager)
 {
-  m_tcp_port = MyConfigX::instance()->middle_server_client_port;
+  m_tcp_port = CCfgX::instance()->middle_server_client_port;
   m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 
@@ -330,7 +330,7 @@ const char * MyLocationAcceptor::name() const
 
 //MyLocationDispatcher//
 
-MyLocationDispatcher::MyLocationDispatcher(MyBaseModule * _module, int numThreads):
+MyLocationDispatcher::MyLocationDispatcher(CMod * _module, int numThreads):
     MyBaseDispatcher(_module, numThreads)
 {
   m_acceptor = NULL;
@@ -357,7 +357,7 @@ const char * MyLocationDispatcher::name() const
 
 //MyLocationModule//
 
-MyLocationModule::MyLocationModule(MyBaseApp * app): MyBaseModule(app)
+MyLocationModule::MyLocationModule(CApp * app): CMod(app)
 {
   m_service = NULL;
   m_dispatcher = NULL;
@@ -552,7 +552,7 @@ PREPARE_MEMORY_POOL(MyHttpHandler);
 MyHttpAcceptor::MyHttpAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
     MyBaseAcceptor(_dispatcher, _manager)
 {
-  m_tcp_port = MyConfigX::instance()->http_port;
+  m_tcp_port = CCfgX::instance()->http_port;
   m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 
@@ -577,7 +577,7 @@ const char * MyHttpAcceptor::name() const
 
 //MyHttpService//
 
-MyHttpService::MyHttpService(MyBaseModule * module, int numThreads)
+MyHttpService::MyHttpService(CMod * module, int numThreads)
   : MyBaseService(module, numThreads)
 {
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
@@ -732,7 +732,7 @@ bool MyHttpService::do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest &
   if (unlikely(!module_x()->running_with_app()))
     return false;
 
-  MyPooledMemGuard md5_result;
+  CMemGuard md5_result;
   {
     MyDistMd5Calculator calc;
     int md5_len;
@@ -743,7 +743,7 @@ bool MyHttpService::do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest &
   if (unlikely(!module_x()->running_with_app()))
     return false;
 
-  MyPooledMemGuard mbz_md5_result;
+  CMemGuard mbz_md5_result;
 //  if (http_dist_request.need_mbz_md5()) //generate all in one.mbz md5 anyway
   {
     if (!MyDistMd5Calculator::calculate_all_in_one_ftp_md5(http_dist_request.ver, mbz_md5_result))
@@ -783,7 +783,7 @@ bool MyHttpService::do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest &
 
   MyUnusedPathRemover path_remover;
   if (db.get_dist_ids(path_remover))
-    path_remover.check_path(MyConfigX::instance()->compressed_store_path.c_str());
+    path_remover.check_path(CCfgX::instance()->compressed_store_path.c_str());
 
   return true;
 }
@@ -871,7 +871,7 @@ bool MyHttpService::do_compress(MyHttpDistRequest & http_dist_request)
 bool MyHttpService::do_calc_md5(MyHttpDistRequest & http_dist_request)
 {
   MyDistMd5Calculator calc;
-  MyPooledMemGuard md5_result;
+  CMemGuard md5_result;
   int md5_len;
   return calc.calculate(http_dist_request, md5_result, md5_len);
 }
@@ -884,7 +884,7 @@ bool MyHttpService::notify_dist_servers()
 
 //MyHttpDispatcher//
 
-MyHttpDispatcher::MyHttpDispatcher(MyBaseModule * pModule, int numThreads):
+MyHttpDispatcher::MyHttpDispatcher(CMod * pModule, int numThreads):
     MyBaseDispatcher(pModule, numThreads)
 {
   m_acceptor = NULL;
@@ -911,7 +911,7 @@ bool MyHttpDispatcher::on_start()
 
 //MyHttpModule//
 
-MyHttpModule::MyHttpModule(MyBaseApp * app): MyBaseModule(app)
+MyHttpModule::MyHttpModule(CApp * app): CMod(app)
 {
   m_dispatcher = NULL;
   m_service = NULL;
@@ -983,7 +983,7 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
   {
     if (!my_dph_validate_client_version_check_req(&m_packet_header))
     {
-      MyPooledMemGuard info;
+      CMemGuard info;
       info_string(info);
       MY_ERROR("bad client version check req packet received from %s\n", info.data());
       return ER_ERROR;
@@ -995,7 +995,7 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
   {
     if (!my_dph_validate_load_balance_req(&m_packet_header))
     {
-      MyPooledMemGuard info;
+      CMemGuard info;
       info_string(info);
       MY_ERROR("bad load_balance packet received from %s\n", info.data());
       return ER_ERROR;
@@ -1011,7 +1011,7 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
 MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
   MyBaseServerProcessor::on_recv_packet_i(mb);
-  MyMessageBlockGuard guard(mb);
+  CMBGuard guard(mb);
 
   MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
   if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
@@ -1029,10 +1029,10 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::do_version_check(ACE_Message_
 {
   MyClientVersionCheckRequest * p = (MyClientVersionCheckRequest *) mb->base();
   m_client_id = "DistServer";
-  bool result = (p->client_id == MyConfigX::instance()->middle_server_key.c_str());
+  bool result = (p->client_id == CCfgX::instance()->middle_server_key.c_str());
   if (!result)
   {
-    MyPooledMemGuard info;
+    CMemGuard info;
     info_string(info);
     MY_ERROR("bad load_balance version check (bad key) received from %s\n", info.data());
     return ER_ERROR;
@@ -1078,7 +1078,7 @@ PREPARE_MEMORY_POOL(MyDistLoadHandler);
 MyDistLoadAcceptor::MyDistLoadAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
     MyBaseAcceptor(_dispatcher, _manager)
 {
-  m_tcp_port = MyConfigX::instance()->middle_server_dist_port;
+  m_tcp_port = CCfgX::instance()->middle_server_dist_port;
   m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 
@@ -1104,7 +1104,7 @@ const char * MyDistLoadAcceptor::name() const
 
 //MyDistLoadDispatcher//
 
-MyDistLoadDispatcher::MyDistLoadDispatcher(MyBaseModule * pModule, int numThreads):
+MyDistLoadDispatcher::MyDistLoadDispatcher(CMod * pModule, int numThreads):
     MyBaseDispatcher(pModule, numThreads)
 {
   m_acceptor = NULL;
@@ -1135,7 +1135,7 @@ void MyDistLoadDispatcher::send_to_bs(ACE_Message_Block * mb)
   ACE_Time_Value tv(ACE_Time_Value::zero);
   if (m_to_bs_queue.enqueue(mb, &tv) < 0)
   {
-    MY_ERROR("MyDistLoadDispatcher::send_to_bs() failed, %s\n", (const char*)MyErrno());
+    MY_ERROR("MyDistLoadDispatcher::send_to_bs() failed, %s\n", (const char*)CErrno());
     mb->release();
   }
 }
@@ -1162,7 +1162,7 @@ bool MyDistLoadDispatcher::on_start()
     m_bs_connector = new MyMiddleToBSConnector(this, new MyBaseConnectionManager());
   add_connector(m_bs_connector);
 
-  ACE_Time_Value interval(int(MyDistLoads::DEAD_TIME * 60 / MyBaseApp::CLOCK_INTERVAL / 2));
+  ACE_Time_Value interval(int(MyDistLoads::DEAD_TIME * 60 / CApp::CLOCK_INTERVAL / 2));
   if (reactor()->schedule_timer(this, 0, interval, interval) == -1)
   {
     MY_ERROR("can not setup dist load server scan timer\n");
@@ -1190,7 +1190,7 @@ bool MyDistLoadDispatcher::on_event_loop()
 
 //MyDistLoadModule//
 
-MyDistLoadModule::MyDistLoadModule(MyBaseApp * app): MyBaseModule(app)
+MyDistLoadModule::MyDistLoadModule(CApp * app): CMod(app)
 {
   m_dispatcher = NULL;
 }
@@ -1287,7 +1287,7 @@ int MyMiddleToBSHandler::on_open()
   ACE_Time_Value interval(30);
   if (reactor()->schedule_timer(this, (void*)0, interval, interval) < 0)
   {
-    MY_ERROR(ACE_TEXT("MyMiddleToBSHandler setup timer failed, %s"), (const char*)MyErrno());
+    MY_ERROR(ACE_TEXT("MyMiddleToBSHandler setup timer failed, %s"), (const char*)CErrno());
     return -1;
   }
 
@@ -1319,9 +1319,9 @@ PREPARE_MEMORY_POOL(MyMiddleToBSHandler);
 MyMiddleToBSConnector::MyMiddleToBSConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
     MyBaseConnector(_dispatcher, _manager)
 {
-  m_tcp_port = MyConfigX::instance()->bs_server_port;
+  m_tcp_port = CCfgX::instance()->bs_server_port;
   m_reconnect_interval = RECONNECT_INTERVAL;
-  m_tcp_addr = MyConfigX::instance()->bs_server_addr;
+  m_tcp_addr = CCfgX::instance()->bs_server_addr;
 }
 
 const char * MyMiddleToBSConnector::name() const

@@ -11,7 +11,7 @@
 #include "distmodule.h"
 #include "middlemodule.h"
 
-std::string get_app_ver()
+std::string current_ver()
 {
   std::string result = "1.1 build 120613";
   return result;
@@ -26,6 +26,7 @@ MyServerApp::MyServerApp()
   m_location_module = NULL;
   m_dist_load_module = NULL;
   m_http_module = NULL;
+  m_dist_to_middle_module = NULL;
 }
 
 MyServerApp::~MyServerApp()
@@ -107,28 +108,28 @@ void MyServerApp::dump_mem_pool_info()
   {
     chunks = MyHeartBeatHandler::mem_pool()->chunks();
     MyHeartBeatHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyHeartBeatHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatHandler), chunks);
+    CApp::print_pool_one("MyHeartBeatHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatHandler), chunks);
   }
 
   if (MyHeartBeatProcessor::mem_pool())
   {
     chunks = MyHeartBeatProcessor::mem_pool()->chunks();
     MyHeartBeatProcessor::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyHeartBeatProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatProcessor), chunks);
+    CApp::print_pool_one("MyHeartBeatProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatProcessor), chunks);
   }
 
   if (MyDistToBSHandler::mem_pool())
   {
     chunks = MyDistToBSHandler::mem_pool()->chunks();
     MyDistToBSHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyDistToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToBSHandler), chunks);
+    CApp::print_pool_one("MyDistToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToBSHandler), chunks);
   }
 
   if (MyDistToMiddleHandler::mem_pool())
   {
     chunks = MyDistToMiddleHandler::mem_pool()->chunks();
     MyDistToMiddleHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyDistToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToMiddleHandler), chunks);
+    CApp::print_pool_one("MyDistToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToMiddleHandler), chunks);
   }
 
   //start of middle server stuff
@@ -136,42 +137,42 @@ void MyServerApp::dump_mem_pool_info()
   {
     chunks = MyLocationHandler::mem_pool()->chunks();
     MyLocationHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyLocationHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationHandler), chunks);
+    CApp::print_pool_one("MyLocationHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationHandler), chunks);
   }
 
   if (MyLocationProcessor::mem_pool())
   {
     chunks = MyLocationProcessor::mem_pool()->chunks();
     MyLocationProcessor::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyLocationProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationProcessor), chunks);
+    CApp::print_pool_one("MyLocationProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationProcessor), chunks);
   }
 
   if (MyHttpHandler::mem_pool())
   {
     chunks = MyHttpHandler::mem_pool()->chunks();
     MyHttpHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyHttpHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpHandler), chunks);
+    CApp::print_pool_one("MyHttpHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpHandler), chunks);
   }
 
   if (MyHttpProcessor::mem_pool())
   {
     chunks = MyHttpProcessor::mem_pool()->chunks();
     MyHttpProcessor::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyHttpProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpProcessor), chunks);
+    CApp::print_pool_one("MyHttpProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpProcessor), chunks);
   }
 
   if (MyDistLoadHandler::mem_pool())
   {
     chunks = MyDistLoadHandler::mem_pool()->chunks();
     MyDistLoadHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyDistLoadHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistLoadHandler), chunks);
+    CApp::print_pool_one("MyDistLoadHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistLoadHandler), chunks);
   }
 
   if (MyMiddleToBSHandler::mem_pool())
   {
     chunks = MyMiddleToBSHandler::mem_pool()->chunks();
     MyMiddleToBSHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    MyBaseApp::mem_pool_dump_one("MyMiddleToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyMiddleToBSHandler), chunks);
+    CApp::print_pool_one("MyMiddleToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyMiddleToBSHandler), chunks);
   }
 
   MyMemPoolFactoryX::instance()->dump_info();
@@ -187,7 +188,7 @@ void MyServerApp::do_dump_info()
 
 bool MyServerApp::on_construct()
 {
-  MyConfig * cfg = MyConfigX::instance();
+  CCfg * cfg = CCfgX::instance();
   g_client_id_table = &m_client_id_table;
 
   if (!m_db.connect())
@@ -215,17 +216,17 @@ bool MyServerApp::on_construct()
   return true;
 }
 
-bool MyServerApp::app_init(const char * app_home_path, MyConfig::RUNNING_MODE mode)
+bool MyServerApp::app_init(const char * app_home_path, CCfg::RUNNING_MODE mode)
 {
   MyServerApp * app = MyServerAppX::instance();
-  MyConfig* cfg = MyConfigX::instance();
-  if (!MyConfigX::instance()->load_config(app_home_path, mode))
+  CCfg* cfg = CCfgX::instance();
+  if (!CCfgX::instance()->readall(app_home_path, mode))
   {
     std::printf("error loading config file, quitting\n");
     exit(5);
   }
   if (cfg->run_as_demon)
-    MyBaseApp::app_demonize();
+    CApp::demon();
   if (cfg->is_dist_server())
   {
     MyHeartBeatProcessor::init_mem_pool(cfg->max_clients);
@@ -253,7 +254,7 @@ void MyServerApp::app_fini()
   MY_INFO(ACE_TEXT("shutdown server...\n"));
   MyServerAppX::close();  //this comes before the releasing of memory pool
   g_client_id_table = NULL;
-  MyConfigX::close();
+  CCfgX::close();
   dump_mem_pool_info(); //only mem pool info, other objects should gone by now
   MyHeartBeatHandler::fini_mem_pool();
   MyHeartBeatProcessor::fini_mem_pool();
@@ -278,9 +279,9 @@ int main(int argc, const char * argv[])
   bool ret;
 
   if (argc == 3 && strcmp(argv[1], "-home") == 0 && argv[2][0] == '/')
-    ret = MyServerApp::app_init(argv[2], MyConfig::RM_UNKNOWN);
+    ret = MyServerApp::app_init(argv[2], CCfg::RM_UNKNOWN);
   else
-    ret = MyServerApp::app_init(NULL, MyConfig::RM_UNKNOWN);
+    ret = MyServerApp::app_init(NULL, CCfg::RM_UNKNOWN);
 
   if (ret)
     MyServerAppX::instance()->start();

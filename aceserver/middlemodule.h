@@ -103,8 +103,8 @@ public:
   void check_path(const char * path);
 
 private:
-  typedef std::tr1::unordered_set<const char *, MyStringHash, MyStringEqual, MyAllocator<const char *> > MyPathSet;
-  typedef std::list<MyPooledMemGuard *, MyAllocator<MyPooledMemGuard *> > MyPathList;
+  typedef std::tr1::unordered_set<const char *, CStrHasher, CStrEqual, MyAllocator<const char *> > MyPathSet;
+  typedef std::list<CMemGuard *, MyAllocator<CMemGuard *> > MyPathList;
 
   bool path_ok(const char * _path);
 
@@ -141,14 +141,14 @@ public:
 class MyLocationService: public MyBaseService
 {
 public:
-  MyLocationService(MyBaseModule * module, int numThreads = 1);
+  MyLocationService(CMod * module, int numThreads = 1);
   virtual int svc();
 };
 
 class MyLocationDispatcher: public MyBaseDispatcher
 {
 public:
-  MyLocationDispatcher(MyBaseModule * _module, int numThreads = 1);
+  MyLocationDispatcher(CMod * _module, int numThreads = 1);
 
 protected:
   virtual bool on_start();
@@ -172,10 +172,10 @@ public:
 };
 
 
-class MyLocationModule: public MyBaseModule
+class MyLocationModule: public CMod
 {
 public:
-  MyLocationModule(MyBaseApp * app);
+  MyLocationModule(CApp * app);
   virtual ~MyLocationModule();
   MyDistLoads * dist_loads();
 
@@ -229,7 +229,7 @@ public:
 class MyHttpService: public MyBaseService
 {
 public:
-  MyHttpService(MyBaseModule * module, int numThreads = 1);
+  MyHttpService(CMod * module, int numThreads = 1);
 
   virtual int svc();
   virtual const char * name() const;
@@ -249,7 +249,7 @@ private:
 class MyHttpDispatcher: public MyBaseDispatcher
 {
 public:
-  MyHttpDispatcher(MyBaseModule * pModule, int numThreads = 1);
+  MyHttpDispatcher(CMod * pModule, int numThreads = 1);
   virtual const char * name() const;
 
 protected:
@@ -271,10 +271,10 @@ public:
 };
 
 
-class MyHttpModule: public MyBaseModule
+class MyHttpModule: public CMod
 {
 public:
-  MyHttpModule(MyBaseApp * app);
+  MyHttpModule(CApp * app);
   virtual ~MyHttpModule();
   virtual const char * name() const;
   MyHttpService * http_service();
@@ -335,7 +335,7 @@ public:
 class MyDistLoadDispatcher: public MyBaseDispatcher
 {
 public:
-  MyDistLoadDispatcher(MyBaseModule * pModule, int numThreads = 1);
+  MyDistLoadDispatcher(CMod * pModule, int numThreads = 1);
   ~MyDistLoadDispatcher();
   virtual const char * name() const;
   virtual int handle_timeout(const ACE_Time_Value &current_time, const void *act = 0);
@@ -365,10 +365,10 @@ public:
 };
 
 
-class MyDistLoadModule: public MyBaseModule
+class MyDistLoadModule: public CMod
 {
 public:
-  MyDistLoadModule(MyBaseApp * app);
+  MyDistLoadModule(CApp * app);
   virtual ~MyDistLoadModule();
   virtual const char * name() const;
   MyDistLoadDispatcher * dispatcher() const;

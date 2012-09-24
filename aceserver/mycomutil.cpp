@@ -13,7 +13,7 @@ bool g_use_mem_pool = true;
 
 //MyCached_Message_Block//
 
-MyCached_Message_Block::MyCached_Message_Block(size_t size,
+CCachedMB::CCachedMB(size_t size,
                 ACE_Allocator * allocator_strategy,
                 ACE_Allocator * data_block_allocator,
                 ACE_Allocator * message_block_allocator,
@@ -37,7 +37,7 @@ MyCached_Message_Block::MyCached_Message_Block(size_t size,
 
 //MyPooledMemGuard//
 
-void MyPooledMemGuard::init_from_string(const char * src)
+void CMemGuard::from_string(const char * src)
 {
   int len = src? ACE_OS::strlen(src) + 1: 1;
   MyMemPoolFactoryX::instance()->get_mem(len, this);
@@ -47,16 +47,16 @@ void MyPooledMemGuard::init_from_string(const char * src)
     ACE_OS::memcpy(data(), src, len);
 }
 
-void MyPooledMemGuard::init_from_string(const char * src1, const char * src2)
+void CMemGuard::from_string(const char * src1, const char * src2)
 {
   if (!src1 || !*src1)
   {
-    init_from_string(src2);
+    from_string(src2);
     return;
   }
   if (!src2 || !*src2)
   {
-    init_from_string(src1);
+    from_string(src1);
     return;
   }
   int len1 = ACE_OS::strlen(src1);
@@ -66,21 +66,21 @@ void MyPooledMemGuard::init_from_string(const char * src1, const char * src2)
   ACE_OS::memcpy(data() + len1, src2, len2);
 }
 
-void MyPooledMemGuard::init_from_string(const char * src1, const char * src2, const char * src3)
+void CMemGuard::from_string(const char * src1, const char * src2, const char * src3)
 {
   if (!src1 || !*src1)
   {
-    init_from_string(src2, src3);
+    from_string(src2, src3);
     return;
   }
   if (!src2 || !*src2)
   {
-    init_from_string(src1, src3);
+    from_string(src1, src3);
     return;
   }
   if (!src3 || !*src3)
   {
-    init_from_string(src1, src2);
+    from_string(src1, src2);
     return;
   }
 
@@ -93,26 +93,26 @@ void MyPooledMemGuard::init_from_string(const char * src1, const char * src2, co
   ACE_OS::memcpy(data() + len1 + len2, src3, len3);
 }
 
-void MyPooledMemGuard::init_from_string(const char * src1, const char * src2, const char * src3, const char * src4)
+void CMemGuard::from_string(const char * src1, const char * src2, const char * src3, const char * src4)
 {
   if (!src1 || !*src1)
   {
-    init_from_string(src2, src3, src4);
+    from_string(src2, src3, src4);
     return;
   }
   if (!src2 || !*src2)
   {
-    init_from_string(src1, src3, src4);
+    from_string(src1, src3, src4);
     return;
   }
   if (!src3 || !*src3)
   {
-    init_from_string(src1, src2, src4);
+    from_string(src1, src2, src4);
     return;
   }
   if (!src4 || !*src4)
   {
-    init_from_string(src1, src2, src3);
+    from_string(src1, src2, src3);
     return;
   }
 
@@ -127,7 +127,7 @@ void MyPooledMemGuard::init_from_string(const char * src1, const char * src2, co
   ACE_OS::memcpy(data() + len1 + len2 + len3, src4, len4);
 }
 
-void MyPooledMemGuard::init_from_strings(const char * arr[], int len)
+void CMemGuard::from_strings(const char * arr[], int len)
 {
   if (unlikely(!arr || len <= 0))
     return;
@@ -217,14 +217,14 @@ bool mycomutil_find_tag_value(char * & ptr, const char * tag, char * & value, ch
   return true;
 }
 
-bool mycomutil_calculate_file_md5(const char * _file, MyPooledMemGuard & md5_result)
+bool mycomutil_calculate_file_md5(const char * _file, CMemGuard & md5_result)
 {
   char buff[32 + 1];
   MD5_CTX mdContext;
   if (!md5file(_file, 0, &mdContext, buff, 32))
     return false;
   buff[32] = 0;
-  md5_result.init_from_string(buff);
+  md5_result.from_string(buff);
   return true;
 }
 
@@ -272,7 +272,7 @@ bool mycomutil_mb_putq(ACE_Task<ACE_MT_SYNCH> * target, ACE_Message_Block * mb, 
   if (unlikely(target->putq(mb, &tv) < 0))
   {
     if (err_msg)
-      MY_ERROR("can not put message %s: %s\n", err_msg, (const char *)MyErrno());
+      MY_ERROR("can not put message %s: %s\n", err_msg, (const char *)CErrno());
     mb->release();
     return false;
   }
@@ -375,7 +375,7 @@ _exit_:
     return -1;
   }
 
-  MyMessageBlockGuard guard(discard ? mb: NULL);
+  CMBGuard guard(discard ? mb: NULL);
 
   if (!handler->msg_queue()->is_empty()) //sticky avoiding
   {
@@ -428,18 +428,18 @@ int mycomutil_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH
 
 //MyFilePaths//
 
-bool MyFilePaths::exist(const char * path)
+bool CSysFS::exist(const char * path)
 {
   struct stat buf;
   return stat(path, &buf);
 }
 
-bool MyFilePaths::make_path(const char* path, bool self_only)
+bool CSysFS::make_path(const char* path, bool self_only)
 {
   return (mkdir(path, self_only? DIR_FLAG_SELF : DIR_FLAG_ALL) == 0 || ACE_OS::last_error() == EEXIST);
 }
 
-bool MyFilePaths::make_path(char * path, int prefix_len, bool is_file, bool self_only)
+bool CSysFS::make_path(char * path, int prefix_len, bool is_file, bool self_only)
 {
   if (!path || !*path)
     return false;
@@ -465,36 +465,36 @@ bool MyFilePaths::make_path(char * path, int prefix_len, bool is_file, bool self
   return true;
 }
 
-bool MyFilePaths::make_path_const(const char* path, int prefix_len, bool is_file, bool self_only)
+bool CSysFS::make_path_const(const char* path, int prefix_len, bool is_file, bool self_only)
 {
-  MyPooledMemGuard path_copy;
-  path_copy.init_from_string(path);
-  return MyFilePaths::make_path(path_copy.data(), prefix_len, is_file, self_only);
+  CMemGuard path_copy;
+  path_copy.from_string(path);
+  return CSysFS::make_path(path_copy.data(), prefix_len, is_file, self_only);
 }
 
-bool MyFilePaths::make_path(const char * path, const char * subpath, bool is_file, bool self_only)
+bool CSysFS::make_path(const char * path, const char * subpath, bool is_file, bool self_only)
 {
   if (unlikely(!path || !subpath))
     return false;
-  MyPooledMemGuard path_x;
-  path_x.init_from_string(path, "/", subpath);
+  CMemGuard path_x;
+  path_x.from_string(path, "/", subpath);
   return make_path(path_x.data(), strlen(path) + 1, is_file, self_only);
 }
 
-bool MyFilePaths::copy_path(const char * srcdir, const char * destdir, bool self_only, bool syn)
+bool CSysFS::copy_path(const char * srcdir, const char * destdir, bool self_only, bool syn)
 {
   if (unlikely(!srcdir || !*srcdir || !destdir || !*destdir))
     return false;
   if (!make_path(destdir, self_only))
   {
-    MY_ERROR("can not create directory %s, %s\n", destdir, (const char *)MyErrno());
+    MY_ERROR("can not create directory %s, %s\n", destdir, (const char *)CErrno());
     return false;
   }
 
   DIR * dir = opendir(srcdir);
   if (!dir)
   {
-    MY_ERROR("can not open directory: %s %s\n", srcdir, (const char*)MyErrno());
+    MY_ERROR("can not open directory: %s %s\n", srcdir, (const char*)CErrno());
     return false;
   }
 
@@ -509,7 +509,7 @@ bool MyFilePaths::copy_path(const char * srcdir, const char * destdir, bool self
     if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
       continue;
 
-    MyPooledMemGuard msrc, mdest;
+    CMemGuard msrc, mdest;
     int len = ACE_OS::strlen(entry->d_name);
     MyMemPoolFactoryX::instance()->get_mem(len1 + len + 2, &msrc);
     ACE_OS::sprintf(msrc.data(), "%s/%s", srcdir, entry->d_name);
@@ -520,7 +520,7 @@ bool MyFilePaths::copy_path(const char * srcdir, const char * destdir, bool self
     {
       if (!copy_file(msrc.data(), mdest.data(), self_only, syn))
       {
-        MY_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (const char *)MyErrno());
+        MY_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (const char *)CErrno());
         closedir(dir);
         return false;
       }
@@ -541,7 +541,7 @@ bool MyFilePaths::copy_path(const char * srcdir, const char * destdir, bool self
   return true;
 }
 
-bool MyFilePaths::copy_path_zap(const char * srcdir, const char * destdir, bool self_only, bool zap, bool syn)
+bool CSysFS::copy_path_zap(const char * srcdir, const char * destdir, bool self_only, bool zap, bool syn)
 {
   if (unlikely(!srcdir || !*srcdir || !destdir || !*destdir))
     return false;
@@ -551,14 +551,14 @@ bool MyFilePaths::copy_path_zap(const char * srcdir, const char * destdir, bool 
 
   if (!make_path_const(destdir, 1, false, self_only))
   {
-    MY_ERROR("can not create directory %s, %s\n", destdir, (const char *)MyErrno());
+    MY_ERROR("can not create directory %s, %s\n", destdir, (const char *)CErrno());
     return false;
   }
 
   DIR * dir = opendir(srcdir);
   if (!dir)
   {
-    MY_ERROR("can not open directory: %s %s\n", srcdir, (const char*)MyErrno());
+    MY_ERROR("can not open directory: %s %s\n", srcdir, (const char*)CErrno());
     return false;
   }
 
@@ -573,7 +573,7 @@ bool MyFilePaths::copy_path_zap(const char * srcdir, const char * destdir, bool 
     if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
       continue;
 
-    MyPooledMemGuard msrc, mdest;
+    CMemGuard msrc, mdest;
     int len = ACE_OS::strlen(entry->d_name);
     MyMemPoolFactoryX::instance()->get_mem(len1 + len + 2, &msrc);
     ACE_OS::sprintf(msrc.data(), "%s/%s", srcdir, entry->d_name);
@@ -584,7 +584,7 @@ bool MyFilePaths::copy_path_zap(const char * srcdir, const char * destdir, bool 
     {
       if (!copy_file(msrc.data(), mdest.data(), self_only, syn))
       {
-        MY_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (const char *)MyErrno());
+        MY_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (const char *)CErrno());
         closedir(dir);
         return false;
       }
@@ -605,7 +605,7 @@ bool MyFilePaths::copy_path_zap(const char * srcdir, const char * destdir, bool 
   return true;
 }
 
-bool MyFilePaths::remove_path(const char * path, bool ignore_eror)
+bool CSysFS::remove_path(const char * path, bool ignore_eror)
 {
   if (unlikely(!path || !*path))
     return false;
@@ -614,7 +614,7 @@ bool MyFilePaths::remove_path(const char * path, bool ignore_eror)
   if (!dir)
   {
     if (!ignore_eror)
-      MY_ERROR("can not open directory: %s %s\n", path, (const char*)MyErrno());
+      MY_ERROR("can not open directory: %s %s\n", path, (const char*)CErrno());
     return false;
   }
 
@@ -629,7 +629,7 @@ bool MyFilePaths::remove_path(const char * path, bool ignore_eror)
     if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
       continue;
 
-    MyPooledMemGuard msrc;
+    CMemGuard msrc;
     int len = ACE_OS::strlen(entry->d_name);
     MyMemPoolFactoryX::instance()->get_mem(len1 + len + 2, &msrc);
     ACE_OS::sprintf(msrc.data(), "%s/%s", path, entry->d_name);
@@ -646,7 +646,7 @@ bool MyFilePaths::remove_path(const char * path, bool ignore_eror)
       if (unlink(msrc.data()) != 0)
       {
         if (!ignore_eror)
-          MY_ERROR("can not remove file %s %s\n", msrc.data(), (const char*)MyErrno());
+          MY_ERROR("can not remove file %s %s\n", msrc.data(), (const char*)CErrno());
         ret = false;
       }
     }
@@ -657,7 +657,7 @@ bool MyFilePaths::remove_path(const char * path, bool ignore_eror)
   return ret;
 }
 
-bool MyFilePaths::remove_old_files(const char * path, time_t deadline)
+bool CSysFS::remove_old_files(const char * path, time_t deadline)
 {
   if (unlikely(!path || !*path))
     return false;
@@ -676,7 +676,7 @@ bool MyFilePaths::remove_old_files(const char * path, time_t deadline)
     DIR * dir = opendir(path);
     if (!dir)
     {
-      MY_ERROR("can not open directory: %s %s\n", path, (const char*)MyErrno());
+      MY_ERROR("can not open directory: %s %s\n", path, (const char*)CErrno());
       return false;
     }
 
@@ -691,7 +691,7 @@ bool MyFilePaths::remove_old_files(const char * path, time_t deadline)
       if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
         continue;
 
-      MyPooledMemGuard msrc;
+      CMemGuard msrc;
       int len = ACE_OS::strlen(entry->d_name);
       MyMemPoolFactoryX::instance()->get_mem(len1 + len + 2, &msrc);
       ACE_OS::sprintf(msrc.data(), "%s/%s", path, entry->d_name);
@@ -710,7 +710,7 @@ bool MyFilePaths::remove_old_files(const char * path, time_t deadline)
   return true;
 }
 
-bool MyFilePaths::copy_file_by_fd(int src_fd, int dest_fd)
+bool CSysFS::copy_file_by_fd(int src_fd, int dest_fd)
 {
   const int BLOCK_SIZE = 4096;
   char buff[BLOCK_SIZE];
@@ -722,14 +722,14 @@ bool MyFilePaths::copy_file_by_fd(int src_fd, int dest_fd)
       return true;
     else if (n_read < 0)
     {
-      MY_ERROR("can not read from file %s\n", (const char*)MyErrno());
+      MY_ERROR("can not read from file %s\n", (const char*)CErrno());
       return false;
     }
 
     n_write = ::write(dest_fd, buff, n_read);
     if (n_write != n_read)
     {
-      MY_ERROR("can not write to file %s\n", (const char*)MyErrno());
+      MY_ERROR("can not write to file %s\n", (const char*)CErrno());
       return false;
     }
 
@@ -740,9 +740,9 @@ bool MyFilePaths::copy_file_by_fd(int src_fd, int dest_fd)
   ACE_NOTREACHED(return true);
 }
 
-bool MyFilePaths::copy_file(const char * src, const char * dest, bool self_only, bool syn)
+bool CSysFS::copy_file(const char * src, const char * dest, bool self_only, bool syn)
 {
-  MyUnixHandleGuard hsrc, hdest;
+  CUnixFileGuard hsrc, hdest;
   if (!hsrc.open_read(src))
     return false;
   if (!hdest.open_write(dest, true, true, false, self_only))
@@ -753,17 +753,17 @@ bool MyFilePaths::copy_file(const char * src, const char * dest, bool self_only,
   return ret;
 }
 
-int MyFilePaths::cat_path(const char * path, const char * subpath, MyPooledMemGuard & result)
+int CSysFS::cat_path(const char * path, const char * subpath, CMemGuard & result)
 {
   if (unlikely(!path || !*path || !subpath || !*subpath))
     return -1;
   int dir_len = ACE_OS::strlen(path);
   bool separator_trailing = (path[dir_len -1] == '/');
-  result.init_from_string(path, (separator_trailing? NULL: "/"), subpath);
+  result.from_string(path, (separator_trailing? NULL: "/"), subpath);
   return (separator_trailing? dir_len: (dir_len + 1));
 }
 
-bool MyFilePaths::get_correlate_path(MyPooledMemGuard & pathfile, int skip)
+bool CSysFS::get_correlate_path(CMemGuard & pathfile, int skip)
 {
   char * ptr = pathfile.data() + skip + 1;
   char * ptr2 = ACE_OS::strrchr(ptr, '.');
@@ -775,23 +775,23 @@ bool MyFilePaths::get_correlate_path(MyPooledMemGuard & pathfile, int skip)
   return true;
 }
 
-bool MyFilePaths::rename(const char *old_path, const char * new_path, bool ignore_eror)
+bool CSysFS::rename(const char *old_path, const char * new_path, bool ignore_eror)
 {
   bool result = (::rename(old_path, new_path) == 0);
   if (!result && !ignore_eror)
-    MY_ERROR("rename %s to %s failed %s\n", old_path, new_path, (const char*)MyErrno());
+    MY_ERROR("rename %s to %s failed %s\n", old_path, new_path, (const char*)CErrno());
   return result;
 }
 
-bool MyFilePaths::remove(const char *pathfile, bool ignore_error)
+bool CSysFS::remove(const char *pathfile, bool ignore_error)
 {
   bool result = (::remove(pathfile) == 0 || ACE_OS::last_error() == ENOENT);
   if (!result && !ignore_error)
-    MY_ERROR("remove %s failed %s\n", pathfile, (const char*)MyErrno());
+    MY_ERROR("remove %s failed %s\n", pathfile, (const char*)CErrno());
   return result;
 }
 
-bool MyFilePaths::zap(const char *pathfile, bool ignore_error)
+bool CSysFS::zap(const char *pathfile, bool ignore_error)
 {
   struct stat _stat;
   if (!stat(pathfile, &_stat))
@@ -801,7 +801,7 @@ bool MyFilePaths::zap(const char *pathfile, bool ignore_error)
     else
     {
       if (!ignore_error)
-        MY_ERROR("stat(%s) failed %s\n", (const char *)MyErrno());
+        MY_ERROR("stat(%s) failed %s\n", (const char *)CErrno());
       return false;
     }
   }
@@ -812,12 +812,12 @@ bool MyFilePaths::zap(const char *pathfile, bool ignore_error)
     return remove(pathfile, ignore_error);
 }
 
-bool MyFilePaths::stat(const char *pathfile, struct stat * _stat)
+bool CSysFS::stat(const char *pathfile, struct stat * _stat)
 {
   return (::stat(pathfile, _stat) == 0);
 }
 
-int MyFilePaths::filesize(const char *pathfile)
+int CSysFS::filesize(const char *pathfile)
 {
   struct stat _stat;
   if (!stat(pathfile, &_stat))
@@ -825,10 +825,10 @@ int MyFilePaths::filesize(const char *pathfile)
   return (int)_stat.st_size;
 }
 
-bool MyFilePaths::zap_path_except_mfile(const MyPooledMemGuard & path, const MyPooledMemGuard & mfile, bool ignore_error)
+bool CSysFS::zap_path_except_mfile(const CMemGuard & path, const CMemGuard & mfile, bool ignore_error)
 {
-  MyPooledMemGuard mfile_path;
-  mfile_path.init_from_string(mfile.data());
+  CMemGuard mfile_path;
+  mfile_path.from_string(mfile.data());
   char * ptr = ACE_OS::strrchr(mfile_path.data(), '.');
   if (ptr)
     *ptr = 0;
@@ -837,7 +837,7 @@ bool MyFilePaths::zap_path_except_mfile(const MyPooledMemGuard & path, const MyP
   if (!dir)
   {
     if (!ignore_error)
-      MY_ERROR("can not open directory: %s %s\n", path.data(), (const char*)MyErrno());
+      MY_ERROR("can not open directory: %s %s\n", path.data(), (const char*)CErrno());
     return false;
   }
 
@@ -851,8 +851,8 @@ bool MyFilePaths::zap_path_except_mfile(const MyPooledMemGuard & path, const MyP
         || !strcmp(entry->d_name, mfile_path.data()) )
       continue;
 
-    MyPooledMemGuard msrc;
-    msrc.init_from_string(path.data(), "/", entry->d_name);
+    CMemGuard msrc;
+    msrc.from_string(path.data(), "/", entry->d_name);
 
     if(entry->d_type == DT_DIR)
     {
@@ -866,7 +866,7 @@ bool MyFilePaths::zap_path_except_mfile(const MyPooledMemGuard & path, const MyP
   return ret;
 }
 
-void MyFilePaths::zap_empty_paths(const MyPooledMemGuard & path)
+void CSysFS::zap_empty_paths(const CMemGuard & path)
 {
   DIR * dir = opendir(path.data());
   if (!dir)
@@ -882,8 +882,8 @@ void MyFilePaths::zap_empty_paths(const MyPooledMemGuard & path)
 
     if(entry->d_type == DT_DIR)
     {
-      MyPooledMemGuard msrc;
-      msrc.init_from_string(path.data(), "/", entry->d_name);
+      CMemGuard msrc;
+      msrc.from_string(path.data(), "/", entry->d_name);
       zap_empty_paths(msrc);
     }
   };
@@ -893,7 +893,7 @@ void MyFilePaths::zap_empty_paths(const MyPooledMemGuard & path)
 
 //MyTestClientPathGenerator//
 
-void MyTestClientPathGenerator::make_paths(const char * app_data_path, int64_t _start, int _count)
+void CClientPathGenerator::make_paths(const char * app_data_path, int64_t _start, int _count)
 {
   if (!app_data_path || !*app_data_path)
     return;
@@ -904,11 +904,11 @@ void MyTestClientPathGenerator::make_paths(const char * app_data_path, int64_t _
   {
     ACE_OS::snprintf(str_client_id, 64 - 1, "%lld", (long long)id);
     client_id_to_path(str_client_id, buff + prefix_len, PATH_MAX - prefix_len - 1);
-    MyFilePaths::make_path(buff, prefix_len + 1, false, true);
+    CSysFS::make_path(buff, prefix_len + 1, false, true);
   }
 }
 
-void MyTestClientPathGenerator::make_paths_from_id_table(const char * app_data_path, MyClientIDTable * id_table)
+void CClientPathGenerator::make_paths_from_id_table(const char * app_data_path, MyClientIDTable * id_table)
 {
   if (!app_data_path || !*app_data_path || !id_table)
     return;
@@ -917,26 +917,26 @@ void MyTestClientPathGenerator::make_paths_from_id_table(const char * app_data_p
   int prefix_len = strlen(buff);
   int count = id_table->count();
   MyClientID id;
-  MyPooledMemGuard path_x;
+  CMemGuard path_x;
   for (int i = 0; i < count; ++ i)
   {
     id_table->value(i, &id);
     ACE_OS::snprintf(str_client_id, 64, "%s", id.as_string());
     client_id_to_path(str_client_id, buff + prefix_len, PATH_MAX - prefix_len - 1);
-    MyFilePaths::make_path(buff, prefix_len + 1, false, true);
-    path_x.init_from_string(buff, "/download");
-    MyFilePaths::make_path(path_x.data(), true);
-    path_x.init_from_string(buff, "/daily");
-    MyFilePaths::make_path(path_x.data(), true);
-    path_x.init_from_string(buff, "/tmp");
-    MyFilePaths::remove_path(path_x.data(), true);
-    MyFilePaths::make_path(path_x.data(), true);
-    path_x.init_from_string(buff, "/backup");
-    MyFilePaths::make_path(path_x.data(), true);
+    CSysFS::make_path(buff, prefix_len + 1, false, true);
+    path_x.from_string(buff, "/download");
+    CSysFS::make_path(path_x.data(), true);
+    path_x.from_string(buff, "/daily");
+    CSysFS::make_path(path_x.data(), true);
+    path_x.from_string(buff, "/tmp");
+    CSysFS::remove_path(path_x.data(), true);
+    CSysFS::make_path(path_x.data(), true);
+    path_x.from_string(buff, "/backup");
+    CSysFS::make_path(path_x.data(), true);
   }
 }
 
-bool MyTestClientPathGenerator::client_id_to_path(const char * id, char * result, int result_len)
+bool CClientPathGenerator::client_id_to_path(const char * id, char * result, int result_len)
 {
   if (!id || !*id || !result)
     return false;
@@ -959,7 +959,7 @@ bool MyTestClientPathGenerator::client_id_to_path(const char * id, char * result
 
 //MyUnixHandleGuard//
 
-bool MyUnixHandleGuard::do_open(const char * filename, bool readonly, bool create, bool truncate, bool append, bool self_only)
+bool CUnixFileGuard::do_open(const char * filename, bool readonly, bool create, bool truncate, bool append, bool self_only)
 {
   int fd;
   if (unlikely(!filename || !*filename))
@@ -975,12 +975,12 @@ bool MyUnixHandleGuard::do_open(const char * filename, bool readonly, bool creat
       flag |= O_TRUNC;
     if (append)
       flag |= O_APPEND;
-    fd = ::open(filename, flag, (self_only ? MyFilePaths::FILE_FLAG_SELF : MyFilePaths::FILE_FLAG_ALL));
+    fd = ::open(filename, flag, (self_only ? CSysFS::FILE_FLAG_SELF : CSysFS::FILE_FLAG_ALL));
   }
   if (fd < 0)
   {
     if (m_error_report)
-      MY_ERROR("can not open file %s, %s\n", filename, (const char *)MyErrno());
+      MY_ERROR("can not open file %s, %s\n", filename, (const char *)CErrno());
     return false;
   }
   attach(fd);
@@ -990,14 +990,14 @@ bool MyUnixHandleGuard::do_open(const char * filename, bool readonly, bool creat
 
 //MyMemPoolFactory//
 
-MyMemPoolFactory::MyMemPoolFactory()
+CMemPool::CMemPool()
 {
   m_message_block_pool = NULL;
   m_data_block_pool = NULL;
   m_global_alloc_count = 0;
 }
 
-MyMemPoolFactory::~MyMemPoolFactory()
+CMemPool::~CMemPool()
 {
   if (m_message_block_pool)
     delete m_message_block_pool;
@@ -1007,7 +1007,7 @@ MyMemPoolFactory::~MyMemPoolFactory()
     delete m_pools[i];
 }
 
-void MyMemPoolFactory::init(MyConfig * config)
+void CMemPool::init(CCfg * config)
 {
   if(!g_use_mem_pool)
       return;
@@ -1034,11 +1034,11 @@ void MyMemPoolFactory::init(MyConfig * config)
       else
         m = 4;
       m_pool_sizes.push_back(pool_size[i]);
-      m_pools.push_back(new My_Cached_Allocator<ACE_Thread_Mutex>(m, pool_size[i]));
+      m_pools.push_back(new CCachedAllocator<ACE_Thread_Mutex>(m, pool_size[i]));
       m_pools[i]->setup();
     }
   }
-  else if (MyConfigX::instance()->is_dist_server())
+  else if (CCfgX::instance()->is_dist_server())
   {
     int m;
 
@@ -1053,7 +1053,7 @@ void MyMemPoolFactory::init(MyConfig * config)
       else
         m = 4;
       m_pool_sizes.push_back(pool_size[i]);
-      m_pools.push_back(new My_Cached_Allocator<ACE_Thread_Mutex>(m, pool_size[i]));
+      m_pools.push_back(new CCachedAllocator<ACE_Thread_Mutex>(m, pool_size[i]));
       m_pools[i]->setup();
     }
   }
@@ -1069,7 +1069,7 @@ void MyMemPoolFactory::init(MyConfig * config)
       else
         m = 4;
       m_pool_sizes.push_back(pool_size[i]);
-      m_pools.push_back(new My_Cached_Allocator<ACE_Thread_Mutex>(m, pool_size[i]));
+      m_pools.push_back(new CCachedAllocator<ACE_Thread_Mutex>(m, pool_size[i]));
       m_pools[i]->setup();
     }
   }
@@ -1081,11 +1081,11 @@ void MyMemPoolFactory::init(MyConfig * config)
     mb_number = std::max((int)((config->max_clients * 4)), 4000);
   else
     mb_number = std::max((int)((config->max_clients * 2)), 2000);
-  m_message_block_pool = new My_Cached_Allocator<ACE_Thread_Mutex>(mb_number, sizeof (ACE_Message_Block));
-  m_data_block_pool = new My_Cached_Allocator<ACE_Thread_Mutex>(mb_number, sizeof (ACE_Data_Block));
+  m_message_block_pool = new CCachedAllocator<ACE_Thread_Mutex>(mb_number, sizeof (ACE_Message_Block));
+  m_data_block_pool = new CCachedAllocator<ACE_Thread_Mutex>(mb_number, sizeof (ACE_Data_Block));
 }
 
-int MyMemPoolFactory::find_first_index(int capacity)
+int CMemPool::find_first_index(int capacity)
 {
   int count = m_pool_sizes.size();
   for (int i = 0; i < count; ++i)
@@ -1096,7 +1096,7 @@ int MyMemPoolFactory::find_first_index(int capacity)
   return INVALID_INDEX;
 }
 
-int MyMemPoolFactory::find_pool(void * ptr)
+int CMemPool::find_pool(void * ptr)
 {
   int count = m_pools.size();
   for (int i = 0; i < count; ++i)
@@ -1107,7 +1107,7 @@ int MyMemPoolFactory::find_pool(void * ptr)
   return INVALID_INDEX;
 }
 
-ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
+ACE_Message_Block * CMemPool::get_message_block(int capacity)
 {
   if (unlikely(capacity <= 0))
   {
@@ -1132,7 +1132,7 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
       ++ m_global_alloc_count;
       return new ACE_Message_Block(capacity);
     }
-    result = new (p) MyCached_Message_Block(capacity, m_pools[i], m_data_block_pool, m_message_block_pool);
+    result = new (p) CCachedMB(capacity, m_pools[i], m_data_block_pool, m_message_block_pool);
     if (!result->data_block())
     {
       result->release();
@@ -1153,12 +1153,12 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block(int capacity)
   return new ACE_Message_Block(capacity);
 }
 
-ACE_Message_Block * MyMemPoolFactory::get_message_block_cmd_direct(int capacity, int command, bool b_no_uuid)
+ACE_Message_Block * CMemPool::get_message_block_cmd_direct(int capacity, int command, bool b_no_uuid)
 {
   return get_message_block_cmd(capacity - sizeof(MyDataPacketHeader), command, b_no_uuid);
 }
 
-ACE_Message_Block * MyMemPoolFactory::get_message_block_cmd(int capacity, int command, bool b_no_uuid)
+ACE_Message_Block * CMemPool::get_message_block_cmd(int capacity, int command, bool b_no_uuid)
 {
   if (unlikely(capacity < 0))
   {
@@ -1179,7 +1179,7 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block_cmd(int capacity, int co
   return mb;
 }
 
-ACE_Message_Block * MyMemPoolFactory::get_message_block_ack(ACE_Message_Block * src)
+ACE_Message_Block * CMemPool::get_message_block_ack(ACE_Message_Block * src)
 {
   if (unlikely(!src) || src->capacity() < (int)sizeof(MyDataPacketHeader))
   {
@@ -1200,7 +1200,7 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block_ack(ACE_Message_Block * 
 
 }
 
-ACE_Message_Block * MyMemPoolFactory::get_message_block_bs(int data_len, const char * cmd)
+ACE_Message_Block * CMemPool::get_message_block_bs(int data_len, const char * cmd)
 {
   if (unlikely(data_len < 0 || data_len > 10 * 1024 * 1024))
   {
@@ -1218,7 +1218,7 @@ ACE_Message_Block * MyMemPoolFactory::get_message_block_bs(int data_len, const c
   return mb;
 }
 
-bool MyMemPoolFactory::get_mem(int size, MyPooledMemGuard * guard)
+bool CMemPool::get_mem(int size, CMemGuard * guard)
 {
   if (unlikely(!guard))
     return false;
@@ -1245,7 +1245,7 @@ bool MyMemPoolFactory::get_mem(int size, MyPooledMemGuard * guard)
   return true;
 }
 
-void * MyMemPoolFactory::get_mem_x(int size)
+void * CMemPool::get_mem_x(int size)
 {
   void * p;
   int idx = g_use_mem_pool? find_first_index(size): INVALID_INDEX;
@@ -1259,7 +1259,7 @@ void * MyMemPoolFactory::get_mem_x(int size)
   return p;
 }
 
-void MyMemPoolFactory::free_mem_x(void * ptr)
+void CMemPool::free_mem_x(void * ptr)
 {
   if (ptr == NULL)
   {
@@ -1274,7 +1274,7 @@ void MyMemPoolFactory::free_mem_x(void * ptr)
     ::delete [](char*)ptr;
 }
 
-void MyMemPoolFactory::free_mem(MyPooledMemGuard * guard)
+void CMemPool::free_mem(CMemGuard * guard)
 {
   if (!guard || !guard->data())
     return;
@@ -1290,7 +1290,7 @@ void MyMemPoolFactory::free_mem(MyPooledMemGuard * guard)
   guard->m_size = 0;
 }
 
-void MyMemPoolFactory::dump_info()
+void CMemPool::dump_info()
 {
   ACE_DEBUG((LM_INFO, ACE_TEXT("    Global mem pool: alloc outside of mem pool=%d\n"), m_global_alloc_count.value()));
   if (!g_use_mem_pool)
@@ -1300,12 +1300,12 @@ void MyMemPoolFactory::dump_info()
   int chunks;
   m_message_block_pool->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
   chunks = m_message_block_pool->chunks();
-  MyBaseApp::mem_pool_dump_one("MessageBlockCtrlPool", nAlloc, nFree, nMaxUse, nAllocFull, m_message_block_pool->chunk_size(), chunks);
+  CApp::print_pool_one("MessageBlockCtrlPool", nAlloc, nFree, nMaxUse, nAllocFull, m_message_block_pool->chunk_size(), chunks);
 
   nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
   m_data_block_pool->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
   chunks = m_data_block_pool->chunks();
-  MyBaseApp::mem_pool_dump_one("DataBlockCtrlPool", nAlloc, nFree, nMaxUse, nAllocFull, m_data_block_pool->chunk_size(), chunks);
+  CApp::print_pool_one("DataBlockCtrlPool", nAlloc, nFree, nMaxUse, nAllocFull, m_data_block_pool->chunk_size(), chunks);
 
   const int BUFF_LEN = 64;
   char buff[BUFF_LEN];
@@ -1315,20 +1315,20 @@ void MyMemPoolFactory::dump_info()
     m_pools[i]->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
     chunks = m_pools[i]->chunks();
     ACE_OS::snprintf(buff, BUFF_LEN, "DataPool.%02d", i + 1);
-    MyBaseApp::mem_pool_dump_one(buff, nAlloc, nFree, nMaxUse, nAllocFull, m_pools[i]->chunk_size(), chunks);
+    CApp::print_pool_one(buff, nAlloc, nFree, nMaxUse, nAllocFull, m_pools[i]->chunk_size(), chunks);
   }
 }
 
 
 //MyStringTokenizer//
 
-MyStringTokenizer::MyStringTokenizer(char * str, const char * separator)
+CStringTokenizer::CStringTokenizer(char * str, const char * separator)
 {
   m_str = str;
   m_separator = separator;
 }
 
-char * MyStringTokenizer::get_token()
+char * CStringTokenizer::get_token()
 {
   char * token;
   while (true)

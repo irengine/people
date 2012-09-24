@@ -49,16 +49,16 @@ public:
 
   char ftype[2];
   char type[2];
-  MyPooledMemGuard fdir;
-  MyPooledMemGuard findex;
-  MyPooledMemGuard aindex;
-  MyPooledMemGuard ver;
-  MyPooledMemGuard password;
+  CMemGuard fdir;
+  CMemGuard findex;
+  CMemGuard aindex;
+  CMemGuard ver;
+  CMemGuard password;
 
-  MyPooledMemGuard dist_time;
-  MyPooledMemGuard md5;
+  CMemGuard dist_time;
+  CMemGuard md5;
 
-  MyPooledMemGuard mbz_md5;
+  CMemGuard mbz_md5;
 
   bool exist;
 
@@ -86,13 +86,13 @@ public:
   void clear();
   MyHttpDistInfo * find(const char * dist_id);
 
-  MyPooledMemGuard last_load_time;
+  CMemGuard last_load_time;
 
 private:
   typedef std::tr1::unordered_map<const char *,
                                   MyHttpDistInfo *,
-                                  MyStringHash,
-                                  MyStringEqual,
+                                  CStrHasher,
+                                  CStrEqual,
                                   MyAllocator <std::pair<const char *, MyHttpDistInfo *> >
                                 > MyHttpDistInfoMap;
 
@@ -104,7 +104,7 @@ class MyDistCompressor
 {
 public:
   bool compress(MyHttpDistRequest & http_dist_request);
-  static void get_all_in_one_mbz_file_name(const char * dist_id, MyPooledMemGuard & filename);
+  static void get_all_in_one_mbz_file_name(const char * dist_id, CMemGuard & filename);
   static const char * composite_path();
   static const char * all_in_one_mbz();
 
@@ -118,8 +118,8 @@ private:
 class MyDistMd5Calculator
 {
 public:
-  bool calculate(MyHttpDistRequest & http_dist_request, MyPooledMemGuard &md5_result, int & md5_len);
-  static bool calculate_all_in_one_ftp_md5(const char * dist_id, MyPooledMemGuard & md5_result);
+  bool calculate(MyHttpDistRequest & http_dist_request, CMemGuard &md5_result, int & md5_len);
+  static bool calculate_all_in_one_ftp_md5(const char * dist_id, CMemGuard & md5_result);
 };
 
 ACE_Message_Block * my_get_hb_mb();

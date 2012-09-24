@@ -69,8 +69,8 @@ bool MyMfileSplitter::init(const char * mfile)
 {
   if (!mfile || !*mfile)
     return true;
-  m_mfile.init_from_string(mfile);
-  m_path.init_from_string(mfile);
+  m_mfile.from_string(mfile);
+  m_path.from_string(mfile);
   char * ptr = ACE_OS::strrchr(m_path.data(), '.');
   if (unlikely(!ptr))
   {
@@ -105,7 +105,7 @@ const char * MyMfileSplitter::translate(const char * src)
     return m_mfile.data();
   else
   {
-    m_translated_name.init_from_string(m_path.data(), ptr);
+    m_translated_name.from_string(m_path.data(), ptr);
     return m_translated_name.data();
   }
 }
@@ -361,11 +361,11 @@ MyFileMD5::MyFileMD5(const char * _filename, const char * md5, int prefix_len, c
   if (!alias || !*alias)
   {
     m_size = len - prefix_len + 1;
-    m_file_name.init_from_string(_filename + prefix_len);
+    m_file_name.from_string(_filename + prefix_len);
   } else
   {
     m_size = ACE_OS::strlen(alias) + 1;
-    m_file_name.init_from_string(alias);
+    m_file_name.from_string(alias);
   }
 
   if (!md5)
@@ -391,7 +391,7 @@ MyFileMD5s::MyFileMD5s()
 MyFileMD5s::~MyFileMD5s()
 {
 //  MY_DEBUG("destroying md5s: %X\n", (int)(long)this);
-  std::for_each(m_file_md5_list.begin(), m_file_md5_list.end(), MyPooledObjectDeletor());
+  std::for_each(m_file_md5_list.begin(), m_file_md5_list.end(), CPoolObjectDeletor());
   if (m_md5_map)
     delete m_md5_map;
 }
@@ -411,7 +411,7 @@ bool MyFileMD5s::base_dir(const char * dir)
   }
 
   m_base_dir_len = strlen(dir) + 1;
-  m_base_dir.init_from_string(dir);
+  m_base_dir.from_string(dir);
   return true;
 }
 
@@ -458,7 +458,7 @@ void MyFileMD5s::minus(MyFileMD5s & target, MyMfileSplitter * spl, bool do_delet
     }
     else if (md5_copy.same_md5(**it2))//==
     {
-      MyPooledObjectDeletor dlt;
+      CPoolObjectDeletor dlt;
       dlt(*it1);
       it1 = m_file_md5_list.erase(it1);
       ++it2;
@@ -491,7 +491,7 @@ void MyFileMD5s::trim_garbage(const char * pathname)
 
 void MyFileMD5s::sort()
 {
-  std::sort(m_file_md5_list.begin(), m_file_md5_list.end(), MyPointerLess());
+  std::sort(m_file_md5_list.begin(), m_file_md5_list.end(), CPtrLess());
 }
 
 bool MyFileMD5s::add_file(const char * filename, const char * md5, int prefix_len)
@@ -508,7 +508,7 @@ bool MyFileMD5s::add_file(const char * filename, const char * md5, int prefix_le
   }
   else
   {
-    MyPooledObjectDeletor dlt;
+    CPoolObjectDeletor dlt;
     dlt(fm);
     return false;
   }
@@ -629,13 +629,13 @@ bool MyFileMD5s::from_buffer(char * buff, MyMfileSplitter * spl)
 bool MyFileMD5s::calculate_diff(const char * dirname, MyMfileSplitter * spl)
 {
   MY_ASSERT_RETURN(dirname && *dirname, "NULL dirname @MyFileMD5s::calculate_diff()\n", false);
-  MyPooledMemGuard fn;
+  CMemGuard fn;
   int n = ACE_OS::strlen(dirname);
   MyFileMD5List::iterator it;
   for (it = m_file_md5_list.begin(); it != m_file_md5_list.end(); )
   {
     const char * new_name = spl? spl->translate((**it).filename()): (**it).filename();
-    fn.init_from_string(dirname, "/", new_name);
+    fn.from_string(dirname, "/", new_name);
     MyFileMD5 md5(fn.data(), NULL, n + 1);
     if (!md5.ok() || !md5.same_md5(**it))
       ++ it;
@@ -645,7 +645,7 @@ bool MyFileMD5s::calculate_diff(const char * dirname, MyMfileSplitter * spl)
       it = m_file_md5_list.erase(it);
       if (m_md5_map)
         m_md5_map->erase(p->filename());
-      MyPooledObjectDeletor dlt;
+      CPoolObjectDeletor dlt;
       dlt(p);
     }
   }
@@ -659,14 +659,14 @@ bool MyFileMD5s::calculate(const char * dirname, const char * mfile, bool single
 
   if (mfile && *mfile)
   {
-    MyPooledMemGuard mfile_name;
-    int n = MyFilePaths::cat_path(dirname, mfile, mfile_name);
+    CMemGuard mfile_name;
+    int n = CSysFS::cat_path(dirname, mfile, mfile_name);
 //  if (unlikely(!add_file(mfile_name.data(), NULL, n)))
 //    return true;
     add_file(mfile_name.data(), NULL, n);
     if (single)
       return true;
-    if (unlikely(!MyFilePaths::get_correlate_path(mfile_name, n)))
+    if (unlikely(!CSysFS::get_correlate_path(mfile_name, n)))
       return false;
     return do_scan_directory(mfile_name.data(), n);
   } else
@@ -687,7 +687,7 @@ bool MyFileMD5s::do_scan_directory(const char * dirname, int start_len)
   {
     if (ACE_OS::last_error() != ENOENT)
     {
-      MY_ERROR("can not open directory: %s %s\n", dirname, (const char*)MyErrno());
+      MY_ERROR("can not open directory: %s %s\n", dirname, (const char*)CErrno());
       return false;
     } else
       return true;
@@ -733,13 +733,13 @@ void MyFileMD5s::do_trim_garbage(const char * dirname, int start_len)
   if (!dir)
   {
     if (ACE_OS::last_error() != ENOENT)
-      MY_ERROR("can not open directory: %s %s\n", dirname, (const char*)MyErrno());
+      MY_ERROR("can not open directory: %s %s\n", dirname, (const char*)CErrno());
     return;
   }
 
   struct dirent *entry;
   char buff[PATH_MAX];
-  MyPooledMemGuard fn;
+  CMemGuard fn;
   while ((entry = readdir(dir)) != NULL)
   {
     if (!entry->d_name)
@@ -749,9 +749,9 @@ void MyFileMD5s::do_trim_garbage(const char * dirname, int start_len)
 
     if (entry->d_type == DT_REG)
     {
-      fn.init_from_string(dirname, "/", entry->d_name);
+      fn.from_string(dirname, "/", entry->d_name);
       if (!has_file(fn.data() + start_len))
-        MyFilePaths::remove(fn.data(), true);
+        CSysFS::remove(fn.data(), true);
     }
     else if(entry->d_type == DT_DIR)
     {
@@ -763,7 +763,7 @@ void MyFileMD5s::do_trim_garbage(const char * dirname, int start_len)
   };
 
   closedir(dir);
-  MyFilePaths::remove(dirname, true);
+  CSysFS::remove(dirname, true);
   return;
 }
 
@@ -789,7 +789,7 @@ bool MyBaseArchiveReader::open(const char * filename)
   struct stat sbuf;
   if (::fstat(m_file.handle(), &sbuf) == -1)
   {
-    MY_ERROR("can not get file info @MyBaseArchiveReader::open(), name = %s %s\n", filename, (const char*)MyErrno());
+    MY_ERROR("can not get file info @MyBaseArchiveReader::open(), name = %s %s\n", filename, (const char*)CErrno());
     return false;
   }
   m_file_length = sbuf.st_size;
@@ -805,13 +805,13 @@ int MyBaseArchiveReader::do_read(char * buff, int buff_len)
 {
   int n = ::read(m_file.handle(), buff, buff_len);
   if (unlikely(n < 0))
-    MY_ERROR("read file %s %s\n", m_file_name.data(), (const char*)MyErrno());
+    MY_ERROR("read file %s %s\n", m_file_name.data(), (const char*)CErrno());
   return n;
 }
 
 void MyBaseArchiveReader::close()
 {
-  m_file.attach(MyUnixHandleGuard::INVALID_HANDLE);
+  m_file.attach(CUnixFileGuard::INVALID_HANDLE);
   m_file_name.free();
 }
 
@@ -924,7 +924,7 @@ bool MyBaseArchiveWriter::open(const char * filename)
     MY_ERROR("empty file name @MyBaseArchiveWriter::open()\n");
     return false;
   }
-  m_file_name.init_from_string(filename);
+  m_file_name.from_string(filename);
   return do_open();
 }
 
@@ -935,7 +935,7 @@ bool MyBaseArchiveWriter::open(const char * dir, const char * filename)
     MY_ERROR("empty dir/file name @MyBaseArchiveWriter::open(,)\n");
     return false;
   }
-  m_file_name.init_from_string(dir, filename);
+  m_file_name.from_string(dir, filename);
   return do_open();
 }
 
@@ -957,7 +957,7 @@ bool MyBaseArchiveWriter::do_write(char * buff, int buff_len)
   int n = ::write(m_file.handle(), buff, buff_len);
   if (unlikely(n != buff_len))
   {
-    MY_ERROR("write file %s %s\n", m_file_name.data(), (const char*)MyErrno());
+    MY_ERROR("write file %s %s\n", m_file_name.data(), (const char*)CErrno());
     return false;
   }
   return true;
@@ -965,7 +965,7 @@ bool MyBaseArchiveWriter::do_write(char * buff, int buff_len)
 
 void MyBaseArchiveWriter::close()
 {
-  m_file.attach(MyUnixHandleGuard::INVALID_HANDLE);
+  m_file.attach(CUnixFileGuard::INVALID_HANDLE);
   m_file_name.free();
 }
 
@@ -1032,7 +1032,7 @@ bool MyWrappedArchiveWriter::finish()
 
   if (::lseek(m_file.handle(), 0, SEEK_SET) == -1)
   {
-    MY_ERROR("fseek on file %s failed %s\n", m_file_name.data(), (const char*)MyErrno());
+    MY_ERROR("fseek on file %s failed %s\n", m_file_name.data(), (const char*)CErrno());
     return false;
   }
 
@@ -1281,13 +1281,13 @@ bool MyBZCompressor::decompress(const char * srcfn, const char * destdir, const 
     if (unlikely(!_file_name))
       return false;
 
-    if (!MyFilePaths::make_path(destdir, _file_name, true, true))
+    if (!CSysFS::make_path(destdir, _file_name, true, true))
     {
-      MY_ERROR("can not mkdir %s/%s %s\n", destdir, _file_name, (const char*)MyErrno());
+      MY_ERROR("can not mkdir %s/%s %s\n", destdir, _file_name, (const char*)CErrno());
       return false;
     }
-    MyPooledMemGuard dest_file_name;
-    dest_file_name.init_from_string(destdir, "/", _file_name);
+    CMemGuard dest_file_name;
+    dest_file_name.from_string(destdir, "/", _file_name);
 
     if (!writer.open(dest_file_name.data()))
       return false;
@@ -1326,17 +1326,17 @@ bool MyBZCompositor::open(const char * filename)
 
 void MyBZCompositor::close()
 {
-  m_file.attach(MyUnixHandleGuard::INVALID_HANDLE);
+  m_file.attach(CUnixFileGuard::INVALID_HANDLE);
 }
 
 bool MyBZCompositor::add(const char * filename)
 {
   if (!m_file.valid())
     return true;
-  MyUnixHandleGuard src;
+  CUnixFileGuard src;
   if (!src.open_read(filename))
     return false;
-  bool result = MyFilePaths::copy_file_by_fd(src.handle(), m_file.handle());
+  bool result = CSysFS::copy_file_by_fd(src.handle(), m_file.handle());
   if (!result)
     MY_ERROR("MyBZCompositor::add(%s) failed\n", filename);
   return result;
@@ -1362,8 +1362,8 @@ bool MyBZCompositor::add_multi(char * filenames, const char * path, const char s
         return false;
     } else
     {
-      MyPooledMemGuard fn;
-      fn.init_from_string(path, "/", token, ext);
+      CMemGuard fn;
+      fn.from_string(path, "/", token, ext);
       if (!add(fn.data()))
         return false;
     }
@@ -1390,7 +1390,7 @@ MyBaseProcessor::~MyBaseProcessor()
 
 }
 
-void MyBaseProcessor::info_string(MyPooledMemGuard & info) const
+void MyBaseProcessor::info_string(CMemGuard & info) const
 {
   ACE_UNUSED_ARG(info);
 }
@@ -1620,7 +1620,7 @@ const char * MyBasePacketProcessor::name() const
   return "MyBasePacketProcessor";
 }
 
-void MyBasePacketProcessor::info_string(MyPooledMemGuard & info) const
+void MyBasePacketProcessor::info_string(CMemGuard & info) const
 {
   const char * str_id = m_client_id.as_string();
   if (!*str_id)
@@ -1631,7 +1631,7 @@ void MyBasePacketProcessor::info_string(MyPooledMemGuard & info) const
   ss[2] = ", client_id=";
   ss[3] = m_client_id.as_string();
   ss[4] = ")";
-  info.init_from_strings(ss, 5);
+  info.from_strings(ss, 5);
 }
 
 int MyBasePacketProcessor::on_open()
@@ -1735,7 +1735,7 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_header()
   bool bVersionCheck = (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
   if (bVerified == bVersionCheck)
   {
-    MyPooledMemGuard info;
+    CMemGuard info;
     info_string(info);
     MY_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s, \n"),
         m_packet_header.command, bVerified, bVersionCheck, info.data());
@@ -1865,7 +1865,7 @@ MyBaseProcessor::EVENT_RESULT MyBaseClientProcessor::on_recv_header()
   bool bVersionCheck = (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY);
   if (bVerified == bVersionCheck)
   {
-    MyPooledMemGuard info;
+    CMemGuard info;
     info_string(info);
     MY_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s \n"),
         m_packet_header.command, bVerified, bVersionCheck, info.data());
@@ -1979,7 +1979,7 @@ void MyBaseConnectionManager::do_send(ACE_Message_Block * mb, bool broadcast)
 
   typedef std::vector<MyBaseHandler *, MyAllocator<MyBaseHandler *> > pointers;
   pointers ptrs;
-  MyMessageBlockGuard guard(mb);
+  CMBGuard guard(mb);
 
   MyConnectionsPtr it;
   for (it = m_active_connections.begin(); it != m_active_connections.end(); ++it)
@@ -2025,7 +2025,7 @@ void MyBaseConnectionManager::detect_dead_connections(int timeout)
   MyConnectionsPtr it;
   MyBaseHandler * handler;
   MyConnectionManagerLockGuard guard(this);
-  long deadline = g_clock_tick - long(timeout * 60 / MyBaseApp::CLOCK_INTERVAL);
+  long deadline = g_clock_tick - long(timeout * 60 / CApp::CLOCK_INTERVAL);
   for (it = m_active_connections.begin(); it != m_active_connections.end();)
   {
     handler = it->first;
@@ -2067,7 +2067,7 @@ void MyBaseConnectionManager::set_connection_client_id_index(MyBaseHandler * han
     if (handler_old)
     {
       remove_from_active_table(handler_old);
-      MyPooledMemGuard info;
+      CMemGuard info;
       handler_old->processor()->info_string(info);
       MY_DEBUG("closing previous connection %s\n", info.data());
       handler_old->mark_as_reap();
@@ -2327,7 +2327,7 @@ MyBaseAcceptor::~MyBaseAcceptor()
     delete m_connection_manager;
 }
 
-MyBaseModule * MyBaseAcceptor::module_x() const
+CMod * MyBaseAcceptor::module_x() const
 {
   return m_module;
 }
@@ -2444,7 +2444,7 @@ MyBaseConnector::~MyBaseConnector()
     delete m_connection_manager;
 }
 
-MyBaseModule * MyBaseConnector::module_x() const
+CMod * MyBaseConnector::module_x() const
 {
   return m_module;
 }
@@ -2535,7 +2535,7 @@ int MyBaseConnector::start()
     ACE_Time_Value interval (m_reconnect_interval * 60);
     m_reconnect_timer_id = reactor()->schedule_timer (this, (void*)TIMER_ID_reconnect, interval, interval);
     if (m_reconnect_timer_id < 0)
-      MY_ERROR(ACE_TEXT("%s setup reconnect timer failed, %s\n"), name(), (const char*)MyErrno());
+      MY_ERROR(ACE_TEXT("%s setup reconnect timer failed, %s\n"), name(), (const char*)CErrno());
   }
 
   if (m_idle_time_as_dead > 0)
@@ -2679,13 +2679,13 @@ int MyBaseConnector::do_connect(int count, bool bNew)
 
 //MyBaseService//
 
-MyBaseService::MyBaseService(MyBaseModule * module, int numThreads):
+MyBaseService::MyBaseService(CMod * module, int numThreads):
     m_module(module), m_numThreads(numThreads)
 {
 
 }
 
-MyBaseModule * MyBaseService::module_x() const
+CMod * MyBaseService::module_x() const
 {
   return m_module;
 }
@@ -2750,7 +2750,7 @@ const char * MyBaseService::name() const
 
 //MyBaseDispatcher//
 
-MyBaseDispatcher::MyBaseDispatcher(MyBaseModule * pModule, int numThreads):
+MyBaseDispatcher::MyBaseDispatcher(CMod * pModule, int numThreads):
     m_module(pModule), m_numThreads(numThreads), m_numBatchSend(50)
 {
   m_reactor = NULL;
@@ -2774,7 +2774,7 @@ int MyBaseDispatcher::open (void *)
     ACE_Time_Value interval(m_clock_interval);
     if (m_reactor->schedule_timer(this, (const void*)TIMER_ID_BASE, interval, interval) < 0)
     {
-      MY_ERROR("setup timer failed %s %s\n", name(), (const char*)MyErrno());
+      MY_ERROR("setup timer failed %s %s\n", name(), (const char*)CErrno());
       return -1;
     }
   }
@@ -2852,7 +2852,7 @@ void MyBaseDispatcher::do_dump_info()
 
 }
 
-MyBaseModule * MyBaseDispatcher::module_x() const
+CMod * MyBaseDispatcher::module_x() const
 {
   return m_module;
 }
@@ -2885,8 +2885,8 @@ void MyBaseDispatcher::do_stop_i()
     m_reactor->cancel_timer(this);
   std::for_each(m_connectors.begin(), m_connectors.end(), std::mem_fun(&MyBaseConnector::stop));
   std::for_each(m_acceptors.begin(), m_acceptors.end(), std::mem_fun(&MyBaseAcceptor::stop));
-  std::for_each(m_connectors.begin(), m_connectors.end(), MyObjectDeletor());
-  std::for_each(m_acceptors.begin(), m_acceptors.end(), MyObjectDeletor());
+  std::for_each(m_connectors.begin(), m_connectors.end(), CObjDeletor());
+  std::for_each(m_acceptors.begin(), m_acceptors.end(), CObjDeletor());
   if (m_reactor)
     m_reactor->close();
   m_connectors.clear();
@@ -2911,7 +2911,7 @@ int MyBaseDispatcher::svc()
     {
       if (errno == EINTR)
         continue;
-      MY_INFO(ACE_TEXT ("exiting %s::svc() due to %s\n"), name(), (const char*)MyErrno());
+      MY_INFO(ACE_TEXT ("exiting %s::svc() due to %s\n"), name(), (const char*)CErrno());
       break;
     }
     if (!on_event_loop())
@@ -2927,43 +2927,43 @@ int MyBaseDispatcher::svc()
 
 //MyBaseModule//
 
-MyBaseModule::MyBaseModule(MyBaseApp * app): m_app(app), m_running(false)
+CMod::CMod(CApp * app): m_app(app), m_running(false)
 {
 
 }
 
-MyBaseModule::~MyBaseModule()
+CMod::~CMod()
 {
   stop();
 }
 
-bool MyBaseModule::running() const
+bool CMod::running() const
 {
   return m_running;
 }
 
-MyBaseApp * MyBaseModule::app() const
+CApp * CMod::app() const
 {
   return m_app;
 }
 
-bool MyBaseModule::running_with_app() const
+bool CMod::running_with_app() const
 {
   return (m_running && m_app->running());
 }
 
-bool MyBaseModule::on_start()
+bool CMod::on_start()
 {
   return true;
 }
 
-void MyBaseModule::on_stop()
+void CMod::on_stop()
 {
 
 }
 
 
-int MyBaseModule::start()
+int CMod::start()
 {
   if (m_running)
     return 0;
@@ -2976,27 +2976,27 @@ int MyBaseModule::start()
   return 0;
 }
 
-int MyBaseModule::stop()
+int CMod::stop()
 {
   if (!m_running)
     return 0;
   m_running = false;
   std::for_each(m_services.begin(), m_services.end(), std::mem_fun(&MyBaseService::stop));
   std::for_each(m_dispatchers.begin(), m_dispatchers.end(), std::mem_fun(&MyBaseDispatcher::stop));
-  std::for_each(m_services.begin(), m_services.end(), MyObjectDeletor());
-  std::for_each(m_dispatchers.begin(), m_dispatchers.end(), MyObjectDeletor());
+  std::for_each(m_services.begin(), m_services.end(), CObjDeletor());
+  std::for_each(m_dispatchers.begin(), m_dispatchers.end(), CObjDeletor());
   m_services.clear();
   m_dispatchers.clear();
   on_stop();
   return 0;
 }
 
-const char * MyBaseModule::name() const
+const char * CMod::name() const
 {
   return "MyBaseModule";
 }
 
-void MyBaseModule::dump_info()
+void CMod::dump_info()
 {
   ACE_DEBUG((LM_INFO, "  *** module dump: %s start\n", name()));
   do_dump_info();
@@ -3005,12 +3005,12 @@ void MyBaseModule::dump_info()
   ACE_DEBUG((LM_INFO, "  *** module dump: %s end\n", name()));
 }
 
-void MyBaseModule::do_dump_info()
+void CMod::do_dump_info()
 {
 
 }
 
-void MyBaseModule::add_service(MyBaseService * _service)
+void CMod::add_service(MyBaseService * _service)
 {
   if (!_service)
   {
@@ -3020,7 +3020,7 @@ void MyBaseModule::add_service(MyBaseService * _service)
   m_services.push_back(_service);
 }
 
-void MyBaseModule::add_dispatcher(MyBaseDispatcher * _dispatcher)
+void CMod::add_dispatcher(MyBaseDispatcher * _dispatcher)
 {
   if (!_dispatcher)
   {

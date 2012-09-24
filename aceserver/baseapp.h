@@ -1,10 +1,3 @@
-/*
- * serverapp.h
- *
- *  Created on: Dec 28, 2011
- *      Author: root
- */
-
 #ifndef SERVERAPP_H_
 #define SERVERAPP_H_
 
@@ -15,13 +8,14 @@
 #include "basemodule.h"
 
 
-extern const ACE_TCHAR * const_app_version;
+extern const char * const_app_version;
 extern long g_clock_tick;
 extern bool g_test_mode;
+std::string current_ver();
 
-class MyBaseApp;
+class CApp;
 
-class MyConfig
+class CCfg
 {
 public:
   enum RUNNING_MODE
@@ -32,9 +26,9 @@ public:
     RM_CLIENT = 3
   };
 
-  MyConfig();
-  bool load_config(const char * app_home_path, RUNNING_MODE mode);
-  void dump_config_info();
+  CCfg();
+  bool readall(const char * home_dir, RUNNING_MODE mode);
+  void print_all();
   bool is_server() const;
   bool is_client() const;
   bool is_dist_server() const;
@@ -105,84 +99,85 @@ public:
 
 private:
   void init_path(const char * app_home_path);
-  bool load_config_common(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
-  bool load_config_client(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
-  bool load_config_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
-  bool load_config_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
-  bool load_config_dist_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
-  bool load_config_client_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
-  bool load_config_client_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
+  bool read_base(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
+  bool read_client(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
+  bool read_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
+  bool read_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
+  bool read_dist_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
+  bool read_client_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
+  bool read_client_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
 };
 
-typedef ACE_Unmanaged_Singleton<MyConfig, ACE_Null_Mutex> MyConfigX;
+typedef ACE_Unmanaged_Singleton<CCfg, ACE_Null_Mutex> CCfgX;
 
-class MySigHandler: public ACE_Event_Handler
+class CSignaller: public ACE_Event_Handler
 {
 public:
-  MySigHandler(MyBaseApp * app);
+  CSignaller(CApp * app);
   virtual int handle_signal (int signum,
                              siginfo_t * = 0,
                              ucontext_t * = 0);
 private:
-  MyBaseApp * m_app;
+  CApp * m_app;
 };
 
-class MyStatusFileChecker: public ACE_Event_Handler
+class CNotificationFiler: public ACE_Event_Handler
 {
 public:
-  MyStatusFileChecker(MyBaseApp * app);
+  CNotificationFiler(CApp * app);
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
 
 private:
-  MyBaseApp * m_app;
+  CApp * m_app;
 };
 
-class MyInfoDumper: public ACE_Event_Handler
+class CPrinter: public ACE_Event_Handler
 {
 public:
-  MyInfoDumper(MyBaseApp * app);
+  CPrinter(CApp * app);
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
 
 private:
-  MyBaseApp * m_app;
+  CApp * m_app;
 };
 
-class MyClock: public ACE_Event_Handler
+class CClocker: public ACE_Event_Handler
 {
 public:
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
 
 private:
-  MyBaseApp * m_app;
+  CApp * m_app;
 };
 
-class MyBaseApp
+class CApp
 {
 public:
   enum { CLOCK_INTERVAL = 10 };
-  MyBaseApp();
-  virtual ~MyBaseApp();
+  CApp();
+  virtual ~CApp();
 
   bool running() const;
-
-  static void app_demonize();
-
   void init_log();
-
   void start();
   void stop();
-  void dump_info();
-  static void mem_pool_dump_one(const char * poolname, long nAlloc, long nFree, long nMaxUse, long nAllocFull, int block_size, int chunks);
+  void print_info();
+
+  static void demon();
+  static void print_pool_one(const char * poolname, long nAlloc, long nFree, long nMaxUse, long nAllocFull, int block_size, int chunks);
 
 protected:
-  friend class MySigHandler;
-  friend class MyStatusFileChecker;
+  friend class CSignaller;
+  friend class CNotificationFiler;
 
-  typedef std::vector<MyBaseModule *> MyModules;
+  typedef std::vector<CMod *> CMods;
 
   virtual void do_dump_info();
   virtual bool on_sigchild(pid_t pid);
   virtual bool on_event_loop();
+  virtual bool on_start();
+  virtual bool on_construct();
+  virtual void on_stop();
 
   bool do_sigchild();
   void on_sig_event(int signum);
@@ -190,20 +185,16 @@ protected:
   bool do_sighup();
   void on_status_file_missing();
   bool do_constructor();
-  void add_module(MyBaseModule * module);
+  void add_module(CMod * module);
 
-  virtual bool on_start();
-  virtual bool on_construct();
-  virtual void on_stop();
-
-  MyModules m_modules;
+  CMods m_modules;
 private:
 
-  MySigHandler m_sig_handler;
+  CSignaller m_sig_handler;
   ACE_Sig_Handler m_ace_sig_handler;
-  MyStatusFileChecker m_status_file_checker;
-  MyInfoDumper m_info_dumper;
-  MyClock m_clock;
+  CNotificationFiler m_status_file_checker;
+  CPrinter m_info_dumper;
+  CClocker m_clock;
   bool m_is_running;
   bool m_sighup;
   bool m_sigchld;
@@ -211,7 +202,5 @@ private:
   bool m_status_file_ok;
   bool m_status_file_checking;
 };
-
-std::string get_app_ver();
 
 #endif /* SERVERAPP_H_ */

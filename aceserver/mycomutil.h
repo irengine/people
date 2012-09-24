@@ -1,11 +1,3 @@
-/*
- * mycomutil.h
- *
- *  Created on: Dec 29, 2011
- *      Author: root
- *      common utility
- */
-
 #ifndef MYCOMUTIL_H_
 #define MYCOMUTIL_H_
 
@@ -23,68 +15,68 @@
 extern bool g_use_mem_pool;
 
 #define INFO_PREFIX       ACE_TEXT ("(%D %P|%t %N/%l)\n  INFO %I")
-#define MY_INFO(FMT, ...)     \
+#define C_INFO(FMT, ...)     \
         ACE_DEBUG(( LM_INFO,  \
                     INFO_PREFIX FMT, \
                     ## __VA_ARGS__))
 
 #define DEBUG_PREFIX       ACE_TEXT("(%D %P|%t %N/%l)\n  DEBUG  %I")
-#define MY_DEBUG(FMT, ...)     \
+#define C_DEBUG(FMT, ...)     \
         ACE_DEBUG(( LM_DEBUG,  \
                     DEBUG_PREFIX FMT, \
                     ## __VA_ARGS__))
 
 #define WARNING_PREFIX       ACE_TEXT("(%D %P|%t %N/%l)\n  WARN  %I")
-#define MY_WARNING(FMT, ...)     \
+#define C_WARNING(FMT, ...)     \
         ACE_DEBUG(( LM_WARNING,  \
                     WARNING_PREFIX FMT, \
                     ## __VA_ARGS__))
 
 #define ERROR_PREFIX       ACE_TEXT("(%D %P|%t %N/%l)\n  ERROR  %I")
-#define MY_ERROR(FMT, ...)     \
+#define C_ERROR(FMT, ...)     \
         ACE_DEBUG(( LM_ERROR,  \
                     ERROR_PREFIX  FMT, \
                     ## __VA_ARGS__))
 
 #define FATAL_PREFIX       ACE_TEXT("(%D %P|%t %N.%l)\n  FATAL  %I")
-#define MY_FATAL(FMT, ...)     \
+#define C_FATAL(FMT, ...)     \
         ACE_DEBUG(( LM_ERROR,  \
                     FATAL_PREFIX  FMT, \
                     ## __VA_ARGS__))
 
 #define ASSERT_PREFIX       ACE_TEXT("(%D %P|%t %N.%l)\n  ASSERT failed %I")
-#define __MY_ASSERT(FMT, ...)     \
+#define __C_ASSERT(FMT, ...)     \
         ACE_DEBUG(( LM_ERROR,  \
                     ASSERT_PREFIX  FMT, \
                     ## __VA_ARGS__))
 
 
-#ifndef NO_MY_ASSERT
+#ifndef NO_C_ASSERT
 
-  #define MY_ASSERT(condition, msg) \
+  #define C_ASSERT(condition, msg) \
     if (unlikely(!(condition))) \
-      __MY_ASSERT(msg);
+      __C_ASSERT(msg);
 
-  #define MY_ASSERT_RETURN(condition, msg, ret) \
+  #define C_ASSERT_RETURN(condition, msg, ret) \
     if (unlikely(!(condition))) \
     { \
-      __MY_ASSERT(msg); \
+      __C_ASSERT(msg); \
       return (ret); \
     }
 
 #else
-  #define MY_ASSERT(condition, msg) ((void) 0)
-  #define MY_ASSERT_RETURN (condition, msg, ret) ((void) 0)
+  #define C_ASSERT(condition, msg) ((void) 0)
+  #define C_ASSERT_RETURN (condition, msg, ret) ((void) 0)
 #endif
 
-class MyErrno
+class CErrno
 {
 public:
-  MyErrno(int err = ACE_OS::last_error())
+  CErrno(int err = ACE_OS::last_error())
   {
     format_message(err);
   }
-  operator const char *() //convert this object into a string
+  operator const char *()
   {
     return buff;
   }
@@ -103,7 +95,7 @@ private:
   char buff[BUFF_LEN];
 };
 
-class MyObjectDeletor
+class CObjDeletor
 {
 public:
   template <typename T> void operator()(const T * ptr)
@@ -112,7 +104,7 @@ public:
   }
 };
 
-class MyPointerLess
+class CPtrLess
 {
 public:
   template <typename T> bool operator()(T t1, T t2) const
@@ -126,14 +118,14 @@ const time_t const_one_day = const_one_hour * 24;
 const time_t const_one_month = const_one_day * 30;
 const time_t const_one_year = const_one_month * 12;
 
-class MyMessageBlockGuard
+class CMBGuard
 {
 public:
-  MyMessageBlockGuard(): m_mb(NULL)
+  CMBGuard(): m_mb(NULL)
   {}
-  MyMessageBlockGuard(ACE_Message_Block * mb): m_mb(mb)
+  CMBGuard(ACE_Message_Block * mb): m_mb(mb)
   {}
-  ~MyMessageBlockGuard()
+  ~CMBGuard()
   {
     if (m_mb)
       m_mb->release();
@@ -160,15 +152,15 @@ private:
   ACE_Message_Block * m_mb;
 };
 
-class MyUnixHandleGuard
+class CUnixFileGuard
 {
 public:
   enum { INVALID_HANDLE = -1 };
-  MyUnixHandleGuard(): m_handle(INVALID_HANDLE)
+  CUnixFileGuard(): m_handle(INVALID_HANDLE)
   { m_error_report = true; }
-  MyUnixHandleGuard(int _handle): m_handle(_handle)
+  CUnixFileGuard(int _handle): m_handle(_handle), m_error_report(true)
   {}
-  ~MyUnixHandleGuard()
+  ~CUnixFileGuard()
   {
     if (m_handle >= 0)
       close(m_handle);
@@ -219,12 +211,12 @@ private:
 };
 
 
-class MySStreamGuard
+class CSStreamGuard
 {
 public:
-  MySStreamGuard(ACE_SOCK_Stream & s): m_ss(s)
+  CSStreamGuard(ACE_SOCK_Stream & s): m_ss(s)
   {}
-  ~MySStreamGuard()
+  ~CSStreamGuard()
   {
     m_ss.close();
   }
@@ -233,12 +225,12 @@ private:
 };
 
 
-class MyFIOGuard
+class CFIOGuard
 {
 public:
-  MyFIOGuard(ACE_FILE_IO & fio): m_fio(fio)
+  CFIOGuard(ACE_FILE_IO & fio): m_fio(fio)
   {}
-  ~MyFIOGuard()
+  ~CFIOGuard()
   {
     m_fio.close();
   }
@@ -246,13 +238,15 @@ private:
   ACE_FILE_IO & m_fio;
 };
 
-template <class ACE_LOCK> class My_Cached_Allocator: public ACE_Dynamic_Cached_Allocator<ACE_LOCK>
+template <class ACE_LOCK> class CCachedAllocator: public ACE_Dynamic_Cached_Allocator<ACE_LOCK>
 {
 public:
   typedef ACE_Dynamic_Cached_Allocator<ACE_LOCK> super;
 
-  My_Cached_Allocator (size_t n_chunks, size_t chunk_size): super(n_chunks, chunk_size)
+  CCachedAllocator (size_t n_chunks, size_t chunk_size): super(n_chunks, chunk_size)
   {
+    m_begin = NULL;
+    m_end = NULL;
     m_alloc_count = 0;
     m_free_count = 0;
     m_max_in_use_count = 0;
@@ -273,7 +267,7 @@ public:
     return (ptr >= m_begin && ptr <= m_end);
   }
 
-  virtual ~My_Cached_Allocator() {}
+  virtual ~CCachedAllocator() {}
 
   virtual void *malloc (size_t nbytes = 0)
   {
@@ -290,8 +284,6 @@ public:
         ++m_alloc_on_full_count;
     }
 
-//    MY_DEBUG(ACE_TEXT("call My_Cached_Allocator.malloc(%d) = %@ from chunk_size = %d\n"),
-//        nbytes, result, m_chunk_size);
     return result;
   }
 
@@ -320,7 +312,6 @@ public:
   {
     {
       ACE_MT (ACE_GUARD(ACE_LOCK, ace_mon, this->m_mutex));
-//      MY_DEBUG(ACE_TEXT("call My_Cached_Allocator.free(%@) from chunk_size = %d\n"), p, m_chunk_size);
       if (p != NULL)
         ++m_free_count;
     }
@@ -360,7 +351,7 @@ private:
 
 #define DECLARE_MEMORY_POOL(Cls, Mutex) \
   public: \
-    typedef My_Cached_Allocator<Mutex> Mem_Pool; \
+    typedef CCachedAllocator<Mutex> Mem_Pool; \
     static void* operator new(size_t _size, std::new_handler p = 0) \
     { \
       ACE_UNUSED_ARG(p); \
@@ -410,7 +401,7 @@ private:
 
 #define DECLARE_MEMORY_POOL__NOTHROW(Cls, Mutex) \
   public: \
-    typedef My_Cached_Allocator<Mutex> Mem_Pool; \
+    typedef CCachedAllocator<Mutex> Mem_Pool; \
     static void* operator new(size_t _size, std::new_handler p = 0) throw() \
     { \
       ACE_UNUSED_ARG(p); \
@@ -455,7 +446,7 @@ private:
 
 class MyClientIDTable;
 
-class MyTestClientPathGenerator
+class CClientPathGenerator
 {
 public:
   static void make_paths(const char * app_data_path, int64_t _start, int _count);
@@ -463,60 +454,60 @@ public:
   static void make_paths_from_id_table(const char * app_data_path, MyClientIDTable * id_table);
 };
 
-class MyCached_Message_Block: public ACE_Message_Block
+class CCachedMB: public ACE_Message_Block
 {
 public:
-  MyCached_Message_Block(size_t size,
+  CCachedMB(size_t size,
                 ACE_Allocator * allocator_strategy,
                 ACE_Allocator * data_block_allocator,
                 ACE_Allocator * message_block_allocator,
                 ACE_Message_Type type = MB_DATA);
 };
 
-class MyConfig;
-class MyPooledMemGuard;
+class CCfg;
+class CMemGuard;
 
-class MyMemPoolFactory
+class CMemPool
 {
 public:
-  MyMemPoolFactory();
-  ~MyMemPoolFactory();
-  void init(MyConfig * config);
+  CMemPool();
+  ~CMemPool();
+  void init(CCfg * config);
   ACE_Message_Block * get_message_block(int capacity);
   ACE_Message_Block * get_message_block_cmd(int extra, int command, bool b_no_uuid = true);
   ACE_Message_Block * get_message_block_cmd_direct(int capacity, int command, bool b_no_uuid = true);
   ACE_Message_Block * get_message_block_bs(int data_len, const char * cmd);
   ACE_Message_Block * get_message_block_ack(ACE_Message_Block * src);
-  bool get_mem(int size, MyPooledMemGuard * guard);
+  bool get_mem(int size, CMemGuard * guard);
   void * get_mem_x(int size);
   void free_mem_x(void * ptr); //use _x to avoid ambiguous of NULL pointer as parameter
-  void free_mem(MyPooledMemGuard * guard);
+  void free_mem(CMemGuard * guard);
   void dump_info();
 
 private:
   enum { INVALID_INDEX = 9999 };
-  typedef My_Cached_Allocator<ACE_Thread_Mutex> MyMemPool;
+  typedef CCachedAllocator<ACE_Thread_Mutex> MyMemPool;
   typedef std::vector<MyMemPool *> MyMemPools;
   typedef std::vector<int> MyPoolSizes;
   typedef ACE_Atomic_Op<ACE_Thread_Mutex, long> COUNTER;
 
   int find_first_index(int capacity);
   int find_pool(void * ptr);
-  My_Cached_Allocator<ACE_Thread_Mutex> *m_message_block_pool;
-  My_Cached_Allocator<ACE_Thread_Mutex> *m_data_block_pool;
+  CCachedAllocator<ACE_Thread_Mutex> *m_message_block_pool;
+  CCachedAllocator<ACE_Thread_Mutex> *m_data_block_pool;
   MyPoolSizes m_pool_sizes;
   MyMemPools m_pools;
   COUNTER m_global_alloc_count;
 };
-typedef ACE_Unmanaged_Singleton<MyMemPoolFactory, ACE_Null_Mutex> MyMemPoolFactoryX;
+typedef ACE_Unmanaged_Singleton<CMemPool, ACE_Null_Mutex> MyMemPoolFactoryX;
 
-class MyPooledMemGuard
+class CMemGuard
 {
 public:
-  MyPooledMemGuard(): m_buff(NULL), m_index(-1), m_size(0)
+  CMemGuard(): m_buff(NULL), m_index(-1), m_size(0)
   {}
 
-  ~MyPooledMemGuard()
+  ~CMemGuard()
   {
     free();
   }
@@ -535,19 +526,19 @@ public:
     }
   }
 
-  void init_from_string(const char * src);
-  void init_from_string(const char * src1, const char * src2);
-  void init_from_string(const char * src1, const char * src2, const char * src3);
-  void init_from_string(const char * src1, const char * src2, const char * src3, const char * src4);
-  void init_from_strings(const char * arr[], int len);
+  void from_string(const char * src);
+  void from_string(const char * src1, const char * src2);
+  void from_string(const char * src1, const char * src2, const char * src3);
+  void from_string(const char * src1, const char * src2, const char * src3, const char * src4);
+  void from_strings(const char * arr[], int len);
 
 protected:
-  friend class MyMemPoolFactory;
+  friend class CMemPool;
 
   void data(void * _buff, int index, int size)
   {
     if (unlikely(m_buff != NULL))
-      MY_ERROR("memory leak @MyPooledMemGuard, index = %d\n", m_index);
+      C_ERROR("memory leak @MyPooledMemGuard, index = %d\n", m_index);
     m_buff = (char*)_buff;
     m_index = index;
     m_size = size;
@@ -558,8 +549,8 @@ protected:
   }
 
 private:
-  MyPooledMemGuard(const MyPooledMemGuard &);
-  MyPooledMemGuard & operator = (const MyPooledMemGuard &);
+  CMemGuard(const CMemGuard &);
+  CMemGuard & operator = (const CMemGuard &);
   char * m_buff;
   int m_index;
   int m_size;
@@ -618,7 +609,7 @@ public:
   }
 };
 
-class MyPooledObjectDeletor
+class CPoolObjectDeletor
 {
 public:
   template <typename T> void operator()(const T * ptr)
@@ -628,7 +619,7 @@ public:
   }
 };
 
-class MyFilePaths
+class CSysFS
 {
 public:
   enum
@@ -649,21 +640,21 @@ public:
   static bool remove_old_files(const char * path, time_t deadline);
   static bool copy_file_by_fd(int src_fd, int dest_fd);
   static bool copy_file(const char * src, const char * dest, bool self_only, bool syn);
-  static int  cat_path(const char * path, const char * subpath, MyPooledMemGuard & result);
-  static bool get_correlate_path(MyPooledMemGuard & pathfile, int skip);
+  static int  cat_path(const char * path, const char * subpath, CMemGuard & result);
+  static bool get_correlate_path(CMemGuard & pathfile, int skip);
   static bool remove(const char *pathfile, bool ignore_error = false);
   static bool zap(const char *pathfile, bool ignore_error);
   static bool rename(const char *old_path, const char * new_path, bool ignore_eror);
   static bool stat(const char *pathfile, struct stat * _stat);
   static int  filesize(const char *pathfile);
-  static bool zap_path_except_mfile(const MyPooledMemGuard & path, const MyPooledMemGuard & mfile, bool ignore_error);
-  static void zap_empty_paths(const MyPooledMemGuard & parent_path);
+  static bool zap_path_except_mfile(const CMemGuard & path, const CMemGuard & mfile, bool ignore_error);
+  static void zap_empty_paths(const CMemGuard & parent_path);
 };
 
-class MyStringTokenizer
+class CStringTokenizer
 {
 public:
-  MyStringTokenizer(char * str, const char * separator);
+  CStringTokenizer(char * str, const char * separator);
   char * get_token();
 
 private:
@@ -689,7 +680,7 @@ private:
 void mycomutil_hex_dump(void * ptr, int len, char * result_buff, int buff_len);
 void mycomutil_generate_random_password(char * buff, const int password_len);
 bool mycomutil_find_tag_value(char * & ptr, const char * tag, char * & value, char terminator);
-bool mycomutil_calculate_file_md5(const char * _file, MyPooledMemGuard & md5_result);
+bool mycomutil_calculate_file_md5(const char * _file, CMemGuard & md5_result);
 bool mycomutil_generate_time_string(char * result_buff, int buff_len, bool full, time_t t = time(NULL));
 size_t mycomutil_string_hash(const char * str);
 bool mycomutil_string_end_with(const char * src, const char * key);
@@ -701,7 +692,7 @@ int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH
 int mycomutil_send_message_block_queue(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb, bool discard);
 int mycomutil_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
 
-class MyStringHash
+class CStrHasher
 {
 public:
   size_t operator()(const char * x) const
@@ -710,7 +701,7 @@ public:
   }
 };
 
-class MyStringEqual
+class CStrEqual
 {
 public:
   bool operator()(const char * x, const char * y) const
@@ -720,4 +711,4 @@ public:
 };
 
 
-#endif /* MYCOMUTIL_H_ */
+#endif

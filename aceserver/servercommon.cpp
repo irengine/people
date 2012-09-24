@@ -22,7 +22,7 @@ MyHttpDistInfo::MyHttpDistInfo(const char * dist_id)
 
   ftype[0] = ftype[1] = 0;
   type[0] = type[1] = 0;
-  ver.init_from_string(dist_id);
+  ver.from_string(dist_id);
   ver_len = ACE_OS::strlen(dist_id);
 
   md5_opt_len = 0;
@@ -42,8 +42,8 @@ void MyHttpDistInfo::calc_md5_opt_len()
 {
   if (need_md5() && md5_len > 0 && md5_opt_len == 0)
   {
-    MyPooledMemGuard md5_2;
-    md5_2.init_from_string(md5.data());
+    CMemGuard md5_2;
+    md5_2.from_string(md5.data());
     MyFileMD5s md5s;
     if (md5s.from_buffer(md5_2.data(), NULL))
       md5_opt_len = md5s.total_size(false) - 1;
@@ -140,7 +140,7 @@ bool MyHttpDistRequest::need_mbz_md5() const
 
 MyHttpDistInfos::MyHttpDistInfos()
 {
-  last_load_time.init_from_string("");
+  last_load_time.from_string("");
 }
 
 MyHttpDistInfos::~MyHttpDistInfos()
@@ -155,7 +155,7 @@ int MyHttpDistInfos::count() const
 
 void MyHttpDistInfos::clear()
 {
-  std::for_each(dist_infos.begin(), dist_infos.end(), MyPooledObjectDeletor());
+  std::for_each(dist_infos.begin(), dist_infos.end(), CPoolObjectDeletor());
   dist_infos.clear();
   MyHttpDistInfoList x;
   x.swap(dist_infos);
@@ -204,11 +204,11 @@ const char * MyDistCompressor::all_in_one_mbz()
   return "_x_cmp_x_/all_in_one.mbz";
 }
 
-void MyDistCompressor::get_all_in_one_mbz_file_name(const char * dist_id, MyPooledMemGuard & filename)
+void MyDistCompressor::get_all_in_one_mbz_file_name(const char * dist_id, CMemGuard & filename)
 {
-  MyPooledMemGuard tmp;
-  tmp.init_from_string(MyConfigX::instance()->compressed_store_path.c_str(), "/", dist_id);
-  filename.init_from_string(tmp.data(), "/", all_in_one_mbz());
+  CMemGuard tmp;
+  tmp.from_string(CCfgX::instance()->compressed_store_path.c_str(), "/", dist_id);
+  filename.from_string(tmp.data(), "/", all_in_one_mbz());
 }
 
 bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
@@ -216,32 +216,32 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
   bool result = false;
   bool bm = false;
   int prefix_len = ACE_OS::strlen(http_dist_request.fdir) - 1;
-  MyPooledMemGuard destdir;
-  MyPooledMemGuard composite_dir;
-  MyPooledMemGuard all_in_one;
-  MyPooledMemGuard mfile;
-  MyPooledMemGuard mdestfile;
+  CMemGuard destdir;
+  CMemGuard composite_dir;
+  CMemGuard all_in_one;
+  CMemGuard mfile;
+  CMemGuard mdestfile;
 //  MyPooledMemGuard destdir_mfile;
-  destdir.init_from_string(MyConfigX::instance()->compressed_store_path.c_str(), "/", http_dist_request.ver);
-  if (!MyFilePaths::make_path(destdir.data(), false))
+  destdir.from_string(CCfgX::instance()->compressed_store_path.c_str(), "/", http_dist_request.ver);
+  if (!CSysFS::make_path(destdir.data(), false))
   {
-    MY_ERROR("can not create directory %s, %s\n", destdir.data(), (const char *)MyErrno());
+    MY_ERROR("can not create directory %s, %s\n", destdir.data(), (const char *)CErrno());
     goto __exit__;
   }
 
-  composite_dir.init_from_string(destdir.data(), "/", composite_path());
-  if (!MyFilePaths::make_path(composite_dir.data(), false))
+  composite_dir.from_string(destdir.data(), "/", composite_path());
+  if (!CSysFS::make_path(composite_dir.data(), false))
   {
-    MY_ERROR("can not create directory %s, %s\n", composite_dir.data(), (const char *)MyErrno());
+    MY_ERROR("can not create directory %s, %s\n", composite_dir.data(), (const char *)CErrno());
     goto __exit__;
   }
-  all_in_one.init_from_string(composite_dir.data(), "/all_in_one.mbz");
+  all_in_one.from_string(composite_dir.data(), "/all_in_one.mbz");
   if (!type_is_single(*http_dist_request.type))
     if (!m_compositor.open(all_in_one.data()))
       goto __exit__;
 
-  MyFilePaths::cat_path(http_dist_request.fdir, http_dist_request.findex, mfile);
-  mdestfile.init_from_string(destdir.data(), "/", (http_dist_request.findex? http_dist_request.findex: http_dist_request.aindex), ".mbz");
+  CSysFS::cat_path(http_dist_request.fdir, http_dist_request.findex, mfile);
+  mdestfile.from_string(destdir.data(), "/", (http_dist_request.findex? http_dist_request.findex: http_dist_request.aindex), ".mbz");
   bm = m_compressor.compress(mfile.data(), prefix_len, mdestfile.data(), http_dist_request.password);
   if (!bm && !type_is_multi(*http_dist_request.type))
   {
@@ -257,11 +257,11 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
 
   if (type_is_single(*http_dist_request.type))
   {
-    result = MyFilePaths::rename(mdestfile.data(), all_in_one.data(), false);
+    result = CSysFS::rename(mdestfile.data(), all_in_one.data(), false);
     goto __exit__;
   }
 
-  if (unlikely(!MyFilePaths::get_correlate_path(mfile, prefix_len)))
+  if (unlikely(!CSysFS::get_correlate_path(mfile, prefix_len)))
   {
     MY_ERROR("can not calculate related path for %s\n", mfile.data());
     m_compositor.close();
@@ -280,13 +280,13 @@ __exit__:
 
   if (type_is_all(*http_dist_request.type))
   {
-    MyFilePaths::remove(mdestfile.data());
+    CSysFS::remove(mdestfile.data());
     int len = ACE_OS::strlen(mdestfile.data());
     if (likely(len > 4))
     {
       mdestfile.data()[len - 4] = 0;
-      if (likely(MyFilePaths::get_correlate_path(mdestfile, 1)))
-        MyFilePaths::remove_path(mdestfile.data(), true);
+      if (likely(CSysFS::get_correlate_path(mdestfile, 1)))
+        CSysFS::remove_path(mdestfile.data(), true);
     }
   }
   return result;
@@ -298,16 +298,16 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
   if (unlikely(!src_path || !*src_path || !dest_path || !*dest_path))
     return false;
 
-  if (!MyFilePaths::make_path(dest_path, false))
+  if (!CSysFS::make_path(dest_path, false))
   {
-    MY_ERROR("can not create directory %s, %s\n", dest_path, (const char *)MyErrno());
+    MY_ERROR("can not create directory %s, %s\n", dest_path, (const char *)CErrno());
     return false;
   }
 
   DIR * dir = opendir(src_path);
   if (!dir)
   {
-    MY_ERROR("can not open directory: %s, %s\n", src_path, (const char*)MyErrno());
+    MY_ERROR("can not open directory: %s, %s\n", src_path, (const char*)CErrno());
     return false;
   }
 
@@ -318,9 +318,9 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
   int dest_middle_leading_path_len = len1 - prefix_len;
   if (dest_middle_leading_path_len > 0)
   {
-    if (!MyFilePaths::make_path(dest_path, src_path + prefix_len + 1, false, false))
+    if (!CSysFS::make_path(dest_path, src_path + prefix_len + 1, false, false))
     {
-      MY_ERROR("failed to create dir %s%s %s\n", dest_path, src_path + prefix_len, (const char*)MyErrno());
+      MY_ERROR("failed to create dir %s%s %s\n", dest_path, src_path + prefix_len, (const char*)CErrno());
       return false;
     }
   }
@@ -332,7 +332,7 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
     if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
       continue;
 
-    MyPooledMemGuard msrc, mdest;
+    CMemGuard msrc, mdest;
     int len = ACE_OS::strlen(entry->d_name);
     MyMemPoolFactoryX::instance()->get_mem(len1 + len + 2, &msrc);
     ACE_OS::sprintf(msrc.data(), "%s/%s", src_path, entry->d_name);
@@ -380,7 +380,7 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
 
 //MyDistMd5Calculator//
 
-bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, MyPooledMemGuard &md5_result, int & md5_len)
+bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, CMemGuard &md5_result, int & md5_len)
 {
   if (!http_dist_request.need_md5())
   {
@@ -413,9 +413,9 @@ bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, MyPoo
 }
 
 
-bool MyDistMd5Calculator::calculate_all_in_one_ftp_md5(const char * dist_id, MyPooledMemGuard & md5_result)
+bool MyDistMd5Calculator::calculate_all_in_one_ftp_md5(const char * dist_id, CMemGuard & md5_result)
 {
-  MyPooledMemGuard filename;
+  CMemGuard filename;
   MyDistCompressor::get_all_in_one_mbz_file_name(dist_id, filename);
   return mycomutil_calculate_file_md5(filename.data(), md5_result);
 }

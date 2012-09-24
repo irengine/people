@@ -18,7 +18,7 @@ class MyHeartBeatModule;
 class MyLocationModule;
 
 
-class MyServerApp: public MyBaseApp
+class MyServerApp: public CApp
 {
 public:
   MyServerApp();
@@ -32,7 +32,7 @@ public:
   MyDistToMiddleModule * dist_to_middle_module() const;
   MyDB & db();
 
-  static bool app_init(const char * app_home_path = NULL, MyConfig::RUNNING_MODE mode = MyConfig::RM_UNKNOWN);
+  static bool app_init(const char * app_home_path = NULL, CCfg::RUNNING_MODE mode = CCfg::RM_UNKNOWN);
   static void app_fini();
   static void dump_mem_pool_info();
   bool dist_put_to_service(ACE_Message_Block * mb);
