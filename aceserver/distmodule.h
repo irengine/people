@@ -79,7 +79,7 @@ private:
 class MyDistClientOne
 {
 public:
-  typedef std::list<MyDistClient *, MyAllocator<MyDistClient *> > MyDistClientOneList;
+  typedef std::list<MyDistClient *, CCppAllocator<MyDistClient *> > MyDistClientOneList;
 
   MyDistClientOne(MyDistClients * dist_clients, const char * client_id);
   ~MyDistClientOne();
@@ -115,25 +115,25 @@ class MyClientMapHash
 public:
   size_t operator()(const MyClientMapKey & x) const
   {
-    return mycomutil_string_hash(x.client_id) ^ mycomutil_string_hash(x.dist_id);
+    return c_util_string_hash(x.client_id) ^ c_util_string_hash(x.dist_id);
   }
 };
 
 class MyDistClients
 {
 public:
-  typedef std::list<MyDistClientOne *, MyAllocator<MyDistClientOne *> > MyDistClientOneList;
+  typedef std::list<MyDistClientOne *, CCppAllocator<MyDistClientOne *> > MyDistClientOneList;
   typedef std::tr1::unordered_map<MyClientMapKey,
                                   MyDistClient *,
                                   MyClientMapHash,
                                   std::equal_to<MyClientMapKey>,
-                                  MyAllocator <std::pair<const MyClientMapKey, MyDistClient *>>
+                                  CCppAllocator <std::pair<const MyClientMapKey, MyDistClient *>>
                                 > MyDistClientMap;
   typedef std::tr1::unordered_map<const char *,
                                   MyDistClientOne *,
                                   CStrHasher,
                                   CStrEqual,
-                                  MyAllocator <std::pair<const char *, MyDistClientOne *>>
+                                  CCppAllocator <std::pair<const char *, MyDistClientOne *>>
                                 > MyDistClientOneMap;
 
 
@@ -183,13 +183,13 @@ private:
   time_t m_last_end;
 };
 
-class MyHeartBeatProcessor: public MyBaseServerProcessor
+class MyHeartBeatProcessor: public CServerProcBase
 {
 public:
-  typedef MyBaseServerProcessor super;
+  typedef CServerProcBase super;
 
-  MyHeartBeatProcessor(MyBaseHandler * handler);
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
+  MyHeartBeatProcessor(CHandlerBase * handler);
+  virtual CProcBase::EVENT_RESULT on_recv_header();
   virtual const char * name() const;
 
   static MyPingSubmitter * m_heart_beat_submitter;
@@ -204,24 +204,24 @@ public:
   DECLARE_MEMORY_POOL__NOTHROW(MyHeartBeatProcessor, ACE_Thread_Mutex);
 
 protected:
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 2 * 1024 * 1024 };
 
   void do_ping();
-  MyBaseProcessor::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_md5_file_list(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_ftp_reply(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_ip_ver_req(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_adv_click_req(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_pc_on_off_req(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_hardware_alarm_req(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_vlc_req(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_test(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_psp(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_vlc_empty_req(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_send_pq();
+  CProcBase::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_md5_file_list(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_ftp_reply(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_ip_ver_req(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_adv_click_req(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_pc_on_off_req(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_hardware_alarm_req(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_vlc_req(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_test(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_psp(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_vlc_empty_req(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_send_pq();
 
   char m_hw_ver[12];
 };
@@ -416,16 +416,16 @@ private:
 };
 
 
-class MyHeartBeatHandler: public MyBaseHandler
+class MyHeartBeatHandler: public CHandlerBase
 {
 public:
-  MyHeartBeatHandler(MyBaseConnectionManager * xptr = NULL);
-  virtual MyClientIDTable * client_id_table() const;
+  MyHeartBeatHandler(CConnectionManagerBase * xptr = NULL);
+  virtual CClientIDS * client_id_table() const;
 
   DECLARE_MEMORY_POOL__NOTHROW(MyHeartBeatHandler, ACE_Thread_Mutex);
 };
 
-class MyHeartBeatService: public MyBaseService
+class MyHeartBeatService: public CTaskBase
 {
 public:
   enum { TIMED_DIST_TASK = 1 };
@@ -447,7 +447,7 @@ private:
   ACE_Message_Queue<ACE_MT_SYNCH> m_queue2;
 };
 
-class MyHeartBeatDispatcher: public MyBaseDispatcher
+class MyHeartBeatDispatcher: public CDispatchBase
 {
 public:
   MyHeartBeatDispatcher(CMod * pModule, int numThreads = 1);
@@ -473,12 +473,12 @@ private:
   MyHeartBeatAcceptor * m_acceptor;
 };
 
-class MyHeartBeatAcceptor: public MyBaseAcceptor
+class MyHeartBeatAcceptor: public CAcceptorBase
 {
 public:
   enum { IDLE_TIME_AS_DEAD = 15 }; //in minutes
-  MyHeartBeatAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
-  virtual int make_svc_handler(MyBaseHandler *& sh);
+  MyHeartBeatAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * manager);
+  virtual int make_svc_handler(CHandlerBase *& sh);
   virtual const char * name() const;
 };
 
@@ -522,15 +522,15 @@ private:
 
 class MyDistToMiddleModule;
 
-class MyDistToBSProcessor: public MyBSBasePacketProcessor
+class MyDistToBSProcessor: public CBSProceBase
 {
 public:
-  typedef MyBSBasePacketProcessor super;
-  MyDistToBSProcessor(MyBaseHandler * handler);
+  typedef CBSProceBase super;
+  MyDistToBSProcessor(CHandlerBase * handler);
   virtual const char * name() const;
 
 protected:
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 2 * 1024 * 1024 };
@@ -539,10 +539,10 @@ private:
   void process_ip_ver_reply_one(char * item);
 };
 
-class MyDistToBSHandler: public MyBaseHandler
+class MyDistToBSHandler: public CHandlerBase
 {
 public:
-  MyDistToBSHandler(MyBaseConnectionManager * xptr = NULL);
+  MyDistToBSHandler(CConnectionManagerBase * xptr = NULL);
   MyDistToMiddleModule * module_x() const;
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
   void checker_update();
@@ -556,11 +556,11 @@ private:
   MyActChecker m_checker;
 };
 
-class MyDistToBSConnector: public MyBaseConnector
+class MyDistToBSConnector: public CConnectorBase
 {
 public:
-  MyDistToBSConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
-  virtual int make_svc_handler(MyBaseHandler *& sh);
+  MyDistToBSConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager);
+  virtual int make_svc_handler(CHandlerBase *& sh);
   virtual const char * name() const;
 
 protected:
@@ -575,36 +575,36 @@ protected:
 class MyDistToMiddleModule;
 class MyDistToMiddleConnector;
 
-class MyDistToMiddleProcessor: public MyBaseClientProcessor
+class MyDistToMiddleProcessor: public CClientProcBase
 {
 public:
-  typedef MyBaseClientProcessor super;
+  typedef CClientProcBase super;
 
-  MyDistToMiddleProcessor(MyBaseHandler * handler);
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
+  MyDistToMiddleProcessor(CHandlerBase * handler);
+  virtual CProcBase::EVENT_RESULT on_recv_header();
   virtual int on_open();
   int send_server_load();
 
 protected:
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
   enum { IP_ADDR_LENGTH = INET_ADDRSTRLEN };
   enum { MSG_QUEUE_MAX_SIZE = 512 * 1024 };
 
   int send_version_check_req();
-  MyBaseProcessor::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_have_dist_task(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_remote_cmd_task(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_have_dist_task(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_remote_cmd_task(ACE_Message_Block * mb);
 
   bool m_version_check_reply_done;
   char m_local_addr[IP_ADDR_LENGTH];
 };
 
-class MyDistToMiddleHandler: public MyBaseHandler
+class MyDistToMiddleHandler: public CHandlerBase
 {
 public:
-  MyDistToMiddleHandler(MyBaseConnectionManager * xptr = NULL);
+  MyDistToMiddleHandler(CConnectionManagerBase * xptr = NULL);
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
   void setup_timer();
   MyDistToMiddleModule * module_x() const;
@@ -620,7 +620,7 @@ private:
   long m_load_balance_req_timer_id;
 };
 
-class MyDistToMiddleDispatcher: public MyBaseDispatcher
+class MyDistToMiddleDispatcher: public CDispatchBase
 {
 public:
   MyDistToMiddleDispatcher(CMod * pModule, int numThreads = 1);
@@ -645,11 +645,11 @@ private:
 };
 
 
-class MyDistToMiddleConnector: public MyBaseConnector
+class MyDistToMiddleConnector: public CConnectorBase
 {
 public:
-  MyDistToMiddleConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
-  virtual int make_svc_handler(MyBaseHandler *& sh);
+  MyDistToMiddleConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager);
+  virtual int make_svc_handler(CHandlerBase *& sh);
   virtual const char * name() const;
 
 protected:

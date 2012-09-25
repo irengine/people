@@ -87,7 +87,7 @@ void MyDistClient::dist_ftp_md5_reply(const char * md5list)
   if (unlikely(*md5list == 0))
   {
     char buff[50];
-    mycomutil_generate_time_string(buff, 50, true);
+    c_util_generate_time_string(buff, 50, true);
     MyServerAppX::instance()->heart_beat_module()->ftp_feedback_submitter().add(
         dist_info->ver.data(),
         dist_info->ftype[0],
@@ -275,7 +275,7 @@ ACE_Message_Block * MyDistClient::make_ftp_fb_detail_mb(bool bok)
 {
   CMemGuard md5_new;
   char buff[32];
-  mycomutil_generate_time_string(buff, 32, true);
+  c_util_generate_time_string(buff, 32, true);
   const char * detail_files;
   if (type_is_multi(dist_info->type[0]))
   {
@@ -284,7 +284,7 @@ ACE_Message_Block * MyDistClient::make_ftp_fb_detail_mb(bool bok)
     else
     {
       md5_new.from_string(md5.data());
-      mycomutil_string_replace_char(md5_new.data(), MyDataPacketHeader::ITEM_SEPARATOR, ':');
+      c_util_string_replace_char(md5_new.data(), MyDataPacketHeader::ITEM_SEPARATOR, ':');
       int len = ACE_OS::strlen(md5_new.data());
       if (md5_new.data()[len - 1] == ':')
         md5_new.data()[len - 1] = 0;
@@ -298,7 +298,7 @@ ACE_Message_Block * MyDistClient::make_ftp_fb_detail_mb(bool bok)
       ACE_OS::strlen(buff) + ACE_OS::strlen(dist_info->findex.data()) + ACE_OS::strlen(detail_files) +
       10;
   //batNO, fileKindCode, agentCode, indexName, fileName, type,flag, date
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(total_len, MY_BS_DIST_FBDETAIL_CMD);
+  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_bs(total_len, MY_BS_DIST_FBDETAIL_CMD);
   char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
   ACE_OS::sprintf(dest, "%s#%c#%s#%s#%s#%c#%c#%s",
       dist_info->ver.data(),
@@ -320,7 +320,7 @@ bool MyDistClient::send_md5()
 
   int md5_len = dist_info->md5_len + 1;
   int data_len = dist_out_leading_length() + md5_len;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(data_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
+  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(data_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
   MyDataPacketExt * md5_packet = (MyDataPacketExt *)mb->base();
   md5_packet->magic = client_id_index();
   dist_out_leading_data(md5_packet->data);
@@ -328,7 +328,7 @@ bool MyDistClient::send_md5()
 
   last_update = time(NULL);
 
-  return mycomutil_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "file md5 list to dispatcher's queue");
+  return c_util_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "file md5 list to dispatcher's queue");
 }
 
 bool MyDistClient::generate_diff_mbz()
@@ -339,7 +339,7 @@ bool MyDistClient::generate_diff_mbz()
   destdir.from_string(CCfgX::instance()->compressed_store_path.c_str(), "/", dist_info->ver.data());
   composite_dir.from_string(destdir.data(), "/", MyDistCompressor::composite_path());
   mdestfile.from_string(composite_dir.data(), "/", client_id(), ".mbz");
-  MyBZCompositor compositor;
+  CCompCombiner compositor;
   if (!compositor.open(mdestfile.data()))
     return false;
   CMemGuard md5_copy;
@@ -348,7 +348,7 @@ bool MyDistClient::generate_diff_mbz()
   CStringTokenizer tokenizer(md5_copy.data(), separators);
   char * token;
   CMemGuard filename;
-  while ((token =tokenizer.get_token()) != NULL)
+  while ((token =tokenizer.get()) != NULL)
   {
     filename.from_string(destdir.data(), "/", token, ".mbz");
     if (!compositor.add(filename.data()))
@@ -359,7 +359,7 @@ bool MyDistClient::generate_diff_mbz()
   }
 
   CMemGuard md5_result;
-  if (!mycomutil_calculate_file_md5(mdestfile.data(), md5_result))
+  if (!c_util_calculate_file_md5(mdestfile.data(), md5_result))
   {
     C_ERROR("failed to calculate md5 for file %s\n", mdestfile.data());
     CSysFS::remove(mdestfile.data());
@@ -374,13 +374,13 @@ bool MyDistClient::generate_diff_mbz()
 bool MyDistClient::send_psp(const char c)
 {
   int data_len = dist_info->ver_len + 2;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(data_len, MyDataPacketHeader::CMD_PSP);
+  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(data_len, MyDataPacketHeader::CMD_PSP);
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
   dpe->magic = client_id_index();
   dpe->data[0] = c;
   ACE_OS::memcpy(dpe->data + 1, dist_info->ver.data(), data_len - 1);
   last_update = time(NULL);
-  return mycomutil_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "psp to dispatcher's queue");
+  return c_util_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "psp to dispatcher's queue");
 }
 
 bool MyDistClient::send_ftp()
@@ -402,7 +402,7 @@ bool MyDistClient::send_ftp()
   int leading_length = dist_out_leading_length();
   int ftp_file_name_len = ACE_OS::strlen(ftp_file_name) + 1;
   int data_len = leading_length + ftp_file_name_len + dist_info->password_len + 1 + _mbz_md5_len;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(data_len, MyDataPacketHeader::CMD_FTP_FILE);
+  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(data_len, MyDataPacketHeader::CMD_FTP_FILE);
   MyDataPacketExt * packet = (MyDataPacketExt *)mb->base();
   packet->magic = client_id_index();
   dist_out_leading_data(packet->data);
@@ -417,7 +417,7 @@ bool MyDistClient::send_ftp()
 
   last_update = time(NULL);
 
-  return mycomutil_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "file md5 list to dispatcher's queue");
+  return c_util_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "file md5 list to dispatcher's queue");
 }
 
 
@@ -447,7 +447,7 @@ int MyDistClientOne::client_id_index() const
 bool MyDistClientOne::active()
 {
   bool switched;
-  return g_client_id_table->active(m_client_id, m_client_id_index, switched);
+  return g_client_ids->active(m_client_id, m_client_id_index, switched);
 }
 
 bool MyDistClientOne::is_client_id(const char * _client_id) const
@@ -457,7 +457,7 @@ bool MyDistClientOne::is_client_id(const char * _client_id) const
 
 MyDistClient * MyDistClientOne::create_dist_client(MyHttpDistInfo * _dist_info)
 {
-  void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyDistClient));
+  void * p = CMemPoolX::instance()->alloc_mem_x(sizeof(MyDistClient));
   MyDistClient * result = new (p) MyDistClient(_dist_info, this);
   m_client_ones.push_back(result);
   m_dist_clients->on_create_dist_client(result);
@@ -484,14 +484,14 @@ void MyDistClientOne::clear()
 bool MyDistClientOne::dist_files()
 {
   bool switched;
-  if (!g_client_id_table->active(m_client_id, m_client_id_index, switched))
+  if (!g_client_ids->active(m_client_id, m_client_id_index, switched))
     return !m_client_ones.empty();
 
   MyDistClientOneList::iterator it;
 
   if (unlikely(switched))
   {
-    g_client_id_table->switched(m_client_id_index, false);
+    g_client_ids->switched(m_client_id_index, false);
     for (it = m_client_ones.begin(); it != m_client_ones.end(); ++it)
       m_dist_clients->on_remove_dist_client(*it, false);
     clear();
@@ -593,7 +593,7 @@ MyDistClientOne * MyDistClients::find_client_one(const char * client_id)
 
 MyDistClientOne * MyDistClients::create_client_one(const char * client_id)
 {
-  void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyDistClientOne));
+  void * p = CMemPoolX::instance()->alloc_mem_x(sizeof(MyDistClientOne));
   MyDistClientOne * result = new (p) MyDistClientOne(this, client_id);
   dist_clients.push_back(result);
   m_dist_client_ones_map.insert(std::pair<const char *, MyDistClientOne *>(result->client_id(), result));
@@ -729,7 +729,7 @@ MyHWAlarmSubmitter * MyHeartBeatProcessor::m_hardware_alarm_submitter = NULL;
 MyVLCSubmitter * MyHeartBeatProcessor::m_vlc_submitter = NULL;
 MyVLCEmptySubmitter * MyHeartBeatProcessor::m_vlc_empty_submitter = NULL;
 
-MyHeartBeatProcessor::MyHeartBeatProcessor(MyBaseHandler * handler): MyBaseServerProcessor(handler)
+MyHeartBeatProcessor::MyHeartBeatProcessor(CHandlerBase * handler): CServerProcBase(handler)
 {
   m_handler->msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
   m_hw_ver[0] = 0;
@@ -740,7 +740,7 @@ const char * MyHeartBeatProcessor::name() const
   return "MyHeartBeatProcessor";
 }
 
-MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 {
 //  {
 //    MyPooledMemGuard info;
@@ -925,9 +925,9 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
   return ER_ERROR;
 }
 
-MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
-  MyBaseServerProcessor::on_recv_packet_i(mb);
+  CServerProcBase::on_recv_packet_i(mb);
 
   {
     CMemGuard info;
@@ -982,10 +982,10 @@ void MyHeartBeatProcessor::do_ping()
   m_heart_beat_submitter->add_ping(m_client_id.as_string(), m_client_id_length);
 }
 
-MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
-  MyClientIDTable & client_id_table = MyServerAppX::instance()->client_id_table();
+  CClientIDS & client_id_table = MyServerAppX::instance()->client_id_table();
   MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
   if (!dpe->guard())
   {
@@ -1009,14 +1009,14 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
     info_string(info);
     C_WARNING(ACE_TEXT("client version check packet led/lcd driver version empty: %s\n"), info.data());
   }
-  MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, client_id_table);
+  CProcBase::EVENT_RESULT ret = do_version_check_common(mb, client_id_table);
 
   m_ip_ver_submitter->add_data(m_client_id.as_string(), m_client_id_length, m_peer_addr, m_client_version.to_string(), m_hw_ver);
 
   if (ret != ER_CONTINUE)
     return ret;
 
-  MyClientInfo client_info;
+  CClientInfo client_info;
   client_id_table.value_all(m_client_id_index, client_info);
 
   ACE_Message_Block * reply_mb;
@@ -1049,13 +1049,13 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message
   return do_send_pq();
 }
 
-MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_send_pq()
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_send_pq()
 {
   CMemGuard value;
   if (!MyServerAppX::instance()->heart_beat_module()->get_pl(value))
     return ER_OK;
   int m = ACE_OS::strlen(value.data()) + 1;
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(m, MyDataPacketHeader::CMD_TQ);
+  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(m, MyDataPacketHeader::CMD_TQ);
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
   ACE_OS::memcpy(dpe->data, value.data(), m);
   if (m_handler->send_data(mb) < 0)
@@ -1064,7 +1064,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_send_pq()
     return ER_OK;
 }
 
-MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_md5_file_list(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_md5_file_list(ACE_Message_Block * mb)
 {
   MyDataPacketExt * md5filelist = (MyDataPacketExt *)mb->base();
   if (unlikely(!md5filelist->guard()))
@@ -1085,7 +1085,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_md5_file_list(ACE_Message
   return ER_OK;
 }
 
-MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(ACE_Message_Block * mb)
 {
   MyDataPacketExt * md5filelist = (MyDataPacketExt *)mb->base();
   if (unlikely(!md5filelist->guard()))
@@ -1095,7 +1095,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(ACE_Message_Blo
     C_ERROR("bad ftp reply packet from %s\n", info.data());
     return ER_ERROR;
   }
-  ACE_Message_Block * mb_reply = MyMemPoolFactoryX::instance()->get_message_block_ack(mb);
+  ACE_Message_Block * mb_reply = CMemPoolX::instance()->get_mb_ack(mb);
 //  C_DEBUG("got one ftp reply packet, size = %d\n", mb->capacity());
   MyServerAppX::instance()->heart_beat_module()->service()->add_request(mb, true);
 
@@ -1106,14 +1106,14 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(ACE_Message_Blo
   return ER_OK;
 }
 
-MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_ip_ver_req(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_ip_ver_req(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
   m_ip_ver_submitter->add_data(m_client_id.as_string(), m_client_id_length, m_peer_addr, m_client_version.to_string(), m_hw_ver);
   return ER_OK;
 }
 
-MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_adv_click_req(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_adv_click_req(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
@@ -1128,16 +1128,16 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_adv_click_req(ACE_Message
   const char record_separator[] = {MyDataPacketHeader::FINISH_SEPARATOR, 0};
   CStringTokenizer tknz(dpe->data, record_separator);
   char * record;
-  while ((record = tknz.get_token()) != NULL)
+  while ((record = tknz.get()) != NULL)
   {
     const char separator[] = {MyDataPacketHeader::ITEM_SEPARATOR, 0};
     CStringTokenizer tknz_x(record, separator);
-    const char * chn = tknz_x.get_token();
-    const char * pcode = tknz_x.get_token();
+    const char * chn = tknz_x.get();
+    const char * pcode = tknz_x.get();
     const char * number;
     if (unlikely(!pcode))
       continue;
-    number = tknz_x.get_token();
+    number = tknz_x.get();
     if (unlikely(!number))
       continue;
     if (ACE_OS::strlen(number) >= 12)
@@ -1148,7 +1148,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_adv_click_req(ACE_Message
   return ER_OK;
 }
 
-MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_hardware_alarm_req(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_hardware_alarm_req(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
   MyPLCAlarm * alarm = (MyPLCAlarm *) mb->base();
@@ -1162,12 +1162,12 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_hardware_alarm_req(ACE_Me
   }
 
   char datetime[32];
-  mycomutil_generate_time_string(datetime, 20, true);
+  c_util_generate_time_string(datetime, 20, true);
   m_hardware_alarm_submitter->add_data(m_client_id.as_string(), m_client_id_length, alarm->x, alarm->y, datetime);
   return ER_OK;
 }
 
-MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_vlc_req(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_vlc_req(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
@@ -1182,7 +1182,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_vlc_req(ACE_Message_Block
   char separator[2] = {MyDataPacketHeader::ITEM_SEPARATOR, 0};
   CStringTokenizer tknizer(dpe->data, separator);
   char * token;
-  while ((token = tknizer.get_token()) != NULL)
+  while ((token = tknizer.get()) != NULL)
   {
     char * ptr = ACE_OS::strchr(token, MyDataPacketHeader::MIDDLE_SEPARATOR);
     if (!ptr)
@@ -1193,7 +1193,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_vlc_req(ACE_Message_Block
   return ER_OK;
 }
 
-MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_vlc_empty_req(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_vlc_empty_req(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
@@ -1208,13 +1208,13 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_vlc_empty_req(ACE_Message
   return ER_OK;
 }
 
-MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_psp(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_psp(ACE_Message_Block * mb)
 {
   MyServerAppX::instance()->heart_beat_module()->service()->add_request(mb, true);
   return ER_OK;
 }
 
-MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_pc_on_off_req(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_pc_on_off_req(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
@@ -1236,7 +1236,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_pc_on_off_req(ACE_Message
   return ER_OK;
 }
 
-MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_test(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_test(ACE_Message_Block * mb)
 {
 //  MyMessageBlockGuard guard(mb);
   C_DEBUG("playback test packet of %d bytes...\n", mb->length());
@@ -1259,7 +1259,7 @@ MyAccumulatorBlock::MyAccumulatorBlock(int block_size, int max_item_length, MyBa
   m_max_item_length = max_item_length + 1;
   m_submitter = submitter;
   m_auto_submit = auto_submit;
-  m_current_block = MyMemPoolFactoryX::instance()->get_message_block(m_block_size);
+  m_current_block = CMemPoolX::instance()->get_mb(m_block_size);
   submitter->add_block(this);
   reset();
 }
@@ -1356,7 +1356,7 @@ void MyBaseSubmitter::do_submit(const char * cmd)
     total_len += (*it)->data_len() + 1;
   --total_len;
 
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(total_len, cmd);
+  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_bs(total_len, cmd);
   char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
   for (it = m_blocks.begin(); ; )
   {
@@ -1644,7 +1644,7 @@ void MyVLCEmptySubmitter::add_data(const char * client_id, int id_len, const cha
     ret = false;
 
   char datetime[32];
-  mycomutil_generate_time_string(datetime, 20, true);
+  c_util_generate_time_string(datetime, 20, true);
   if (!m_datetime_block.add(datetime))
     ret = false;
 
@@ -1660,14 +1660,14 @@ const char * MyVLCEmptySubmitter::get_command() const
 
 //MyHeartBeatHandler//
 
-MyHeartBeatHandler::MyHeartBeatHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
+MyHeartBeatHandler::MyHeartBeatHandler(CConnectionManagerBase * xptr): CHandlerBase(xptr)
 {
   m_processor = new MyHeartBeatProcessor(this);
 }
 
-MyClientIDTable * MyHeartBeatHandler::client_id_table() const
+CClientIDS * MyHeartBeatHandler::client_id_table() const
 {
-  return g_client_id_table;
+  return g_client_ids;
 }
 
 PREPARE_MEMORY_POOL(MyHeartBeatHandler);
@@ -1676,7 +1676,7 @@ PREPARE_MEMORY_POOL(MyHeartBeatHandler);
 //MyHeartBeatService//
 
 MyHeartBeatService::MyHeartBeatService(CMod * module, int numThreads):
-    MyBaseService(module, numThreads)
+    CTaskBase(module, numThreads)
 {
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
   m_queue2.high_water_mark(MSG_QUEUE_MAX_SIZE * 5);
@@ -1852,7 +1852,7 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
   if ((ftype != 'x') && step != 0)
   {
     char buff[32];
-    mycomutil_generate_time_string(buff, 32, true);
+    c_util_generate_time_string(buff, 32, true);
     ((MyHeartBeatModule *)module_x())->ftp_feedback_submitter().add(dist_id, ftype, client_id.as_string(), step, ok, buff);
     if (step == '3' && ok == '1')
       ((MyHeartBeatModule *)module_x())->ftp_feedback_submitter().add(dist_id, ftype, client_id.as_string(), '4', ok, buff);
@@ -1909,14 +1909,14 @@ void MyHeartBeatService::do_file_md5_reply(ACE_Message_Block * mb)
 
 //MyHeartBeatAcceptor//
 
-MyHeartBeatAcceptor::MyHeartBeatAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
-    MyBaseAcceptor(_dispatcher, _manager)
+MyHeartBeatAcceptor::MyHeartBeatAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager):
+    CAcceptorBase(_dispatcher, _manager)
 {
   m_tcp_port = CCfgX::instance()->dist_server_heart_beat_port;
   m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 
-int MyHeartBeatAcceptor::make_svc_handler(MyBaseHandler *& sh)
+int MyHeartBeatAcceptor::make_svc_handler(CHandlerBase *& sh)
 {
   sh = new MyHeartBeatHandler(m_connection_manager);
   if (!sh)
@@ -1938,7 +1938,7 @@ const char * MyHeartBeatAcceptor::name() const
 //MyHeartBeatDispatcher//
 
 MyHeartBeatDispatcher::MyHeartBeatDispatcher(CMod * pModule, int numThreads):
-    MyBaseDispatcher(pModule, numThreads)
+    CDispatchBase(pModule, numThreads)
 {
   m_acceptor = NULL;
   m_clock_interval = CLOCK_INTERVAL;
@@ -1959,7 +1959,7 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
 {
   ACE_UNUSED_ARG(tv);
   ACE_UNUSED_ARG(act);
-  if ((long)act == MyBaseDispatcher::TIMER_ID_BASE)
+  if ((long)act == CDispatchBase::TIMER_ID_BASE)
   {
     ACE_Message_Block *mb;
     ACE_Time_Value nowait(ACE_Time_Value::zero);
@@ -1972,7 +1972,7 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
         continue;
       }
       int index = ((MyDataPacketHeader*)mb->base())->magic;
-      MyBaseHandler * handler = m_acceptor->connection_manager()->find_handler_by_index(index);
+      CHandlerBase * handler = m_acceptor->connection_manager()->find_handler_by_index(index);
       if (!handler)
       {
 //        C_WARNING("can not send data to client since connection is lost @ %s::handle_timeout\n", name());
@@ -2005,7 +2005,7 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
   }
   else if ((long)act == TIMER_ID_DIST_SERVICE)
   {
-    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block(sizeof(int));
+    ACE_Message_Block * mb = CMemPoolX::instance()->get_mb(sizeof(int));
     *(int*)mb->base() = MyHeartBeatService::TIMED_DIST_TASK;
     MyServerAppX::instance()->heart_beat_module()->service()->add_request(mb, false);
   } else if ((long)act == TIMER_ID_ADV_CLICK)
@@ -2032,7 +2032,7 @@ void MyHeartBeatDispatcher::on_stop_stage_1()
 bool MyHeartBeatDispatcher::on_start()
 {
   if (!m_acceptor)
-    m_acceptor = new MyHeartBeatAcceptor(this, new MyBaseConnectionManager());
+    m_acceptor = new MyHeartBeatAcceptor(this, new CConnectionManagerBase());
   add_acceptor(m_acceptor);
 
   {
@@ -2119,7 +2119,7 @@ int MyHeartBeatModule::num_active_clients() const
 {
   if (unlikely(!m_dispatcher || !m_dispatcher->acceptor() || !m_dispatcher->acceptor()->connection_manager()))
     return 0xFFFFFF;
-  return m_dispatcher->acceptor()->connection_manager()->active_connections();
+  return m_dispatcher->acceptor()->connection_manager()->active_count();
 }
 
 MyFtpFeedbackSubmitter & MyHeartBeatModule::ftp_feedback_submitter()
@@ -2152,8 +2152,8 @@ const char * MyHeartBeatModule::name() const
 
 bool MyHeartBeatModule::on_start()
 {
-  add_service(m_service = new MyHeartBeatService(this, 1));
-  add_dispatcher(m_dispatcher = new MyHeartBeatDispatcher(this));
+  add_task(m_service = new MyHeartBeatService(this, 1));
+  add_dispatch(m_dispatcher = new MyHeartBeatDispatcher(this));
   return true;
 }
 
@@ -2170,7 +2170,7 @@ void MyHeartBeatModule::on_stop()
 
 //MyDistToBSProcessor//
 
-MyDistToBSProcessor::MyDistToBSProcessor(MyBaseHandler * handler): super(handler)
+MyDistToBSProcessor::MyDistToBSProcessor(CHandlerBase * handler): super(handler)
 {
   m_handler->msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
@@ -2180,7 +2180,7 @@ const char * MyDistToBSProcessor::name() const
   return "MyDistToBSProcessor";
 }
 
-MyBaseProcessor::EVENT_RESULT MyDistToBSProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyDistToBSProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
 
@@ -2201,7 +2201,7 @@ void MyDistToBSProcessor::process_ip_ver_reply(MyBSBasePacket * bspacket)
   char separator[2] = {';', 0};
   CStringTokenizer tknizer(bspacket->data, separator);
   char * token;
-  while ((token = tknizer.get_token()) != NULL)
+  while ((token = tknizer.get()) != NULL)
     process_ip_ver_reply_one(token);
 }
 
@@ -2214,7 +2214,7 @@ void MyDistToBSProcessor::process_ip_ver_reply_one(char * item)
     return;
   *data++ = 0;
   bool client_valid = !(data[0] == '*' && data[1] == 0);
-  MyClientIDTable & id_table = MyServerAppX::instance()->client_id_table();
+  CClientIDS & id_table = MyServerAppX::instance()->client_id_table();
   MyClientID client_id(id);
   int index;
   if (unlikely(!id_table.mark_valid(client_id, client_valid, index)))
@@ -2223,19 +2223,19 @@ void MyDistToBSProcessor::process_ip_ver_reply_one(char * item)
   if (likely(client_valid))
   {
     int len = ACE_OS::strlen(data) + 1;
-    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(len, MyDataPacketHeader::CMD_IP_VER_REQ);
+    ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(len, MyDataPacketHeader::CMD_IP_VER_REQ);
     MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
     ACE_OS::memcpy(dpe->data, data, len);
     dpe->magic = index;
-    mycomutil_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "ip ver reply to dispatcher's queue");
+    c_util_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "ip ver reply to dispatcher's queue");
   } else
   {
     if (index >= 0)
     {
-      ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(0, MyDataPacketHeader::CMD_DISCONNECT_INTERNAL);
+      ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(0, MyDataPacketHeader::CMD_DISCONNECT_INTERNAL);
       MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
       dpe->magic = index;
-      mycomutil_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "disconnect internal to dispatcher's queue");
+      c_util_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "disconnect internal to dispatcher's queue");
     }
   }
 }
@@ -2243,7 +2243,7 @@ void MyDistToBSProcessor::process_ip_ver_reply_one(char * item)
 
 //MyDistToBSHandler//
 
-MyDistToBSHandler::MyDistToBSHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
+MyDistToBSHandler::MyDistToBSHandler(CConnectionManagerBase * xptr): CHandlerBase(xptr)
 {
   m_processor = new MyDistToBSProcessor(this);
 }
@@ -2308,8 +2308,8 @@ PREPARE_MEMORY_POOL(MyDistToBSHandler);
 
 //MyDistToBSConnector//
 
-MyDistToBSConnector::MyDistToBSConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
-    MyBaseConnector(_dispatcher, _manager)
+MyDistToBSConnector::MyDistToBSConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager):
+    CConnectorBase(_dispatcher, _manager)
 {
   m_tcp_port = CCfgX::instance()->bs_server_port;
   m_reconnect_interval = RECONNECT_INTERVAL;
@@ -2321,7 +2321,7 @@ const char * MyDistToBSConnector::name() const
   return "MyDistToBSConnector";
 }
 
-int MyDistToBSConnector::make_svc_handler(MyBaseHandler *& sh)
+int MyDistToBSConnector::make_svc_handler(CHandlerBase *& sh)
 {
   sh = new MyDistToBSHandler(m_connection_manager);
   if (!sh)
@@ -2342,7 +2342,7 @@ int MyDistToBSConnector::make_svc_handler(MyBaseHandler *& sh)
 //MyDistToMiddleProcessor//
 
 
-MyDistToMiddleProcessor::MyDistToMiddleProcessor(MyBaseHandler * handler): MyBaseClientProcessor(handler)
+MyDistToMiddleProcessor::MyDistToMiddleProcessor(CHandlerBase * handler): CClientProcBase(handler)
 {
   m_version_check_reply_done = false;
   m_local_addr[0] = 0;
@@ -2361,9 +2361,9 @@ int MyDistToMiddleProcessor::on_open()
   return send_version_check_req();
 }
 
-MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::on_recv_header()
+CProcBase::EVENT_RESULT MyDistToMiddleProcessor::on_recv_header()
 {
-  MyBaseProcessor::EVENT_RESULT result = super::on_recv_header();
+  CProcBase::EVENT_RESULT result = super::on_recv_header();
   if (result != ER_CONTINUE)
     return ER_ERROR;
 
@@ -2409,27 +2409,27 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::on_recv_header()
   return ER_ERROR;
 }
 
-MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyDistToMiddleProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
-  MyBasePacketProcessor::on_recv_packet_i(mb);
+  CFormatProcBase::on_recv_packet_i(mb);
 
   MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
 
   if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY)
   {
-    MyBaseProcessor::EVENT_RESULT result = do_version_check_reply(mb);
+    CProcBase::EVENT_RESULT result = do_version_check_reply(mb);
     C_INFO("handshake response from middle server: %s\n", (result == ER_OK? "OK":"Failed"));
     if (result == ER_OK)
     {
       ((MyDistToMiddleHandler*)m_handler)->setup_timer();
-      client_id_verified(true);
+      client_verified(true);
     }
     return result;
   }
 
   if (header->command == MyDataPacketHeader::CMD_HAVE_DIST_TASK)
   {
-    MyBaseProcessor::EVENT_RESULT result = do_have_dist_task(mb);
+    CProcBase::EVENT_RESULT result = do_have_dist_task(mb);
     C_INFO("got notification from middle server on new dist task\n");
     return result;
   }
@@ -2437,7 +2437,7 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::on_recv_packet_i(ACE_Mess
   if (m_packet_header.command == MyDataPacketHeader::CMD_REMOTE_CMD)
   {
     C_INFO("got notification from middle server on remote cmd\n");
-    MyBaseProcessor::EVENT_RESULT result = do_remote_cmd_task(mb);
+    CProcBase::EVENT_RESULT result = do_remote_cmd_task(mb);
     return result;
   }
 
@@ -2452,7 +2452,7 @@ int MyDistToMiddleProcessor::send_server_load()
   if (!m_version_check_reply_done)
     return 0;
 
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd_direct(sizeof(MyLoadBalanceRequest), MyDataPacketHeader::CMD_LOAD_BALANCE_REQ);
+  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd_direct(sizeof(MyLoadBalanceRequest), MyDataPacketHeader::CMD_LOAD_BALANCE_REQ);
   MyLoadBalanceRequest * req = (MyLoadBalanceRequest *) mb->base();
   req->set_ip_addr(m_local_addr);
   req->clients_connected = MyServerAppX::instance()->heart_beat_module()->num_active_clients();
@@ -2460,7 +2460,7 @@ int MyDistToMiddleProcessor::send_server_load()
   return (m_handler->send_data(mb) < 0 ? -1: 0);
 }
 
-MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_version_check_reply(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyDistToMiddleProcessor::do_version_check_reply(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
   m_version_check_reply_done = true;
@@ -2470,38 +2470,38 @@ MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_version_check_reply(AC
   switch (vcr->reply_code)
   {
   case MyClientVersionCheckReply::VER_OK:
-    return MyBaseProcessor::ER_OK;
+    return CProcBase::ER_OK;
 
   case MyClientVersionCheckReply::VER_OK_CAN_UPGRADE:
     C_INFO("%s get version can upgrade response\n", prefix_msg);
-    return MyBaseProcessor::ER_OK;
+    return CProcBase::ER_OK;
 
   case MyClientVersionCheckReply::VER_MISMATCH:
     C_ERROR("%s get version mismatch response\n", prefix_msg);
-    return MyBaseProcessor::ER_ERROR;
+    return CProcBase::ER_ERROR;
 
   case MyClientVersionCheckReply::VER_ACCESS_DENIED:
     C_ERROR("%s get access denied response\n", prefix_msg);
-    return MyBaseProcessor::ER_ERROR;
+    return CProcBase::ER_ERROR;
 
   case MyClientVersionCheckReply::VER_SERVER_BUSY:
     C_ERROR("%s get server busy response\n", prefix_msg);
-    return MyBaseProcessor::ER_ERROR;
+    return CProcBase::ER_ERROR;
 
   default: //server_list
     C_ERROR("%s get unknown reply code = %d\n", prefix_msg, vcr->reply_code);
-    return MyBaseProcessor::ER_ERROR;
+    return CProcBase::ER_ERROR;
   }
 
 }
 
-MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_have_dist_task(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyDistToMiddleProcessor::do_have_dist_task(ACE_Message_Block * mb)
 {
   MyServerAppX::instance()->heart_beat_module()->service()->add_request(mb, false);
   return ER_OK;
 }
 
-MyBaseProcessor::EVENT_RESULT MyDistToMiddleProcessor::do_remote_cmd_task(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyDistToMiddleProcessor::do_remote_cmd_task(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
   return ER_OK;
@@ -2522,7 +2522,7 @@ int MyDistToMiddleProcessor::send_version_check_req()
 
 //MyDistToMiddleHandler//
 
-MyDistToMiddleHandler::MyDistToMiddleHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
+MyDistToMiddleHandler::MyDistToMiddleHandler(CConnectionManagerBase * xptr): CHandlerBase(xptr)
 {
   m_processor = new MyDistToMiddleProcessor(this);
   m_load_balance_req_timer_id = -1;
@@ -2573,8 +2573,8 @@ PREPARE_MEMORY_POOL(MyDistToMiddleHandler);
 
 //MyDistToMiddleConnector//
 
-MyDistToMiddleConnector::MyDistToMiddleConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
-    MyBaseConnector(_dispatcher, _manager)
+MyDistToMiddleConnector::MyDistToMiddleConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager):
+    CConnectorBase(_dispatcher, _manager)
 {
   m_tcp_port = CCfgX::instance()->middle_server_dist_port;
   m_reconnect_interval = RECONNECT_INTERVAL;
@@ -2586,7 +2586,7 @@ const char * MyDistToMiddleConnector::name() const
   return "MyDistToMiddleConnector";
 }
 
-int MyDistToMiddleConnector::make_svc_handler(MyBaseHandler *& sh)
+int MyDistToMiddleConnector::make_svc_handler(CHandlerBase *& sh)
 {
   sh = new MyDistToMiddleHandler(m_connection_manager);
   if (!sh)
@@ -2604,7 +2604,7 @@ int MyDistToMiddleConnector::make_svc_handler(MyBaseHandler *& sh)
 //MyDistToMiddleDispatcher//
 
 MyDistToMiddleDispatcher::MyDistToMiddleDispatcher(CMod * pModule, int numThreads):
-    MyBaseDispatcher(pModule, numThreads)
+    CDispatchBase(pModule, numThreads)
 {
   m_connector = NULL;
   m_bs_connector = NULL;
@@ -2630,10 +2630,10 @@ void MyDistToMiddleDispatcher::on_stop_stage_1()
 bool MyDistToMiddleDispatcher::on_start()
 {
   if (!m_connector)
-    m_connector = new MyDistToMiddleConnector(this, new MyBaseConnectionManager());
+    m_connector = new MyDistToMiddleConnector(this, new CConnectionManagerBase());
   add_connector(m_connector);
   if (!m_bs_connector)
-    m_bs_connector = new MyDistToBSConnector(this, new MyBaseConnectionManager());
+    m_bs_connector = new MyDistToBSConnector(this, new CConnectionManagerBase());
   add_connector(m_bs_connector);
   return true;
 }
@@ -2669,7 +2669,7 @@ void MyDistToMiddleDispatcher::send_to_bs(ACE_Message_Block * mb)
 
 void MyDistToMiddleDispatcher::send_to_middle(ACE_Message_Block * mb)
 {
-  mycomutil_mb_putq(this, mb, "@ MyDistToMiddleDispatcher::send_to_middle");
+  c_util_mb_putq(this, mb, "@ MyDistToMiddleDispatcher::send_to_middle");
 }
 
 void MyDistToMiddleDispatcher::on_stop()
@@ -2708,7 +2708,7 @@ void MyDistToMiddleModule::send_to_middle(ACE_Message_Block * mb)
 
 bool MyDistToMiddleModule::on_start()
 {
-  add_dispatcher(m_dispatcher = new MyDistToMiddleDispatcher(this));
+  add_dispatch(m_dispatcher = new MyDistToMiddleDispatcher(this));
   return true;
 }
 

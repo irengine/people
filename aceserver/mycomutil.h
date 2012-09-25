@@ -458,14 +458,14 @@ private:
 #define PREPARE_MEMORY_POOL(Cls) \
   Cls::Mem_Pool * Cls::m_mem_pool = NULL
 
-class MyClientIDTable;
+class CClientIDS;
 
 class CClientPathGenerator
 {
 public:
   static void make_paths(const char * app_data_path, int64_t _start, int _count);
   static bool client_id_to_path(const char * id, char * result, int result_len);
-  static void make_paths_from_id_table(const char * app_data_path, MyClientIDTable * id_table);
+  static void make_paths_from_id_table(const char * app_data_path, CClientIDS * id_table);
 };
 
 class CCachedMB: public ACE_Message_Block
@@ -487,33 +487,33 @@ public:
   CMemPool();
   ~CMemPool();
   void init(CCfg * config);
-  ACE_Message_Block * get_message_block(int capacity);
-  ACE_Message_Block * get_message_block_cmd(int extra, int command, bool b_no_uuid = true);
-  ACE_Message_Block * get_message_block_cmd_direct(int capacity, int command, bool b_no_uuid = true);
-  ACE_Message_Block * get_message_block_bs(int data_len, const char * cmd);
-  ACE_Message_Block * get_message_block_ack(ACE_Message_Block * src);
-  bool get_mem(int size, CMemGuard * guard);
-  void * get_mem_x(int size);
-  void free_mem_x(void * ptr); //use _x to avoid ambiguous of NULL pointer as parameter
-  void free_mem(CMemGuard * guard);
-  void dump_info();
+  ACE_Message_Block * get_mb_bs(int data_len, const char * cmd);
+  ACE_Message_Block * get_mb_ack(ACE_Message_Block * src);
+  ACE_Message_Block * get_mb_cmd(int extra, int command, bool b_no_uuid = true);
+  ACE_Message_Block * get_mb(int capacity);
+  ACE_Message_Block * get_mb_cmd_direct(int capacity, int command, bool b_no_uuid = true);
+  void release_mem_x(void * ptr); //use _x to avoid ambiguous of NULL pointer as parameter
+  void release_mem(CMemGuard * guard);
+  bool alloc_mem(int size, CMemGuard * guard);
+  void * alloc_mem_x(int size);
+  void print_info();
 
 private:
   enum { INVALID_INDEX = 9999 };
-  typedef CCachedAllocator<ACE_Thread_Mutex> MyMemPool;
-  typedef std::vector<MyMemPool *> MyMemPools;
-  typedef std::vector<int> MyPoolSizes;
   typedef ACE_Atomic_Op<ACE_Thread_Mutex, long> COUNTER;
+  typedef std::vector<int> CPoolSizes;
+  typedef CCachedAllocator<ACE_Thread_Mutex> CCachedPool;
+  typedef std::vector<CCachedPool *> CCachedPools;
 
-  int find_first_index(int capacity);
-  int find_pool(void * ptr);
-  CCachedAllocator<ACE_Thread_Mutex> *m_message_block_pool;
+  int get_first_index(int capacity);
+  int get_pool(void * ptr);
+  CCachedAllocator<ACE_Thread_Mutex> *m_mb_pool;
   CCachedAllocator<ACE_Thread_Mutex> *m_data_block_pool;
-  MyPoolSizes m_pool_sizes;
-  MyMemPools m_pools;
-  COUNTER m_global_alloc_count;
+  CPoolSizes m_pool_sizes;
+  CCachedPools m_pools;
+  COUNTER m_g_alloc_number;
 };
-typedef ACE_Unmanaged_Singleton<CMemPool, ACE_Null_Mutex> MyMemPoolFactoryX;
+typedef ACE_Unmanaged_Singleton<CMemPool, ACE_Null_Mutex> CMemPoolX;
 
 class CMemGuard
 {
@@ -535,7 +535,7 @@ public:
   {
     if (m_buff)
     {
-      MyMemPoolFactoryX::instance()->free_mem(this);
+      CMemPoolX::instance()->release_mem(this);
       m_buff = NULL;
     }
   }
@@ -552,7 +552,7 @@ protected:
   void data(void * _buff, int index, int size)
   {
     if (unlikely(m_buff != NULL))
-      C_ERROR("memory leak @MyPooledMemGuard, index = %d\n", m_index);
+      C_ERROR("mem leak @MyPooledMemGuard index=%d\n", m_index);
     m_buff = (char*)_buff;
     m_index = index;
     m_size = size;
@@ -570,7 +570,7 @@ private:
   int m_size;
 };
 
-template<typename T> class MyAllocator
+template<typename T> class CCppAllocator
 {
 public:
   typedef std::size_t size_type;
@@ -586,25 +586,25 @@ public:
 
   template<class Other> struct rebind
   {
-    typedef MyAllocator<Other> other;
+    typedef CCppAllocator<Other> other;
   };
 
-  MyAllocator() throw() {}
+  CCppAllocator() throw() {}
 
   template<class Other>
-  MyAllocator(const MyAllocator<Other>&) throw() {}
+  CCppAllocator(const CCppAllocator<Other>&) throw() {}
 
   template<class Other>
-  MyAllocator& operator=(const MyAllocator<Other>&) { return *this; }
+  CCppAllocator& operator=(const CCppAllocator<Other>&) { return *this; }
 
   pointer allocate(size_type count, const void * = 0)
   {
-    return static_cast<pointer> (MyMemPoolFactoryX::instance()->get_mem_x(count * sizeof(T)));
+    return static_cast<pointer> (CMemPoolX::instance()->alloc_mem_x(count * sizeof(T)));
   }
 
   void deallocate(pointer ptr, size_type)
   {
-    MyMemPoolFactoryX::instance()->free_mem_x(ptr);
+    CMemPoolX::instance()->release_mem_x(ptr);
   }
 
   void construct(pointer ptr, const T& val)
@@ -629,7 +629,7 @@ public:
   template <typename T> void operator()(const T * ptr)
   {
     ptr->T::~T();
-    MyMemPoolFactoryX::instance()->free_mem_x((void*)ptr);
+    CMemPoolX::instance()->release_mem_x((void*)ptr);
   }
 };
 
@@ -669,7 +669,7 @@ class CStringTokenizer
 {
 public:
   CStringTokenizer(char * str, const char * separator);
-  char * get_token();
+  char * get();
 
 private:
   char * m_str;
@@ -691,27 +691,27 @@ private:
 #define type_is_multi(type) ((type) == '1')
 #define type_is_all(type) ((type) == '3')
 
-void mycomutil_hex_dump(void * ptr, int len, char * result_buff, int buff_len);
-void mycomutil_generate_random_password(char * buff, const int password_len);
-bool mycomutil_find_tag_value(char * & ptr, const char * tag, char * & value, char terminator);
-bool mycomutil_calculate_file_md5(const char * _file, CMemGuard & md5_result);
-bool mycomutil_generate_time_string(char * result_buff, int buff_len, bool full, time_t t = time(NULL));
-size_t mycomutil_string_hash(const char * str);
-bool mycomutil_string_end_with(const char * src, const char * key);
-void mycomutil_string_replace_char(char * s, const char src, const char dest);
+bool c_util_mb_putq(ACE_Task<ACE_MT_SYNCH> * target, ACE_Message_Block * mb, const char * err_msg);
+int  c_util_send_message_block_queue(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb, bool discard);
+int  c_util_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
+int  c_util_translate_tcp_result(ssize_t transfer_return_value);
+int  c_util_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
 
-bool mycomutil_mb_putq(ACE_Task<ACE_MT_SYNCH> * target, ACE_Message_Block * mb, const char * err_msg);
-int mycomutil_translate_tcp_result(ssize_t transfer_return_value);
-int mycomutil_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
-int mycomutil_send_message_block_queue(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb, bool discard);
-int mycomutil_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
+bool c_util_generate_time_string(char * result_buff, int buff_len, bool full, time_t t = time(NULL));
+bool c_util_find_tag_value(char * & ptr, const char * tag, char * & value, char terminator);
+bool c_util_calculate_file_md5(const char * _file, CMemGuard & md5_result);
+size_t c_util_string_hash(const char * str);
+bool c_util_string_end_with(const char * src, const char * key);
+void c_util_generate_random_password(char * buff, const int password_len);
+void c_util_string_replace_char(char * s, const char src, const char dest);
+void c_util_hex_dump(void * ptr, int len, char * result_buff, int buff_len);
 
 class CStrHasher
 {
 public:
   size_t operator()(const char * x) const
   {
-    return mycomutil_string_hash(x);
+    return c_util_string_hash(x);
   }
 };
 

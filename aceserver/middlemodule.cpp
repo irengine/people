@@ -198,7 +198,7 @@ void MyUnusedPathRemover::check_path(const char * path)
 
 MyDistLoads * MyLocationProcessor::m_dist_loads = NULL;
 
-MyLocationProcessor::MyLocationProcessor(MyBaseHandler * handler): MyBaseServerProcessor(handler)
+MyLocationProcessor::MyLocationProcessor(CHandlerBase * handler): CServerProcBase(handler)
 {
 
 }
@@ -208,9 +208,9 @@ const char * MyLocationProcessor::name() const
   return "MyLocationProcessor";
 }
 
-MyBaseProcessor::EVENT_RESULT MyLocationProcessor::on_recv_header()
+CProcBase::EVENT_RESULT MyLocationProcessor::on_recv_header()
 {
-  if (MyBaseServerProcessor::on_recv_header() == ER_ERROR)
+  if (CServerProcBase::on_recv_header() == ER_ERROR)
     return ER_ERROR;
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
@@ -226,9 +226,9 @@ MyBaseProcessor::EVENT_RESULT MyLocationProcessor::on_recv_header()
   return ER_ERROR;
 }
 
-MyBaseProcessor::EVENT_RESULT MyLocationProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyLocationProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
-  MyBaseServerProcessor::on_recv_packet_i(mb);
+  CServerProcBase::on_recv_packet_i(mb);
 
   MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
   if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ)
@@ -240,7 +240,7 @@ MyBaseProcessor::EVENT_RESULT MyLocationProcessor::on_recv_packet_i(ACE_Message_
 }
 
 
-MyBaseProcessor::EVENT_RESULT MyLocationProcessor::do_version_check(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyLocationProcessor::do_version_check(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
 
@@ -270,7 +270,7 @@ PREPARE_MEMORY_POOL(MyLocationProcessor);
 
 //MyLocationHandler//
 
-MyLocationHandler::MyLocationHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
+MyLocationHandler::MyLocationHandler(CConnectionManagerBase * xptr): CHandlerBase(xptr)
 {
   m_processor = new MyLocationProcessor(this);
 }
@@ -280,7 +280,7 @@ PREPARE_MEMORY_POOL(MyLocationHandler);
 //MyLocationService//
 
 MyLocationService::MyLocationService(CMod * module, int numThreads):
-    MyBaseService(module, numThreads)
+    CTaskBase(module, numThreads)
 {
 
 }
@@ -302,14 +302,14 @@ int MyLocationService::svc()
 
 //MyLocationAcceptor//
 
-MyLocationAcceptor::MyLocationAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
-    MyBaseAcceptor(_dispatcher, _manager)
+MyLocationAcceptor::MyLocationAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager):
+    CAcceptorBase(_dispatcher, _manager)
 {
   m_tcp_port = CCfgX::instance()->middle_server_client_port;
   m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 
-int MyLocationAcceptor::make_svc_handler(MyBaseHandler *& sh)
+int MyLocationAcceptor::make_svc_handler(CHandlerBase *& sh)
 {
   sh = new MyLocationHandler(m_connection_manager);
   if (!sh)
@@ -331,7 +331,7 @@ const char * MyLocationAcceptor::name() const
 //MyLocationDispatcher//
 
 MyLocationDispatcher::MyLocationDispatcher(CMod * _module, int numThreads):
-    MyBaseDispatcher(_module, numThreads)
+    CDispatchBase(_module, numThreads)
 {
   m_acceptor = NULL;
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
@@ -340,7 +340,7 @@ MyLocationDispatcher::MyLocationDispatcher(CMod * _module, int numThreads):
 bool MyLocationDispatcher::on_start()
 {
   if (!m_acceptor)
-    m_acceptor = new MyLocationAcceptor(this, new MyBaseConnectionManager());
+    m_acceptor = new MyLocationAcceptor(this, new CConnectionManagerBase());
   add_acceptor(m_acceptor);
   return true;
 }
@@ -376,8 +376,8 @@ MyDistLoads * MyLocationModule::dist_loads()
 
 bool MyLocationModule::on_start()
 {
-  add_service(m_service = new MyLocationService(this, 1));
-  add_dispatcher(m_dispatcher = new MyLocationDispatcher(this));
+  add_task(m_service = new MyLocationService(this, 1));
+  add_dispatch(m_dispatcher = new MyLocationDispatcher(this));
   return true;
 }
 
@@ -398,7 +398,7 @@ const char * MyLocationModule::name() const
 
 //MyHttpProcessor//
 
-MyHttpProcessor::MyHttpProcessor(MyBaseHandler * handler): super(handler)
+MyHttpProcessor::MyHttpProcessor(CHandlerBase * handler): super(handler)
 {
 
 }
@@ -418,7 +418,7 @@ int MyHttpProcessor::packet_length()
   return m_packet_header;
 }
 
-MyBaseProcessor::EVENT_RESULT MyHttpProcessor::on_recv_header()
+CProcBase::EVENT_RESULT MyHttpProcessor::on_recv_header()
 {
   int len = packet_length();
   if (len > 1024 * 1024 || len <= 32)
@@ -430,13 +430,13 @@ MyBaseProcessor::EVENT_RESULT MyHttpProcessor::on_recv_header()
   return ER_OK;
 }
 
-MyBaseProcessor::EVENT_RESULT MyHttpProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHttpProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
   ACE_UNUSED_ARG(mb);
   C_INFO("http processor got complete packet, len = %d\n", mb->length());
   m_wait_for_close = true;
   bool ok = do_process_input_data();
-  ACE_Message_Block * reply_mb = MyMemPoolFactoryX::instance()->get_message_block(1);
+  ACE_Message_Block * reply_mb = CMemPoolX::instance()->get_mb(1);
   if (!reply_mb)
   {
     C_ERROR(ACE_TEXT("failed to allocate 1 bytes sized memory block @MyHttpProcessor::handle_input().\n"));
@@ -476,7 +476,7 @@ bool MyHttpProcessor::do_process_input_data()
     return false;
   }
   if (likely(ntype == 1 || ntype == 3))
-    result = (mycomutil_mb_putq(MyServerAppX::instance()->http_module()->http_service(), m_current_block,
+    result = (c_util_mb_putq(MyServerAppX::instance()->http_module()->http_service(), m_current_block,
               "http request into target queue @MyHttpProcessor::do_process_input_data()"));
   m_current_block = NULL;
   return result;
@@ -507,7 +507,7 @@ bool MyHttpProcessor::do_prio(ACE_Message_Block * mb)
 
   const char * const_ver = "ver=";
   char * ver = 0;
-  if (!mycomutil_find_tag_value(packet, const_ver, ver, const_separator))
+  if (!c_util_find_tag_value(packet, const_ver, ver, const_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", const_ver);
     return false;
@@ -516,7 +516,7 @@ bool MyHttpProcessor::do_prio(ACE_Message_Block * mb)
 
   const char * const_plist = "plist=";
   char * plist = 0;
-  if (!mycomutil_find_tag_value(packet, const_plist, plist, const_separator))
+  if (!c_util_find_tag_value(packet, const_plist, plist, const_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", const_plist);
     return false;
@@ -539,7 +539,7 @@ PREPARE_MEMORY_POOL(MyHttpProcessor);
 
 //MyHttpHandler//
 
-MyHttpHandler::MyHttpHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
+MyHttpHandler::MyHttpHandler(CConnectionManagerBase * xptr): CHandlerBase(xptr)
 {
   m_processor = new MyHttpProcessor(this);
 }
@@ -549,14 +549,14 @@ PREPARE_MEMORY_POOL(MyHttpHandler);
 
 //MyHttpAcceptor//
 
-MyHttpAcceptor::MyHttpAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
-    MyBaseAcceptor(_dispatcher, _manager)
+MyHttpAcceptor::MyHttpAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager):
+    CAcceptorBase(_dispatcher, _manager)
 {
   m_tcp_port = CCfgX::instance()->http_port;
   m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 
-int MyHttpAcceptor::make_svc_handler(MyBaseHandler *& sh)
+int MyHttpAcceptor::make_svc_handler(CHandlerBase *& sh)
 {
   sh = new MyHttpHandler(m_connection_manager);
   if (!sh)
@@ -578,7 +578,7 @@ const char * MyHttpAcceptor::name() const
 //MyHttpService//
 
 MyHttpService::MyHttpService(CMod * module, int numThreads)
-  : MyBaseService(module, numThreads)
+  : CTaskBase(module, numThreads)
 {
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
@@ -626,56 +626,56 @@ bool MyHttpService::parse_request(ACE_Message_Block * mb, MyHttpDistRequest &htt
   const char const_separator = '&';
 
   const char * const_acode = "acode=";
-  if (!mycomutil_find_tag_value(packet, const_acode, http_dist_request.acode, const_separator))
+  if (!c_util_find_tag_value(packet, const_acode, http_dist_request.acode, const_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", const_acode);
     return false;
   }
 
   const char * const_ftype = "ftype=";
-  if (!mycomutil_find_tag_value(packet, const_ftype, http_dist_request.ftype, const_separator))
+  if (!c_util_find_tag_value(packet, const_ftype, http_dist_request.ftype, const_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", const_ftype);
     return false;
   }
 
   const char * const_fdir = "fdir=";
-  if (!mycomutil_find_tag_value(packet, const_fdir, http_dist_request.fdir, const_separator))
+  if (!c_util_find_tag_value(packet, const_fdir, http_dist_request.fdir, const_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", const_fdir);
     return false;
   }
 
   const char * const_findex = "findex=";
-  if (!mycomutil_find_tag_value(packet, const_findex, http_dist_request.findex, const_separator))
+  if (!c_util_find_tag_value(packet, const_findex, http_dist_request.findex, const_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", const_findex);
     return false;
   }
 
   const char * const_adir = "adir=";
-  if (!mycomutil_find_tag_value(packet, const_adir, http_dist_request.adir, const_separator))
+  if (!c_util_find_tag_value(packet, const_adir, http_dist_request.adir, const_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", const_adir);
     return false;
   }
 
   const char * const_aindex = "aindex=";
-  if (!mycomutil_find_tag_value(packet, const_aindex, http_dist_request.aindex, const_separator))
+  if (!c_util_find_tag_value(packet, const_aindex, http_dist_request.aindex, const_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", const_aindex);
     return false;
   }
 
   const char * const_ver = "ver=";
-  if (!mycomutil_find_tag_value(packet, const_ver, http_dist_request.ver, const_separator))
+  if (!c_util_find_tag_value(packet, const_ver, http_dist_request.ver, const_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", const_ver);
     return false;
   }
 
   const char * const_type = "type=";
-  if (!mycomutil_find_tag_value(packet, const_type, http_dist_request.type, const_separator))
+  if (!c_util_find_tag_value(packet, const_type, http_dist_request.type, const_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", const_type);
     return false;
@@ -694,9 +694,9 @@ bool MyHttpService::handle_packet(ACE_Message_Block * _mb)
       return false;
     int total_len;
     char buff[32];
-    mycomutil_generate_time_string(buff, 32, true);
+    c_util_generate_time_string(buff, 32, true);
     total_len = ACE_OS::strlen(buff) + ACE_OS::strlen(http_dist_request.ver) + 8;
-    ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(total_len, MY_BS_DIST_FEEDBACK_CMD);
+    ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_bs(total_len, MY_BS_DIST_FEEDBACK_CMD);
     char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
     ACE_OS::sprintf(dest, "%s#%c##1#%c#%s", http_dist_request.ver, *http_dist_request.ftype,
         result? '1':'0', buff);
@@ -719,7 +719,7 @@ bool MyHttpService::do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest &
     return false;
 
   char password[12];
-  mycomutil_generate_random_password(password, 12);
+  c_util_generate_random_password(password, 12);
   http_dist_request.password = password;
   MyDB & db = MyServerAppX::instance()->db();
 
@@ -813,7 +813,7 @@ bool MyHttpService::do_handle_packet2(ACE_Message_Block * mb)
 
   const char * const_ver = "ver=";
   char * ver = 0;
-  if (!mycomutil_find_tag_value(packet, const_ver, ver, const_separator))
+  if (!c_util_find_tag_value(packet, const_ver, ver, const_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", const_ver);
     return false;
@@ -822,7 +822,7 @@ bool MyHttpService::do_handle_packet2(ACE_Message_Block * mb)
 
   const char * const_cmd = "cmd=";
   char * cmd = 0;
-  if (!mycomutil_find_tag_value(packet, const_cmd, cmd, const_separator))
+  if (!c_util_find_tag_value(packet, const_cmd, cmd, const_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", const_cmd);
     return false;
@@ -830,7 +830,7 @@ bool MyHttpService::do_handle_packet2(ACE_Message_Block * mb)
 
   const char * const_backid = "backid=";
   char * backid = 0;
-  if (!mycomutil_find_tag_value(packet, const_backid, backid, const_separator))
+  if (!c_util_find_tag_value(packet, const_backid, backid, const_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", const_backid);
     return false;
@@ -838,7 +838,7 @@ bool MyHttpService::do_handle_packet2(ACE_Message_Block * mb)
 
   const char * const_acode = "acode=";
   char * acode = 0;
-  if (!mycomutil_find_tag_value(packet, const_acode, acode, const_separator))
+  if (!c_util_find_tag_value(packet, const_acode, acode, const_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", const_acode);
     return false;
@@ -878,14 +878,14 @@ bool MyHttpService::do_calc_md5(MyHttpDistRequest & http_dist_request)
 
 bool MyHttpService::notify_dist_servers()
 {
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(0, MyDataPacketHeader::CMD_HAVE_DIST_TASK);
-  return mycomutil_mb_putq(MyServerAppX::instance()->dist_load_module()->dispatcher(), mb, "dist task notification to target queue");
+  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(0, MyDataPacketHeader::CMD_HAVE_DIST_TASK);
+  return c_util_mb_putq(MyServerAppX::instance()->dist_load_module()->dispatcher(), mb, "dist task notification to target queue");
 }
 
 //MyHttpDispatcher//
 
 MyHttpDispatcher::MyHttpDispatcher(CMod * pModule, int numThreads):
-    MyBaseDispatcher(pModule, numThreads)
+    CDispatchBase(pModule, numThreads)
 {
   m_acceptor = NULL;
 }
@@ -903,7 +903,7 @@ void MyHttpDispatcher::on_stop()
 bool MyHttpDispatcher::on_start()
 {
   if (!m_acceptor)
-    m_acceptor = new MyHttpAcceptor(this, new MyBaseConnectionManager());
+    m_acceptor = new MyHttpAcceptor(this, new CConnectionManagerBase());
   add_acceptor(m_acceptor);
   return true;
 }
@@ -934,8 +934,8 @@ MyHttpService * MyHttpModule::http_service()
 
 bool MyHttpModule::on_start()
 {
-  add_service(m_service = new MyHttpService(this, 1));
-  add_dispatcher(m_dispatcher = new MyHttpDispatcher(this));
+  add_task(m_service = new MyHttpService(this, 1));
+  add_dispatch(m_dispatcher = new MyHttpDispatcher(this));
   return true;
 }
 
@@ -952,7 +952,7 @@ void MyHttpModule::on_stop()
 
 //MyDistLoadProcessor//
 
-MyDistLoadProcessor::MyDistLoadProcessor(MyBaseHandler * handler): MyBaseServerProcessor(handler)
+MyDistLoadProcessor::MyDistLoadProcessor(CHandlerBase * handler): CServerProcBase(handler)
 {
   m_client_id_verified = false;
   m_dist_loads = NULL;
@@ -974,7 +974,7 @@ void MyDistLoadProcessor::dist_loads(MyDistLoads * dist_loads)
   m_dist_loads = dist_loads;
 }
 
-MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
+CProcBase::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
 {
   if (super::on_recv_header() == ER_ERROR)
     return ER_ERROR;
@@ -1008,9 +1008,9 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
   return ER_ERROR;
 }
 
-MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyDistLoadProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
-  MyBaseServerProcessor::on_recv_packet_i(mb);
+  CServerProcBase::on_recv_packet_i(mb);
   CMBGuard guard(mb);
 
   MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
@@ -1025,7 +1025,7 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_packet_i(ACE_Message_
   return ER_ERROR;
 }
 
-MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::do_version_check(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyDistLoadProcessor::do_version_check(ACE_Message_Block * mb)
 {
   MyClientVersionCheckRequest * p = (MyClientVersionCheckRequest *) mb->base();
   m_client_id = "DistServer";
@@ -1048,7 +1048,7 @@ bool MyDistLoadProcessor::client_id_verified() const
   return m_client_id_verified;
 }
 
-MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::do_load_balance(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyDistLoadProcessor::do_load_balance(ACE_Message_Block * mb)
 {
   MyLoadBalanceRequest * br = (MyLoadBalanceRequest *)mb->base();
   MyDistLoad dl;
@@ -1061,7 +1061,7 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::do_load_balance(ACE_Message_B
 
 //MyDistLoadHandler//
 
-MyDistLoadHandler::MyDistLoadHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
+MyDistLoadHandler::MyDistLoadHandler(CConnectionManagerBase * xptr): CHandlerBase(xptr)
 {
   m_processor = new MyDistLoadProcessor(this);
 }
@@ -1075,14 +1075,14 @@ PREPARE_MEMORY_POOL(MyDistLoadHandler);
 
 //MyDistLoadAcceptor//
 
-MyDistLoadAcceptor::MyDistLoadAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
-    MyBaseAcceptor(_dispatcher, _manager)
+MyDistLoadAcceptor::MyDistLoadAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager):
+    CAcceptorBase(_dispatcher, _manager)
 {
   m_tcp_port = CCfgX::instance()->middle_server_dist_port;
   m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 
-int MyDistLoadAcceptor::make_svc_handler(MyBaseHandler *& sh)
+int MyDistLoadAcceptor::make_svc_handler(CHandlerBase *& sh)
 {
   sh = new MyDistLoadHandler(m_connection_manager);
   if (!sh)
@@ -1105,7 +1105,7 @@ const char * MyDistLoadAcceptor::name() const
 //MyDistLoadDispatcher//
 
 MyDistLoadDispatcher::MyDistLoadDispatcher(CMod * pModule, int numThreads):
-    MyBaseDispatcher(pModule, numThreads)
+    CDispatchBase(pModule, numThreads)
 {
   m_acceptor = NULL;
   m_bs_connector = NULL;
@@ -1156,10 +1156,10 @@ void MyDistLoadDispatcher::on_stop()
 bool MyDistLoadDispatcher::on_start()
 {
   if (!m_acceptor)
-    m_acceptor = new MyDistLoadAcceptor(this, new MyBaseConnectionManager());
+    m_acceptor = new MyDistLoadAcceptor(this, new CConnectionManagerBase());
   add_acceptor(m_acceptor);
   if (!m_bs_connector)
-    m_bs_connector = new MyMiddleToBSConnector(this, new MyBaseConnectionManager());
+    m_bs_connector = new MyMiddleToBSConnector(this, new CConnectionManagerBase());
   add_connector(m_bs_connector);
 
   ACE_Time_Value interval(int(MyDistLoads::DEAD_TIME * 60 / CApp::CLOCK_INTERVAL / 2));
@@ -1212,7 +1212,7 @@ MyDistLoadDispatcher * MyDistLoadModule::dispatcher() const
 
 bool MyDistLoadModule::on_start()
 {
-  add_dispatcher(m_dispatcher = new MyDistLoadDispatcher(this));
+  add_dispatch(m_dispatcher = new MyDistLoadDispatcher(this));
   return true;
 }
 
@@ -1228,7 +1228,7 @@ void MyDistLoadModule::on_stop()
 
 //MyMiddleToBSProcessor//
 
-MyMiddleToBSProcessor::MyMiddleToBSProcessor(MyBaseHandler * handler): super(handler)
+MyMiddleToBSProcessor::MyMiddleToBSProcessor(CHandlerBase * handler): super(handler)
 {
 
 }
@@ -1238,7 +1238,7 @@ const char * MyMiddleToBSProcessor::name() const
   return "MyMiddleToBSProcessor";
 }
 
-MyBaseProcessor::EVENT_RESULT MyMiddleToBSProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyMiddleToBSProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
   if (mb)
     mb->release();
@@ -1251,7 +1251,7 @@ PREPARE_MEMORY_POOL(MyMiddleToBSProcessor);
 
 //MyMiddleToBSHandler//
 
-MyMiddleToBSHandler::MyMiddleToBSHandler(MyBaseConnectionManager * xptr): MyBaseHandler(xptr)
+MyMiddleToBSHandler::MyMiddleToBSHandler(CConnectionManagerBase * xptr): CHandlerBase(xptr)
 {
   m_processor = new MyMiddleToBSProcessor(this);
 }
@@ -1316,8 +1316,8 @@ PREPARE_MEMORY_POOL(MyMiddleToBSHandler);
 
 //MyMiddleToBSConnector//
 
-MyMiddleToBSConnector::MyMiddleToBSConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager):
-    MyBaseConnector(_dispatcher, _manager)
+MyMiddleToBSConnector::MyMiddleToBSConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager):
+    CConnectorBase(_dispatcher, _manager)
 {
   m_tcp_port = CCfgX::instance()->bs_server_port;
   m_reconnect_interval = RECONNECT_INTERVAL;
@@ -1329,7 +1329,7 @@ const char * MyMiddleToBSConnector::name() const
   return "MyMiddleToBSConnector";
 }
 
-int MyMiddleToBSConnector::make_svc_handler(MyBaseHandler *& sh)
+int MyMiddleToBSConnector::make_svc_handler(CHandlerBase *& sh)
 {
   sh = new MyMiddleToBSHandler(m_connection_manager);
   if (!sh)

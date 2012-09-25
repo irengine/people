@@ -242,13 +242,13 @@ public:
   virtual bool validate();
   bool compare_done() const;
   void compare_done(bool done);
-  MyFileMD5s & md5list();
+  CFileMD5s & md5list();
   void post_md5_message();
   const char * md5_text() const;
 
 private:
   CMemGuard m_md5_text;
-  MyFileMD5s m_md5list;
+  CFileMD5s m_md5list;
   bool m_compare_done;
 };
 
@@ -272,8 +272,8 @@ private:
 class MyDistInfoMD5Comparer
 {
 public:
-  static bool compute(MyDistInfoHeader * dist_info_header, MyFileMD5s & md5list);
-  static void compare(MyDistInfoHeader * dist_info_header, MyFileMD5s & server_md5, MyFileMD5s & client_md5);
+  static bool compute(MyDistInfoHeader * dist_info_header, CFileMD5s & md5list);
+  static void compare(MyDistInfoHeader * dist_info_header, CFileMD5s & server_md5, CFileMD5s & client_md5);
   static bool compute(MyDistInfoMD5 * dist_md5);
 };
 
@@ -397,35 +397,35 @@ private:
   char m_now[24];
 };
 
-class MyClientToDistProcessor: public MyBaseClientProcessor
+class MyClientToDistProcessor: public CClientProcBase
 {
 public:
-  typedef MyBaseClientProcessor super;
+  typedef CClientProcBase super;
 
-  MyClientToDistProcessor(MyBaseHandler * handler);
+  MyClientToDistProcessor(CHandlerBase * handler);
   virtual const char * name() const;
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
+  virtual CProcBase::EVENT_RESULT on_recv_header();
   virtual int on_open();
   int send_heart_beat();
   int send_ip_ver_req();
 
 protected:
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
   enum { OFFLINE_THREASH_HOLD = 20 }; //in seconds
   enum { MSG_QUEUE_MAX_SIZE = 2 * 1024 * 1024 };
 
   int send_version_check_req();
-  MyBaseProcessor::EVENT_RESULT do_ftp_file_request(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_md5_list_request(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_ip_ver_reply(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_remote_cmd(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_ack(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_test(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_psp(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_pl(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_ftp_file_request(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_md5_list_request(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_ip_ver_reply(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_remote_cmd(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_ack(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_test(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_psp(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_pl(ACE_Message_Block * mb);
   void check_offline_report();
   bool check_vlc_empty();
 
@@ -500,10 +500,10 @@ private:
   MyVlcItems * m_items;
 };
 
-class MyClientToDistHandler: public MyBaseHandler
+class MyClientToDistHandler: public CHandlerBase
 {
 public:
-  MyClientToDistHandler(MyBaseConnectionManager * xptr = NULL);
+  MyClientToDistHandler(CConnectionManagerBase * xptr = NULL);
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
   bool setup_timer();
   bool setup_heart_beat_timer(int heart_beat_interval);
@@ -523,7 +523,7 @@ private:
   long m_heart_beat_tmp_timer;
 };
 
-class MyClientToDistService: public MyBaseService
+class MyClientToDistService: public CTaskBase
 {
 public:
   MyClientToDistService(CMod * module, int numThreads = 1);
@@ -544,7 +544,7 @@ private:
   void do_rev_task(const char * p);
 };
 
-class MyClientFtpService: public MyBaseService
+class MyClientFtpService: public CTaskBase
 {
 public:
   MyClientFtpService(CMod * module, int numThreads = 1);
@@ -586,7 +586,7 @@ class MyBufferedMBs
 public:
   MyBufferedMBs();
   ~MyBufferedMBs();
-  void connection_manager(MyBaseConnectionManager * p);
+  void connection_manager(CConnectionManagerBase * p);
   void add(ACE_Message_Block * mb);
   void check_timeout();
   void on_reply(uuid_t uuid);
@@ -594,11 +594,11 @@ public:
 private:
   typedef std::list<MyBufferedMB *> MyBufferedMBList;
 
-  MyBaseConnectionManager * m_con_manager;
+  CConnectionManagerBase * m_con_manager;
   MyBufferedMBList m_mblist;
 };
 
-class MyClientToDistDispatcher: public MyBaseDispatcher
+class MyClientToDistDispatcher: public CDispatchBase
 {
 public:
   MyClientToDistDispatcher(CMod * pModule, int numThreads = 1);
@@ -630,11 +630,11 @@ private:
 };
 
 
-class MyClientToDistConnector: public MyBaseConnector
+class MyClientToDistConnector: public CConnectorBase
 {
 public:
-  MyClientToDistConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
-  virtual int make_svc_handler(MyBaseHandler *& sh);
+  MyClientToDistConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager);
+  virtual int make_svc_handler(CHandlerBase *& sh);
   virtual const char * name() const;
   void dist_server_addr(const char * addr);
   time_t reset_last_connect_time();
@@ -726,18 +726,18 @@ private:
 //client to middle
 /////////////////////////////////////
 
-class MyClientToMiddleProcessor: public MyBaseClientProcessor
+class MyClientToMiddleProcessor: public CClientProcBase
 {
 public:
-  typedef MyBaseClientProcessor super;
+  typedef CClientProcBase super;
 
-  MyClientToMiddleProcessor(MyBaseHandler * handler);
+  MyClientToMiddleProcessor(CHandlerBase * handler);
   virtual const char * name() const;
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
+  virtual CProcBase::EVENT_RESULT on_recv_header();
   virtual int on_open();
 
 protected:
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
   int  send_version_check_req();
@@ -745,10 +745,10 @@ private:
   void do_handle_server_list(ACE_Message_Block * mb);
 };
 
-class MyClientToMiddleHandler: public MyBaseHandler
+class MyClientToMiddleHandler: public CHandlerBase
 {
 public:
-  MyClientToMiddleHandler(MyBaseConnectionManager * xptr = NULL);
+  MyClientToMiddleHandler(CConnectionManagerBase * xptr = NULL);
   MyClientToDistModule * module_x() const;
   int handle_timeout(const ACE_Time_Value &current_time, const void *act);
   DECLARE_MEMORY_POOL__NOTHROW(MyClientToMiddleHandler, ACE_Thread_Mutex);
@@ -764,11 +764,11 @@ private:
   long m_timer_out_timer_id;
 };
 
-class MyClientToMiddleConnector: public MyBaseConnector
+class MyClientToMiddleConnector: public CConnectorBase
 {
 public:
-  MyClientToMiddleConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
-  virtual int make_svc_handler(MyBaseHandler *& sh);
+  MyClientToMiddleConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager);
+  virtual int make_svc_handler(CHandlerBase *& sh);
   virtual const char * name() const;
   void finish();
 
@@ -786,13 +786,13 @@ private:
 //http 1991
 /////////////////////////////////////
 
-class MyHttp1991Processor: public MyBaseProcessor
+class MyHttp1991Processor: public CProcBase
 {
 public:
-  typedef MyBaseProcessor super;
+  typedef CProcBase super;
   enum { MAX_COMMAND_LINE_LENGTH = 2048 };
 
-  MyHttp1991Processor(MyBaseHandler * handler);
+  MyHttp1991Processor(CHandlerBase * handler);
   virtual ~MyHttp1991Processor();
 
   virtual int handle_input();
@@ -809,18 +809,18 @@ private:
   ACE_Message_Block * m_mb;
 };
 
-class MyHttp1991Handler: public MyBaseHandler
+class MyHttp1991Handler: public CHandlerBase
 {
 public:
-  MyHttp1991Handler(MyBaseConnectionManager * xptr = NULL);
+  MyHttp1991Handler(CConnectionManagerBase * xptr = NULL);
 };
 
-class MyHttp1991Acceptor: public MyBaseAcceptor
+class MyHttp1991Acceptor: public CAcceptorBase
 {
 public:
   enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
-  MyHttp1991Acceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
-  virtual int make_svc_handler(MyBaseHandler *& sh);
+  MyHttp1991Acceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * manager);
+  virtual int make_svc_handler(CHandlerBase *& sh);
   virtual const char * name() const;
 };
 

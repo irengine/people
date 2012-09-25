@@ -73,7 +73,7 @@ public:
 class MyHttpDistInfos
 {
 public:
-  typedef std::vector<MyHttpDistInfo *, MyAllocator<MyHttpDistInfo *> > MyHttpDistInfoList;
+  typedef std::vector<MyHttpDistInfo *, CCppAllocator<MyHttpDistInfo *> > MyHttpDistInfoList;
 
   MyHttpDistInfos();
   ~MyHttpDistInfos();
@@ -92,7 +92,7 @@ private:
                                   MyHttpDistInfo *,
                                   CStrHasher,
                                   CStrEqual,
-                                  MyAllocator <std::pair<const char *, MyHttpDistInfo *> >
+                                  CCppAllocator <std::pair<const char *, MyHttpDistInfo *> >
                                 > MyHttpDistInfoMap;
 
   MyHttpDistInfoList dist_infos;
@@ -110,8 +110,8 @@ public:
 private:
   bool do_generate_compressed_files(const char * src_path, const char * dest_path, int prefix_len, const char * passwrod);
 
-  MyBZCompositor m_compositor;
-  MyBZCompressor m_compressor;
+  CCompCombiner m_compositor;
+  CDataComp m_compressor;
 };
 
 class MyDistMd5Calculator

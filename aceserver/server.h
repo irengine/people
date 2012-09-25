@@ -17,7 +17,7 @@ public:
   MyServerApp();
   virtual ~MyServerApp();
 
-  MyClientIDTable & client_id_table();
+  CClientIDS & client_id_table();
   MyHeartBeatModule * heart_beat_module() const;
   MyDistLoadModule * dist_load_module() const;
   MyHttpModule * http_module() const;
@@ -42,7 +42,7 @@ private:
   MyDistLoadModule * m_dist_load_module;
   MyHttpModule     * m_http_module;
   MyDistToMiddleModule * m_dist_to_middle_module;
-  MyClientIDTable m_client_id_table;
+  CClientIDS m_client_id_table;
   MyDB  m_db;
 };
 

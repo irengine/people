@@ -117,7 +117,7 @@ public:
 
   MyClientToDistModule * client_to_dist_module() const;
   bool send_mb_to_dist(ACE_Message_Block * mb);
-  const MyClientVerson & client_version() const;
+  const CClientVer & client_version() const;
   const char * client_id() const;
   MyVLCLauncher & vlc_launcher();
   MyOperaLauncher & opera_launcher();
@@ -125,7 +125,7 @@ public:
   const char * ftp_password();
   void ftp_password(const char * password);
 
-  MyClientIDTable & client_id_table()
+  CClientIDS & client_id_table()
     { return m_client_id_table; }
 
   static void data_path(CMemGuard & _data_path, const char * client_id = NULL);
@@ -155,9 +155,9 @@ private:
   static bool get_mfile_from_file(const CMemGuard & parent_path, CMemGuard & mfile);
 
   MyClientToDistModule * m_client_to_dist_module;
-  MyClientVerson m_client_version;
+  CClientVer m_client_version;
   std::string m_client_id;
-  MyClientIDTable m_client_id_table;
+  CClientIDS m_client_id_table;
   MyVLCLauncher m_vlc_launcher;
   MyVLCMonitor  m_vlc_monitor;
   MyOperaLauncher m_opera_launcher;

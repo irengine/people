@@ -34,7 +34,7 @@ MyServerApp::~MyServerApp()
 
 }
 
-MyClientIDTable & MyServerApp::client_id_table()
+CClientIDS & MyServerApp::client_id_table()
 {
   return m_client_id_table;
 }
@@ -79,7 +79,7 @@ bool MyServerApp::dist_put_to_service(ACE_Message_Block * mb)
     return false;
   }
 
-  return mycomutil_mb_putq(m_heart_beat_module->service(), mb, "to service's queue");
+  return c_util_mb_putq(m_heart_beat_module->service(), mb, "to service's queue");
 }
 
 bool MyServerApp::on_start()
@@ -175,7 +175,7 @@ void MyServerApp::dump_mem_pool_info()
     CApp::print_pool_one("MyMiddleToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyMiddleToBSHandler), chunks);
   }
 
-  MyMemPoolFactoryX::instance()->dump_info();
+  CMemPoolX::instance()->print_info();
 
 _exit_:
   ACE_DEBUG((LM_INFO, "  !!! Memory Dump End !!!\n"));
@@ -189,7 +189,7 @@ void MyServerApp::do_dump_info()
 bool MyServerApp::on_construct()
 {
   CCfg * cfg = CCfgX::instance();
-  g_client_id_table = &m_client_id_table;
+  g_client_ids = &m_client_id_table;
 
   if (!m_db.connect())
   {
@@ -244,7 +244,7 @@ bool MyServerApp::app_init(const char * app_home_path, CCfg::RUNNING_MODE mode)
     MyMiddleToBSHandler::init_mem_pool(20);
     MyMiddleToBSProcessor::init_mem_pool(20);
   }
-  MyMemPoolFactoryX::instance()->init(cfg);
+  CMemPoolX::instance()->init(cfg);
   app->init_log();
   return app->do_constructor();
 }
@@ -253,7 +253,7 @@ void MyServerApp::app_fini()
 {
   C_INFO(ACE_TEXT("shutdown server...\n"));
   MyServerAppX::close();  //this comes before the releasing of memory pool
-  g_client_id_table = NULL;
+  g_client_ids = NULL;
   CCfgX::close();
   dump_mem_pool_info(); //only mem pool info, other objects should gone by now
   MyHeartBeatHandler::fini_mem_pool();
@@ -267,7 +267,7 @@ void MyServerApp::app_fini()
   MyDistToBSHandler::fini_mem_pool();
   MyMiddleToBSHandler::fini_mem_pool();
   MyMiddleToBSProcessor::fini_mem_pool();
-  MyMemPoolFactoryX::close();
+  CMemPoolX::close();
 }
 
 

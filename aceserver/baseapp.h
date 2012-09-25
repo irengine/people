@@ -80,8 +80,8 @@ public:
 
   //dist only
   int module_heart_beat_mem_pool_size;
-  MyClientVerson client_version_minimum;
-  MyClientVerson client_version_current;
+  CClientVer client_version_minimum;
+  CClientVer client_version_current;
   u_int8_t server_id;
 
   //middle only

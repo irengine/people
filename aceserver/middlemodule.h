@@ -95,8 +95,8 @@ public:
   void check_path(const char * path);
 
 private:
-  typedef std::tr1::unordered_set<const char *, CStrHasher, CStrEqual, MyAllocator<const char *> > MyPathSet;
-  typedef std::list<CMemGuard *, MyAllocator<CMemGuard *> > MyPathList;
+  typedef std::tr1::unordered_set<const char *, CStrHasher, CStrEqual, CCppAllocator<const char *> > MyPathSet;
+  typedef std::list<CMemGuard *, CCppAllocator<CMemGuard *> > MyPathList;
 
   bool path_ok(const char * _path);
 
@@ -104,11 +104,11 @@ private:
   MyPathList m_path_list;
 };
 
-class MyLocationProcessor: public MyBaseServerProcessor
+class MyLocationProcessor: public CServerProcBase
 {
 public:
-  MyLocationProcessor(MyBaseHandler * handler);
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
+  MyLocationProcessor(CHandlerBase * handler);
+  virtual CProcBase::EVENT_RESULT on_recv_header();
   virtual const char * name() const;
 
   static MyDistLoads * m_dist_loads;
@@ -116,28 +116,28 @@ public:
   DECLARE_MEMORY_POOL__NOTHROW(MyLocationProcessor, ACE_Thread_Mutex);
 
 protected:
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
-  MyBaseProcessor::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
 };
 
 
-class MyLocationHandler: public MyBaseHandler
+class MyLocationHandler: public CHandlerBase
 {
 public:
-  MyLocationHandler(MyBaseConnectionManager * xptr = NULL);
+  MyLocationHandler(CConnectionManagerBase * xptr = NULL);
   DECLARE_MEMORY_POOL__NOTHROW(MyLocationHandler, ACE_Thread_Mutex);
 };
 
-class MyLocationService: public MyBaseService
+class MyLocationService: public CTaskBase
 {
 public:
   MyLocationService(CMod * module, int numThreads = 1);
   virtual int svc();
 };
 
-class MyLocationDispatcher: public MyBaseDispatcher
+class MyLocationDispatcher: public CDispatchBase
 {
 public:
   MyLocationDispatcher(CMod * _module, int numThreads = 1);
@@ -153,13 +153,13 @@ private:
   MyLocationAcceptor * m_acceptor;
 };
 
-class MyLocationAcceptor: public MyBaseAcceptor
+class MyLocationAcceptor: public CAcceptorBase
 {
 public:
   enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
-  MyLocationAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
+  MyLocationAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * manager);
 
-  virtual int make_svc_handler(MyBaseHandler *& sh);
+  virtual int make_svc_handler(CHandlerBase *& sh);
   virtual const char * name() const;
 };
 
@@ -189,20 +189,20 @@ private:
 class MyHttpModule;
 class MyHttpAcceptor;
 
-class MyHttpProcessor: public MyVeryBasePacketProcessor<int>
+class MyHttpProcessor: public CFormattedProcBase<int>
 {
 public:
-  typedef MyVeryBasePacketProcessor<int> super;
+  typedef CFormattedProcBase<int> super;
 
-  MyHttpProcessor(MyBaseHandler * handler);
+  MyHttpProcessor(CHandlerBase * handler);
   virtual ~MyHttpProcessor();
   virtual const char * name() const;
   DECLARE_MEMORY_POOL__NOTHROW(MyHttpProcessor, ACE_Thread_Mutex);
 
 protected:
   virtual int packet_length();
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_header();
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
   bool do_process_input_data();
@@ -210,15 +210,15 @@ private:
 };
 
 
-class MyHttpHandler: public MyBaseHandler
+class MyHttpHandler: public CHandlerBase
 {
 public:
-  MyHttpHandler(MyBaseConnectionManager * xptr = NULL);
+  MyHttpHandler(CConnectionManagerBase * xptr = NULL);
 
   DECLARE_MEMORY_POOL__NOTHROW(MyHttpHandler, ACE_Thread_Mutex);
 };
 
-class MyHttpService: public MyBaseService
+class MyHttpService: public CTaskBase
 {
 public:
   MyHttpService(CMod * module, int numThreads = 1);
@@ -238,7 +238,7 @@ private:
   bool notify_dist_servers();
 };
 
-class MyHttpDispatcher: public MyBaseDispatcher
+class MyHttpDispatcher: public CDispatchBase
 {
 public:
   MyHttpDispatcher(CMod * pModule, int numThreads = 1);
@@ -252,13 +252,13 @@ private:
   MyHttpAcceptor * m_acceptor;
 };
 
-class MyHttpAcceptor: public MyBaseAcceptor
+class MyHttpAcceptor: public CAcceptorBase
 {
 public:
   enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
 
-  MyHttpAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
-  virtual int make_svc_handler(MyBaseHandler *& sh);
+  MyHttpAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * manager);
+  virtual int make_svc_handler(CHandlerBase *& sh);
   virtual const char * name() const;
 };
 
@@ -289,42 +289,42 @@ class MyDistLoadModule;
 class MyDistLoadAcceptor;
 class MyMiddleToBSConnector;
 
-class MyDistLoadProcessor: public MyBaseServerProcessor
+class MyDistLoadProcessor: public CServerProcBase
 {
 public:
-  typedef MyBaseServerProcessor super;
+  typedef CServerProcBase super;
 
-  MyDistLoadProcessor(MyBaseHandler * handler);
+  MyDistLoadProcessor(CHandlerBase * handler);
   virtual ~MyDistLoadProcessor();
   virtual const char * name() const;
   virtual bool client_id_verified() const;
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
+  virtual CProcBase::EVENT_RESULT on_recv_header();
   void dist_loads(MyDistLoads * dist_loads);
 
 protected:
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 1024 * 1024 };
 
-  MyBaseProcessor::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
-  MyBaseProcessor::EVENT_RESULT do_load_balance(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_load_balance(ACE_Message_Block * mb);
 
   bool m_client_id_verified;
   MyDistLoads * m_dist_loads;
 };
 
 
-class MyDistLoadHandler: public MyBaseHandler
+class MyDistLoadHandler: public CHandlerBase
 {
 public:
-  MyDistLoadHandler(MyBaseConnectionManager * xptr = NULL);
+  MyDistLoadHandler(CConnectionManagerBase * xptr = NULL);
   void dist_loads(MyDistLoads * dist_loads);
 
   DECLARE_MEMORY_POOL__NOTHROW(MyDistLoadHandler, ACE_Thread_Mutex);
 };
 
-class MyDistLoadDispatcher: public MyBaseDispatcher
+class MyDistLoadDispatcher: public CDispatchBase
 {
 public:
   MyDistLoadDispatcher(CMod * pModule, int numThreads = 1);
@@ -346,13 +346,13 @@ private:
   ACE_Message_Queue<ACE_MT_SYNCH> m_to_bs_queue;
 };
 
-class MyDistLoadAcceptor: public MyBaseAcceptor
+class MyDistLoadAcceptor: public CAcceptorBase
 {
 public:
   enum { IDLE_TIME_AS_DEAD = 15 }; //in minutes
-  MyDistLoadAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * manager);
+  MyDistLoadAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * manager);
 
-  virtual int make_svc_handler(MyBaseHandler *& sh);
+  virtual int make_svc_handler(CHandlerBase *& sh);
   virtual const char * name() const;
 };
 
@@ -379,24 +379,24 @@ private:
 //middle to BS
 /////////////////////////////////////
 
-class MyMiddleToBSProcessor: public MyBSBasePacketProcessor
+class MyMiddleToBSProcessor: public CBSProceBase
 {
 public:
-  typedef MyBSBasePacketProcessor super;
+  typedef CBSProceBase super;
 
-  MyMiddleToBSProcessor(MyBaseHandler * handler);
+  MyMiddleToBSProcessor(CHandlerBase * handler);
   virtual const char * name() const;
 
   DECLARE_MEMORY_POOL__NOTHROW(MyMiddleToBSProcessor, ACE_Thread_Mutex);
 
 protected:
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 };
 
-class MyMiddleToBSHandler: public MyBaseHandler
+class MyMiddleToBSHandler: public CHandlerBase
 {
 public:
-  MyMiddleToBSHandler(MyBaseConnectionManager * xptr = NULL);
+  MyMiddleToBSHandler(CConnectionManagerBase * xptr = NULL);
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
   void checker_update();
   MyDistLoadModule * module_x() const;
@@ -410,11 +410,11 @@ private:
   MyActChecker m_checker;
 };
 
-class MyMiddleToBSConnector: public MyBaseConnector
+class MyMiddleToBSConnector: public CConnectorBase
 {
 public:
-  MyMiddleToBSConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
-  virtual int make_svc_handler(MyBaseHandler *& sh);
+  MyMiddleToBSConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager);
+  virtual int make_svc_handler(CHandlerBase *& sh);
   virtual const char * name() const;
 
 protected:

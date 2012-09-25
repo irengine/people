@@ -44,7 +44,7 @@ void MyHttpDistInfo::calc_md5_opt_len()
   {
     CMemGuard md5_2;
     md5_2.from_string(md5.data());
-    MyFileMD5s md5s;
+    CFileMD5s md5s;
     if (md5s.from_buffer(md5_2.data(), NULL))
       md5_opt_len = md5s.total_size(false) - 1;
   }
@@ -164,7 +164,7 @@ void MyHttpDistInfos::clear()
 
 MyHttpDistInfo * MyHttpDistInfos::create_http_dist_info(const char * dist_id)
 {
-  void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyHttpDistInfo));
+  void * p = CMemPoolX::instance()->alloc_mem_x(sizeof(MyHttpDistInfo));
   MyHttpDistInfo * result = new (p) MyHttpDistInfo(dist_id);
   dist_infos.push_back(result);
   m_info_map.insert(std::pair<const char *, MyHttpDistInfo *>(result->ver.data(), result));
@@ -334,9 +334,9 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
 
     CMemGuard msrc, mdest;
     int len = ACE_OS::strlen(entry->d_name);
-    MyMemPoolFactoryX::instance()->get_mem(len1 + len + 2, &msrc);
+    CMemPoolX::instance()->alloc_mem(len1 + len + 2, &msrc);
     ACE_OS::sprintf(msrc.data(), "%s/%s", src_path, entry->d_name);
-    MyMemPoolFactoryX::instance()->get_mem(len2 + len + 10 + dest_middle_leading_path_len, &mdest);
+    CMemPoolX::instance()->alloc_mem(len2 + len + 10 + dest_middle_leading_path_len, &mdest);
 
     if (entry->d_type == DT_REG)
     {
@@ -388,7 +388,7 @@ bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, CMemG
     return true;
   }
 
-  MyFileMD5s md5s_server;
+  CFileMD5s md5s_server;
   if (unlikely(!md5s_server.calculate(http_dist_request.fdir, http_dist_request.findex, type_is_single(*http_dist_request.type))))
   {
     C_ERROR("failed to calculate md5 file list for dist %s\n", http_dist_request.ver);
@@ -397,7 +397,7 @@ bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, CMemG
   md5s_server.sort();
   md5_len = md5s_server.total_size(true);
 
-  MyMemPoolFactoryX::instance()->get_mem(md5_len, &md5_result);
+  CMemPoolX::instance()->alloc_mem(md5_len, &md5_result);
   if (unlikely(!md5s_server.to_buffer(md5_result.data(), md5_len, true)))
   {
     C_ERROR("can not get md5 file list result for dist %s\n", http_dist_request.ver);
@@ -417,13 +417,13 @@ bool MyDistMd5Calculator::calculate_all_in_one_ftp_md5(const char * dist_id, CMe
 {
   CMemGuard filename;
   MyDistCompressor::get_all_in_one_mbz_file_name(dist_id, filename);
-  return mycomutil_calculate_file_md5(filename.data(), md5_result);
+  return c_util_calculate_file_md5(filename.data(), md5_result);
 }
 
 
 ACE_Message_Block * my_get_hb_mb()
 {
-  ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_bs(1, "99");
+  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_bs(1, "99");
   if (!mb)
     return NULL;
   char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;

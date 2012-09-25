@@ -194,7 +194,7 @@ bool MyDB::exec_command(const char * sql_command, int * affected)
   }
 }
 
-bool MyDB::get_client_ids(MyClientIDTable * id_table)
+bool MyDB::get_client_ids(CClientIDS * id_table)
 {
   C_ASSERT_RETURN(id_table != NULL, "null id_table @MyDB::get_client_ids\n", false);
 
@@ -256,7 +256,7 @@ bool MyDB::save_dist(MyHttpDistRequest & http_dist_request, const char * md5, co
   const char * _mbz_md5 = mbz_md5 ? mbz_md5 : "";
   int len = ACE_OS::strlen(insert_sql_template) + ACE_OS::strlen(_md5) + ACE_OS::strlen(_mbz_md5) + 2000;
   CMemGuard sql;
-  MyMemPoolFactoryX::instance()->get_mem(len, &sql);
+  CMemPoolX::instance()->alloc_mem(len, &sql);
   CMemGuard aindex;
   wrap_str(http_dist_request.aindex, aindex);
   ACE_OS::snprintf(sql.data(), len - 1, insert_sql_template,
@@ -284,9 +284,9 @@ bool MyDB::save_sr(char * dids, const char * cmd, char * idlist)
   CStringTokenizer dist_ids(dids, separator);
   std::list<char *> l_client_ids, l_dist_ids;
   char * client_id, *dist_id;
-  while ((client_id = client_ids.get_token()) != NULL)
+  while ((client_id = client_ids.get()) != NULL)
     l_client_ids.push_back(client_id);
-  while((dist_id = dist_ids.get_token()) != NULL)
+  while((dist_id = dist_ids.get()) != NULL)
     l_dist_ids.push_back(dist_id);
   std::list<char *>::iterator it1, it2;
   for (it1 = l_dist_ids.begin(); it1 != l_dist_ids.end(); ++ it1)
@@ -359,9 +359,9 @@ bool MyDB::save_dist_clients(char * idlist, char * adirlist, const char * dist_i
   CStringTokenizer client_ids(idlist, separator);
   CStringTokenizer adirs(adirlist, separator);
   char * client_id, * adir;
-  while ((client_id = client_ids.get_token()) != NULL)
+  while ((client_id = client_ids.get()) != NULL)
   {
-    adir = adirs.get_token();
+    adir = adirs.get();
     total ++;
     if (i == 0)
     {
@@ -592,7 +592,7 @@ bool MyDB::save_dist_md5(const char * dist_id, const char * md5, int md5_len)
                                      "where dist_id = '%s'";
   int len = md5_len + ACE_OS::strlen(update_sql_template) + ACE_OS::strlen(dist_id) + 20;
   CMemGuard sql;
-  MyMemPoolFactoryX::instance()->get_mem(len, &sql);
+  CMemPoolX::instance()->alloc_mem(len, &sql);
   ACE_OS::snprintf(sql.data(), len, update_sql_template, md5, dist_id);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
@@ -739,7 +739,7 @@ bool MyDB::set_dist_client_md5(const char * client_id, const char * dist_id, con
   int len = ACE_OS::strlen(update_sql_template) + ACE_OS::strlen(md5) + ACE_OS::strlen(client_id)
     + ACE_OS::strlen(dist_id) + 40;
   CMemGuard sql;
-  MyMemPoolFactoryX::instance()->get_mem(len, &sql);
+  CMemPoolX::instance()->alloc_mem(len, &sql);
   ACE_OS::snprintf(sql.data(), len, update_sql_template, new_status, md5, dist_id, client_id, new_status);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
@@ -754,7 +754,7 @@ bool MyDB::set_dist_client_mbz(const char * client_id, const char * dist_id, con
   int len = ACE_OS::strlen(update_sql_template) + ACE_OS::strlen(mbz) + ACE_OS::strlen(client_id)
           + ACE_OS::strlen(dist_id) + 40 + ACE_OS::strlen(mbz_md5);
   CMemGuard sql;
-  MyMemPoolFactoryX::instance()->get_mem(len, &sql);
+  CMemPoolX::instance()->alloc_mem(len, &sql);
   ACE_OS::snprintf(sql.data(), len, update_sql_template, mbz, mbz_md5, dist_id, client_id);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);

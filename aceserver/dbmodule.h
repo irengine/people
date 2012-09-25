@@ -8,7 +8,7 @@
 #include "distmodule.h"
 #include "middlemodule.h"
 
-class MyClientIDTable;
+class CClientIDS;
 
 class MyDB
 {
@@ -20,7 +20,7 @@ public:
   bool connect();
   bool check_db_connection();
   bool ping_db_server();
-  bool get_client_ids(MyClientIDTable * idtable);
+  bool get_client_ids(CClientIDS * idtable);
   bool save_client_id(const char * s);
   bool save_dist(MyHttpDistRequest & http_dist_request, const char * md5, const char * mbz_md5);
   bool save_sr(char * dist_id, const char * cmd, char * idlist);

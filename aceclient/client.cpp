@@ -264,7 +264,7 @@ bool MyVLCLauncher::load(CMemGuard & file_list)
     return false;
 
   CMemGuard line;
-  MyMemPoolFactoryX::instance()->get_mem(16000, &line);
+  CMemPoolX::instance()->alloc_mem(16000, &line);
   std::ifstream ifs(adv_txt());
   if (!ifs || ifs.bad())
   {
@@ -327,7 +327,7 @@ bool MyVLCLauncher::parse_line(char * ptr, CMemGuard & file_list, bool fill_opti
 //  const char * vlc = "vlc -L --fullscreen";
   const char * sfake = "--fake-duration 10000 ";
   CMemGuard cmdline;
-  MyMemPoolFactoryX::instance()->get_mem(64000, &cmdline);
+  CMemPoolX::instance()->alloc_mem(64000, &cmdline);
 
   bool fake = false, hasfile = false;
   const char separators[2] = {' ', 0 };
@@ -336,7 +336,7 @@ bool MyVLCLauncher::parse_line(char * ptr, CMemGuard & file_list, bool fill_opti
   ACE_OS::strcpy(cmdline.data(), sfake);
   CMemGuard fn;
   std::string p5 = CCfgX::instance()->app_data_path + "/5/";
-  while ((token = tkn.get_token()) != NULL)
+  while ((token = tkn.get()) != NULL)
   {
     fn.from_string(p5.c_str(), token);
     if (!CSysFS::exist(fn.data()))
@@ -348,8 +348,8 @@ bool MyVLCLauncher::parse_line(char * ptr, CMemGuard & file_list, bool fill_opti
       return true;
     hasfile = true;
 
-    if (mycomutil_string_end_with(token, ".bmp") || mycomutil_string_end_with(token, ".jpg") ||
-        mycomutil_string_end_with(token, ".gif") || mycomutil_string_end_with(token, ".png"))
+    if (c_util_string_end_with(token, ".bmp") || c_util_string_end_with(token, ".jpg") ||
+        c_util_string_end_with(token, ".gif") || c_util_string_end_with(token, ".png"))
     {
       //ACE_OS::strncat(cmdline.data(), " fake:///tmp/daily/5/", 63000);
       ACE_OS::strncat(cmdline.data(), " fake://", 63000);
@@ -574,10 +574,10 @@ bool MyClientApp::send_mb_to_dist(ACE_Message_Block * mb)
     return false;
   }
 
-  return mycomutil_mb_putq(m_client_to_dist_module->dispatcher(), mb, "to client_to_dist service queue");
+  return c_util_mb_putq(m_client_to_dist_module->dispatcher(), mb, "to client_to_dist service queue");
 }
 
-const MyClientVerson & MyClientApp::client_version() const
+const CClientVer & MyClientApp::client_version() const
 {
   return m_client_version;
 }
@@ -963,7 +963,7 @@ void MyClientApp::dump_mem_pool_info()
     CApp::print_pool_one("MyClientToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToMiddleHandler), chunks);
   }
 
-  MyMemPoolFactoryX::instance()->dump_info();
+  CMemPoolX::instance()->print_info();
 
 _exit_:
   ACE_DEBUG((LM_INFO, "  !!! Memory Dump End !!!\n"));
@@ -992,7 +992,7 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::RUNNING_MODE mode)
     CApp::demon();
 
   MyClientToMiddleHandler::init_mem_pool(20);
-  MyMemPoolFactoryX::instance()->init(cfg);
+  CMemPoolX::instance()->init(cfg);
   app->init_log();
 
   if (getenv("DISPLAY") == NULL)
@@ -1078,7 +1078,7 @@ void MyClientApp::check_prev_extract_task(const char * client_id)
     if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
       continue;
 
-    if (likely(mycomutil_string_end_with(entry->d_name, ".mbz")))
+    if (likely(c_util_string_end_with(entry->d_name, ".mbz")))
     {
       msrc.from_string(entry->d_name);
       msrc.data()[ACE_OS::strlen(msrc.data()) - ACE_OS::strlen(".mbz")] = 0;
@@ -1115,7 +1115,7 @@ void MyClientApp::app_fini()
   dump_mem_pool_info(); //only mem pool info, other objects should gone by now
   MyClientToDistHandler::fini_mem_pool();
   MyClientToMiddleHandler::fini_mem_pool();
-  MyMemPoolFactoryX::close();
+  CMemPoolX::close();
 }
 
 

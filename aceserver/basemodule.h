@@ -1,10 +1,3 @@
-/*
- * baseserver.h
- *
- *  Created on: Dec 26, 2011
- *      Author: root
- */
-
 #ifndef BASESERVER_H_
 #define BASESERVER_H_
 
@@ -35,23 +28,23 @@
 #include "datapacket.h"
 
 class CMod;
-class MyBaseHandler;
-class MyBaseAcceptor;
-class MyBaseConnectionManager;
+class CHandlerBase;
+class CAcceptorBase;
+class CConnectionManagerBase;
 class CApp;
-class MyBaseDispatcher;
-class MyBaseConnector;
-class MyBaseProcessor;
+class CDispatchBase;
+class CConnectorBase;
+class CProcBase;
 
-class MyClientVerson
+class CClientVer
 {
 public:
-  MyClientVerson();
-  MyClientVerson(u_int8_t major, u_int8_t minor);
+  CClientVer();
+  CClientVer(u_int8_t major, u_int8_t minor);
   void init(u_int8_t major, u_int8_t minor);
   bool from_string(const char * s);
   const char * to_string() const;
-  bool operator < (const MyClientVerson & rhs);
+  bool operator < (const CClientVer & rhs);
 
 private:
   enum { DATA_BUFF_SIZE = 8 };
@@ -62,10 +55,10 @@ private:
   char m_data[DATA_BUFF_SIZE];
 };
 
-class MyMfileSplitter
+class CMfileSplit
 {
 public:
-  MyMfileSplitter();
+  CMfileSplit();
   bool init(const char * mfile);
   const char * path() const;
   const char * mfile() const;
@@ -77,11 +70,11 @@ private:
   CMemGuard m_translated_name;
 };
 
-class MyClientInfo
+class CClientInfo
 {
 public:
-  MyClientInfo();
-  MyClientInfo(const MyClientID & id, const char * _ftp_password = NULL, bool _expired = false);
+  CClientInfo();
+  CClientInfo(const MyClientID & id, const char * _ftp_password = NULL, bool _expired = false);
   void set_password(const char * _ftp_password);
 
   enum { FTP_PASSWORD_LEN = 24 };
@@ -94,19 +87,19 @@ public:
   int  password_len;
 };
 
-class MyClientIDTable
+class CClientIDS
 {
 public:
-  MyClientIDTable();
-  ~MyClientIDTable();
-  bool contains(const MyClientID & id);
+  CClientIDS();
+  ~CClientIDS();
+  bool have(const MyClientID & id);
   void add(const MyClientID & id);
   void add(const char * str_id, const char *ftp_password = NULL, bool expired = false);
   void add_batch(char * idlist); //in the format of "12334434;33222334;34343111;..."
   int  index_of(const MyClientID & id);
   int  count();
   bool value(int index, MyClientID * id);
-  bool value_all(int index, MyClientInfo & client_info);
+  bool value_all(int index, CClientInfo & client_info);
   bool active(const MyClientID & id, int & index, bool & switched);
 //  void active(const MyClientID & id, bool _active);
   bool active(int index);
@@ -121,7 +114,7 @@ public:
   void prepare_space(int _count);
 
 private:
-  typedef std::vector<MyClientInfo > ClientIDTable_type;
+  typedef std::vector<CClientInfo > ClientIDTable_type;
   typedef std::map<MyClientID, int> ClientIDTable_map;
 
 //  typedef std::vector<MyClientID, MyAllocator<MyClientID> > ClientIDTable_type;
@@ -134,14 +127,14 @@ private:
   int m_last_sequence;
 };
 
-extern MyClientIDTable * g_client_id_table; //the side effect of sharing the source codes...
+extern CClientIDS * g_client_ids; //the side effect of sharing the source codes...
 
-class MyFileMD5
+class CFileMD5
 {
 public:
   enum { MD5_STRING_LENGTH = 32 };
   //  /root/mydir/a.txt  prefix=/root/mydir/
-  MyFileMD5(const char * _filename, const char * md5, int prefix_len, const char * alias = NULL);
+  CFileMD5(const char * _filename, const char * md5, int prefix_len, const char * alias = NULL);
   bool ok() const
   {
     return (m_md5[0] != 0);
@@ -158,15 +151,15 @@ public:
   {
     return include_md5_value? (m_size + MD5_STRING_LENGTH + 1) : m_size;
   }
-  bool operator == (const MyFileMD5 & rhs) const
+  bool operator == (const CFileMD5 & rhs) const
   {
     return (strcmp(m_file_name.data(), rhs.m_file_name.data()) == 0);
   }
-  bool operator < (const MyFileMD5 & rhs) const
+  bool operator < (const CFileMD5 & rhs) const
   {
     return (strcmp(m_file_name.data(), rhs.m_file_name.data()) < 0);
   }
-  bool same_md5(const MyFileMD5 & rhs) const
+  bool same_md5(const CFileMD5 & rhs) const
   {
     return memcmp(m_md5, rhs.m_md5, MD5_STRING_LENGTH) == 0;
   }
@@ -178,17 +171,17 @@ private:
   int m_size;
 };
 
-class MyFileMD5s
+class CFileMD5s
 {
 public:
-  typedef std::vector<MyFileMD5 *, MyAllocator<MyFileMD5 *> > MyFileMD5List;
+  typedef std::vector<CFileMD5 *, CCppAllocator<CFileMD5 *> > MyFileMD5List;
 
-  MyFileMD5s();
-  ~MyFileMD5s();
+  CFileMD5s();
+  ~CFileMD5s();
   void enable_map();
   bool has_file(const char * fn);
   bool base_dir(const char *);
-  void minus(MyFileMD5s & , MyMfileSplitter * spl, bool do_delete);
+  void minus(CFileMD5s & , CMfileSplit * spl, bool do_delete);
   void trim_garbage(const char * pathname);
   bool add_file(const char * filename, const char * md5, int prefix_len);
   bool add_file(const char * pathname, const char * filename, int prefix_len, const char * alias);
@@ -198,24 +191,24 @@ public:
     return m_file_md5_list.size();
   }
   bool to_buffer(char * buff, int buff_len, bool include_md5_value);
-  bool from_buffer(char * buff, MyMfileSplitter * spl = NULL);
+  bool from_buffer(char * buff, CMfileSplit * spl = NULL);
 
   int  total_size(bool include_md5_value);
   bool calculate(const char * dirname, const char * mfile, bool single);
-  bool calculate_diff(const char * dirname, MyMfileSplitter * spl = NULL);
+  bool calculate_diff(const char * dirname, CMfileSplit * spl = NULL);
 
 private:
   typedef std::tr1::unordered_map<const char *,
-                                  MyFileMD5 *,
+                                  CFileMD5 *,
                                   CStrHasher,
                                   CStrEqual,
-                                  MyAllocator <std::pair<const char *, MyFileMD5 *> >
+                                  CCppAllocator <std::pair<const char *, CFileMD5 *> >
                                 > MyMD5map;
 
   bool do_scan_directory(const char * dirname, int start_len);
   void do_trim_garbage(const char * pathname, int start_len);
 
-  MyFileMD5 * find(const char * fn);
+  CFileMD5 * find(const char * fn);
 
   MyFileMD5List m_file_md5_list;
   CMemGuard m_base_dir; //todo: remove m_base_dir
@@ -223,11 +216,11 @@ private:
   MyMD5map * m_md5_map;
 };
 
-class MyBaseArchiveReader
+class CArchiveloaderBase
 {
 public:
-  MyBaseArchiveReader();
-  virtual ~MyBaseArchiveReader()
+  CArchiveloaderBase();
+  virtual ~CArchiveloaderBase()
   {}
   virtual bool open(const char * filename);
   virtual int read(char * buff, int buff_len);
@@ -243,7 +236,7 @@ protected:
 
 #pragma pack(push, 1)
 
-class MyWrappedHeader
+class CPackHead
 {
 public:
   enum { HEADER_MAGIC = 0x96809685 };
@@ -256,10 +249,10 @@ public:
 
 #pragma pack(pop)
 
-class MyWrappedArchiveReader: public MyBaseArchiveReader
+class CArchiveLoader: public CArchiveloaderBase
 {
 public:
-  typedef MyBaseArchiveReader super;
+  typedef CArchiveloaderBase super;
 
   virtual bool open(const char * filename);
   virtual int read(char * buff, int buff_len);
@@ -277,10 +270,10 @@ private:
 };
 
 
-class MyBaseArchiveWriter
+class CArchiveSaverBase
 {
 public:
-  virtual ~MyBaseArchiveWriter()
+  virtual ~CArchiveSaverBase()
   {}
   bool open(const char * filename);
   bool open(const char * dir, const char * filename);
@@ -295,11 +288,11 @@ protected:
   CMemGuard m_file_name;
 };
 
-class MyWrappedArchiveWriter: public MyBaseArchiveWriter
+class CArchiveSaver: public CArchiveSaverBase
 {
 public:
   enum { ENCRYPT_DATA_LENGTH = 4096 };
-  typedef MyBaseArchiveWriter super;
+  typedef CArchiveSaverBase super;
 
   virtual bool write(char * buff, int buff_len);
   bool start(const char * filename, int prefix_len = 0);
@@ -310,7 +303,7 @@ public:
 private:
   bool write_header(const char * filename);
   bool encrypt_and_write();
-  MyWrappedHeader m_wrapped_header;
+  CPackHead m_pack_header;
   int  m_data_length;
   int  m_encrypted_length;
   aes_context m_aes_context;
@@ -318,17 +311,17 @@ private:
   CMemGuard m_encrypt_buffer;
 };
 
-class MyBZMemPoolAdaptor
+class CBZMemBridge
 {
 public:
-  static void * my_alloc(void *,int, int );
-  static void my_free(void *, void *);
+  static void * intf_alloc(void *,int, int );
+  static void intf_free(void *, void *);
 };
 
-class MyBZCompressor
+class CDataComp
 {
 public:
-  MyBZCompressor();
+  CDataComp();
   enum { COMPRESS_100k = 3 };
   enum { BUFFER_LEN = 4096 };
   bool compress(const char * filename, int prefix_len, const char * destfn, const char * key);
@@ -336,15 +329,15 @@ public:
 
 private:
   bool prepare_buffers();
-  bool do_compress(MyBaseArchiveReader * _reader, MyBaseArchiveWriter * _writer);
-  bool do_decompress(MyBaseArchiveReader * _reader, MyBaseArchiveWriter * _writer);
+  bool do_compress(CArchiveloaderBase * _reader, CArchiveSaverBase * _writer);
+  bool do_decompress(CArchiveloaderBase * _reader, CArchiveSaverBase * _writer);
 
   CMemGuard m_buff_in;
   CMemGuard m_buff_out;
   bz_stream m_bz_stream;
 };
 
-class MyBZCompositor
+class CCompCombiner
 {
 public:
   bool open(const char * filename);
@@ -356,26 +349,26 @@ private:
   CUnixFileGuard m_file;
 };
 
-class MyBaseHandler: public ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH>
+class CHandlerBase: public ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH>
 {
 public:
   typedef ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> super;
-  MyBaseHandler(MyBaseConnectionManager * xptr = NULL);
-  virtual ~MyBaseHandler();
+  CHandlerBase(CConnectionManagerBase * xptr = NULL);
+  virtual ~CHandlerBase();
   void parent(void * p)
     { m_parent = p; }
-  MyBaseAcceptor * acceptor() const
-    { return (MyBaseAcceptor *)m_parent; }
-  MyBaseConnector * connector() const
-    { return (MyBaseConnector *)m_parent; }
+  CAcceptorBase * acceptor() const
+    { return (CAcceptorBase *)m_parent; }
+  CConnectorBase * connector() const
+    { return (CConnectorBase *)m_parent; }
   virtual int open (void * p = 0);
   virtual int handle_input(ACE_HANDLE fd = ACE_INVALID_HANDLE);
   virtual int handle_output(ACE_HANDLE fd = ACE_INVALID_HANDLE);
   virtual int handle_close(ACE_HANDLE = ACE_INVALID_HANDLE, ACE_Reactor_Mask = ACE_Event_Handler::ALL_EVENTS_MASK);
-  virtual MyClientIDTable * client_id_table() const;
+  virtual CClientIDS * client_id_table() const;
 
-  MyBaseConnectionManager * connection_manager();
-  MyBaseProcessor * processor() const;
+  CConnectionManagerBase * connection_manager();
+  CProcBase * processor() const;
   int send_data(ACE_Message_Block * mb);
   void mark_as_reap();
 
@@ -384,24 +377,24 @@ protected:
   virtual int  on_open();
 
   bool m_reaped;
-  MyBaseConnectionManager * m_connection_manager;
-  MyBaseProcessor * m_processor;
+  CConnectionManagerBase * m_connection_manager;
+  CProcBase * m_processor;
   void * m_parent;
 };
 
-class MyBaseConnectionManager
+class CConnectionManagerBase
 {
 public:
-  enum Connection_State
+  enum CState
   {
     CS_Pending = 1,
     CS_Connected = 2
   };
-  MyBaseConnectionManager();
-  virtual ~MyBaseConnectionManager();
-  int  active_connections() const;
-  int  total_connections() const;
-  int  reaped_connections() const;
+  CConnectionManagerBase();
+  virtual ~CConnectionManagerBase();
+  int  active_count() const;
+  int  total_count() const;
+  int  reaped_count() const;
   int  pending_count() const;
   long long int bytes_received() const;
   long long int bytes_sent() const;
@@ -409,11 +402,11 @@ public:
   void on_data_received(int data_size);
   void on_data_send(int data_size);
 
-  void add_connection(MyBaseHandler * handler, Connection_State state);
-  void set_connection_client_id_index(MyBaseHandler * handler, int index, MyClientIDTable * id_table);
-  MyBaseHandler * find_handler_by_index(int index);
-  void set_connection_state(MyBaseHandler * handler, Connection_State state);
-  void remove_connection(MyBaseHandler * handler, MyClientIDTable * id_table);
+  void add_connection(CHandlerBase * handler, CState state);
+  void set_connection_client_id_index(CHandlerBase * handler, int index, CClientIDS * id_table);
+  CHandlerBase * find_handler_by_index(int index);
+  void set_connection_state(CHandlerBase * handler, CState state);
+  void remove_connection(CHandlerBase * handler, CClientIDS * id_table);
 
   void detect_dead_connections(int timeout);
   void lock();
@@ -427,17 +420,17 @@ protected:
   virtual void do_dump_info();
 
 private:
-  typedef std::map<MyBaseHandler *, long, std::less<MyBaseHandler *>, MyAllocator<std::pair<const MyBaseHandler *, long> > > MyConnections;
+  typedef std::map<CHandlerBase *, long, std::less<CHandlerBase *>, CCppAllocator<std::pair<const CHandlerBase *, long> > > MyConnections;
   typedef MyConnections::iterator MyConnectionsPtr;
 
-  typedef std::map<int, MyBaseHandler *, std::less<int>, MyAllocator<std::pair<const int, MyBaseHandler *> > > MyIndexHandlerMap;
-  typedef std::map<int, MyBaseHandler *>::iterator MyIndexHandlerMapPtr;
+  typedef std::map<int, CHandlerBase *, std::less<int>, CCppAllocator<std::pair<const int, CHandlerBase *> > > MyIndexHandlerMap;
+  typedef std::map<int, CHandlerBase *>::iterator MyIndexHandlerMapPtr;
 
-  MyConnectionsPtr find(MyBaseHandler * handler);
+  MyConnectionsPtr find(CHandlerBase * handler);
   MyIndexHandlerMapPtr find_handler_by_index_i(int index);
   void do_send(ACE_Message_Block * mb, bool broadcast);
-  void remove_from_active_table(MyBaseHandler * handler);
-  void remove_from_handler_map(MyBaseHandler * handler, MyClientIDTable * id_table);
+  void remove_from_active_table(CHandlerBase * handler);
+  void remove_from_handler_map(CHandlerBase * handler, CClientIDS * id_table);
 
   int  m_num_connections;
   int  m_total_connections;
@@ -454,7 +447,7 @@ private:
 class MyConnectionManagerLockGuard
 {
 public:
-  MyConnectionManagerLockGuard(MyBaseConnectionManager * p): m_p(p)
+  MyConnectionManagerLockGuard(CConnectionManagerBase * p): m_p(p)
   {
     if (m_p)
       m_p->lock();
@@ -467,10 +460,10 @@ public:
   }
 
 private:
-  MyBaseConnectionManager * m_p;
+  CConnectionManagerBase * m_p;
 };
 
-class MyBaseProcessor
+class CProcBase
 {
 public:
   enum EVENT_RESULT
@@ -480,8 +473,8 @@ public:
     ER_CONTINUE,
     ER_OK_FINISHED
   };
-  MyBaseProcessor(MyBaseHandler * handler);
-  virtual ~MyBaseProcessor();
+  CProcBase(CHandlerBase * handler);
+  virtual ~CProcBase();
 
   virtual void info_string(CMemGuard & info) const;
   virtual int on_open();
@@ -503,7 +496,7 @@ public:
 
 protected:
   int handle_input_wait_for_close();
-  MyBaseHandler * m_handler;
+  CHandlerBase * m_handler;
   long m_last_activity;
   bool m_wait_for_close;
 
@@ -512,14 +505,14 @@ protected:
   int        m_client_id_length;
 };
 
-class MyBaseRemoteAccessProcessor: public MyBaseProcessor
+class CProcRemoteAccessBase: public CProcBase
 {
 public:
-  typedef MyBaseProcessor super;
+  typedef CProcBase super;
   enum { MAX_COMMAND_LINE_LENGTH = 4096 };
 
-  MyBaseRemoteAccessProcessor(MyBaseHandler * handler);
-  virtual ~MyBaseRemoteAccessProcessor();
+  CProcRemoteAccessBase(CHandlerBase * handler);
+  virtual ~CProcRemoteAccessBase();
 
   virtual int handle_input();
   virtual int on_open();
@@ -539,18 +532,18 @@ private:
   ACE_Message_Block * m_mb;
 };
 
-template <typename T> class MyVeryBasePacketProcessor: public MyBaseProcessor
+template <typename T> class CFormattedProcBase: public CProcBase
 {
 public:
-  typedef MyBaseProcessor super;
+  typedef CProcBase super;
 
-  MyVeryBasePacketProcessor (MyBaseHandler * handler): MyBaseProcessor(handler)
+  CFormattedProcBase (CHandlerBase * handler): CProcBase(handler)
   {
     m_read_next_offset = 0;
     m_current_block = NULL;
   }
 
-  virtual ~MyVeryBasePacketProcessor()
+  virtual ~CFormattedProcBase()
   {
     if (m_current_block)
       m_current_block->release();
@@ -608,7 +601,7 @@ protected:
         sizeof(m_packet_header) - m_read_next_offset);
   //      TEMP_FAILURE_RETRY(m_handler->peer().recv((char*)&m_packet_header + m_read_next_offset,
   //      sizeof(m_packet_header) - m_read_next_offset));
-    int ret = mycomutil_translate_tcp_result(recv_cnt);
+    int ret = c_util_translate_tcp_result(recv_cnt);
     if (ret <= 0)
       return ret;
     m_read_next_offset += recv_cnt;
@@ -616,13 +609,13 @@ protected:
     if (m_read_next_offset < (int)sizeof(m_packet_header))
       return 0;
 
-    MyBaseProcessor::EVENT_RESULT er = on_recv_header();
+    CProcBase::EVENT_RESULT er = on_recv_header();
     switch(er)
     {
-    case MyBaseProcessor::ER_ERROR:
-    case MyBaseProcessor::ER_CONTINUE:
+    case CProcBase::ER_ERROR:
+    case CProcBase::ER_CONTINUE:
       return -1;
-    case MyBaseProcessor::ER_OK_FINISHED:
+    case CProcBase::ER_OK_FINISHED:
       if (packet_length() != sizeof(m_packet_header))
       {
         C_FATAL("got ER_OK_FINISHED for packet header with more data remain to process.\n");
@@ -632,7 +625,7 @@ protected:
         m_handler->connection_manager()->on_data_received(sizeof(m_packet_header));
       m_read_next_offset = 0;
       return 1;
-    case MyBaseProcessor::ER_OK:
+    case CProcBase::ER_OK:
       return 0;
     default:
       C_FATAL(ACE_TEXT("unexpected MyVeryBasePacketProcessor::EVENT_RESULT value = %d.\n"), er);
@@ -644,7 +637,7 @@ protected:
   {
     if (!m_current_block)
     {
-      m_current_block = MyMemPoolFactoryX::instance()->get_message_block(packet_length());
+      m_current_block = CMemPoolX::instance()->get_mb(packet_length());
       if (!m_current_block)
         return -1;
       if (copy_header_to_mb(m_current_block, m_packet_header) < 0)
@@ -654,7 +647,7 @@ protected:
       }
     }
     update_last_activity();
-    return mycomutil_recv_message_block(m_handler, m_current_block);
+    return c_util_recv_message_block(m_handler, m_current_block);
   }
 
   int handle_req()
@@ -663,7 +656,7 @@ protected:
        m_handler->connection_manager()->on_data_received(m_current_block->size());
 
     int ret = 0;
-    if (on_recv_packet(m_current_block) != MyBaseProcessor::ER_OK)
+    if (on_recv_packet(m_current_block) != CProcBase::ER_OK)
       ret = -1;
 
     m_current_block = 0;
@@ -678,12 +671,12 @@ protected:
 
   virtual int packet_length() = 0;
 
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header()
+  virtual CProcBase::EVENT_RESULT on_recv_header()
   {
     return ER_CONTINUE;
   }
 
-  MyBaseProcessor::EVENT_RESULT on_recv_packet(ACE_Message_Block * mb)
+  CProcBase::EVENT_RESULT on_recv_packet(ACE_Message_Block * mb)
   {
     if (mb->size() < sizeof(T))
     {
@@ -696,7 +689,7 @@ protected:
     return on_recv_packet_i(mb);
   }
 
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb)
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb)
   {
     ACE_UNUSED_ARG(mb);
     return ER_OK;
@@ -707,64 +700,64 @@ protected:
   int m_read_next_offset;
 };
 
-class MyBasePacketProcessor: public MyVeryBasePacketProcessor<MyDataPacketHeader>
+class CFormatProcBase: public CFormattedProcBase<MyDataPacketHeader>
 {
 public:
-  typedef MyVeryBasePacketProcessor<MyDataPacketHeader> super;
+  typedef CFormattedProcBase<MyDataPacketHeader> super;
 
-  MyBasePacketProcessor(MyBaseHandler * handler);
+  CFormatProcBase(CHandlerBase * handler);
   virtual void info_string(CMemGuard & info) const;
   virtual int on_open();
   virtual const char * name() const;
 
 protected:
   virtual int packet_length();
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_header();
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
   ACE_Message_Block * make_version_check_request_mb(const int extra = 0);
 
   enum { PEER_ADDR_LEN = INET_ADDRSTRLEN };
   char m_peer_addr[PEER_ADDR_LEN];
 };
 
-class MyBSBasePacketProcessor: public MyVeryBasePacketProcessor<MyBSBasePacket>
+class CBSProceBase: public CFormattedProcBase<MyBSBasePacket>
 {
 public:
-  typedef MyVeryBasePacketProcessor<MyBSBasePacket> super;
-  MyBSBasePacketProcessor(MyBaseHandler * handler);
+  typedef CFormattedProcBase<MyBSBasePacket> super;
+  CBSProceBase(CHandlerBase * handler);
 
 protected:
   virtual int packet_length();
 
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_header();
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
 };
 
-class MyBaseServerProcessor: public MyBasePacketProcessor
+class CServerProcBase: public CFormatProcBase
 {
 public:
-  typedef MyBasePacketProcessor super;
-  MyBaseServerProcessor(MyBaseHandler * handler);
-  virtual ~MyBaseServerProcessor();
+  typedef CFormatProcBase super;
+  CServerProcBase(CHandlerBase * handler);
+  virtual ~CServerProcBase();
   virtual const char * name() const;
   virtual bool can_send_data(ACE_Message_Block * mb) const;
   virtual bool client_id_verified() const;
 
 protected:
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
-  MyBaseProcessor::EVENT_RESULT do_version_check_common(ACE_Message_Block * mb, MyClientIDTable & client_id_table);
+  virtual CProcBase::EVENT_RESULT on_recv_header();
+  CProcBase::EVENT_RESULT do_version_check_common(ACE_Message_Block * mb, CClientIDS & client_id_table);
   ACE_Message_Block * make_version_check_reply_mb(MyClientVersionCheckReply::REPLY_CODE code, int extra_len = 0);
 
-  MyClientVerson m_client_version;
+  CClientVer m_client_version;
 };
 
-class MyBaseClientProcessor: public MyBasePacketProcessor
+class CClientProcBase: public CFormatProcBase
 {
 public:
-  typedef MyBasePacketProcessor super;
+  typedef CFormatProcBase super;
 
-  MyBaseClientProcessor(MyBaseHandler * handler);
-  virtual ~MyBaseClientProcessor();
+  CClientProcBase(CHandlerBase * handler);
+  virtual ~CClientProcBase();
   virtual const char * name() const;
   virtual bool client_id_verified() const;
   virtual int on_open();
@@ -772,14 +765,14 @@ public:
   virtual bool can_send_data(ACE_Message_Block * mb) const;
 
 protected:
-  virtual MyBaseProcessor::EVENT_RESULT on_recv_header();
-  void client_id_verified(bool _verified);
+  virtual CProcBase::EVENT_RESULT on_recv_header();
+  void client_verified(bool _verified);
 
 private:
-  bool m_client_id_verified;
+  bool m_client_verified;
 };
 
-class MySockAcceptor: public ACE_SOCK_ACCEPTOR
+class CSockBridge: public ACE_SOCK_ACCEPTOR
 {
 public:
   typedef ACE_SOCK_ACCEPTOR super;
@@ -789,16 +782,16 @@ public:
   }
 };
 
-class MyBaseAcceptor: public ACE_Acceptor<MyBaseHandler, MySockAcceptor>
+class CAcceptorBase: public ACE_Acceptor<CHandlerBase, CSockBridge>
 {
 public:
-  typedef ACE_Acceptor<MyBaseHandler, MySockAcceptor>  super;
-  MyBaseAcceptor(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
-  virtual ~MyBaseAcceptor();
+  typedef ACE_Acceptor<CHandlerBase, CSockBridge>  super;
+  CAcceptorBase(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager);
+  virtual ~CAcceptorBase();
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
   CMod * module_x() const;
-  MyBaseConnectionManager * connection_manager() const;
-  MyBaseDispatcher * dispatcher() const;
+  CConnectionManagerBase * connection_manager() const;
+  CDispatchBase * dispatcher() const;
 
   int start();
   int stop();
@@ -817,29 +810,29 @@ protected:
   virtual bool on_start();
   virtual void on_stop();
 
-  MyBaseDispatcher * m_dispatcher;
+  CDispatchBase * m_dispatcher;
   CMod * m_module;
-  MyBaseConnectionManager * m_connection_manager;
+  CConnectionManagerBase * m_connection_manager;
   int m_tcp_port;
   int m_idle_time_as_dead; //in minutes
   int m_idle_connection_timer_id;
 };
 
 
-class MyBaseConnector: public ACE_Connector<MyBaseHandler, ACE_SOCK_CONNECTOR>
+class CConnectorBase: public ACE_Connector<CHandlerBase, ACE_SOCK_CONNECTOR>
 {
 public:
-  typedef ACE_Connector<MyBaseHandler, ACE_SOCK_CONNECTOR> super;
+  typedef ACE_Connector<CHandlerBase, ACE_SOCK_CONNECTOR> super;
   enum { BATCH_CONNECT_NUM = 100 };
 
-  MyBaseConnector(MyBaseDispatcher * _dispatcher, MyBaseConnectionManager * _manager);
-  virtual ~MyBaseConnector();
+  CConnectorBase(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager);
+  virtual ~CConnectorBase();
 
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
 
   CMod * module_x() const;
-  MyBaseConnectionManager * connection_manager() const;
-  MyBaseDispatcher * dispatcher() const;
+  CConnectionManagerBase * connection_manager() const;
+  CDispatchBase * dispatcher() const;
   void tcp_addr(const char * addr);
   int start();
   int stop();
@@ -864,9 +857,9 @@ protected:
   virtual void do_dump_info();
   virtual bool before_reconnect();
 
-  MyBaseDispatcher * m_dispatcher;
+  CDispatchBase * m_dispatcher;
   CMod * m_module;
-  MyBaseConnectionManager * m_connection_manager;
+  CConnectionManagerBase * m_connection_manager;
   int m_tcp_port;
   std::string m_tcp_addr;
   int m_num_connection;
@@ -879,10 +872,10 @@ protected:
 };
 
 
-class MyBaseService: public ACE_Task<ACE_MT_SYNCH>
+class CTaskBase: public ACE_Task<ACE_MT_SYNCH>
 {
 public:
-  MyBaseService(CMod * module, int numThreads);
+  CTaskBase(CMod * mod, int num_threads);
   CMod * module_x() const; //name collision with parent class
   int start();
   int stop();
@@ -895,17 +888,17 @@ protected:
   void * get_task(ACE_Message_Block * mb, int & task_type) const;
 
 private:
-  CMod * m_module;
-  int m_numThreads;
+  CMod * m_mod;
+  int m_threads_count;
 };
 
 
-class MyBaseDispatcher: public ACE_Task<ACE_MT_SYNCH>
+class CDispatchBase: public ACE_Task<ACE_MT_SYNCH>
 {
 public:
-  MyBaseDispatcher(CMod * pModule, int numThreads = 1);
+  CDispatchBase(CMod * pModule, int numThreads = 1);
 
-  virtual ~MyBaseDispatcher();
+  virtual ~CDispatchBase();
   virtual int open (void * p= 0);
   virtual int svc();
   int start();
@@ -915,22 +908,22 @@ public:
   virtual const char * name() const;
 
 protected:
-  typedef std::vector<MyBaseConnector *> MyConnectors;
-  typedef std::vector<MyBaseAcceptor *> MyAcceptors;
+  typedef std::vector<CConnectorBase *> CConnectors;
+  typedef std::vector<CAcceptorBase *> CAcceptors;
   enum { TIMER_ID_BASE = 1 };
 
   virtual void on_stop();
   virtual void on_stop_stage_1();
   virtual bool on_start();
   virtual bool on_event_loop();
-  void add_connector(MyBaseConnector * _connector);
-  void add_acceptor(MyBaseAcceptor * _acceptor);
+  void add_connector(CConnectorBase * _connector);
+  void add_acceptor(CAcceptorBase * _acceptor);
   virtual void do_dump_info();
 
-  CMod * m_module;
+  CMod * m_mod;
   int m_clock_interval;
-  MyConnectors m_connectors;
-  MyAcceptors m_acceptors;
+  CConnectors m_connectors;
+  CAcceptors m_acceptors;
 
 private:
   bool do_start_i();
@@ -960,20 +953,20 @@ public:
   virtual const char * name() const;
 
 protected:
-  typedef std::vector<MyBaseService *> MyServices;
-  typedef std::vector<MyBaseDispatcher *> MyBaseDispatchers;
+  typedef std::vector<CTaskBase *> CTasks;
+  typedef std::vector<CDispatchBase *> CDispatchBases;
 
   virtual bool on_start();
   virtual void on_stop();
-  void add_service(MyBaseService * _service);
-  void add_dispatcher(MyBaseDispatcher * _dispatcher);
+  void add_task(CTaskBase * _service);
+  void add_dispatch(CDispatchBase * _dispatcher);
   virtual void do_dump_info();
 
   CApp * m_app;
   bool m_running;
 
-  MyServices m_services;
-  MyBaseDispatchers m_dispatchers;
+  CTasks m_services;
+  CDispatchBases m_dispatchers;
 };
 
 
