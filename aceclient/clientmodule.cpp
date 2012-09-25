@@ -193,7 +193,7 @@ bool MyClientDB::init_db()
   do_exec(const_sql_tb_ftp_info, false);
   do_exec(const_sql_tb_adv, false);
   bool result = do_exec(const_sql_tb_click, false);
-  if (CCfgX::instance()->client_adv_expire_days > 0)
+  if (CCfgX::instance()->adv_keep_days > 0)
   {
     char sql[200];
     ACE_OS::snprintf(sql, 200, const_sql_fist_record_tpl, (int)time(NULL));
@@ -794,7 +794,7 @@ MyFTPClient::~MyFTPClient()
 
 bool MyFTPClient::download(MyDistInfoFtp * dist_info, const char * server_ip)
 {
-  const char * client_id = dist_info->client_id.as_string();
+  const char * client_id = dist_info->client_id.to_str();
   const char * ftp_password = dist_info->ftp_password.data();
   if (!ftp_password || !*ftp_password)
   {
@@ -884,7 +884,7 @@ bool MyFTPClient::is_response(const char * res_code)
 
 int MyFTPClient::get_timeout_seconds() const
 {
-  return CCfgX::instance()->client_download_timeout;
+  return CCfgX::instance()->download_timeout;
 }
 
 bool MyFTPClient::send(const char * command)
@@ -1241,7 +1241,7 @@ int MyDistInfoHeader::load_header_from_string(char * src)
   if (unlikely(!src))
     return -1;
 
-  char * end = strchr(src, MyDataPacketHeader::FINISH_SEPARATOR);
+  char * end = strchr(src, CCmdHeader::FINISH_SEPARATOR);
   if (!end)
   {
     C_ERROR("bad packet data @MyDistInfoHeader::load_from_string, no FINISH_SEPARATOR found\n");
@@ -1249,7 +1249,7 @@ int MyDistInfoHeader::load_header_from_string(char * src)
   }
   *end = 0;
 
-  const char separator[2] = { MyDataPacketHeader::ITEM_SEPARATOR, 0 };
+  const char separator[2] = { CCmdHeader::ITEM_SEPARATOR, 0 };
   CStringTokenizer tk(src, separator);
   char * token = tk.get();
   if (unlikely(!token))
@@ -1266,19 +1266,19 @@ int MyDistInfoHeader::load_header_from_string(char * src)
   token = tk.get();
   if (unlikely(!token))
     return -1;
-  else if (ACE_OS::strcmp(token, Null_Item) != 0)
+  else if (ACE_OS::strcmp(token, Item_NULL) != 0)
     adir.from_string(token);
 
   token = tk.get();
   if (unlikely(!token))
     return -1;
-  else if (ACE_OS::strcmp(token, Null_Item) != 0)
+  else if (ACE_OS::strcmp(token, Item_NULL) != 0)
     aindex.from_string(token);
 
   token = tk.get();
   if (unlikely(!token))
     return -1;
-  else if (ACE_OS::strcmp(token, Null_Item) != 0)
+  else if (ACE_OS::strcmp(token, Item_NULL) != 0)
     ftype = *token;
   else
     return -1;
@@ -1286,7 +1286,7 @@ int MyDistInfoHeader::load_header_from_string(char * src)
   token = tk.get();
   if (unlikely(!token))
     return -1;
-  else if (ACE_OS::strcmp(token, Null_Item) != 0)
+  else if (ACE_OS::strcmp(token, Item_NULL) != 0)
     type = *token;
   else
     return -1;
@@ -1297,11 +1297,11 @@ int MyDistInfoHeader::load_header_from_string(char * src)
 void MyDistInfoHeader::calc_target_parent_path(CMemGuard & target_parent_path, bool extract_only, bool bv)
 {
   if (extract_only)
-    MyClientApp::calc_dist_parent_path(target_parent_path, dist_id.data(), client_id.as_string());
+    MyClientApp::calc_dist_parent_path(target_parent_path, dist_id.data(), client_id.to_str());
   else if (bv)
-    MyClientApp::data_path(target_parent_path, client_id.as_string());
+    MyClientApp::data_path(target_parent_path, client_id.to_str());
   else
-    MyClientApp::calc_display_parent_path(target_parent_path, client_id.as_string());
+    MyClientApp::calc_display_parent_path(target_parent_path, client_id.to_str());
 }
 
 bool MyDistInfoHeader::calc_target_path(const char * target_parent_path, CMemGuard & target_path)
@@ -1416,7 +1416,7 @@ bool MyDistInfoFtp::load_from_string(char * src)
   }
 
   char * file_name = src + header_len;
-  char * file_password = ACE_OS::strchr(file_name, MyDataPacketHeader::FINISH_SEPARATOR);
+  char * file_password = ACE_OS::strchr(file_name, CCmdHeader::FINISH_SEPARATOR);
   if (unlikely(!file_password))
   {
     C_ERROR("No filename/password found at dist ftp packet\n");
@@ -1424,14 +1424,14 @@ bool MyDistInfoFtp::load_from_string(char * src)
   }
   *file_password++ = 0;
 
-  char * ftp_mbz_md5 = ACE_OS::strchr(file_name, MyDataPacketHeader::ITEM_SEPARATOR);
+  char * ftp_mbz_md5 = ACE_OS::strchr(file_name, CCmdHeader::ITEM_SEPARATOR);
   if (unlikely(!ftp_mbz_md5))
   {
     C_ERROR("No ftp file md5 found at dist ftp packet\n");
     return false;
   }
   *ftp_mbz_md5++ = 0;
-  if (ACE_OS::strcmp(ftp_mbz_md5, Null_Item) != 0)
+  if (ACE_OS::strcmp(ftp_mbz_md5, Item_NULL) != 0)
     this->ftp_md5.from_string(ftp_mbz_md5);
 
   this->file_name.from_string(file_name);
@@ -1451,7 +1451,7 @@ bool MyDistInfoFtp::load_from_string(char * src)
 time_t MyDistInfoFtp::get_delay_penalty() const
 {
   //return (time_t)(std::min(m_failed_count + 1, (int)MAX_FAILED_COUNT) * 60 * FAILED_PENALTY);
-  return (time_t)(60 * CCfgX::instance()->client_download_retry_interval);
+  return (time_t)(60 * CCfgX::instance()->download_retry_delay);
 }
 
 bool MyDistInfoFtp::should_ftp(time_t now) const
@@ -1472,7 +1472,7 @@ void MyDistInfoFtp::touch()
 void MyDistInfoFtp::inc_failed(int steps)
 {
   m_failed_count += steps;
-  if (m_failed_count >= CCfgX::instance()->client_download_retry_count)
+  if (m_failed_count >= CCfgX::instance()->download_retry_count)
   {
     if (status <= 3)
     {
@@ -1493,7 +1493,7 @@ void MyDistInfoFtp::calc_local_file_name()
   if (unlikely(local_file_name.data() != NULL))
     return;
   CMemGuard download_path;
-  MyClientApp::calc_download_parent_path(download_path, client_id.as_string());
+  MyClientApp::calc_download_parent_path(download_path, client_id.to_str());
   local_file_name.from_string(download_path.data(), "/", dist_id.data(), ".mbz");
 }
 
@@ -1503,10 +1503,10 @@ ACE_Message_Block * MyDistInfoFtp::make_ftp_dist_message(const char * dist_id, i
     status = 3;
   int dist_id_len = ACE_OS::strlen(dist_id);
   int total_len = dist_id_len + 1 + 2 + 2;
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(total_len, MyDataPacketHeader::CMD_FTP_FILE, false);
-  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
+  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(total_len, CCmdHeader::PT_FTP_FILE, false);
+  CCmdExt * dpe = (CCmdExt*) mb->base();
   ACE_OS::memcpy(dpe->data, dist_id, dist_id_len);
-  dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
+  dpe->data[dist_id_len] = CCmdHeader::ITEM_SEPARATOR;
   dpe->data[dist_id_len + 1] = (ok ? '1':'0');
   dpe->data[dist_id_len + 2] = (char)(status + '0');
   dpe->data[dist_id_len + 3] = ftype;
@@ -1523,9 +1523,9 @@ void MyDistInfoFtp::post_status_message(int _status) const
   else
     result_ok = true;
   ACE_Message_Block * mb = make_ftp_dist_message(dist_id.data(), m, result_ok, ftype);
-  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
+  CCmdExt * dpe = (CCmdExt*) mb->base();
   if (g_is_test)
-    dpe->magic = client_id_index;
+    dpe->signature = client_id_index;
 
 //  MyClientAppX::instance()->client_to_dist_module()->dispatcher()->add_to_buffered_mbs(mb);
   MyClientAppX::instance()->send_mb_to_dist(mb);
@@ -1534,7 +1534,7 @@ void MyDistInfoFtp::post_status_message(int _status) const
 bool MyDistInfoFtp::update_db_status() const
 {
   MyClientDBGuard dbg;
-  if (dbg.db().open_db(client_id.as_string()))
+  if (dbg.db().open_db(client_id.to_str()))
     return dbg.db().set_ftp_command_status(dist_id.data(), status);
   return false;
 }
@@ -1545,8 +1545,8 @@ void MyDistInfoFtp::generate_url_ini()
     return;
 
   CMemGuard path, file, dest_parent_path, true_dest_p_path, t_file;
-  MyClientApp::calc_backup_parent_path(dest_parent_path, client_id.as_string());
-  MyClientApp::calc_display_parent_path(true_dest_p_path, client_id.as_string());
+  MyClientApp::calc_backup_parent_path(dest_parent_path, client_id.to_str());
+  MyClientApp::calc_display_parent_path(true_dest_p_path, client_id.to_str());
   path.from_string(dest_parent_path.data(), "/new");
   file.from_string(path.data(), "/index/", adir.data(), "/url.ini");
   t_file.from_string(true_dest_p_path.data(), "/index/", adir.data(), "/url.ini");
@@ -1732,8 +1732,8 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
 {
   C_ASSERT_RETURN(dist_info, "parameter dist_info null pointer\n", false);
 
-  CClientIDS & idtable = MyClientAppX::instance()->client_id_table();
-  CClientInfo client_info;
+  CTermSNs & idtable = MyClientAppX::instance()->client_id_table();
+  CTermData client_info;
   if (!idtable.value_all(dist_info->client_id_index, client_info))
   {
     C_ERROR("invalid client_id_index @MyDistFtpFileExtractor::extract()");
@@ -1743,17 +1743,17 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
 
   if (client_info.expired)
   {
-    C_INFO("skipping extract due to previous errors client_id(%s) dist_id(%s)\n", dist_info->client_id.as_string(), dist_info->dist_id.data());
+    C_INFO("skipping extract due to previous errors client_id(%s) dist_id(%s)\n", dist_info->client_id.to_str(), dist_info->dist_id.data());
     CSysFS::remove(dist_info->local_file_name.data());
     return false;
   }
 
   CMemGuard target_parent_path, pn, po, dest_parent_path;
-  MyClientApp::calc_backup_parent_path(dest_parent_path, dist_info->client_id.as_string());
+  MyClientApp::calc_backup_parent_path(dest_parent_path, dist_info->client_id.to_str());
   pn.from_string(dest_parent_path.data(), "/new");
   po.from_string(dest_parent_path.data(), "/old");
   dist_info->calc_target_parent_path(target_parent_path, true, false);
-  C_INFO("Updating dist(%s) client_id(%s)...\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
+  C_INFO("Updating dist(%s) client_id(%s)...\n", dist_info->dist_id.data(), dist_info->client_id.to_str());
   bool bn, bo, bv;
   bv = ftype_is_adv(dist_info->ftype);
   bn = has_id(pn);
@@ -1784,13 +1784,13 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
 
   if (!result)
   {
-    C_ERROR("apply update failed for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
+    C_ERROR("apply update failed for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.to_str());
 //    idtable.expired(dist_info->client_id_index, true);
 //todo: lock or unlock?
   }
   else
   {
-    C_INFO("apply update OK for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
+    C_INFO("apply update OK for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.to_str());
 //    if (!g_test_mode && ftype_is_adv_list(dist_info->ftype))
 //    {
 //      MyConfig * cfg = MyConfigX::instance();
@@ -1803,7 +1803,7 @@ bool MyDistFtpFileExtractor::extract(MyDistInfoFtp * dist_info)
 //      }
 //    }
   }
-  CSysFS::remove_path(target_parent_path.data(), true);
+  CSysFS::delete_dir(target_parent_path.data(), true);
   ACE_OS::sleep(30);
   CSysFS::remove(dist_info->local_file_name.data());
   return result;
@@ -1813,7 +1813,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const CMemGua
 {
   dist_info->calc_local_file_name();
   bool bv = ftype_is_adv(dist_info->ftype);
-  if (!CSysFS::make_path(target_parent_path.data(), true))
+  if (!CSysFS::create_dir(target_parent_path.data(), true))
   {
     C_ERROR("can not mkdir(%s) %s\n", target_parent_path.data(), (const char *)CErrno());
     return false;
@@ -1823,7 +1823,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const CMemGua
     return false;
 
   int prefix_len = ACE_OS::strlen(target_parent_path.data());
-  if (!CSysFS::make_path_const(target_path.data(), prefix_len, false, true))
+  if (!CSysFS::create_dir_const(target_path.data(), prefix_len, false, true))
   {
     C_ERROR("can not mkdir(%s) %s\n", target_path.data(), (const char *)CErrno());
     return false;
@@ -1836,10 +1836,10 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const CMemGua
   CMemGuard s_n, dest_parent_path, dest_path;
   if (!bv)
   {
-    MyClientApp::calc_backup_parent_path(dest_parent_path, dist_info->client_id.as_string());
+    MyClientApp::calc_backup_parent_path(dest_parent_path, dist_info->client_id.to_str());
     s_n.from_string(dest_parent_path.data(), "/new");
     prefix_len = ACE_OS::strlen(dest_parent_path.data());
-    if (!CSysFS::make_path_const(s_n.data(), prefix_len, false, true))
+    if (!CSysFS::create_dir_const(s_n.data(), prefix_len, false, true))
     {
       C_ERROR("can not mkdir(%s) %s\n", s_n.data(), (const char *)CErrno());
       return false;
@@ -1847,10 +1847,10 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const CMemGua
     dist_info->calc_target_path(s_n.data(), dest_path);
   } else
   {
-    MyClientApp::data_path(dest_parent_path, dist_info->client_id.as_string());
+    MyClientApp::data_path(dest_parent_path, dist_info->client_id.to_str());
     prefix_len = ACE_OS::strlen(dest_parent_path.data());
     dest_path.from_string(dest_parent_path.data(), "/5");
-    if (!CSysFS::make_path_const(dest_path.data(), prefix_len, false, true))
+    if (!CSysFS::create_dir_const(dest_path.data(), prefix_len, false, true))
     {
       C_ERROR("can not mkdir(%s) %s\n", dest_path.data(), (const char *)CErrno());
       return false;
@@ -1880,7 +1880,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const CMemGua
 
         if (MyFilePaths::stat(src.data(), &buf) && S_ISDIR(buf.st_mode))
         {
-          if (!MyFilePaths::copy_path(src.data(), dest.data(), true))
+          if (!MyFilePaths::copy_dir(src.data(), dest.data(), true))
           {
             C_ERROR("copy path failed from %s to %s\n", src.data(), dest.data());
             return false;
@@ -1891,7 +1891,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const CMemGua
         struct stat buf;
         if (MyFilePaths::stat(true_dest_path.data(), &buf) && S_ISDIR(buf.st_mode))
         {
-          if (!MyFilePaths::copy_path(true_dest_path.data(), target_path.data(), true))
+          if (!MyFilePaths::copy_dir(true_dest_path.data(), target_path.data(), true))
           {
             C_ERROR("copy path failed from %s to %s\n", true_dest_path.data(), target_path.data());
             return false;
@@ -1934,7 +1934,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const CMemGua
       }
 #else
 
-      if (!MyFilePaths::make_path_const(target_path.data(), prefix_len, false, true))
+      if (!MyFilePaths::create_dir_const(target_path.data(), prefix_len, false, true))
       {
         C_ERROR("can not mkdir(%s) %s\n", target_path.data(), (const char *)MyErrno());
         return false;
@@ -1974,25 +1974,25 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const CMemGua
     {
       if (type_is_single(dist_info->type))
       {
-        if (!CSysFS::copy_path(target_path.data(), dest_path.data(), true, true))
+        if (!CSysFS::copy_dir(target_path.data(), dest_path.data(), true, true))
           result = false;
-        if (!bv && !CSysFS::copy_path(target_path.data(), true_dest_path.data(), true, false))
-          C_WARNING("failed to copy_path for true_dest_path\n");
+        if (!bv && !CSysFS::copy_dir(target_path.data(), true_dest_path.data(), true, false))
+          C_WARNING("failed to copy_dir for true_dest_path\n");
       } else if (type_is_all(dist_info->type) || type_is_multi(dist_info->type))
       {
         if (ftype_is_frame(dist_info->ftype) || type_is_multi(dist_info->type))
         {
-          if (!CSysFS::copy_path(target_path.data(), dest_path.data(), true, true))
+          if (!CSysFS::copy_dir(target_path.data(), dest_path.data(), true, true))
             result = false;
-          if (!ftype_is_adv(dist_info->ftype) && !CSysFS::copy_path(target_path.data(), true_dest_path.data(), true, false))
-            C_WARNING("failed to copy_path for true_dest_path\n");
+          if (!ftype_is_adv(dist_info->ftype) && !CSysFS::copy_dir(target_path.data(), true_dest_path.data(), true, false))
+            C_WARNING("failed to copy_dir for true_dest_path\n");
         }
         else
         {
-          if (!CSysFS::copy_path_zap(target_path.data(), dest_path.data(), true, ftype_is_chn(dist_info->ftype), true))
+          if (!CSysFS::copy_dir_zap(target_path.data(), dest_path.data(), true, ftype_is_chn(dist_info->ftype), true))
             result = false;
-          if (!CSysFS::copy_path_zap(target_path.data(), true_dest_path.data(), true, ftype_is_chn(dist_info->ftype), false))
-            C_WARNING("failed to copy_path_zap for true_dest_path\n");
+          if (!CSysFS::copy_dir_zap(target_path.data(), true_dest_path.data(), true, ftype_is_chn(dist_info->ftype), false))
+            C_WARNING("failed to copy_dir_zap for true_dest_path\n");
         }
 
 /*      if (!result && !ftype_is_vd(dist_info->ftype))
@@ -2036,11 +2036,11 @@ bool MyDistFtpFileExtractor::has_id(const CMemGuard & target_parent_path)
 bool MyDistFtpFileExtractor::syn(MyDistInfoFtp * dist_info)
 {
   CMemGuard pn, po, dest_parent_path, dest_path;
-  MyClientApp::calc_backup_parent_path(dest_parent_path, dist_info->client_id.as_string());
+  MyClientApp::calc_backup_parent_path(dest_parent_path, dist_info->client_id.to_str());
   pn.from_string(dest_parent_path.data(), "/new");
   po.from_string(dest_parent_path.data(), "/old");
-  CSysFS::remove_path(po.data(), true);
-  if (!CSysFS::make_path(po.data(), true))
+  CSysFS::delete_dir(po.data(), true);
+  if (!CSysFS::create_dir(po.data(), true))
   {
     C_ERROR("can not mkdir(%s) %s\n", po.data(), (const char *)CErrno());
     return false;
@@ -2082,12 +2082,12 @@ void MyDistInfoMD5::post_md5_message()
   int dist_id_len = ACE_OS::strlen(dist_id.data());
   int md5_len = m_md5list.total_size(false);
   int total_len = dist_id_len + 1 + md5_len;
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(total_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
-  MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
+  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(total_len, CCmdHeader::PT_FILE_MD5_LIST);
+  CCmdExt * dpe = (CCmdExt*) mb->base();
   if (g_is_test)
-    dpe->magic = client_id_index;
+    dpe->signature = client_id_index;
   ACE_OS::memcpy(dpe->data, dist_id.data(), dist_id_len);
-  dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
+  dpe->data[dist_id_len] = CCmdHeader::ITEM_SEPARATOR;
   m_md5list.to_buffer(dpe->data + dist_id_len + 1, md5_len, false);
 //  if (g_test_mode)
     C_INFO("posting md5 reply to dist server for dist_id (%s), md5 len = %d\n", dist_id.data(), md5_len - 1);
@@ -2206,7 +2206,7 @@ bool MyDistInfoMD5Comparer::compute(MyDistInfoHeader * dist_info_header, CFileMD
     return false;
 
   int prefix_len = ACE_OS::strlen(target_parent_path.data());
-  if (!CSysFS::make_path_const(target_path.data(), prefix_len, false, true))
+  if (!CSysFS::create_dir_const(target_path.data(), prefix_len, false, true))
   {
     C_ERROR("can not mkdir(%s) %s\n", target_path.data(), (const char *)CErrno());
     return false;
@@ -2231,7 +2231,7 @@ bool MyDistInfoMD5Comparer::compute(MyDistInfoMD5 * dist_md5)
     return false;
 
 //  int prefix_len = ACE_OS::strlen(target_parent_path.data());
-//  if (!MyFilePaths::make_path_const(target_path.data(), prefix_len, false, true))
+//  if (!MyFilePaths::create_dir_const(target_path.data(), prefix_len, false, true))
 //  {
 //    C_ERROR("can not mkdir(%s) %s\n", target_path.data(), (const char *)MyErrno());
 //    return false;
@@ -2537,139 +2537,139 @@ int MyClientToDistProcessor::on_open()
   return send_version_check_req();
 }
 
-CProcBase::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
+CProcBase::OUTPUT MyClientToDistProcessor::on_recv_header()
 {
   if (!g_is_test)
-    C_DEBUG("get dist packet header: command = %d, len = %d\n", m_packet_header.command, m_packet_header.length);
+    C_DEBUG("get dist packet header: command = %d, len = %d\n", m_packet_header.cmd, m_packet_header.size);
 
-  CProcBase::EVENT_RESULT result = super::on_recv_header();
-  if (result != ER_CONTINUE)
-    return ER_ERROR;
+  CProcBase::OUTPUT result = super::on_recv_header();
+  if (result != OP_CONTINUE)
+    return OP_FAIL;
 
-  bool bVersionCheckReply = m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY; //m_version_check_reply_done
+  bool bVersionCheckReply = m_packet_header.cmd == CCmdHeader::PT_VER_REPLY; //m_version_check_reply_done
   if (bVersionCheckReply == m_version_check_reply_done)
   {
     C_ERROR(ACE_TEXT("unexpected packet header from dist server, version_check_reply_done = %d, "
                       "packet is version_check_reply = %d.\n"), m_version_check_reply_done, bVersionCheckReply);
-    return ER_ERROR;
+    return OP_FAIL;
   }
 
   if (bVersionCheckReply)
   {
-    if (!my_dph_validate_client_version_check_reply(&m_packet_header))
+    if (!c_packet_check_term_ver_reply(&m_packet_header))
     {
       C_ERROR("failed to validate header for version check\n");
-      return ER_ERROR;
+      return OP_FAIL;
     }
-    return ER_OK;
+    return OP_OK;
   }
 
-  if (m_packet_header.command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
+  if (m_packet_header.cmd == CCmdHeader::PT_FILE_MD5_LIST)
   {
-    if (!my_dph_validate_file_md5_list(&m_packet_header))
+    if (!c_packet_check_file_md5_list(&m_packet_header))
     {
       C_ERROR("failed to validate header for server file md5 list\n");
-      return ER_ERROR;
+      return OP_FAIL;
     }
-    return ER_OK;
+    return OP_OK;
   }
 
-  if (m_packet_header.command == MyDataPacketHeader::CMD_FTP_FILE)
+  if (m_packet_header.cmd == CCmdHeader::PT_FTP_FILE)
   {
-    if (!my_dph_validate_ftp_file(&m_packet_header))
+    if (!c_packet_check_ftp_file(&m_packet_header))
     {
       C_ERROR("failed to validate header for server ftp file\n");
-      return ER_ERROR;
+      return OP_FAIL;
     }
-    return ER_OK;
+    return OP_OK;
   }
 
-  if (m_packet_header.command == MyDataPacketHeader::CMD_IP_VER_REQ)
+  if (m_packet_header.cmd == CCmdHeader::PT_IP_VER_REQ)
   {
-    if (m_packet_header.length <= (int)sizeof(MyDataPacketHeader) || m_packet_header.length >= 512
-        || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    if (m_packet_header.size <= (int)sizeof(CCmdHeader) || m_packet_header.size >= 512
+        || m_packet_header.signature != CCmdHeader::SIGNATURE)
     {
       C_ERROR("failed to validate header for ip ver reply\n");
-      return ER_ERROR;
+      return OP_FAIL;
     }
-    return ER_OK;
+    return OP_OK;
   }
 
-  if (m_packet_header.command == MyDataPacketHeader::CMD_ACK)
+  if (m_packet_header.cmd == CCmdHeader::PT_ACK)
   {
-    if (!my_dph_validate_base(&m_packet_header))
+    if (!c_packet_check_base(&m_packet_header))
     {
       C_ERROR("failed to validate header for server ack packet\n");
-      return ER_ERROR;
+      return OP_FAIL;
     }
     if (g_is_test)
-      return ER_OK_FINISHED;
+      return OP_DONE;
     else
-      return ER_OK;
+      return OP_OK;
   }
 
-  if (m_packet_header.command == MyDataPacketHeader::CMD_TQ)
+  if (m_packet_header.cmd == CCmdHeader::PT_TQ)
   {
-    if (m_packet_header.length <= (int)sizeof(MyDataPacketHeader) || m_packet_header.length >= 512
-        || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    if (m_packet_header.size <= (int)sizeof(CCmdHeader) || m_packet_header.size >= 512
+        || m_packet_header.signature != CCmdHeader::SIGNATURE)
     {
       C_ERROR("failed to validate header for plist\n");
-      return ER_ERROR;
+      return OP_FAIL;
     }
-    return ER_OK;
+    return OP_OK;
   }
 
 
-  if (m_packet_header.command == MyDataPacketHeader::CMD_REMOTE_CMD)
+  if (m_packet_header.cmd == CCmdHeader::PT_REMOTE_CMD)
   {
-    if (m_packet_header.length != (int)sizeof(MyDataPacketHeader) + 1
-        || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    if (m_packet_header.size != (int)sizeof(CCmdHeader) + 1
+        || m_packet_header.signature != CCmdHeader::SIGNATURE)
     {
       C_ERROR("failed to validate header for remote cmd\n");
-      return ER_ERROR;
+      return OP_FAIL;
     }
-    return ER_OK;
+    return OP_OK;
   }
 
-  if (m_packet_header.command == MyDataPacketHeader::CMD_TEST)
+  if (m_packet_header.cmd == CCmdHeader::PT_TEST)
   {
-    if (m_packet_header.length < (int)sizeof(MyDataPacketHeader)
-        || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    if (m_packet_header.size < (int)sizeof(CCmdHeader)
+        || m_packet_header.signature != CCmdHeader::SIGNATURE)
     {
       C_ERROR("failed to validate header for test cmd\n");
-      return ER_ERROR;
+      return OP_FAIL;
     }
-    return ER_OK;
+    return OP_OK;
   }
 
-  if (m_packet_header.command == MyDataPacketHeader::CMD_PSP)
+  if (m_packet_header.cmd == CCmdHeader::PT_PSP)
   {
-    if (m_packet_header.length < (int)sizeof(MyDataPacketHeader) + 2
-        || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
+    if (m_packet_header.size < (int)sizeof(CCmdHeader) + 2
+        || m_packet_header.signature != CCmdHeader::SIGNATURE)
     {
       C_ERROR("failed to validate header for psp cmd\n");
-      return ER_ERROR;
+      return OP_FAIL;
     }
-    return ER_OK;
+    return OP_OK;
   }
 
-  C_ERROR("unexpected packet header from dist server, header.command = %d\n", m_packet_header.command);
-  return ER_ERROR;
+  C_ERROR("unexpected packet header from dist server, header.command = %d\n", m_packet_header.cmd);
+  return OP_FAIL;
 }
 
-CProcBase::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::OUTPUT MyClientToDistProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
   if (!g_is_test)
-    C_DEBUG("get complete dist packet: command = %d, len = %d\n", m_packet_header.command, m_packet_header.length);
+    C_DEBUG("get complete dist packet: command = %d, len = %d\n", m_packet_header.cmd, m_packet_header.size);
 
   CFormatProcBase::on_recv_packet_i(mb);
-  MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
+  CCmdHeader * header = (CCmdHeader *)mb->base();
 
-  if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY)
+  if (header->cmd == CCmdHeader::PT_VER_REPLY)
   {
-    CProcBase::EVENT_RESULT result = do_version_check_reply(mb);
+    CProcBase::OUTPUT result = do_version_check_reply(mb);
 
-    if (result == ER_OK)
+    if (result == OP_OK)
     {
       client_verified(true);
       ((MyClientToDistHandler*)m_handler)->setup_timer();
@@ -2694,35 +2694,35 @@ CProcBase::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Message_Bl
     return result;
   }
 
-  if (header->command == MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST)
+  if (header->cmd == CCmdHeader::PT_FILE_MD5_LIST)
     return do_md5_list_request(mb);
 
-  if (header->command == MyDataPacketHeader::CMD_FTP_FILE)
+  if (header->cmd == CCmdHeader::PT_FTP_FILE)
     return do_ftp_file_request(mb);
 
-  if (header->command == MyDataPacketHeader::CMD_IP_VER_REQ)
+  if (header->cmd == CCmdHeader::PT_IP_VER_REQ)
     return do_ip_ver_reply(mb);
 
-  if (header->command == MyDataPacketHeader::CMD_REMOTE_CMD)
+  if (header->cmd == CCmdHeader::PT_REMOTE_CMD)
     return do_remote_cmd(mb);
 
-  if (header->command == MyDataPacketHeader::CMD_ACK)
+  if (header->cmd == CCmdHeader::PT_ACK)
     return do_ack(mb);
 
-  if (header->command == MyDataPacketHeader::CMD_TEST)
+  if (header->cmd == CCmdHeader::PT_TEST)
     return do_test(mb);
 
-  if (header->command == MyDataPacketHeader::CMD_PSP)
+  if (header->cmd == CCmdHeader::PT_PSP)
     return do_psp(mb);
 
-  if (header->command == MyDataPacketHeader::CMD_TQ)
+  if (header->cmd == CCmdHeader::PT_TQ)
     return do_pl(mb);
 
 
   CMBGuard guard(mb);
   C_ERROR("unsupported command received @MyClientToDistProcessor::on_recv_packet_i(), command = %d\n",
-      header->command);
-  return ER_ERROR;
+      header->cmd);
+  return OP_FAIL;
 }
 
 bool MyClientToDistProcessor::check_vlc_empty()
@@ -2733,8 +2733,8 @@ bool MyClientToDistProcessor::check_vlc_empty()
   if (c == o)
     return true;
   o = c;
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(1, MyDataPacketHeader::CMD_VLC_EMPTY);
-  MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(1, CCmdHeader::PT_VLC_EMPTY);
+  CCmdExt * dpe = (CCmdExt *)mb->base();
   dpe->data[0] = c;
   return m_handler->send_data(mb) >= 0;
 }
@@ -2743,21 +2743,21 @@ int MyClientToDistProcessor::send_heart_beat()
 {
   if (!m_version_check_reply_done)
     return 0;
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(0, MyDataPacketHeader::CMD_HEARTBEAT_PING);
+  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(0, CCmdHeader::PT_PING);
   int ret = (m_handler->send_data(mb) < 0? -1: 0);
   check_vlc_empty();
 //  C_DEBUG("send_heart_beat = %d\n", ret);
   return ret;
 }
 
-CProcBase::EVENT_RESULT MyClientToDistProcessor::do_md5_list_request(ACE_Message_Block * mb)
+CProcBase::OUTPUT MyClientToDistProcessor::do_md5_list_request(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
-  MyDataPacketExt * packet = (MyDataPacketExt *) mb->base();
-  if (!packet->guard())
+  CCmdExt * packet = (CCmdExt *) mb->base();
+  if (!packet->validate())
   {
-    C_ERROR("empty md5 list packet client_id(%s)\n", m_client_id.as_string());
-    return ER_OK;
+    C_ERROR("empty md5 list packet client_id(%s)\n", m_client_id.to_str());
+    return OP_OK;
   }
 
   MyDistInfoMD5 * dist_md5 = new MyDistInfoMD5;
@@ -2767,7 +2767,7 @@ CProcBase::EVENT_RESULT MyClientToDistProcessor::do_md5_list_request(ACE_Message
   {
     C_INFO("received one md5 file list command for dist %s, client_id=%s, ftype = %c\n",
         dist_md5->dist_id.data(),
-        m_client_id.as_string(),
+        m_client_id.to_str(),
         dist_md5->ftype);
 //    MyDistInfoMD5 * existing = MyClientAppX::instance()->client_to_dist_module()->dist_info_md5s().get_finished(*dist_md5);
 //    if (unlikely(existing != NULL))
@@ -2775,7 +2775,7 @@ CProcBase::EVENT_RESULT MyClientToDistProcessor::do_md5_list_request(ACE_Message
 //      existing->post_md5_message();
 //      MyClientAppX::instance()->client_to_dist_module()->dist_info_md5s().add(existing);
 //      delete dist_md5;
-//      return ER_OK;
+//      return OP_OK;
 //    }
 
     if (!MyClientAppX::instance()->client_to_dist_module()->service()->add_md5_task(dist_md5))
@@ -2787,27 +2787,27 @@ CProcBase::EVENT_RESULT MyClientToDistProcessor::do_md5_list_request(ACE_Message
     delete dist_md5;
   }
 
-  return ER_OK;
+  return OP_OK;
 }
 
-CProcBase::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_Message_Block * mb)
+CProcBase::OUTPUT MyClientToDistProcessor::do_ftp_file_request(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
-  MyDataPacketExt * packet = (MyDataPacketExt *) mb->base();
-  if (!packet->guard())
+  CCmdExt * packet = (CCmdExt *) mb->base();
+  if (!packet->validate())
   {
     C_ERROR("empty ftp file packet\n");
-    return ER_OK;
+    return OP_OK;
   }
 
   char dist_id[128];
   {
-    const char * ptr = ACE_OS::strchr(packet->data, MyDataPacketHeader::ITEM_SEPARATOR);
+    const char * ptr = ACE_OS::strchr(packet->data, CCmdHeader::ITEM_SEPARATOR);
     int len = ptr - packet->data;
     if (unlikely(!ptr || len >= 100 || len == 0))
     {
       C_ERROR("can not find dist_id @MyClientToDistProcessor::do_ftp_file_request\n");
-      return ER_ERROR;
+      return OP_FAIL;
     }
     ACE_OS::memcpy(dist_id, packet->data, len);
     dist_id[len] = 0;
@@ -2825,12 +2825,12 @@ CProcBase::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_Message
   if (dist_ftp->load_from_string(packet->data))
   {
     C_INFO("received one ftp command for dist(%s) client(%s): ftype=%c, adir=%s, password=%s, file name=%s\n",
-            dist_ftp->dist_id.data(), m_client_id.as_string(), dist_ftp->ftype,
+            dist_ftp->dist_id.data(), m_client_id.to_str(), dist_ftp->ftype,
             dist_ftp->adir.data() ? dist_ftp->adir.data(): "",
             dist_ftp->file_password.data(), dist_ftp->file_name.data());
     {
       MyClientDBGuard dbg;
-      if (dbg.db().open_db(m_client_id.as_string()))
+      if (dbg.db().open_db(m_client_id.to_str()))
       {
         int ftp_status;
         if (dbg.db().get_ftp_command_status(dist_id, ftp_status))
@@ -2838,9 +2838,9 @@ CProcBase::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_Message
           if (ftp_status >= 2)
           {
             ACE_Message_Block * reply_mb = MyDistInfoFtp::make_ftp_dist_message(dist_id, ftp_status);
-            C_INFO("dist ftp command already received, dist_id(%s) client_id(%s)\n", dist_id, m_client_id.as_string());
+            C_INFO("dist ftp command already received, dist_id(%s) client_id(%s)\n", dist_id, m_client_id.to_str());
             delete dist_ftp;
-            return (m_handler->send_data(reply_mb) < 0 ? ER_ERROR : ER_OK);
+            return (m_handler->send_data(reply_mb) < 0 ? OP_FAIL : OP_OK);
           }
           dbg.db().save_ftp_command(str_data.data(), *dist_ftp);
         } else
@@ -2857,7 +2857,7 @@ CProcBase::EVENT_RESULT MyClientToDistProcessor::do_ftp_file_request(ACE_Message
     delete dist_ftp;
   }
 
-  return ER_OK;
+  return OP_OK;
 }
 
 void MyClientToDistProcessor::check_offline_report()
@@ -2878,49 +2878,49 @@ void MyClientToDistProcessor::check_offline_report()
   ACE_OS::strncat(buff, buff2 + 9, 64 -1);
   int len = ACE_OS::strlen(buff);
   ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(len + 1 + 1,
-      MyDataPacketHeader::CMD_PC_ON_OFF);
-  MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+      CCmdHeader::PT_PC_ON_OFF);
+  CCmdExt * dpe = (CCmdExt *)mb->base();
   dpe->data[0] = '3';
   ACE_OS::memcpy(dpe->data + 1, buff, len + 1);
   m_handler->send_data(mb);
 //  mycomutil_mb_putq(MyClientAppX::instance()->client_to_dist_module()->dispatcher(), mb, "client off-line report to dist queue");
 }
 
-CProcBase::EVENT_RESULT MyClientToDistProcessor::do_ip_ver_reply(ACE_Message_Block * mb)
+CProcBase::OUTPUT MyClientToDistProcessor::do_ip_ver_reply(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
   if (g_is_test && m_client_id_index != 0)
-    return ER_OK;
+    return OP_OK;
 
   MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
-  MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
+  CCmdExt * dpe = (CCmdExt *) mb->base();
   mod->ip_ver_reply().init(dpe->data);
   return ((MyClientToDistHandler*)m_handler)->setup_heart_beat_timer(mod->ip_ver_reply().heart_beat_interval()) ?
-          ER_OK: ER_ERROR;
+          OP_OK: OP_FAIL;
 }
 
-CProcBase::EVENT_RESULT MyClientToDistProcessor::do_ack(ACE_Message_Block * mb)
+CProcBase::OUTPUT MyClientToDistProcessor::do_ack(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
   if (unlikely(g_is_test))
   {
     C_ERROR("unexpected ack packet on test mode\n");
-    return ER_ERROR;
+    return OP_FAIL;
   }
 
-  MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
+  CCmdHeader * dph = (CCmdHeader *) mb->base();
   MyClientAppX::instance()->client_to_dist_module()->dispatcher()->on_ack(dph->uuid);
-  return ER_OK;
+  return OP_OK;
 }
 
-CProcBase::EVENT_RESULT MyClientToDistProcessor::do_psp(ACE_Message_Block * mb)
+CProcBase::OUTPUT MyClientToDistProcessor::do_psp(ACE_Message_Block * mb)
 {
-  MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
-  if (!dpe->guard())
+  CCmdExt * dpe = (CCmdExt *)mb->base();
+  if (!dpe->validate())
   {
     C_ERROR("bad psp packet\n");
     mb->release();
-    return ER_OK;
+    return OP_OK;
   }
 
   C_INFO("get psp command (%c) for %s\n", dpe->data[0], dpe->data + 1);
@@ -2937,71 +2937,71 @@ CProcBase::EVENT_RESULT MyClientToDistProcessor::do_psp(ACE_Message_Block * mb)
     MyClientAppX::instance()->client_to_dist_module()->service()->add_rev_task(p);
   }
 */
-  dpe->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
+  dpe->signature = CCmdHeader::SIGNATURE;
   if (m_handler->send_data(mb) < 0)
-    return ER_ERROR;
-  return ER_OK;
+    return OP_FAIL;
+  return OP_OK;
 }
 
-CProcBase::EVENT_RESULT MyClientToDistProcessor::do_pl(ACE_Message_Block * mb)
+CProcBase::OUTPUT MyClientToDistProcessor::do_pl(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
-  MyDataPacketExt * packet = (MyDataPacketExt *) mb->base();
-  if (!packet->guard())
+  CCmdExt * packet = (CCmdExt *) mb->base();
+  if (!packet->validate())
   {
-    C_ERROR("bad pl packet client_id(%s)\n", m_client_id.as_string());
-    return ER_OK;
+    C_ERROR("bad pl packet client_id(%s)\n", m_client_id.to_str());
+    return OP_OK;
   }
 
-  MyPL::instance().save(m_client_id.as_string(), packet->data);
+  MyPL::instance().save(m_client_id.to_str(), packet->data);
   MyPL::instance().parse(packet->data);
-  return ER_OK;
+  return OP_OK;
 }
 
-CProcBase::EVENT_RESULT MyClientToDistProcessor::do_test(ACE_Message_Block * mb)
+CProcBase::OUTPUT MyClientToDistProcessor::do_test(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
   C_DEBUG("received test packet of size %d\n", mb->capacity());
-  return ER_OK;
+  return OP_OK;
 }
 
-CProcBase::EVENT_RESULT MyClientToDistProcessor::do_remote_cmd(ACE_Message_Block * mb)
+CProcBase::OUTPUT MyClientToDistProcessor::do_remote_cmd(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
-  return ER_OK;
+  return OP_OK;
 }
 
-CProcBase::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(ACE_Message_Block * mb)
+CProcBase::OUTPUT MyClientToDistProcessor::do_version_check_reply(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
   m_version_check_reply_done = true;
 //  if (!g_test_mode)
 //    C_DEBUG("on ver reply: handler = %X, socket = %d\n", (int)(long)m_handler, m_handler->get_handle());
 
-  MyClientVersionCheckReply * vcr;
-  vcr = (MyClientVersionCheckReply *)mb->base();
-  switch (vcr->reply_code)
+  CTermVerReply * vcr;
+  vcr = (CTermVerReply *)mb->base();
+  switch (vcr->ret_subcmd)
   {
-  case MyClientVersionCheckReply::VER_OK:
+  case CTermVerReply::SC_OK:
     if (!g_is_test || m_client_id_index == 0)
       C_INFO("handshake response from dist server: OK\n");
     client_verified(true);
-    if (vcr->length > (int)sizeof(MyClientVersionCheckReply) + 1)
+    if (vcr->size > (int)sizeof(CTermVerReply) + 1)
     {
-      MyServerID::save(m_client_id.as_string(), (int)(u_int8_t)vcr->data[0]);
+      MyServerID::save(m_client_id.to_str(), (int)(u_int8_t)vcr->data[0]);
       m_ftp_password.from_string(vcr->data + 1);
       MyClientAppX::instance()->ftp_password(m_ftp_password.data());
     }
     m_handler->connector()->reset_retry_count();
     if (!g_is_test)
       check_offline_report();
-    return CProcBase::ER_OK;
+    return CProcBase::OP_OK;
 
-  case MyClientVersionCheckReply::VER_OK_CAN_UPGRADE:
+  case CTermVerReply::SC_OK_UP:
     client_verified(true);
-    if (vcr->length > (int)sizeof(MyClientVersionCheckReply) + 1)
+    if (vcr->size > (int)sizeof(CTermVerReply) + 1)
     {
-      MyServerID::save(m_client_id.as_string(), (int)(u_int8_t)vcr->data[0]);
+      MyServerID::save(m_client_id.to_str(), (int)(u_int8_t)vcr->data[0]);
       m_ftp_password.from_string(vcr->data + 1);
       MyClientAppX::instance()->ftp_password(m_ftp_password.data());
     }
@@ -3011,33 +3011,32 @@ CProcBase::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(ACE_Mess
     if (!g_is_test)
       check_offline_report();
     //todo: notify app to upgrade
-    return CProcBase::ER_OK;
+    return CProcBase::OP_OK;
 
-  case MyClientVersionCheckReply::VER_MISMATCH:
-    if (vcr->length > (int)sizeof(MyClientVersionCheckReply) + 1)
+  case CTermVerReply::SC_NOT_MATCH:
+    if (vcr->size > (int)sizeof(CTermVerReply) + 1)
       m_ftp_password.from_string(vcr->data);
     m_handler->connector()->reset_retry_count();
     if (!g_is_test || m_client_id_index == 0)
       C_ERROR("handshake response from dist server: Version Mismatch\n");
-    //todo: notify app to upgrade
-    return CProcBase::ER_ERROR;
+    return CProcBase::OP_FAIL;
 
-  case MyClientVersionCheckReply::VER_ACCESS_DENIED:
+  case CTermVerReply::SC_ACCESS_DENIED:
     m_handler->connector()->reset_retry_count();
     if (!g_is_test || m_client_id_index == 0)
       C_ERROR("handshake response from dist server: Access Denied\n");
-    return CProcBase::ER_ERROR;
+    return CProcBase::OP_FAIL;
 
-  case MyClientVersionCheckReply::VER_SERVER_BUSY:
+  case CTermVerReply::SC_SERVER_BUSY:
     if (!g_is_test || m_client_id_index == 0)
       C_INFO("handshake response from dist server: Server Busy\n");
 
-    return CProcBase::ER_ERROR;
+    return CProcBase::OP_FAIL;
 
   default: //server_list
     if (!g_is_test || m_client_id_index == 0)
-      C_INFO("handshake response from dist server: unknown code = %d\n", vcr->reply_code);
-    return CProcBase::ER_ERROR;
+      C_INFO("handshake response from dist server: unknown code = %d\n", vcr->ret_subcmd);
+    return CProcBase::OP_FAIL;
   }
 }
 
@@ -3051,23 +3050,23 @@ int MyClientToDistProcessor::send_version_check_req()
   const char * hw_ver = MyClientAppX::instance()->client_to_dist_module()->hw_ver();
   int len = ACE_OS::strlen(hw_ver) + 1;
   ACE_Message_Block * mb = make_version_check_request_mb(len);
-  MyClientVersionCheckRequest * proc = (MyClientVersionCheckRequest *)mb->base();
+  CTerminalVerReq * proc = (CTerminalVerReq *)mb->base();
   if (my_addr[0] != 0)
     ACE_OS::memcpy(proc->uuid, my_addr, PEER_ADDR_LEN);
-  proc->client_version_major = const_client_version_major;
-  proc->client_version_minor = const_client_version_minor;
-  proc->client_id = m_client_id;
-  proc->server_id = (u_int8_t) MyServerID::load(m_client_id.as_string());
+  proc->term_ver_major = const_client_version_major;
+  proc->term_ver_minor = const_client_version_minor;
+  proc->term_sn = m_client_id;
+  proc->server_id = (u_int8_t) MyServerID::load(m_client_id.to_str());
   ACE_OS::memcpy(proc->hw_ver, hw_ver, len);
   return (m_handler->send_data(mb) < 0? -1: 0);
 }
 
 int MyClientToDistProcessor::send_ip_ver_req()
 {
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd_direct(sizeof(MyIpVerRequest), MyDataPacketHeader::CMD_IP_VER_REQ);
-  MyIpVerRequest * ivr = (MyIpVerRequest *) mb->base();
-  ivr->client_version_major = const_client_version_major;
-  ivr->client_version_minor = const_client_version_minor;
+  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd_direct(sizeof(CIpVerReq), CCmdHeader::PT_IP_VER_REQ);
+  CIpVerReq * ivr = (CIpVerReq *) mb->base();
+  ivr->term_ver_major = const_client_version_major;
+  ivr->term_ver_minor = const_client_version_minor;
   if (!g_is_test || m_client_id_index == 0)
     C_INFO("sending ip ver to dist server...\n");
   return (m_handler->send_data(mb) < 0? -1: 0);
@@ -3098,11 +3097,11 @@ void MyDistServerAddrList::addr_list(char *list)
 
   m_addr_list_len = ACE_OS::strlen(list) + 1;
   m_addr_list.from_string(list);
-  char * ftp_list = strchr(list, MyDataPacketHeader::FINISH_SEPARATOR);
+  char * ftp_list = strchr(list, CCmdHeader::FINISH_SEPARATOR);
   if (ftp_list)
     *ftp_list++ = 0;
 
-  char seperator[2] = {MyDataPacketHeader::ITEM_SEPARATOR, 0};
+  char seperator[2] = {CCmdHeader::ITEM_SEPARATOR, 0};
   char *str, *token, *saveptr;
 
   for (str = list; ;str = NULL)
@@ -3373,7 +3372,7 @@ void MyVlcHistory::process()
 
 MyClientToDistHandler::MyClientToDistHandler(CConnectionManagerBase * xptr): CHandlerBase(xptr)
 {
-  m_processor = new MyClientToDistProcessor(this);
+  m_proc = new MyClientToDistProcessor(this);
   m_heart_beat_timer = -1;
   m_heart_beat_tmp_timer = -1;
 }
@@ -3409,7 +3408,7 @@ bool MyClientToDistHandler::setup_heart_beat_timer(int heart_beat_interval)
     heart_beat_interval = 3;
   }
 
-  if (!g_is_test || m_processor->client_id_index() == 0)
+  if (!g_is_test || m_proc->client_id_index() == 0)
     C_INFO("setup heart beat timer (per %d minute(s))\n", heart_beat_interval);
   ACE_Time_Value interval(heart_beat_interval * 60);
   m_heart_beat_timer = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval, interval);
@@ -3458,36 +3457,36 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
 //  C_DEBUG("MyClientToDistHandler::handle_timeout()\n");
   if (long(act) == HEART_BEAT_PING_TIMER)
   {
-    if (m_processor->client_id_index() == 0)
+    if (m_proc->client_id_index() == 0)
       C_DEBUG("ping dist server now...\n");
 #if 0
     const int extra_size = 1024 * 1024 * 1;
-    ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(extra_size, MyDataPacketHeader::CMD_TEST);
-    MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+    ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(extra_size, CCmdHeader::PT_TEST);
+    CCmdExt * dpe = (CCmdExt *)mb->base();
     ACE_OS::memset(dpe->data, 0, extra_size);
     int ret = send_data(mb);
     if (ret == 0)
-      ret = ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
+      ret = ((MyClientToDistProcessor*)m_proc)->send_heart_beat();
     return ret;
 #else
-    return ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
+    return ((MyClientToDistProcessor*)m_proc)->send_heart_beat();
 #endif
   }
   else if (long(act) == HEART_BEAT_PING_TMP_TIMER)
   {
-    if (m_processor->client_id_index() == 0)
+    if (m_proc->client_id_index() == 0)
       C_DEBUG("ping (tmp) dist server now...\n");
-    return ((MyClientToDistProcessor*)m_processor)->send_heart_beat();
+    return ((MyClientToDistProcessor*)m_proc)->send_heart_beat();
   }
   else if (long(act) == IP_VER_TIMER)
-    return ((MyClientToDistProcessor*)m_processor)->send_ip_ver_req();
+    return ((MyClientToDistProcessor*)m_proc)->send_ip_ver_req();
   else if (long(act) == CLICK_SEND_TIMER)
   {
     MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
     if (mod->click_sent())
       return 0;
-    ACE_Message_Block * mb = mod->get_click_infos(m_processor->client_id().as_string());
-    mod->click_sent_done(m_processor->client_id().as_string());
+    ACE_Message_Block * mb = mod->get_click_infos(m_proc->client_id().to_str());
+    mod->click_sent_done(m_proc->client_id().to_str());
     C_INFO("adv click info, mb %s NULL\n", mb? "not": "is");
     if (mb != NULL)
     {
@@ -3496,7 +3495,7 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
         return -1;
     }
 
-    mb = mod->get_vlc_infos(m_processor->client_id().as_string());
+    mb = mod->get_vlc_infos(m_proc->client_id().to_str());
     /*C_INFO("vlc play info, mb %s NULL\n", mb? "not": "is");
     if (mb != NULL)
     {
@@ -3524,7 +3523,7 @@ void MyClientToDistHandler::on_close()
       return;
     MyClientAppX::instance()->client_to_dist_module()->id_generator().put
         (
-          ((MyClientToDistProcessor*)m_processor)->client_id().as_string()
+          ((MyClientToDistProcessor*)m_proc)->client_id().to_str()
         );
   }
 }
@@ -3642,7 +3641,7 @@ void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
   bool b_saved = false;
   {
     MyClientDBGuard dbg;
-    if (dbg.db().open_db(p->client_id.as_string()))
+    if (dbg.db().open_db(p->client_id.to_str()))
       b_saved = dbg.db().save_md5_command(p->dist_id.data(), p->md5_text(), "");
   }
 
@@ -3661,7 +3660,7 @@ void MyClientToDistService::do_md5_task(MyDistInfoMD5 * p)
     client_md5s.to_buffer(md5_client.data(), len, true);
 
     MyClientDBGuard dbg;
-    if (dbg.db().open_db(p->client_id.as_string()))
+    if (dbg.db().open_db(p->client_id.to_str()))
       b_saved = dbg.db().save_md5_command(p->dist_id.data(), p->md5_text(), md5_client.data());
   }
 
@@ -3687,7 +3686,7 @@ void MyClientToDistService::do_extract_task(MyDistInfoFtp * dist_info)
     dist_info->status = extractor.extract(dist_info) ? 4:5;
     dist_info->update_db_status();
     dist_info->post_status_message();
-    C_INFO("update done for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
+    C_INFO("update done for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.to_str());
     if (!g_is_test && dist_info->status == 4)
     {
       if (ftype_is_adv_list(dist_info->ftype))
@@ -3972,7 +3971,7 @@ void MyBufferedMB::touch(time_t t)
 
 bool MyBufferedMB::match(uuid_t uuid)
 {
-  MyDataPacketHeader * dph = (MyDataPacketHeader*)m_mb->base();
+  CCmdHeader * dph = (CCmdHeader*)m_mb->base();
   return uuid_compare(dph->uuid, uuid) == 0;
 }
 
@@ -3996,7 +3995,7 @@ void MyBufferedMBs::connection_manager(CConnectionManagerBase * p)
 
 void MyBufferedMBs::add(ACE_Message_Block * mb)
 {
-  if (!mb || mb->capacity() < (size_t)sizeof(MyDataPacketHeader))
+  if (!mb || mb->capacity() < (size_t)sizeof(CCmdHeader))
     return;
   MyBufferedMB * obj = new MyBufferedMB(mb);
   m_mblist.push_back(obj);
@@ -4054,7 +4053,7 @@ MyClientToDistDispatcher::~MyClientToDistDispatcher()
 
 }
 
-bool MyClientToDistDispatcher::on_start()
+bool MyClientToDistDispatcher::before_begin()
 {
   m_middle_connector = new MyClientToMiddleConnector(this, new CConnectionManagerBase());
   add_connector(m_middle_connector);
@@ -4143,7 +4142,7 @@ void MyClientToDistDispatcher::add_to_buffered_mbs(ACE_Message_Block * mb)
   m_buffered_mbs.add(mb);
 }
 
-void MyClientToDistDispatcher::on_stop()
+void MyClientToDistDispatcher::before_finish()
 {
   m_connector = NULL;
   m_middle_connector = NULL;
@@ -4156,7 +4155,7 @@ void MyClientToDistDispatcher::check_watch_dog()
     MyClientAppX::instance()->opera_launcher().relaunch();
 }
 
-bool MyClientToDistDispatcher::on_event_loop()
+bool MyClientToDistDispatcher::do_schedule_work()
 {
   ACE_Message_Block * mb;
   const int const_batch_count = 30;
@@ -4169,24 +4168,24 @@ bool MyClientToDistDispatcher::on_event_loop()
         C_DEBUG("packet to dist: length = %d\n", mb->length());
       if (g_is_test)
       {
-        int index = ((MyDataPacketHeader*)mb->base())->magic;
+        int index = ((CCmdHeader*)mb->base())->signature;
         CHandlerBase * handler = m_connector->connection_manager()->find_handler_by_index(index);
         if (!handler)
         {
-          C_WARNING("can not send data to client since connection is lost @ %s::on_event_loop\n", name());
+          C_WARNING("can not send data to client since connection is lost @ %s::do_schedule_work\n", name());
           mb->release();
           continue;
         }
 
-        ((MyDataPacketHeader*)mb->base())->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
+        ((CCmdHeader*)mb->base())->signature = CCmdHeader::SIGNATURE;
         if (handler->send_data(mb) < 0)
           handler->handle_close();
       } else
       {
-        if (likely(mb->capacity() >= (int)sizeof(MyDataPacketHeader)))
+        if (likely(mb->capacity() >= (int)sizeof(CCmdHeader)))
         {
-          MyDataPacketHeader * dph = (MyDataPacketHeader*)mb->base();
-          if (dph->command == MyDataPacketHeader::CMD_FTP_FILE)
+          CCmdHeader * dph = (CCmdHeader*)mb->base();
+          if (dph->cmd == CCmdHeader::PT_FTP_FILE)
           {
             uuid_t uuid;
             uuid_clear(uuid);
@@ -4233,11 +4232,11 @@ void MyHwAlarm::y(char _y)
 
 ACE_Message_Block * MyHwAlarm::make_hardware_alarm_mb()
 {
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd_direct(sizeof(MyPLCAlarm),
-      MyDataPacketHeader::CMD_HARDWARE_ALARM);
+  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd_direct(sizeof(CPLCWarning),
+      CCmdHeader::PT_HARDWARE_ALARM);
   if (g_is_test)
-    ((MyDataPacketHeader *)mb->base())->magic = 0;
-  MyPLCAlarm * dpe = (MyPLCAlarm *)mb->base();
+    ((CCmdHeader *)mb->base())->signature = 0;
+  CPLCWarning * dpe = (CPLCWarning *)mb->base();
   dpe->x = m_x;
   dpe->y = m_y;
   return mb;
@@ -4250,13 +4249,13 @@ MyClientToDistModule::MyClientToDistModule(CApp * app): CMod(app)
 {
   if (g_is_test)
   {
-    CClientIDS & client_id_table = MyClientAppX::instance()->client_id_table();
+    CTermSNs & client_id_table = MyClientAppX::instance()->client_id_table();
     int count = client_id_table.count();
-    MyClientID client_id;
+    CNumber client_id;
     for (int i = 0; i < count; ++ i)
     {
       if (client_id_table.value(i, &client_id))
-        m_id_generator.put(client_id.as_string());
+        m_id_generator.put(client_id.to_str());
     }
   }
   m_service = NULL;
@@ -4349,7 +4348,7 @@ void MyClientToDistModule::ask_for_server_addr_list_done(bool success)
   if (m_client_ftp_service)
     return;
   if (g_is_test)
-    add_task(m_client_ftp_service = new MyClientFtpService(this, CCfgX::instance()->test_client_download_thread_count));
+    add_task(m_client_ftp_service = new MyClientFtpService(this, CCfgX::instance()->download_threads));
   else
     add_task(m_client_ftp_service = new MyClientFtpService(this, 1));
   m_client_ftp_service->start();
@@ -4397,18 +4396,18 @@ ACE_Message_Block * MyClientToDistModule::get_click_infos(const char * client_id
   }
 
   ++len;
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(len, MyDataPacketHeader::CMD_UI_CLICK, false);
-  MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(len, CCmdHeader::PT_ADV_CLICK, false);
+  CCmdExt * dpe = (CCmdExt *)mb->base();
   char * ptr = dpe->data;
   for (it = click_infos.begin(); it != click_infos.end(); ++it)
   {
     ACE_OS::sprintf(ptr, "%s%c%s%c%s%c",
         it->channel.c_str(),
-        MyDataPacketHeader::ITEM_SEPARATOR,
+        CCmdHeader::ITEM_SEPARATOR,
         it->point_code.c_str(),
-        MyDataPacketHeader::ITEM_SEPARATOR,
+        CCmdHeader::ITEM_SEPARATOR,
         it->click_count.c_str(),
-        MyDataPacketHeader::FINISH_SEPARATOR);
+        CCmdHeader::FINISH_SEPARATOR);
     ptr += it->len;
   }
   return mb;
@@ -4425,14 +4424,14 @@ ACE_Message_Block * MyClientToDistModule::get_vlc_infos(const char *) const
   return items.make_mb();
 }
 
-bool MyClientToDistModule::on_start()
+bool MyClientToDistModule::before_begin()
 {
   add_task(m_service = new MyClientToDistService(this, 1));
   add_dispatch(m_dispatcher = new MyClientToDistDispatcher(this));
   return true;
 }
 
-void MyClientToDistModule::on_stop()
+void MyClientToDistModule::before_finish()
 {
   m_service = NULL;
   m_dispatcher = NULL;
@@ -4504,77 +4503,77 @@ int MyClientToMiddleProcessor::on_open()
   return send_version_check_req();
 }
 
-CProcBase::EVENT_RESULT MyClientToMiddleProcessor::on_recv_header()
+CProcBase::OUTPUT MyClientToMiddleProcessor::on_recv_header()
 {
-  CProcBase::EVENT_RESULT result = super::on_recv_header();
-  if (result != ER_CONTINUE)
-    return ER_ERROR;
+  CProcBase::OUTPUT result = super::on_recv_header();
+  if (result != OP_CONTINUE)
+    return OP_FAIL;
 
-  bool bVersionCheckReply = m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY;
+  bool bVersionCheckReply = m_packet_header.cmd == CCmdHeader::PT_VER_REPLY;
 
   if (bVersionCheckReply)
   {
-    if (!my_dph_validate_client_version_check_reply(&m_packet_header))
+    if (!c_packet_check_term_ver_reply(&m_packet_header))
     {
       C_ERROR("failed to validate header for version check reply\n");
-      return ER_ERROR;
+      return OP_FAIL;
     }
-    return ER_OK;
+    return OP_OK;
   }
 
-  C_ERROR("unexpected packet header from dist server, header.command = %d\n", m_packet_header.command);
-  return ER_ERROR;
+  C_ERROR("unexpected packet header from dist server, header.command = %d\n", m_packet_header.cmd);
+  return OP_FAIL;
 }
 
-CProcBase::EVENT_RESULT MyClientToMiddleProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::OUTPUT MyClientToMiddleProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
   CFormatProcBase::on_recv_packet_i(mb);
   m_wait_for_close = true;
   CMBGuard guard(mb);
 
-  MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
-  if (header->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY)
+  CCmdHeader * header = (CCmdHeader *)mb->base();
+  if (header->cmd == CCmdHeader::PT_VER_REPLY)
     do_version_check_reply(mb);
   else
     C_ERROR("unsupported command received @MyClientToDistProcessor::on_recv_packet_i(), command = %d\n",
-        header->command);
-  return ER_ERROR;
+        header->cmd);
+  return OP_FAIL;
 }
 
 void MyClientToMiddleProcessor::do_version_check_reply(ACE_Message_Block * mb)
 {
   const char * prefix_msg = "middle server version check reply:";
-  MyClientVersionCheckReply * vcr = (MyClientVersionCheckReply *) mb->base();
-  switch (vcr->reply_code)
+  CTermVerReply * vcr = (CTermVerReply *) mb->base();
+  switch (vcr->ret_subcmd)
   {
-  case MyClientVersionCheckReply::VER_MISMATCH:
+  case CTermVerReply::SC_NOT_MATCH:
     C_ERROR("%s get version mismatch response\n", prefix_msg);
     return;
 
-  case MyClientVersionCheckReply::VER_ACCESS_DENIED:
+  case CTermVerReply::SC_ACCESS_DENIED:
     C_ERROR("%s get access denied response\n", prefix_msg);
     return;
 
-  case MyClientVersionCheckReply::VER_SERVER_BUSY:
+  case CTermVerReply::SC_SERVER_BUSY:
     C_ERROR("%s get server busy response\n", prefix_msg);
     return;
 
-  case MyClientVersionCheckReply::VER_SERVER_LIST:
+  case CTermVerReply::SC_SERVER_LIST:
     do_handle_server_list(mb);
     return;
 
   default:
-    C_ERROR("%s get unexpected reply code = %d\n", prefix_msg, vcr->reply_code);
+    C_ERROR("%s get unexpected reply code = %d\n", prefix_msg, vcr->ret_subcmd);
     return;
   }
 }
 
 void MyClientToMiddleProcessor::do_handle_server_list(ACE_Message_Block * mb)
 {
-  MyClientVersionCheckReply * vcr = (MyClientVersionCheckReply *)mb->base();
+  CTermVerReply * vcr = (CTermVerReply *)mb->base();
   MyClientToDistModule * module = MyClientAppX::instance()->client_to_dist_module();
-  int len = vcr->length;
-  if (len == (int)sizeof(MyClientVersionCheckReply))
+  int len = vcr->size;
+  if (len == (int)sizeof(CTermVerReply))
   {
     C_WARNING("middle server returns empty dist server addr list\n");
     module->ask_for_server_addr_list_done(false);
@@ -4590,10 +4589,10 @@ void MyClientToMiddleProcessor::do_handle_server_list(ACE_Message_Block * mb)
 int MyClientToMiddleProcessor::send_version_check_req()
 {
   ACE_Message_Block * mb = make_version_check_request_mb();
-  MyClientVersionCheckRequest * proc = (MyClientVersionCheckRequest *)mb->base();
-  proc->client_version_major = const_client_version_major;
-  proc->client_version_minor = const_client_version_minor;
-  proc->client_id = m_client_id;
+  CTerminalVerReq * proc = (CTerminalVerReq *)mb->base();
+  proc->term_ver_major = const_client_version_major;
+  proc->term_ver_minor = const_client_version_minor;
+  proc->term_sn = m_client_id;
   proc->server_id = 0;
   C_INFO("sending handshake request to middle server...\n");
   return (m_handler->send_data(mb) < 0? -1: 0);
@@ -4604,7 +4603,7 @@ int MyClientToMiddleProcessor::send_version_check_req()
 
 MyClientToMiddleHandler::MyClientToMiddleHandler(CConnectionManagerBase * xptr): CHandlerBase(xptr)
 {
-  m_processor = new MyClientToMiddleProcessor(this);
+  m_proc = new MyClientToMiddleProcessor(this);
   m_timer_out_timer_id = -1;
 }
 
@@ -4646,7 +4645,7 @@ PREPARE_MEMORY_POOL(MyClientToMiddleHandler);
 MyClientToMiddleConnector::MyClientToMiddleConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager):
     CConnectorBase(_dispatcher, _manager)
 {
-  m_tcp_port = CCfgX::instance()->middle_server_client_port;
+  m_tcp_port = CCfgX::instance()->pre_client_port;
   m_tcp_addr = CCfgX::instance()->middle_addr;
   m_reconnect_interval = RECONNECT_INTERVAL;
   m_retried_count = 0;
@@ -4797,7 +4796,7 @@ void MyHttp1991Processor::do_command_adv_click(char * parameter)
     *ptr = 0;
 
   MyClientDBGuard dbg;
-  if (dbg.db().open_db(m_client_id.as_string()))
+  if (dbg.db().open_db(m_client_id.to_str()))
     dbg.db().save_click_info(parameter, pcode);
   send_string("*1");
 }
@@ -4903,10 +4902,10 @@ ACE_Message_Block * MyHttp1991Processor::make_pc_on_off_mb(bool on, const char *
 {
   int len = ACE_OS::strlen(sdata);
   ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(len + 1 + 1,
-      MyDataPacketHeader::CMD_PC_ON_OFF);
+      CCmdHeader::PT_PC_ON_OFF);
   if (g_is_test)
-    ((MyDataPacketHeader *)mb->base())->magic = 0;
-  MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
+    ((CCmdHeader *)mb->base())->signature = 0;
+  CCmdExt * dpe = (CCmdExt *)mb->base();
   dpe->data[0] = on ? '1' : '2';
   ACE_OS::memcpy(dpe->data + 1, sdata, len + 1);
   return mb;
@@ -4939,7 +4938,7 @@ void MyHttp1991Processor::send_string(const char * s)
 MyHttp1991Handler::MyHttp1991Handler(CConnectionManagerBase * xptr)
   : CHandlerBase(xptr)
 {
-  m_processor = new MyHttp1991Processor(this);
+  m_proc = new MyHttp1991Processor(this);
 }
 
 

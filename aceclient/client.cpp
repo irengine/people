@@ -577,7 +577,7 @@ bool MyClientApp::send_mb_to_dist(ACE_Message_Block * mb)
   return c_util_mb_putq(m_client_to_dist_module->dispatcher(), mb, "to client_to_dist service queue");
 }
 
-const CClientVer & MyClientApp::client_version() const
+const CTermVer & MyClientApp::client_version() const
 {
   return m_client_version;
 }
@@ -620,7 +620,7 @@ void MyClientApp::data_path(CMemGuard & _data_path, const char * client_id)
   {
     char tmp[128];
     tmp[0] = 0;
-    CClientPathGenerator::client_id_to_path(client_id, tmp, 128);
+    CTerminalDirCreator::term_sn_to_dir(client_id, tmp, 128);
     _data_path.from_string(CCfgX::instance()->app_path.c_str(), "/data/", tmp);
   } else
     _data_path.from_string(CCfgX::instance()->app_path.c_str(), "/data");
@@ -669,15 +669,15 @@ bool MyClientApp::full_backup(const char * dist_id, const char * client_id)
 
   snew.from_string(dest_parent_path.data(), "/new");
   sold.from_string(dest_parent_path.data(), "/old");
-  CSysFS::remove_path(sold.data(), true);
+  CSysFS::delete_dir(sold.data(), true);
 
-  if (!CSysFS::make_path(sold.data(), true))
+  if (!CSysFS::create_dir(sold.data(), true))
   {
     C_ERROR("can not mkdir(%s) %s\n", sold.data(), (const char *)CErrno());
     return false;
   }
 
-  return CSysFS::copy_path(snew.data(), sold.data(), true, false);
+  return CSysFS::copy_dir(snew.data(), sold.data(), true, false);
 }
 
 bool MyClientApp::full_restore(const char * dist_id, bool remove_existing, bool is_new, const char * client_id, bool init)
@@ -753,7 +753,7 @@ bool MyClientApp::do_backup_restore(const CMemGuard & src_parent_path, const CMe
     CSysFS::zap(dest_path.data(), true);
   if (CSysFS::stat(src_path.data(), &buf) && S_ISDIR(buf.st_mode))
   {
-    if (!CSysFS::copy_path(src_path.data(), dest_path.data(), true, syn))
+    if (!CSysFS::copy_dir(src_path.data(), dest_path.data(), true, syn))
     {
       C_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)CErrno());
       return false;
@@ -777,7 +777,7 @@ bool MyClientApp::do_backup_restore(const CMemGuard & src_parent_path, const CMe
     CSysFS::zap(dest_path.data(), true);
   if (CSysFS::stat(src_path.data(), &buf) && S_ISDIR(buf.st_mode))
   {
-    if (!CSysFS::copy_path(src_path.data(), dest_path.data(), true, syn))
+    if (!CSysFS::copy_dir(src_path.data(), dest_path.data(), true, syn))
     {
       C_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)CErrno());
       return false;
@@ -837,17 +837,17 @@ bool MyClientApp::get_mfile_from_file(const CMemGuard & parent_path, CMemGuard &
   return false;
 }
 
-bool MyClientApp::on_start()
+bool MyClientApp::before_begin()
 {
   return true;
 }
 
-void MyClientApp::on_stop()
+void MyClientApp::before_finish()
 {
 
 }
 
-bool MyClientApp::on_construct()
+bool MyClientApp::do_init()
 {
   if (!g_is_test)
   {
@@ -916,24 +916,24 @@ bool MyClientApp::on_construct()
     }
   }
 
-  add_module(m_client_to_dist_module = new MyClientToDistModule(this));
+  add_component(m_client_to_dist_module = new MyClientToDistModule(this));
 
   return true;
 }
 
-void MyClientApp::do_dump_info()
+void MyClientApp::i_print()
 {
   MyClientApp::dump_mem_pool_info();
 }
 
-bool MyClientApp::on_sigchild(pid_t pid)
+bool MyClientApp::do_singal_child(pid_t pid)
 {
   m_opera_launcher.on_terminated(pid);
   m_vlc_launcher.on_terminated(pid);
   return true;
 }
 
-bool MyClientApp::on_event_loop()
+bool MyClientApp::do_schedule_work()
 {
   return true;
 }
@@ -942,7 +942,7 @@ void MyClientApp::dump_mem_pool_info()
 {
   ACE_DEBUG((LM_INFO, "  !!! Memory Dump start !!!\n"));
   long nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
-  if (!g_use_mem_pool)
+  if (!g_cache)
   {
     ACE_DEBUG((LM_INFO, "    Memory Pool Disabled\n"));
     goto _exit_;
@@ -983,12 +983,12 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::CAppMode mode)
     std::printf("error loading config file, quitting\n");
     exit(5);
   }
-  if (geteuid() == 0 && cfg->client_can_root == 0)
+  if (geteuid() == 0 && cfg->can_root == 0)
   {
     std::printf("error run as root, quitting\n");
     exit(6);
   }
-  if (cfg->as_demon)
+  if (cfg->is_demon)
     CApp::demon();
 
   MyClientToMiddleHandler::init_mem_pool(20);
@@ -1016,17 +1016,17 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::CAppMode mode)
       ifs.getline(id, 64);
       app->m_client_id_table.add(id);
     }
-    CClientPathGenerator::make_paths_from_id_table(cfg->data_path.c_str(), &app->m_client_id_table);
+    CTerminalDirCreator::create_dirs_from_TermSNs(cfg->data_path.c_str(), &app->m_client_id_table);
     MyClientToDistHandler::init_mem_pool(app->m_client_id_table.count() * 1.2);
 
     int m = app->m_client_id_table.count();
-    MyClientID client_id;
+    CNumber client_id;
     time_t deadline = time_t(NULL) - CONST_one_day * 10;
     for (int i = 0; i < m; ++i)
     {
       app->m_client_id_table.value(i, &client_id);
       MyClientDBGuard dbg;
-      if (dbg.db().open_db(client_id.as_string(), true))
+      if (dbg.db().open_db(client_id.to_str(), true))
       {
         dbg.db().remove_outdated_ftp_command(deadline);
 //        dbg.db().reset_ftp_command_status();
@@ -1035,12 +1035,12 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::CAppMode mode)
   } else
   {
     std::string path_x = cfg->app_path + "/data/download";
-    CSysFS::make_path(path_x.c_str(), true);
+    CSysFS::create_dir(path_x.c_str(), true);
     path_x = cfg->app_path + "/data/tmp";
-    CSysFS::remove_path(path_x.c_str(), true);
-    CSysFS::make_path(path_x.c_str(), true);
+    CSysFS::delete_dir(path_x.c_str(), true);
+    CSysFS::create_dir(path_x.c_str(), true);
     path_x = cfg->app_path + "/data/backup";
-    CSysFS::make_path(path_x.c_str(), true);
+    CSysFS::create_dir(path_x.c_str(), true);
 
 //    if(cfg->adv_expire_days > 0)
 //    {
@@ -1131,7 +1131,7 @@ int main(int argc, const char * argv[])
     ret = MyClientApp::app_init(NULL, CCfg::AM_CLIENT);
 
   if (ret)
-    MyClientAppX::instance()->start();
+    MyClientAppX::instance()->begin();
   MyClientApp::app_fini();
   return 0;
 }

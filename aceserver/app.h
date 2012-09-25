@@ -2,15 +2,17 @@
 #define APP_H_djkakifu33laf
 
 #include <ace/Singleton.h>
-#include <string>
 #include <ace/Configuration_Import_Export.h>
+
+#include <string>
+
 #include "tools.h"
 #include "component.h"
 
 
 EXTERN truefalse g_is_test;
 EXTERN long g_clock_counter;
-EXTERN CONST text * g_CONST_app_ver;
+EXTERN CONST text * g_CONST_ver;
 
 typedef ACE_Configuration_Heap CCfgHeap;
 typedef ACE_Configuration_Section_Key CCfgKey;
@@ -25,37 +27,40 @@ public:
   enum CAppMode
   {
     AM_UNKNOWN = 0,
-    AM_DIST_SERVER = 1,
-    AM_MIDDLE_SERVER = 2,
+    AM_DIST = 1,
+    AM_MIDDLE = 2,
     AM_CLIENT = 3
   };
 
   CCfg();
-  truefalse readall(CONST text * home_dir, CAppMode mode);
+  truefalse readall(CONST text *, CAppMode);
   DVOID print_all();
-  truefalse is_dist() CONST;
-  truefalse is_middle() CONST;
-  truefalse is_server() CONST;
-  truefalse is_client() CONST;
+  truefalse dist() CONST;
+  truefalse middle() CONST;
+  truefalse server() CONST;
+  truefalse client() CONST;
 
-  //common
-  CAppMode  app_mode;
-
-  truefalse use_mem_pool;
-  truefalse as_demon;
-  ni  mem_dump_interval;
-  ni  file_check_interval;
-
+  //all
+  CAppMode  mode;
+  truefalse mem_pool;
+  truefalse is_demon;
+  ni  print_delay;
+  ni  fcheck_delay;
   ni  log_file_count;
   ni  log_file_size; //megabytes
   truefalse log_debug;
-  truefalse log_stderr;
-
+  truefalse log_console;
   ni remote_port;
+  std::string data_path;
+  std::string exe_path;
+  std::string status_fn;
+  std::string app_path;
+  std::string log_fn;
+  std::string cfg_fn;
 
   //server
-  ni  max_client_count;
-  ni  middle_server_dist_port;
+  ni  client_peak;
+  ni  server_port;
   std::string skey;
   std::string db_addr;
   ni db_port;
@@ -65,49 +70,40 @@ public:
   std::string bs_addr;
   ni bs_port;
 
-  //client dist
+  //cd
   ni ping_port;
   std::string middle_addr;
 
-  //client middle
-  ni middle_server_client_port;
+  //cm
+  ni pre_client_port;
 
-  //client
+  //c
   ni client_ping_interval;
-  ni test_client_download_thread_count;
-  ni client_adv_expire_days;
-  ni client_download_timeout;
-  ni client_download_retry_count;
-  ni client_download_retry_interval;
-  ni client_can_root;
+  ni download_threads;
+  ni adv_keep_days;
+  ni download_timeout;
+  ni download_retry_count;
+  ni download_retry_delay;
+  ni can_root;
 
-  //dist
-  ni module_heart_beat_mem_pool_size;
-  CClientVer client_ver_min;
-  CClientVer client_ver_now;
-  u8 dist_server_id;
+  //d
+  CTermVer client_ver_min;
+  CTermVer client_ver_now;
+  u8 server_id;
 
-  //middle
+  //m
   ni http_port;
-  std::string ftp_addr_list;
-
-  //all paths
-  std::string data_path;
-  std::string exe_path;
-  std::string status_fn;
-  std::string app_path;
-  std::string log_fn;
-  std::string cfg_fn;
+  std::string ftp_servers;
 
 private:
   truefalse read_dist(CCfgHeap & , CCfgKey & );
   truefalse read_middle(CCfgHeap & , CCfgKey & );
-  DVOID do_init(CONST text * app_home_path);
   truefalse read_dist_middle(CCfgHeap &, CCfgKey &);
   truefalse read_client_middle(CCfgHeap &, CCfgKey &);
   truefalse read_client_dist(CCfgHeap &, CCfgKey &);
   truefalse read_base(CCfgHeap &, CCfgKey &);
   truefalse read_client(CCfgHeap &, CCfgKey &);
+  DVOID do_init(CONST text * app_home_path);
 };
 
 typedef ACE_Unmanaged_Singleton<CCfg, ACE_Null_Mutex> CCfgX;
@@ -151,16 +147,16 @@ public:
 class CApp
 {
 public:
-  enum { CLOCK_INTERVAL = 10 };
+  enum { CLOCK_TIME = 10 };
   CApp();
   virtual ~CApp();
   truefalse running() CONST;
-  DVOID start();
-  DVOID stop();
+  DVOID begin();
+  DVOID end();
   DVOID print_info();
   DVOID init_log();
   SF DVOID demon();
-  SF DVOID print_pool(CONST text * name_of_pool, long nAlloc, long nFree, long nMaxUse, long nAllocFull, ni block_size, ni chunks);
+  SF DVOID print_pool(CONST text * name_of_pool, long, long, long, long, ni, ni);
 
 protected:
   friend class CSignaller;
@@ -168,35 +164,35 @@ protected:
 
   typedef std::vector<CMod *> CMods;
 
-  virtual DVOID do_dump_info();
-  virtual truefalse on_sigchild(pid_t);
-  virtual truefalse on_event_loop();
-  virtual truefalse on_start();
-  virtual truefalse on_construct();
-  virtual DVOID on_stop();
+  virtual truefalse before_begin();
+  virtual truefalse do_init();
+  virtual DVOID before_finish();
+  virtual DVOID i_print();
+  virtual truefalse do_singal_child(pid_t);
+  virtual truefalse do_schedule_work();
 
-  truefalse do_sigchild();
-  DVOID on_sig_event(ni);
+  truefalse handle_signal_child();
+  DVOID handle_signal(ni);
   DVOID schedule_works();
-  truefalse do_sighup();
-  DVOID on_status_file_missing();
+  truefalse handle_signal_up();
+  DVOID handle_no_sfile();
   truefalse delayed_init();
-  DVOID add_module(CMod *);
+  DVOID add_component(CMod *);
 
-  CMods m_modules;
+  CMods m_components;
+
 private:
-
-  CSignaller m_sig_handler;
-  ACE_Sig_Handler m_ace_sig_handler;
-  CNotificationFiler m_status_file_checker;
+  truefalse m_chld;
+  truefalse m_term;
+  truefalse m_hup;
+  CSignaller m_sig;
+  CNotificationFiler m_sfile;
   CPrinter m_printer;
-  CClocker m_clock;
+  truefalse m_sfile_ok;
+  truefalse m_sfile_check;
   truefalse m_running;
-  truefalse m_sighup;
-  truefalse m_sigchld;
-  truefalse m_sigterm;
-  truefalse m_status_file_ok;
-  truefalse m_status_file_check;
+  CClocker m_clock;
+  ACE_Sig_Handler m_signal_handler;
 };
 
-#endif /* SERVERAPP_H_ */
+#endif

@@ -117,7 +117,7 @@ public:
 
   MyClientToDistModule * client_to_dist_module() const;
   bool send_mb_to_dist(ACE_Message_Block * mb);
-  const CClientVer & client_version() const;
+  const CTermVer & client_version() const;
   const char * client_id() const;
   MyVLCLauncher & vlc_launcher();
   MyOperaLauncher & opera_launcher();
@@ -125,7 +125,7 @@ public:
   const char * ftp_password();
   void ftp_password(const char * password);
 
-  CClientIDS & client_id_table()
+  CTermSNs & client_id_table()
     { return m_client_id_table; }
 
   static void data_path(CMemGuard & _data_path, const char * client_id = NULL);
@@ -144,20 +144,20 @@ public:
   static bool do_backup_restore(const CMemGuard & src_parent_path, const CMemGuard & dest_path, bool remove_existing, bool init, bool syn);
 
 protected:
-  virtual bool on_start();
-  virtual bool on_construct();
-  virtual void on_stop();
-  virtual void do_dump_info();
-  virtual bool on_sigchild(pid_t pid);
-  virtual bool on_event_loop();
+  virtual bool before_begin();
+  virtual bool do_init();
+  virtual void before_finish();
+  virtual void i_print();
+  virtual bool do_singal_child(pid_t pid);
+  virtual bool do_schedule_work();
 
 private:
   static bool get_mfile_from_file(const CMemGuard & parent_path, CMemGuard & mfile);
 
   MyClientToDistModule * m_client_to_dist_module;
-  CClientVer m_client_version;
+  CTermVer m_client_version;
   std::string m_client_id;
-  CClientIDS m_client_id_table;
+  CTermSNs m_client_id_table;
   MyVLCLauncher m_vlc_launcher;
   MyVLCMonitor  m_vlc_monitor;
   MyOperaLauncher m_opera_launcher;

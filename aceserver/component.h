@@ -34,23 +34,23 @@ class CDispatchBase;
 class CConnectorBase;
 class CProcBase;
 
-class CClientVer
+class CTermVer
 {
 public:
-  CClientVer();
-  CClientVer(u_int8_t major, u_int8_t minor);
-  DVOID init(u_int8_t major, u_int8_t minor);
+  CTermVer();
+  CTermVer(u8 major, u8 minor);
+  DVOID init(u8 major, u8 minor);
   truefalse from_string(CONST text * s);
   CONST text * to_string() CONST;
-  truefalse operator < (CONST CClientVer & rhs);
+  truefalse operator < (CONST CTermVer & rhs);
 
 private:
-  enum { DATA_BUFF_SIZE = 8 };
+  enum { DATA_LEN = 8 };
   DVOID prepare_buff();
 
   u8 m_major;
   u8 m_minor;
-  text m_data[DATA_BUFF_SIZE];
+  text m_data[DATA_LEN];
 };
 
 class CMfileSplit
@@ -68,43 +68,43 @@ private:
   CMemGuard m_translated_name;
 };
 
-class CClientInfo
+class CTermData
 {
 public:
-  CClientInfo();
-  CClientInfo(CONST MyClientID & id, CONST text * _ftp_password = NULL, truefalse _expired = false);
-  DVOID set_password(CONST text * _ftp_password);
+  CTermData();
+  CTermData(CONST CNumber & id, CONST text * _password = NULL, truefalse _exp = false);
+  DVOID set_password(CONST text * _password);
 
-  enum { FTP_PASSWORD_LEN = 24 };
+  enum { PWD_SIZE = 24 };
 
   truefalse active;
   truefalse expired;
   truefalse switched;
-  MyClientID client_id;
-  text ftp_password[FTP_PASSWORD_LEN];
-  ni  password_len;
+  CNumber term_sn;
+  text password[PWD_SIZE];
+  ni   password_len;
 };
 
-class CClientIDS
+class CTermSNs
 {
 public:
-  CClientIDS();
-  ~CClientIDS();
-  truefalse have(CONST MyClientID & id);
-  DVOID add(CONST MyClientID & id);
-  DVOID add(CONST text * str_id, CONST text *ftp_password = NULL, truefalse expired = false);
-  DVOID add_batch(text * idlist); //in the format of "12334434;33222334;34343111;..."
-  ni  index_of(CONST MyClientID & id);
+  CTermSNs();
+  ~CTermSNs();
+  truefalse have(CONST CNumber & );
+  DVOID add(CONST CNumber & );
+  DVOID add(CONST text * , CONST text * pwd = NULL, truefalse exp = false);
+  DVOID add_batch(text * ); //"34;100;111;..."
+  ni  index_of(CONST CNumber & );
   ni  count();
-  truefalse value(ni index, MyClientID * id);
-  truefalse value_all(ni index, CClientInfo & client_info);
-  truefalse active(CONST MyClientID & id, ni & index, truefalse & switched);
+  truefalse value(ni index, CNumber * );
+  truefalse value_all(ni index, CTermData & );
+  truefalse active(CONST CNumber & id, ni & index, truefalse & switched);
 //  DVOID active(CONST MyClientID & id, truefalse _active);
   truefalse active(ni index);
-  DVOID active(ni index, truefalse _active);
-  DVOID switched(ni index, truefalse _switched);
-  DVOID expired(ni index, truefalse _expired);
-  truefalse mark_valid(CONST MyClientID & id, truefalse valid, ni & idx);
+  DVOID active(ni index, truefalse );
+  DVOID switched(ni index, truefalse );
+  DVOID expired(ni index, truefalse );
+  truefalse mark_valid(CONST CNumber & , truefalse valid, ni & idx);
 
   //APIs used only by db-layer
   ni  last_sequence() CONST;
@@ -112,26 +112,23 @@ public:
   DVOID prepare_space(ni _count);
 
 private:
-  typedef std::vector<CClientInfo > ClientIDTable_type;
-  typedef std::map<MyClientID, ni> ClientIDTable_map;
+  typedef std::vector<CTermData > CTermSNs_type;
+  typedef std::map<CNumber, ni> CTermSNs_map;
 
-//  typedef std::vector<MyClientID, MyAllocator<MyClientID> > ClientIDTable_type;
-//  typedef std::map<MyClientID, ni, std::less<MyClientID>, MyAllocator<std::pair<const MyClientID,ni> > > ClientIDTable_map;
-  ni index_of_i(CONST MyClientID & id, ClientIDTable_map::iterator * pIt = NULL);
-  DVOID add_i(CONST MyClientID & id, CONST text *ftp_password, truefalse expired);
-  ClientIDTable_type  m_table;
-  ClientIDTable_map   m_map;
+  ni index_of_i(CONST CNumber & , CTermSNs_map::iterator * pIt = NULL);
+  DVOID add_i(CONST CNumber & , CONST text *_password, truefalse expired);
+  CTermSNs_type  m_table;
+  CTermSNs_map   m_map;
   ACE_RW_Thread_Mutex m_mutex;
   ni m_last_sequence;
 };
 
-EXTERN CClientIDS * g_client_ids; //the side effect of sharing the source codes...
+EXTERN CTermSNs * g_client_ids; //the side effect of sharing the source codes...
 
 class CFileMD5
 {
 public:
   enum { MD5_STRING_LENGTH = 32 };
-  //  /root/mydir/a.txt  prefix=/root/mydir/
   CFileMD5(CONST text * _filename, CONST text * md5, ni prefix_len, CONST text * alias = NULL);
   truefalse ok() CONST
   {
@@ -172,7 +169,7 @@ private:
 class CFileMD5s
 {
 public:
-  typedef std::vector<CFileMD5 *, CCppAllocator<CFileMD5 *> > MyFileMD5List;
+  typedef std::vector<CFileMD5 *, CCppAllocator<CFileMD5 *> > CFileMD5Vec;
 
   CFileMD5s();
   ~CFileMD5s();
@@ -189,11 +186,11 @@ public:
     return m_file_md5_list.size();
   }
   truefalse to_buffer(text * buff, ni buff_len, truefalse include_md5_value);
-  truefalse from_buffer(text * buff, CMfileSplit * spl = NULL);
+  truefalse from_buffer(text * buff, CMfileSplit * p = NULL);
 
   ni  total_size(truefalse include_md5_value);
   truefalse calculate(CONST text * dirname, CONST text * mfile, truefalse single);
-  truefalse calculate_diff(CONST text * dirname, CMfileSplit * spl = NULL);
+  truefalse calculate_diff(CONST text * dirname, CMfileSplit * p = NULL);
 
 private:
   typedef std::tr1::unordered_map<const text *,
@@ -208,7 +205,7 @@ private:
 
   CFileMD5 * find(CONST text * fn);
 
-  MyFileMD5List m_file_md5_list;
+  CFileMD5Vec m_file_md5_list;
   CMemGuard m_base_dir; //todo: remove m_base_dir
   ni m_base_dir_len;
   MyMD5map * m_md5_map;
@@ -237,12 +234,12 @@ protected:
 class CPackHead
 {
 public:
-  enum { HEADER_MAGIC = 0x96809685 };
-  int32_t header_length;
-  u_int32_t magic;
-  int32_t data_length; //not including the header
-  int32_t encrypted_data_length;
-  text    file_name[0];
+  enum { SIGNATURE = 0x96809685 };
+  i32  header_size;
+  u32  signature;
+  i32  data_size; //exclude header
+  i32  encrypted_data_length;
+  text fn[0];
 };
 
 #pragma pack(pop)
@@ -275,12 +272,12 @@ public:
   {}
   truefalse open(CONST text * filename);
   truefalse open(CONST text * dir, CONST text * filename);
-  virtual truefalse write(text * buff, ni buff_len);
+  virtual truefalse write(text *, ni);
   DVOID close();
 
 protected:
   truefalse do_open();
-  truefalse do_write(text * buff, ni buff_len);
+  truefalse do_write(text *, ni);
 
   CUnixFileGuard m_file;
   CMemGuard m_file_name;
@@ -321,7 +318,7 @@ class CDataComp
 public:
   CDataComp();
   enum { COMPRESS_100k = 3 };
-  enum { BUFFER_LEN = 4096 };
+  enum { BUFF_SIZE = 4096 };
   truefalse compress(CONST text * filename, ni prefix_len, CONST text * destfn, CONST text * key);
   truefalse decompress(CONST text * filename, CONST text * destdir, CONST text * key, CONST text * _rename = NULL);
 
@@ -363,7 +360,7 @@ public:
   virtual ni handle_input(ACE_HANDLE fd = ACE_INVALID_HANDLE);
   virtual ni handle_output(ACE_HANDLE fd = ACE_INVALID_HANDLE);
   virtual ni handle_close(ACE_HANDLE = ACE_INVALID_HANDLE, ACE_Reactor_Mask = ACE_Event_Handler::ALL_EVENTS_MASK);
-  virtual CClientIDS * client_id_table() CONST;
+  virtual CTermSNs * client_id_table() CONST;
 
   CConnectionManagerBase * connection_manager();
   CProcBase * processor() CONST;
@@ -376,7 +373,7 @@ protected:
 
   truefalse m_reaped;
   CConnectionManagerBase * m_connection_manager;
-  CProcBase * m_processor;
+  CProcBase * m_proc;
   DVOID * m_parent;
 };
 
@@ -401,21 +398,21 @@ public:
   DVOID on_data_send(ni data_size);
 
   DVOID add_connection(CHandlerBase * handler, CState state);
-  DVOID set_connection_client_id_index(CHandlerBase * handler, ni index, CClientIDS * id_table);
+  DVOID set_connection_client_id_index(CHandlerBase * handler, ni index, CTermSNs * id_table);
   CHandlerBase * find_handler_by_index(ni index);
   DVOID set_connection_state(CHandlerBase * handler, CState state);
-  DVOID remove_connection(CHandlerBase * handler, CClientIDS * id_table);
+  DVOID remove_connection(CHandlerBase * handler, CTermSNs * id_table);
 
   DVOID detect_dead_connections(ni timeout);
   DVOID lock();
   DVOID unlock();
   truefalse locked() CONST;
-  DVOID dump_info();
+  DVOID print_all();
   DVOID broadcast(CMB * mb);
   DVOID send_single(CMB * mb);
 
 protected:
-  virtual DVOID do_dump_info();
+  virtual DVOID i_print();
 
 private:
   typedef std::map<CHandlerBase *, long, std::less<CHandlerBase *>, CCppAllocator<std::pair<const CHandlerBase *, long> > > MyConnections;
@@ -428,7 +425,7 @@ private:
   MyIndexHandlerMapPtr find_handler_by_index_i(ni index);
   DVOID do_send(CMB * mb, truefalse broadcast);
   DVOID remove_from_active_table(CHandlerBase * handler);
-  DVOID remove_from_handler_map(CHandlerBase * handler, CClientIDS * id_table);
+  DVOID remove_from_handler_map(CHandlerBase * handler, CTermSNs * id_table);
 
   ni  m_num_connections;
   ni  m_total_connections;
@@ -464,33 +461,33 @@ private:
 class CProcBase
 {
 public:
-  enum EVENT_RESULT
+  enum OUTPUT
   {
-    ER_ERROR = -1,
-    ER_OK = 0,
-    ER_CONTINUE,
-    ER_OK_FINISHED
+    OP_FAIL = -1,
+    OP_OK = 0,
+    OP_CONTINUE,
+    OP_DONE
   };
-  CProcBase(CHandlerBase * handler);
+  CProcBase(CHandlerBase *);
   virtual ~CProcBase();
 
-  virtual DVOID info_string(CMemGuard & info) CONST;
+  virtual DVOID get_sinfo(CMemGuard &) CONST;
   virtual ni on_open();
   virtual DVOID on_close();
   virtual ni handle_input();
-  virtual truefalse can_send_data(CMB * mb) CONST;
+  virtual truefalse ok_to_send(CMB *) CONST;
   virtual CONST text * name() CONST;
   truefalse wait_for_close() CONST;
   DVOID prepare_to_close();
 
-  truefalse dead() CONST;
+  truefalse broken() CONST;
   DVOID update_last_activity();
   long last_activity() CONST;
 
-  CONST MyClientID & client_id() CONST;
+  CONST CNumber & client_id() CONST;
   DVOID client_id(CONST text *id);
   virtual truefalse client_id_verified() CONST;
-  int32_t client_id_index() CONST;
+  i32 client_id_index() CONST;
 
 protected:
   ni handle_input_wait_for_close();
@@ -498,9 +495,9 @@ protected:
   long m_last_activity;
   truefalse m_wait_for_close;
 
-  MyClientID m_client_id;
-  int32_t    m_client_id_index;
-  ni        m_client_id_length;
+  CNumber m_client_id;
+  i32    m_client_id_index;
+  ni     m_client_id_length;
 };
 
 class CProcRemoteAccessBase: public CProcBase
@@ -585,7 +582,7 @@ public:
     if (handle_req() < 0)
       return -1;
 
-    goto __loop; //burst transfer, in the hope that more are ready in the buffer
+    goto __loop;
 
     return 0;
   }
@@ -607,13 +604,13 @@ protected:
     if (m_read_next_offset < (ni)sizeof(m_packet_header))
       return 0;
 
-    CProcBase::EVENT_RESULT er = on_recv_header();
+    CProcBase::OUTPUT er = on_recv_header();
     switch(er)
     {
-    case CProcBase::ER_ERROR:
-    case CProcBase::ER_CONTINUE:
+    case CProcBase::OP_FAIL:
+    case CProcBase::OP_CONTINUE:
       return -1;
-    case CProcBase::ER_OK_FINISHED:
+    case CProcBase::OP_DONE:
       if (packet_length() != sizeof(m_packet_header))
       {
         C_FATAL("got ER_OK_FINISHED for packet header with more data remain to process.\n");
@@ -623,10 +620,10 @@ protected:
         m_handler->connection_manager()->on_data_received(sizeof(m_packet_header));
       m_read_next_offset = 0;
       return 1;
-    case CProcBase::ER_OK:
+    case CProcBase::OP_OK:
       return 0;
     default:
-      C_FATAL(ACE_TEXT("unexpected MyVeryBasePacketProcessor::EVENT_RESULT value = %d.\n"), er);
+      C_FATAL("unexpected MyVeryBasePacketProcessor::EVENT_RESULT value = %d.\n", er);
       return -1;
     }
   }
@@ -654,7 +651,7 @@ protected:
        m_handler->connection_manager()->on_data_received(m_current_block->size());
 
     ni ret = 0;
-    if (on_recv_packet(m_current_block) != CProcBase::ER_OK)
+    if (on_recv_packet(m_current_block) != CProcBase::OP_OK)
       ret = -1;
 
     m_current_block = 0;
@@ -669,28 +666,28 @@ protected:
 
   virtual ni packet_length() = 0;
 
-  virtual CProcBase::EVENT_RESULT on_recv_header()
+  virtual CProcBase::OUTPUT on_recv_header()
   {
-    return ER_CONTINUE;
+    return OP_CONTINUE;
   }
 
-  CProcBase::EVENT_RESULT on_recv_packet(CMB * mb)
+  CProcBase::OUTPUT on_recv_packet(CMB * mb)
   {
     if (mb->size() < sizeof(T))
     {
       C_ERROR(ACE_TEXT("message block size too little ( = %d)"), mb->size());
       mb->release();
-      return ER_ERROR;
+      return OP_FAIL;
     }
     mb->rd_ptr(mb->base());
 
     return on_recv_packet_i(mb);
   }
 
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb)
+  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb)
   {
     ACE_UNUSED_ARG(mb);
-    return ER_OK;
+    return OP_OK;
   }
 
   T m_packet_header;
@@ -698,37 +695,37 @@ protected:
   ni m_read_next_offset;
 };
 
-class CFormatProcBase: public CFormattedProcBase<MyDataPacketHeader>
+class CFormatProcBase: public CFormattedProcBase<CCmdHeader>
 {
 public:
-  typedef CFormattedProcBase<MyDataPacketHeader> super;
+  typedef CFormattedProcBase<CCmdHeader> super;
 
   CFormatProcBase(CHandlerBase * handler);
-  virtual DVOID info_string(CMemGuard & info) CONST;
+  virtual DVOID get_sinfo(CMemGuard & info) CONST;
   virtual ni on_open();
   virtual CONST text * name() CONST;
 
 protected:
   virtual ni packet_length();
-  virtual CProcBase::EVENT_RESULT on_recv_header();
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb);
+  virtual CProcBase::OUTPUT on_recv_header();
+  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb);
   CMB * make_version_check_request_mb(CONST ni extra = 0);
 
   enum { PEER_ADDR_LEN = INET_ADDRSTRLEN };
   text m_peer_addr[PEER_ADDR_LEN];
 };
 
-class CBSProceBase: public CFormattedProcBase<MyBSBasePacket>
+class CBSProceBase: public CFormattedProcBase<CBSData>
 {
 public:
-  typedef CFormattedProcBase<MyBSBasePacket> super;
+  typedef CFormattedProcBase<CBSData> super;
   CBSProceBase(CHandlerBase * handler);
 
 protected:
   virtual ni packet_length();
 
-  virtual CProcBase::EVENT_RESULT on_recv_header();
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb);
+  virtual CProcBase::OUTPUT on_recv_header();
+  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb);
 };
 
 class CServerProcBase: public CFormatProcBase
@@ -738,15 +735,15 @@ public:
   CServerProcBase(CHandlerBase * handler);
   virtual ~CServerProcBase();
   virtual CONST text * name() CONST;
-  virtual truefalse can_send_data(CMB * mb) CONST;
+  virtual truefalse ok_to_send(CMB * mb) CONST;
   virtual truefalse client_id_verified() CONST;
 
 protected:
-  virtual CProcBase::EVENT_RESULT on_recv_header();
-  CProcBase::EVENT_RESULT do_version_check_common(CMB * mb, CClientIDS & client_id_table);
-  CMB * make_version_check_reply_mb(MyClientVersionCheckReply::REPLY_CODE code, ni extra_len = 0);
+  virtual CProcBase::OUTPUT on_recv_header();
+  CProcBase::OUTPUT do_version_check_common(CMB * mb, CTermSNs & client_id_table);
+  CMB * make_version_check_reply_mb(CTermVerReply::SUBCMD code, ni extra_len = 0);
 
-  CClientVer m_client_version;
+  CTermVer m_client_version;
 };
 
 class CClientProcBase: public CFormatProcBase
@@ -760,10 +757,10 @@ public:
   virtual truefalse client_id_verified() CONST;
   virtual ni on_open();
   virtual DVOID on_close();
-  virtual truefalse can_send_data(CMB * mb) CONST;
+  virtual truefalse ok_to_send(CMB * mb) CONST;
 
 protected:
-  virtual CProcBase::EVENT_RESULT on_recv_header();
+  virtual CProcBase::OUTPUT on_recv_header();
   DVOID client_verified(truefalse _verified);
 
 private:
@@ -804,9 +801,9 @@ protected:
     TIMER_ID_reserved_2,
     TIMER_ID_reserved_3,
   };
-  virtual DVOID do_dump_info();
-  virtual truefalse on_start();
-  virtual DVOID on_stop();
+  virtual DVOID i_print();
+  virtual truefalse before_begin();
+  virtual DVOID before_finish();
 
   CDispatchBase * m_dispatcher;
   CMod * m_module;
@@ -850,9 +847,9 @@ protected:
     TIMER_ID_reserved_3,
   };
   ni do_connect(ni count = 1, truefalse bNew = false);
-  virtual truefalse on_start();
-  virtual DVOID on_stop();
-  virtual DVOID do_dump_info();
+  virtual truefalse before_begin();
+  virtual DVOID before_finish();
+  virtual DVOID i_print();
   virtual truefalse before_reconnect();
 
   CDispatchBase * m_dispatcher;
@@ -861,10 +858,10 @@ protected:
   ni m_tcp_port;
   std::string m_tcp_addr;
   ni m_num_connection;
-  ni m_reconnect_interval; //in minutes
+  ni m_reconnect_interval; //minutes
   ni m_reconnect_retry_count;
   long m_reconnect_timer_id;
-  ni m_idle_time_as_dead; //in minutes
+  ni m_idle_time_as_dead; //minutes
   ni m_idle_connection_timer_id;
   ni m_remain_to_connect;
 };
@@ -874,14 +871,14 @@ class CTaskBase: public ACE_Task<ACE_MT_SYNCH>
 {
 public:
   CTaskBase(CMod * mod, ni num_threads);
-  CMod * module_x() CONST; //name collision with parent class
+  CMod * module_x() CONST;
   ni start();
   ni stop();
-  DVOID dump_info();
+  DVOID print_all();
   virtual CONST text * name() CONST;
 
 protected:
-  virtual DVOID do_dump_info();
+  virtual DVOID i_print();
   truefalse do_add_task(DVOID * p, ni task_type);
   DVOID * get_task(CMB * mb, ni & task_type) CONST;
 
@@ -910,13 +907,13 @@ protected:
   typedef std::vector<CAcceptorBase *> CAcceptors;
   enum { TIMER_ID_BASE = 1 };
 
-  virtual DVOID on_stop();
-  virtual DVOID on_stop_stage_1();
-  virtual truefalse on_start();
-  virtual truefalse on_event_loop();
+  virtual DVOID before_finish();
+  virtual DVOID before_finish_stage_1();
+  virtual truefalse before_begin();
+  virtual truefalse do_schedule_work();
   DVOID add_connector(CConnectorBase * _connector);
   DVOID add_acceptor(CAcceptorBase * _acceptor);
-  virtual DVOID do_dump_info();
+  virtual DVOID i_print();
 
   CMod * m_mod;
   ni m_clock_interval;
@@ -947,18 +944,18 @@ public:
   CApp * app() CONST;
   ni start();
   ni stop();
-  DVOID dump_info();
+  DVOID print_all();
   virtual CONST text * name() CONST;
 
 protected:
   typedef std::vector<CTaskBase *> CTasks;
   typedef std::vector<CDispatchBase *> CDispatchBases;
 
-  virtual truefalse on_start();
-  virtual DVOID on_stop();
+  virtual truefalse before_begin();
+  virtual DVOID before_finish();
   DVOID add_task(CTaskBase * _service);
   DVOID add_dispatch(CDispatchBase * _dispatcher);
-  virtual DVOID do_dump_info();
+  virtual DVOID i_print();
 
   CApp * m_app;
   truefalse m_running;

@@ -37,8 +37,8 @@ public:
   {
     if (m_id_list.empty())
       return NULL;
-    MyClientID client_id = m_id_list.back();
-    ACE_OS::strsncpy(m_result, client_id.as_string(), BUFF_LEN);
+    CNumber client_id = m_id_list.back();
+    ACE_OS::strsncpy(m_result, client_id.to_str(), BUFF_LEN);
     m_id_list.pop_back();
     return m_result;
   }
@@ -46,7 +46,7 @@ public:
   {
     if (unlikely(!id || !*id))
       return;
-    m_id_list.push_back(MyClientID(id));
+    m_id_list.push_back(CNumber(id));
   }
   bool empty() const
   {
@@ -57,7 +57,7 @@ public:
     return m_id_list.size();
   }
 private:
-  typedef std::vector<MyClientID> MyClientIDList;
+  typedef std::vector<CNumber> MyClientIDList;
   enum { BUFF_LEN = 32 };
   char  m_result[BUFF_LEN];
   MyClientIDList m_id_list;
@@ -222,7 +222,7 @@ public:
   CMemGuard aindex;
   char ftype;
   char type;
-  MyClientID client_id;
+  CNumber client_id;
   int client_id_index;
 
 protected:
@@ -403,28 +403,28 @@ public:
 
   MyClientToDistProcessor(CHandlerBase * handler);
   virtual const char * name() const;
-  virtual CProcBase::EVENT_RESULT on_recv_header();
+  virtual CProcBase::OUTPUT on_recv_header();
   virtual int on_open();
   int send_heart_beat();
   int send_ip_ver_req();
 
 protected:
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::OUTPUT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
   enum { OFFLINE_THREASH_HOLD = 20 }; //in seconds
   enum { MSG_QUEUE_MAX_SIZE = 2 * 1024 * 1024 };
 
   int send_version_check_req();
-  CProcBase::EVENT_RESULT do_ftp_file_request(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_md5_list_request(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_ip_ver_reply(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_remote_cmd(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_ack(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_test(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_psp(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_pl(ACE_Message_Block * mb);
+  CProcBase::OUTPUT do_ftp_file_request(ACE_Message_Block * mb);
+  CProcBase::OUTPUT do_md5_list_request(ACE_Message_Block * mb);
+  CProcBase::OUTPUT do_version_check_reply(ACE_Message_Block * mb);
+  CProcBase::OUTPUT do_ip_ver_reply(ACE_Message_Block * mb);
+  CProcBase::OUTPUT do_remote_cmd(ACE_Message_Block * mb);
+  CProcBase::OUTPUT do_ack(ACE_Message_Block * mb);
+  CProcBase::OUTPUT do_test(ACE_Message_Block * mb);
+  CProcBase::OUTPUT do_psp(ACE_Message_Block * mb);
+  CProcBase::OUTPUT do_pl(ACE_Message_Block * mb);
   void check_offline_report();
   bool check_vlc_empty();
 
@@ -611,9 +611,9 @@ public:
   void add_to_buffered_mbs(ACE_Message_Block * mb);
 
 protected:
-  virtual void on_stop();
-  virtual bool on_start();
-  virtual bool on_event_loop();
+  virtual void before_finish();
+  virtual bool before_begin();
+  virtual bool do_schedule_work();
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
@@ -699,8 +699,8 @@ public:
   MyHwAlarm door_alarm;
 
 protected:
-  virtual bool on_start();
-  virtual void on_stop();
+  virtual bool before_begin();
+  virtual void before_finish();
 
 private:
   void check_prev_download_task();
@@ -732,11 +732,11 @@ public:
 
   MyClientToMiddleProcessor(CHandlerBase * handler);
   virtual const char * name() const;
-  virtual CProcBase::EVENT_RESULT on_recv_header();
+  virtual CProcBase::OUTPUT on_recv_header();
   virtual int on_open();
 
 protected:
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::OUTPUT on_recv_packet_i(ACE_Message_Block * mb);
 
 private:
   int  send_version_check_req();

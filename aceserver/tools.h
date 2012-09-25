@@ -51,7 +51,7 @@ typedef ACE_Message_Block CMB;
 #define CONST  const
 #define DVOID  void
 
-EXTERN truefalse g_use_mem_pool;
+EXTERN truefalse g_cache;
 
 #define INFO_PREFIX       ACE_TEXT ("(%D %P|%t %N/%l)\n  INFO %I")
 #define C_INFO(FMT, ...)     \
@@ -210,9 +210,9 @@ public:
     return do_open(filename, true, false, false, false, false);
   }
 
-  truefalse open_write(CONST text * filename, truefalse create, truefalse truncate, truefalse append, truefalse self_only)
+  truefalse open_write(CONST text * filename, truefalse create, truefalse truncate, truefalse append, truefalse owned_by_me)
   {
-    return do_open(filename, false, create, truncate, append, self_only);
+    return do_open(filename, false, create, truncate, append, owned_by_me);
   }
 
   ni handle() CONST
@@ -244,7 +244,7 @@ public:
   }
 
 private:
-  truefalse do_open(CONST text * filename, truefalse readonly, truefalse create, truefalse truncate, truefalse append, truefalse self_only);
+  truefalse do_open(CONST text * filename, truefalse readonly, truefalse create, truefalse truncate, truefalse append, truefalse owned_by_me);
   ni  m_handle;
   truefalse m_error_report;
 };
@@ -394,7 +394,7 @@ private:
     SF void* operator new(size_t _size, std::new_handler p = 0) \
     { \
       ACE_UNUSED_ARG(p); \
-      if (_size != sizeof(Cls) || !g_use_mem_pool) \
+      if (_size != sizeof(Cls) || !g_cache) \
         return ::operator new(_size); \
       void* _ptr = m_mem_pool->malloc(); \
       if (_ptr) \
@@ -410,7 +410,7 @@ private:
     { \
       if (_ptr != NULL) \
       { \
-        if (!g_use_mem_pool) \
+        if (!g_cache) \
         { \
           ::operator delete(_ptr); \
           return; \
@@ -420,7 +420,7 @@ private:
     } \
     SF DVOID init_mem_pool(ni pool_size) \
     { \
-      if (g_use_mem_pool) \
+      if (g_cache) \
         m_mem_pool = new Mem_Pool(pool_size, sizeof(Cls)); \
     } \
     SF DVOID fini_mem_pool() \
@@ -444,7 +444,7 @@ private:
     SF void* operator new(size_t _size, std::new_handler p = 0) throw() \
     { \
       ACE_UNUSED_ARG(p); \
-      if (_size != sizeof(Cls) || !g_use_mem_pool) \
+      if (_size != sizeof(Cls) || !g_cache) \
         return ::operator new(_size); \
       return m_mem_pool->malloc(); \
     } \
@@ -452,7 +452,7 @@ private:
     { \
       if (_ptr != NULL) \
       { \
-        if (!g_use_mem_pool) \
+        if (!g_cache) \
         { \
           ::operator delete(_ptr); \
           return; \
@@ -462,7 +462,7 @@ private:
     } \
     SF DVOID init_mem_pool(ni pool_size) \
     { \
-      if (g_use_mem_pool) \
+      if (g_cache) \
         m_mem_pool = new Mem_Pool(pool_size, sizeof(Cls)); \
     } \
     SF DVOID fini_mem_pool() \
@@ -483,14 +483,14 @@ private:
 #define PREPARE_MEMORY_POOL(Cls) \
   Cls::Mem_Pool * Cls::m_mem_pool = NULL
 
-class CClientIDS;
+class CTermSNs;
 
-class CClientPathGenerator
+class CTerminalDirCreator
 {
 public:
-  SF DVOID make_paths(CONST text * app_data_path, int64_t _start, ni _count);
-  SF truefalse client_id_to_path(CONST text * id, text * result, ni result_len);
-  SF DVOID make_paths_from_id_table(CONST text * app_data_path, CClientIDS * id_table);
+  SF DVOID create_dirs(CONST text * app_data_path, int64_t _start, ni _count);
+  SF truefalse term_sn_to_dir(CONST text * id, text * result, ni result_len);
+  SF DVOID create_dirs_from_TermSNs(CONST text * app_data_path, CTermSNs * id_table);
 };
 
 class CCachedMB: public CMB
@@ -524,19 +524,19 @@ public:
   DVOID print_info();
 
 private:
-  enum { INVALID_INDEX = 9999 };
+  enum { BAD_IDX = 9999 };
   typedef ACE_Atomic_Op<ACE_Thread_Mutex, long> COUNTER;
   typedef std::vector<int> CPoolSizes;
   typedef CCachedAllocator<ACE_Thread_Mutex> CCachedPool;
   typedef std::vector<CCachedPool *> CCachedPools;
 
-  ni get_first_index(ni capacity);
-  ni get_pool(DVOID * ptr);
+  ni find_best_index(ni capacity);
+  ni find_index_by_ptr(DVOID * ptr);
   CCachedAllocator<ACE_Thread_Mutex> *m_mb_pool;
   CCachedAllocator<ACE_Thread_Mutex> *m_data_block_pool;
   CPoolSizes m_pool_sizes;
   CCachedPools m_pools;
-  COUNTER m_g_alloc_number;
+  COUNTER m_total_count;
 };
 typedef ACE_Unmanaged_Singleton<CMemPool, ACE_Null_Mutex> CMemPoolX;
 
@@ -577,7 +577,7 @@ protected:
   DVOID data(DVOID * _buff, ni index, ni size)
   {
     if (unlikely(m_buff != NULL))
-      C_ERROR("mem leak @MyPooledMemGuard index=%d\n", m_index);
+      C_ERROR("mem leak @CMemGuard index=%d\n", m_index);
     m_buff = (char*)_buff;
     m_index = index;
     m_size = size;
@@ -663,31 +663,31 @@ class CSysFS
 public:
   enum
   {
-    FILE_FLAG_SELF = S_IRUSR | S_IWUSR,
+    FILE_FLAG_ME = S_IRUSR | S_IWUSR,
     FILE_FLAG_ALL = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH,
-    DIR_FLAG_SELF = S_IRWXU,
+    DIR_FLAG_ME = S_IRWXU,
     DIR_FLAG_ALL = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH
   };
   SF truefalse exist(CONST text * path);
-  SF truefalse make_path(CONST char* path, truefalse self_only);
-  SF truefalse make_path(char* path, ni prefix_len, truefalse is_file, truefalse self_only);
-  SF truefalse make_path_const(CONST char* path, ni prefix_len, truefalse is_file, truefalse self_only);
-  SF truefalse make_path(CONST text * path, CONST text * subpath, truefalse is_file, truefalse self_only);
-  SF truefalse copy_path(CONST text * srcdir, CONST text * destdir, truefalse self_only, truefalse syn);
-  SF truefalse copy_path_zap(CONST text * srcdir, CONST text * destdir, truefalse self_only, truefalse zap, truefalse syn);
-  SF truefalse remove_path(CONST text * path, truefalse ignore_eror);
+  SF truefalse create_dir(CONST char* path, truefalse owned_by_me);
+  SF truefalse create_dir(char* path, ni prefix_len, truefalse is_file, truefalse owned_by_me);
+  SF truefalse create_dir_const(CONST char* path, ni prefix_len, truefalse is_file, truefalse owned_by_me);
+  SF truefalse create_dir(CONST text * path, CONST text * subpath, truefalse is_file, truefalse owned_by_me);
+  SF truefalse copy_dir(CONST text * src, CONST text * dest, truefalse owned_by_me, truefalse syn);
+  SF truefalse copy_dir_zap(CONST text * src, CONST text * dest, truefalse owned_by_me, truefalse zap, truefalse syn);
+  SF truefalse delete_dir(CONST text * path, truefalse ignore_eror);
   SF truefalse remove_old_files(CONST text * path, time_t deadline);
   SF truefalse copy_file_by_fd(ni src_fd, ni dest_fd);
-  SF truefalse copy_file(CONST text * src, CONST text * dest, truefalse self_only, truefalse syn);
-  SF ni  cat_path(CONST text * path, CONST text * subpath, CMemGuard & result);
+  SF truefalse copy_file(CONST text * src, CONST text * dest, truefalse owned_by_me, truefalse syn);
+  SF ni        cat_path(CONST text * path, CONST text * subpath, CMemGuard & result);
   SF truefalse get_correlate_path(CMemGuard & pathfile, ni skip);
-  SF truefalse remove(CONST text *pathfile, truefalse ignore_error = false);
-  SF truefalse zap(CONST text *pathfile, truefalse ignore_error);
+  SF truefalse remove(CONST text *pathfile, truefalse no_report_failure = false);
+  SF truefalse zap(CONST text *pathfile, truefalse no_report_failure);
   SF truefalse rename(CONST text *old_path, CONST text * new_path, truefalse ignore_eror);
   SF truefalse stat(CONST text *pathfile, struct stat * _stat);
-  SF ni  filesize(CONST text *pathfile);
-  SF truefalse zap_path_except_mfile(CONST CMemGuard & path, CONST CMemGuard & mfile, truefalse ignore_error);
-  SF DVOID zap_empty_paths(CONST CMemGuard & parent_path);
+  SF ni        filesize(CONST text *pathfile);
+  SF truefalse clean_dir_keep_mfile(CONST CMemGuard & path, CONST CMemGuard & mfile, truefalse no_report_failure);
+  SF DVOID     clean_empty_dir(CONST CMemGuard & parent_path);
 };
 
 class CStringTokenizer
@@ -729,7 +729,7 @@ size_t c_util_string_hash(CONST text * str);
 truefalse c_util_string_end_with(CONST text * src, CONST text * key);
 DVOID c_util_gen_random_password(text * buff, CONST ni password_len);
 DVOID c_util_string_replace_text(text * s, CONST text src, CONST text dest);
-DVOID c_util_hex_dump(DVOID * ptr, ni len, text * result_buff, ni buff_len);
+DVOID c_util_dump_hex(DVOID * ptr, ni len, text * result_buff, ni buff_len);
 
 class CStrHasher
 {
@@ -762,112 +762,112 @@ DVOID aes_decrypt( aes_context *ctx, u8 input[16], u8 output[16] );
 
 #pragma pack(push, 1)
 
-class MyClientID
+class CNumber
 {
 public:
-  union ClientID
+  union NUMBER
   {
-    text as_string[];
-    i64 as_long[3];
-  }client_id;
+    text char_array[];
+    i64 i64_array[3];
+  }number;
 
   enum
   {
-    ID_LENGTH_AS_INT64 = sizeof(client_id)/sizeof(i64),
-    ID_LENGTH_AS_STRING = sizeof(client_id)/sizeof(text)
+    NUMBER_LENGTH_I64 = sizeof(number)/sizeof(i64),
+    NUMBER_LENGTH_S = sizeof(number)/sizeof(text)
   };
 
-#define client_id_value_i client_id.as_long
-#define client_id_value_s client_id.as_string
+#define number_i number.i64_array
+#define number_s number.char_array
 
-  MyClientID()
+  CNumber()
   {
-    memset((void*)client_id_value_i, 0, ID_LENGTH_AS_STRING);
+    memset((void*)number_i, 0, NUMBER_LENGTH_S);
   }
 
-  MyClientID(CONST text * s)
+  CNumber(CONST text * s)
   {
-    memset((void*)client_id_value_i, 0, ID_LENGTH_AS_STRING);
+    memset((void*)number_i, 0, NUMBER_LENGTH_S);
 
     if (!s || !*s)
       return;
     while(*s == ' ')
       ++s;
-    ACE_OS::strsncpy(client_id_value_s, s, ID_LENGTH_AS_STRING);
+    ACE_OS::strsncpy(number_s, s, NUMBER_LENGTH_S);
   }
 
-  DVOID fix_data()
+  DVOID zero_ending()
   {
-    client_id_value_s[ID_LENGTH_AS_STRING - 1] = 0;
+    number_s[NUMBER_LENGTH_S - 1] = 0;
   }
 
-  MyClientID & operator = (CONST text * s)
+  CNumber & operator = (CONST text * s)
   {
-    memset((void*)client_id_value_i, 0, ID_LENGTH_AS_STRING);
+    memset((void*)number_i, 0, NUMBER_LENGTH_S);
 
     if (!s || !*s)
       return *this;
     while(*s == ' ')
       ++s;
-    ACE_OS::strsncpy(client_id_value_s, s, ID_LENGTH_AS_STRING);
+    ACE_OS::strsncpy(number_s, s, NUMBER_LENGTH_S);
     return *this;
   }
 
-  MyClientID & operator = (CONST MyClientID & rhs)
+  CNumber & operator = (CONST CNumber & c)
   {
-    if (&rhs == this)
+    if (&c == this)
       return *this;
-    memcpy(client_id.as_string, rhs.client_id.as_string, ID_LENGTH_AS_STRING);
-    client_id_value_s[ID_LENGTH_AS_STRING - 1] = 0;
+    memcpy(number.char_array, c.number.char_array, NUMBER_LENGTH_S);
+    number_s[NUMBER_LENGTH_S - 1] = 0;
     return *this;
   }
 
-  CONST text * as_string() CONST
+  CONST text * to_str() CONST
   {
-    return client_id_value_s;
+    return number_s;
   }
 
-  truefalse is_null() CONST
+  truefalse empty() CONST
   {
-    return (client_id_value_s[0] == 0);
+    return (number_s[0] == 0);
   }
 
-  truefalse operator < (CONST MyClientID & rhs) CONST
+  truefalse operator < (CONST CNumber & c) CONST
   {
-    for (ni i = 0; i < ID_LENGTH_AS_INT64; ++i)
+    for (ni i = 0; i < NUMBER_LENGTH_I64; ++i)
     {
-      if (client_id_value_i[i] < rhs.client_id_value_i[i])
+      if (number_i[i] < c.number_i[i])
         return true;
-      if (client_id_value_i[i] > rhs.client_id_value_i[i])
+      if (number_i[i] > c.number_i[i])
         return false;
     }
     return false;
   }
 
-  truefalse operator == (CONST MyClientID & rhs) CONST
+  truefalse operator == (CONST CNumber & c) CONST
   {
-    for (ni i = 0; i < ID_LENGTH_AS_INT64; ++i)
+    for (ni i = 0; i < NUMBER_LENGTH_I64; ++i)
     {
-      if (client_id_value_i[i] != rhs.client_id_value_i[i])
+      if (number_i[i] != c.number_i[i])
         return false;
     }
     return true;
   }
 
-  truefalse operator != (CONST MyClientID & rhs) CONST
+  truefalse operator != (CONST CNumber & r) CONST
   {
-    return ! operator == (rhs);
+    return ! operator == (r);
   }
 
-  DVOID trim_tail_space()
+  DVOID rtrim()
   {
-    text * ptr = client_id_value_s;
-    for (ni i = ID_LENGTH_AS_STRING - 1; i >= 0; --i)
+    text * p = number_s;
+    for (ni i = NUMBER_LENGTH_S - 1; i >= 0; --i)
     {
-      if (ptr[i] == 0)
+      if (p[i] == 0)
         continue;
-      else if (ptr[i] == ' ')
-        ptr[i] = 0;
+      else if (p[i] == ' ')
+        p[i] = 0;
       else
         break;
     }
@@ -876,163 +876,160 @@ public:
 };
 
 
-#ifndef Null_Item
-  #define Null_Item "!"
+#ifndef Item_NULL
+  #define Item_NULL "!"
 #endif
-//every packet commute between server and clients at least has this head
-class MyDataPacketHeader
+
+class CCmdHeader
 {
 public:
-  enum { DATAPACKET_MAGIC = 0x80089397 };
+  enum { SIGNATURE = 0x80089397 };
   enum { ITEM_SEPARATOR = '*', MIDDLE_SEPARATOR = '?', FINISH_SEPARATOR = ':' };
-  enum { NULL_ITEM_LENGTH = 1 };
+  enum { ITEM_NULL_SIZE = 1 };
 
-  enum COMMAND
+  enum PacketType
   {
-    CMD_NULL = 0,
-    CMD_HEARTBEAT_PING,
-    CMD_CLIENT_VERSION_CHECK_REQ,
-    CMD_CLIENT_VERSION_CHECK_REPLY,
-    CMD_LOAD_BALANCE_REQ,
-    CMD_SERVER_FILE_MD5_LIST,
-    CMD_HAVE_DIST_TASK,
-    CMD_FTP_FILE,
-    CMD_IP_VER_REQ,
-    CMD_UI_CLICK,
-    CMD_PC_ON_OFF,
-    CMD_HARDWARE_ALARM,
-    CMD_VLC,
-    CMD_REMOTE_CMD,
-    CMD_ACK,
-    CMD_VLC_EMPTY,
-    CMD_TEST,
-    CMD_PSP,
-    CMD_TQ,
-    CMD_END,
-    CMD_DISCONNECT_INTERNAL
+    PT_NULL = 0,
+    PT_PING,
+    PT_VER_REQ,
+    PT_VER_REPLY,
+    PT_LOAD_BALANCE_REQ,
+    PT_FILE_MD5_LIST,
+    PT_HAVE_DIST_TASK,
+    PT_FTP_FILE,
+    PT_IP_VER_REQ,
+    PT_ADV_CLICK,
+    PT_PC_ON_OFF,
+    PT_HARDWARE_ALARM,
+    PT_VLC,
+    PT_REMOTE_CMD,
+    PT_ACK,
+    PT_VLC_EMPTY,
+    PT_TEST,
+    PT_PSP,
+    PT_TQ,
+    PT_END,
+    PT_DISCONNECT_INTERNAL
   };
-  i32 length;
-  u32 magic;
+  i32 size;
+  u32 signature;
   uuid_t  uuid;
-  i16 command;
+  i16 cmd;
 };
 
-class MyDataPacketExt: public MyDataPacketHeader
+class CCmdExt: public CCmdHeader
 {
 public:
   text data[0];
 
-  truefalse guard();
+  truefalse validate();
 };
 
-class MyClientVersionCheckRequest: public MyDataPacketHeader
+class CTerminalVerReq: public CCmdHeader
 {
 public:
-  u8 client_version_major;
-  u8 client_version_minor;
+  u8 term_ver_major;
+  u8 term_ver_minor;
   u8 server_id;
-  MyClientID client_id;
+  CNumber term_sn;
   text hw_ver[0];
 
-  DVOID validate_data()
-  {
-    client_id.fix_data();
-  }
+  DVOID fix_data()
+  { term_sn.zero_ending(); }
 
 };
 
-class MyIpVerRequest: public MyDataPacketHeader
+class CIpVerReq: public CCmdHeader
 {
 public:
-  u8 client_version_major;
-  u8 client_version_minor;
+  u8 term_ver_major;
+  u8 term_ver_minor;
 };
 
-class MyClientVersionCheckReply: public MyDataPacketHeader
+class CTermVerReply: public CCmdHeader
 {
 public:
-  enum REPLY_CODE
+  enum SUBCMD
   {
-    VER_OK = 1,
-    VER_OK_CAN_UPGRADE,
-    VER_MISMATCH,
-    VER_ACCESS_DENIED,
-    VER_SERVER_BUSY,
-    VER_SERVER_LIST
+    SC_OK = 1,
+    SC_OK_UP,
+    SC_NOT_MATCH,
+    SC_ACCESS_DENIED,
+    SC_SERVER_BUSY,
+    SC_SERVER_LIST
   };
-  enum { MAX_REPLY_DATA_LENGTH = 4096 };
-  i8 reply_code;
-  text data[0]; //placeholder
+  enum { DATA_LENGTH_MAX = 4096 };
+  i8 ret_subcmd;
+  text data[0];
 };
 
-truefalse my_dph_validate_base(CONST MyDataPacketHeader * header);
-truefalse my_dph_validate_file_md5_list(CONST MyDataPacketHeader * header);
-truefalse my_dph_validate_ftp_file(CONST MyDataPacketHeader * header);
-truefalse my_dph_validate_plc_alarm(CONST MyDataPacketHeader * header);
-truefalse my_dph_validate_load_balance_req(CONST MyDataPacketHeader * header);
-truefalse my_dph_validate_client_version_check_reply(CONST MyDataPacketHeader * header);
-truefalse my_dph_validate_client_version_check_req(CONST MyDataPacketHeader * header, CONST ni extra = 0);
-truefalse my_dph_validate_vlc_empty(CONST MyDataPacketHeader * header);
-#define my_dph_validate_have_dist_task my_dph_validate_base
-#define my_dph_validate_heart_beat my_dph_validate_base
+truefalse c_packet_check_base(CONST CCmdHeader *);
+truefalse c_packet_check_file_md5_list(CONST CCmdHeader *);
+truefalse c_packet_check_ftp_file(CONST CCmdHeader *);
+truefalse c_packet_check_plc_alarm(CONST CCmdHeader *);
+truefalse c_packet_check_load_balance_req(CONST CCmdHeader *);
+truefalse c_packet_check_term_ver_reply(CONST CCmdHeader *);
+truefalse c_packet_check_term_ver_req(CONST CCmdHeader *, CONST ni extra = 0);
+truefalse c_packet_check_vlc_empty(CONST CCmdHeader *);
+#define c_packet_check_have_dist_task c_packet_check_base
+#define c_packet_check_ping c_packet_check_base
 
-class MyLoadBalanceRequest: public MyDataPacketHeader
+class CLoadBalanceReq: public CCmdHeader
 {
 public:
-  enum { IP_ADDR_LENGTH = INET_ADDRSTRLEN };
-  text ip_addr[IP_ADDR_LENGTH];
-  i32 clients_connected;
+  enum { IP_SIZE = INET_ADDRSTRLEN };
+  text ip[IP_SIZE];
+  i32 load;
 
-  DVOID set_ip_addr(CONST text * s)
+  DVOID set_ip(CONST text * s)
   {
     if (unlikely(!s || !*s))
-      ip_addr[0] = 0;
+      ip[0] = 0;
     else
     {
-      memset(ip_addr, 0, MyLoadBalanceRequest::IP_ADDR_LENGTH); //noise muffler
-      ACE_OS::strsncpy(ip_addr, s, MyLoadBalanceRequest::IP_ADDR_LENGTH);
+      memset(ip, 0, CLoadBalanceReq::IP_SIZE); //make compiler happy
+      ACE_OS::strsncpy(ip, s, CLoadBalanceReq::IP_SIZE);
     }
   }
-
 };
 
-class MyPLCAlarm: public MyDataPacketHeader
+class CPLCWarning: public CCmdHeader
 {
 public:
   text x;
   text y;
 };
 
-class MyBSBasePacket
+class CBSData
 {
 public:
-  enum { LEN_SIZE = 8, MAGIC_SIZE = 4, CMD_SIZE = 2, DATA_OFFSET = LEN_SIZE + MAGIC_SIZE + CMD_SIZE };
-  enum { BS_PARAMETER_SEPARATOR = '#', BS_PACKET_END_MARK = '$' };
+  enum { LEN = 8, SIGNATURE_LEN = 4, CMD_LEN = 2, DATA_OFFSET = LEN + SIGNATURE_LEN + CMD_LEN };
+  enum { PARAM_SEPARATOR = '#', END_MARK = '$' };
 
-  DVOID packet_len(ni _len);
-  ni  packet_len() CONST;
-  DVOID packet_magic();
-  truefalse check_header() CONST;
-  DVOID packet_cmd(CONST text * _cmd);
+  DVOID data_len(ni _len);
+  ni  data_len() CONST;
+  DVOID data_signature();
+  truefalse validate_header() CONST;
+  DVOID set_cmd(CONST text * _cmd);
   truefalse is_cmd(CONST text * _cmd);
-  truefalse guard();
+  truefalse fix_data();
 
-  text len[LEN_SIZE];
-  text magic[4];
-  text cmd[2];
+  text length[LEN];
+  text signature[4];
+  text command[2];
   text data[0];
 };
 
-#define MY_BS_HEART_BEAT_CMD    "04"
-#define MY_BS_ADV_CLICK_CMD     "05"
-#define MY_BS_IP_VER_CMD        "01"
-#define MY_BS_HARD_MON_CMD      "03"
-#define MY_BS_DIST_FEEDBACK_CMD "02"
-#define MY_BS_DIST_FBDETAIL_CMD "12"
-#define MY_BS_POWERON_LINK_CMD  "07"
-#define MY_BS_PATCH_FILE_CMD    "06"
-#define MY_BS_VLC_CMD           "10"
-#define MY_BS_VLC_EMPTY_CMD     "13"
+#define CONST_BS_IP_VER_CMD        "01"
+#define CONST_BS_DIST_FEEDBACK_CMD "02"
+#define CONST_BS_HARD_MON_CMD      "03"
+#define CONST_BS_PING_CMD          "04"
+#define CONST_BS_ADV_CLICK_CMD     "05"
+#define CONST_BS_PATCH_FILE_CMD    "06"
+#define CONST_BS_POWERON_LINK_CMD  "07"
+#define CONST_BS_VLC_CMD           "10"
+#define CONST_BS_DIST_FBDETAIL_CMD "12"
+#define CONST_BS_VLC_EMPTY_CMD     "13"
 
 #pragma pack(pop)
 

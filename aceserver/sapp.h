@@ -14,7 +14,7 @@ public:
   MyServerApp();
   virtual ~MyServerApp();
 
-  CClientIDS & client_id_table();
+  CTermSNs & client_id_table();
   MyHeartBeatModule * heart_beat_module() CONST;
   MyDistLoadModule * dist_load_module() CONST;
   MyHttpModule * http_module() CONST;
@@ -28,10 +28,10 @@ public:
   truefalse dist_put_to_service(CMB * mb);
 
 protected:
-  virtual truefalse on_start();
-  virtual truefalse on_construct();
-  virtual DVOID on_stop();
-  virtual DVOID do_dump_info();
+  virtual truefalse before_begin();
+  virtual truefalse do_init();
+  virtual DVOID before_finish();
+  virtual DVOID i_print();
 
 private:
   MyHeartBeatModule * m_heart_beat_module;
@@ -39,7 +39,7 @@ private:
   MyDistLoadModule * m_dist_load_module;
   MyHttpModule     * m_http_module;
   MyDistToMiddleModule * m_dist_to_middle_module;
-  CClientIDS m_client_ids;
+  CTermSNs m_client_ids;
   MyDB  m_db;
 };
 

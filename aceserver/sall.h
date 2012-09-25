@@ -237,7 +237,7 @@ class MyLocationProcessor: public CServerProcBase
 {
 public:
   MyLocationProcessor(CHandlerBase * handler);
-  virtual CProcBase::EVENT_RESULT on_recv_header();
+  virtual CProcBase::OUTPUT on_recv_header();
   virtual CONST text * name() CONST;
 
   SF MyDistLoads * m_dist_loads;
@@ -245,10 +245,10 @@ public:
   DECLARE_MEMORY_POOL__NOTHROW(MyLocationProcessor, ACE_Thread_Mutex);
 
 protected:
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb);
+  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb);
 
 private:
-  CProcBase::EVENT_RESULT do_version_check(CMB * mb);
+  CProcBase::OUTPUT do_version_check(CMB * mb);
 };
 
 
@@ -272,8 +272,8 @@ public:
   MyLocationDispatcher(CMod * _module, ni numThreads = 1);
 
 protected:
-  virtual truefalse on_start();
-  virtual DVOID on_stop();
+  virtual truefalse before_begin();
+  virtual DVOID before_finish();
   virtual CONST text * name() CONST;
 
 private:
@@ -301,8 +301,8 @@ public:
   MyDistLoads * dist_loads();
 
 protected:
-  virtual truefalse on_start();
-  virtual DVOID on_stop();
+  virtual truefalse before_begin();
+  virtual DVOID before_finish();
   virtual CONST text * name() CONST;
 
 private:
@@ -330,8 +330,8 @@ public:
 
 protected:
   virtual ni packet_length();
-  virtual CProcBase::EVENT_RESULT on_recv_header();
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb);
+  virtual CProcBase::OUTPUT on_recv_header();
+  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb);
 
 private:
   truefalse do_process_input_data();
@@ -374,8 +374,8 @@ public:
   virtual CONST text * name() CONST;
 
 protected:
-  virtual DVOID on_stop();
-  virtual truefalse on_start();
+  virtual DVOID before_finish();
+  virtual truefalse before_begin();
 
 private:
   MyHttpAcceptor * m_acceptor;
@@ -401,8 +401,8 @@ public:
   MyHttpService * http_service();
 
 protected:
-  virtual truefalse on_start();
-  virtual DVOID on_stop();
+  virtual truefalse before_begin();
+  virtual DVOID before_finish();
 
 private:
   MyHttpService *m_service;
@@ -427,17 +427,17 @@ public:
   virtual ~MyDistLoadProcessor();
   virtual CONST text * name() CONST;
   virtual truefalse client_id_verified() CONST;
-  virtual CProcBase::EVENT_RESULT on_recv_header();
+  virtual CProcBase::OUTPUT on_recv_header();
   DVOID dist_loads(MyDistLoads * dist_loads);
 
 protected:
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb);
+  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb);
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 1024 * 1024 };
 
-  CProcBase::EVENT_RESULT do_version_check(CMB * mb);
-  CProcBase::EVENT_RESULT do_load_balance(CMB * mb);
+  CProcBase::OUTPUT do_version_check(CMB * mb);
+  CProcBase::OUTPUT do_load_balance(CMB * mb);
 
   truefalse m_client_id_verified;
   MyDistLoads * m_dist_loads;
@@ -463,9 +463,9 @@ public:
   DVOID send_to_bs(CMB * mb);
 
 protected:
-  virtual DVOID on_stop();
-  virtual truefalse on_start();
-  virtual truefalse on_event_loop();
+  virtual DVOID before_finish();
+  virtual truefalse before_begin();
+  virtual truefalse do_schedule_work();
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 1024 * 1024 };
@@ -495,8 +495,8 @@ public:
   MyDistLoadDispatcher * dispatcher() CONST;
 
 protected:
-  virtual truefalse on_start();
-  virtual DVOID on_stop();
+  virtual truefalse before_begin();
+  virtual DVOID before_finish();
 
 private:
   MyDistLoadDispatcher * m_dispatcher;
@@ -519,7 +519,7 @@ public:
   DECLARE_MEMORY_POOL__NOTHROW(MyMiddleToBSProcessor, ACE_Thread_Mutex);
 
 protected:
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb);
+  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb);
 };
 
 class MyMiddleToBSHandler: public CHandlerBase
@@ -631,7 +631,7 @@ public:
 private:
   MyDistClientOneList m_client_ones;
   MyDistClients * m_dist_clients;
-  MyClientID m_client_id;
+  CNumber m_client_id;
   ni m_client_id_index;
 };
 
@@ -724,7 +724,7 @@ public:
   typedef CServerProcBase super;
 
   MyHeartBeatProcessor(CHandlerBase * handler);
-  virtual CProcBase::EVENT_RESULT on_recv_header();
+  virtual CProcBase::OUTPUT on_recv_header();
   virtual CONST text * name() CONST;
 
   SF MyPingSubmitter * m_heart_beat_submitter;
@@ -739,24 +739,24 @@ public:
   DECLARE_MEMORY_POOL__NOTHROW(MyHeartBeatProcessor, ACE_Thread_Mutex);
 
 protected:
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb);
+  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb);
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 2 * 1024 * 1024 };
 
   DVOID do_ping();
-  CProcBase::EVENT_RESULT do_version_check(CMB * mb);
-  CProcBase::EVENT_RESULT do_md5_file_list(CMB * mb);
-  CProcBase::EVENT_RESULT do_ftp_reply(CMB * mb);
-  CProcBase::EVENT_RESULT do_ip_ver_req(CMB * mb);
-  CProcBase::EVENT_RESULT do_adv_click_req(CMB * mb);
-  CProcBase::EVENT_RESULT do_pc_on_off_req(CMB * mb);
-  CProcBase::EVENT_RESULT do_hardware_alarm_req(CMB * mb);
-  CProcBase::EVENT_RESULT do_vlc_req(CMB * mb);
-  CProcBase::EVENT_RESULT do_test(CMB * mb);
-  CProcBase::EVENT_RESULT do_psp(CMB * mb);
-  CProcBase::EVENT_RESULT do_vlc_empty_req(CMB * mb);
-  CProcBase::EVENT_RESULT do_send_pq();
+  CProcBase::OUTPUT do_version_check(CMB * mb);
+  CProcBase::OUTPUT do_md5_file_list(CMB * mb);
+  CProcBase::OUTPUT do_ftp_reply(CMB * mb);
+  CProcBase::OUTPUT do_ip_ver_req(CMB * mb);
+  CProcBase::OUTPUT do_adv_click_req(CMB * mb);
+  CProcBase::OUTPUT do_pc_on_off_req(CMB * mb);
+  CProcBase::OUTPUT do_hardware_alarm_req(CMB * mb);
+  CProcBase::OUTPUT do_vlc_req(CMB * mb);
+  CProcBase::OUTPUT do_test(CMB * mb);
+  CProcBase::OUTPUT do_psp(CMB * mb);
+  CProcBase::OUTPUT do_vlc_empty_req(CMB * mb);
+  CProcBase::OUTPUT do_send_pq();
 
   text m_hw_ver[12];
 };
@@ -955,7 +955,7 @@ class MyHeartBeatHandler: public CHandlerBase
 {
 public:
   MyHeartBeatHandler(CConnectionManagerBase * xptr = NULL);
-  virtual CClientIDS * client_id_table() CONST;
+  virtual CTermSNs * client_id_table() CONST;
 
   DECLARE_MEMORY_POOL__NOTHROW(MyHeartBeatHandler, ACE_Thread_Mutex);
 };
@@ -991,9 +991,9 @@ public:
   MyHeartBeatAcceptor * acceptor() CONST;
 
 protected:
-  virtual DVOID on_stop();
-  virtual DVOID on_stop_stage_1();
-  virtual truefalse on_start();
+  virtual DVOID before_finish();
+  virtual DVOID before_finish_stage_1();
+  virtual truefalse before_begin();
 
 private:
   enum { CLOCK_INTERVAL = 3 }; //seconds
@@ -1032,8 +1032,8 @@ public:
   truefalse get_pl(CMemGuard & value);
 
 protected:
-  virtual truefalse on_start();
-  virtual DVOID on_stop();
+  virtual truefalse before_begin();
+  virtual DVOID before_finish();
 
 private:
   MyPingSubmitter m_ping_sumbitter;
@@ -1065,12 +1065,12 @@ public:
   virtual CONST text * name() CONST;
 
 protected:
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb);
+  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb);
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 2 * 1024 * 1024 };
 
-  DVOID process_ip_ver_reply(MyBSBasePacket * bspacket);
+  DVOID process_ip_ver_reply(CBSData * bspacket);
   DVOID process_ip_ver_reply_one(text * item);
 };
 
@@ -1116,21 +1116,21 @@ public:
   typedef CClientProcBase super;
 
   MyDistToMiddleProcessor(CHandlerBase * handler);
-  virtual CProcBase::EVENT_RESULT on_recv_header();
+  virtual CProcBase::OUTPUT on_recv_header();
   virtual ni on_open();
   ni send_server_load();
 
 protected:
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb);
+  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb);
 
 private:
   enum { IP_ADDR_LENGTH = INET_ADDRSTRLEN };
   enum { MSG_QUEUE_MAX_SIZE = 512 * 1024 };
 
   ni send_version_check_req();
-  CProcBase::EVENT_RESULT do_version_check_reply(CMB * mb);
-  CProcBase::EVENT_RESULT do_have_dist_task(CMB * mb);
-  CProcBase::EVENT_RESULT do_remote_cmd_task(CMB * mb);
+  CProcBase::OUTPUT do_version_check_reply(CMB * mb);
+  CProcBase::OUTPUT do_have_dist_task(CMB * mb);
+  CProcBase::OUTPUT do_remote_cmd_task(CMB * mb);
 
   truefalse m_version_check_reply_done;
   text m_local_addr[IP_ADDR_LENGTH];
@@ -1166,10 +1166,10 @@ public:
   DVOID send_to_middle(CMB * mb);
 
 protected:
-  virtual DVOID on_stop();
-  virtual truefalse on_start();
-  virtual truefalse on_event_loop();
-  virtual DVOID on_stop_stage_1();
+  virtual DVOID before_finish();
+  virtual truefalse before_begin();
+  virtual truefalse do_schedule_work();
+  virtual DVOID before_finish_stage_1();
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
@@ -1201,8 +1201,8 @@ public:
   DVOID send_to_middle(CMB * mb);
 
 protected:
-  virtual truefalse on_start();
-  virtual DVOID on_stop();
+  virtual truefalse before_begin();
+  virtual DVOID before_finish();
 
 private:
   MyDistToMiddleDispatcher *m_dispatcher;
@@ -1219,7 +1219,7 @@ public:
   truefalse connect();
   truefalse check_db_connection();
   truefalse ping_db_server();
-  truefalse get_client_ids(CClientIDS * idtable);
+  truefalse get_client_ids(CTermSNs * idtable);
   truefalse save_client_id(CONST text * s);
   truefalse save_dist(MyHttpDistRequest & http_dist_request, CONST text * md5, CONST text * mbz_md5);
   truefalse save_sr(text * dist_id, CONST text * cmd, text * idlist);

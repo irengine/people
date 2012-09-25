@@ -1,34 +1,34 @@
 #include "component.h"
 #include "app.h"
 
-CClientIDS * g_client_ids = NULL;
+CTermSNs * g_client_ids = NULL;
 
 //MyClientVerson//
 
-CClientVer::CClientVer()
+CTermVer::CTermVer()
 {
   init(0, 0);
 }
 
-CClientVer::CClientVer(u_int8_t major, u_int8_t minor)
+CTermVer::CTermVer(u_int8_t major, u_int8_t minor)
 {
   init(major, minor);
 }
 
-DVOID CClientVer::init(u_int8_t major, u_int8_t minor)
+DVOID CTermVer::init(u_int8_t major, u_int8_t minor)
 {
   m_major = major;
   m_minor = minor;
   prepare_buff();
 }
 
-DVOID CClientVer::prepare_buff()
+DVOID CTermVer::prepare_buff()
 {
-  snprintf(m_data, DATA_BUFF_SIZE, "%hhu.%hhu", m_major, m_minor);
+  snprintf(m_data, DATA_LEN, "%hhu.%hhu", m_major, m_minor);
 }
 
 
-truefalse CClientVer::from_string(CONST text * s)
+truefalse CTermVer::from_string(CONST text * s)
 {
   if (unlikely(!s || !*s))
     return false;
@@ -42,12 +42,12 @@ truefalse CClientVer::from_string(CONST text * s)
   return true;
 }
 
-CONST text * CClientVer::to_string() CONST
+CONST text * CTermVer::to_string() CONST
 {
   return m_data;
 }
 
-truefalse CClientVer::operator < (CONST CClientVer & rhs)
+truefalse CTermVer::operator < (CONST CTermVer & rhs)
 {
   if (m_major < rhs.m_major)
     return true;
@@ -113,7 +113,7 @@ CONST text * CMfileSplit::translate(CONST text * src)
 
 //MyClientInfo//
 
-CClientInfo::CClientInfo()
+CTermData::CTermData()
 {
   active = false;
   expired = false;
@@ -121,7 +121,7 @@ CClientInfo::CClientInfo()
   set_password(NULL);
 }
 
-CClientInfo::CClientInfo(CONST MyClientID & id, CONST text * _ftp_password, truefalse _expired): client_id(id)
+CTermData::CTermData(CONST CNumber & id, CONST text * _ftp_password, truefalse _expired): term_sn(id)
 {
   active = false;
   expired = _expired;
@@ -129,54 +129,54 @@ CClientInfo::CClientInfo(CONST MyClientID & id, CONST text * _ftp_password, true
   set_password(_ftp_password);
 }
 
-DVOID CClientInfo::set_password(CONST text * _ftp_password)
+DVOID CTermData::set_password(CONST text * _ftp_password)
 {
   if (!_ftp_password || !*_ftp_password)
   {
-    ftp_password[0] = 0;
+    password[0] = 0;
     password_len = 0;
     return;
   }
 
-  ACE_OS::strsncpy(ftp_password, _ftp_password, FTP_PASSWORD_LEN);
-  password_len  = strlen(ftp_password);
+  ACE_OS::strsncpy(password, _ftp_password, PWD_SIZE);
+  password_len  = strlen(password);
 }
 
 
 //MyClientIDTable//
 
-CClientIDS::CClientIDS()
+CTermSNs::CTermSNs()
 {
   m_last_sequence = 0;
 }
 
-CClientIDS::~CClientIDS()
+CTermSNs::~CTermSNs()
 {
   m_table.clear();
   m_map.clear();
 }
 
-truefalse CClientIDS::have(CONST MyClientID & id)
+truefalse CTermSNs::have(CONST CNumber & id)
 {
   return (index_of(id) >= 0);
 }
 
-DVOID CClientIDS::add_i(CONST MyClientID & id, CONST text *ftp_password, truefalse expired)
+DVOID CTermSNs::add_i(CONST CNumber & id, CONST text *ftp_password, truefalse expired)
 {
   if (index_of_i(id) >= 0)
     return;
-  CClientInfo info(id, ftp_password, expired);
+  CTermData info(id, ftp_password, expired);
   m_table.push_back(info);
   m_map[id] = m_table.size() - 1;
 }
 
-DVOID CClientIDS::add(CONST MyClientID &id)
+DVOID CTermSNs::add(CONST CNumber &id)
 {
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
   add_i(id, NULL, false);
 }
 
-DVOID CClientIDS::add(CONST text * str_id, CONST text *ftp_password, truefalse expired)
+DVOID CTermSNs::add(CONST text * str_id, CONST text *ftp_password, truefalse expired)
 {
   if (unlikely(!str_id || !*str_id))
     return;
@@ -184,13 +184,13 @@ DVOID CClientIDS::add(CONST text * str_id, CONST text *ftp_password, truefalse e
     str_id++;
   if (!*str_id)
     return;
-  MyClientID id(str_id);
-  id.trim_tail_space();
+  CNumber id(str_id);
+  id.rtrim();
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
   add_i(id, ftp_password, expired);
 }
 
-DVOID CClientIDS::add_batch(text * idlist)
+DVOID CTermSNs::add_batch(text * idlist)
 {
   if (!idlist)
     return;
@@ -205,20 +205,20 @@ DVOID CClientIDS::add_batch(text * idlist)
       break;
     if (!*token)
       continue;
-    MyClientID id(token);
+    CNumber id(token);
     add_i(id, NULL, false);
   }
 }
 
-ni CClientIDS::index_of(CONST MyClientID & id)
+ni CTermSNs::index_of(CONST CNumber & id)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, -1);
   return index_of_i(id);
 }
 
-ni CClientIDS::index_of_i(CONST MyClientID & id, ClientIDTable_map::iterator * pIt)
+ni CTermSNs::index_of_i(CONST CNumber & id, CTermSNs_map::iterator * pIt)
 {
-  ClientIDTable_map::iterator it = m_map.find(id);
+  CTermSNs_map::iterator it = m_map.find(id);
   if (pIt)
     *pIt = it;
   if (it == m_map.end())
@@ -231,24 +231,24 @@ ni CClientIDS::index_of_i(CONST MyClientID & id, ClientIDTable_map::iterator * p
   return it->second;
 }
 
-ni CClientIDS::count()
+ni CTermSNs::count()
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, -1);
   return m_table.size();
 }
 
-truefalse CClientIDS::value(ni index, MyClientID * id)
+truefalse CTermSNs::value(ni index, CNumber * id)
 {
   if (unlikely(index < 0) || !id)
     return false;
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
   if (unlikely(index >= (ni)m_table.size() || index < 0))
     return false;
-  *id = m_table[index].client_id;
+  *id = m_table[index].term_sn;
   return true;
 }
 
-truefalse CClientIDS::value_all(ni index, CClientInfo & client_info)
+truefalse CTermSNs::value_all(ni index, CTermData & client_info)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
   if (unlikely(index >= (ni)m_table.size() || index < 0))
@@ -257,7 +257,7 @@ truefalse CClientIDS::value_all(ni index, CClientInfo & client_info)
   return true;
 }
 
-truefalse CClientIDS::active(CONST MyClientID & id, ni & index, truefalse & switched)
+truefalse CTermSNs::active(CONST CNumber & id, ni & index, truefalse & switched)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
   if (index < 0 || index >= (ni)m_table.size())
@@ -277,7 +277,7 @@ truefalse CClientIDS::active(CONST MyClientID & id, ni & index, truefalse & swit
 //  m_table[idx].active = _active;
 //}
 
-truefalse CClientIDS::active(ni index)
+truefalse CTermSNs::active(ni index)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
   if (unlikely(index < 0 || index > (ni)m_table.size()))
@@ -285,7 +285,7 @@ truefalse CClientIDS::active(ni index)
   return m_table[index].active;
 }
 
-DVOID CClientIDS::active(ni index, truefalse _active)
+DVOID CTermSNs::active(ni index, truefalse _active)
 {
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
   if (unlikely(index < 0 || index > (ni)m_table.size()))
@@ -293,7 +293,7 @@ DVOID CClientIDS::active(ni index, truefalse _active)
   m_table[index].active = _active;
 }
 
-DVOID CClientIDS::switched(ni index, truefalse _switched)
+DVOID CTermSNs::switched(ni index, truefalse _switched)
 {
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
   if (unlikely(index < 0 || index > (ni)m_table.size()))
@@ -301,7 +301,7 @@ DVOID CClientIDS::switched(ni index, truefalse _switched)
   m_table[index].switched = _switched;
 }
 
-DVOID CClientIDS::expired(ni index, truefalse _expired)
+DVOID CTermSNs::expired(ni index, truefalse _expired)
 {
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
   if (unlikely(index < 0 || index > (ni)m_table.size()))
@@ -309,7 +309,7 @@ DVOID CClientIDS::expired(ni index, truefalse _expired)
   m_table[index].expired = _expired;
 }
 
-truefalse CClientIDS::mark_valid(CONST MyClientID & id, truefalse valid, ni & index)
+truefalse CTermSNs::mark_valid(CONST CNumber & id, truefalse valid, ni & index)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, true);
   index = index_of_i(id);
@@ -319,7 +319,7 @@ truefalse CClientIDS::mark_valid(CONST MyClientID & id, truefalse valid, ni & in
   if (valid)
   {
     if (index < 0)
-      add_i(id, id.as_string(), false);
+      add_i(id, id.to_str(), false);
     else
       m_table[index].expired = false;
   } else //!valid
@@ -327,17 +327,17 @@ truefalse CClientIDS::mark_valid(CONST MyClientID & id, truefalse valid, ni & in
   return false;
 }
 
-ni CClientIDS::last_sequence() CONST
+ni CTermSNs::last_sequence() CONST
 {
   return m_last_sequence;
 }
 
-DVOID CClientIDS::last_sequence(ni _seq)
+DVOID CTermSNs::last_sequence(ni _seq)
 {
   m_last_sequence = _seq;
 }
 
-DVOID CClientIDS::prepare_space(ni _count)
+DVOID CTermSNs::prepare_space(ni _count)
 {
   m_table.reserve(std::max(ni((m_table.size() + _count) * 1.4), 1000));
 }
@@ -437,7 +437,7 @@ CFileMD5 * CFileMD5s::find(CONST text * fn)
 
 DVOID CFileMD5s::minus(CFileMD5s & target, CMfileSplit * spl, truefalse do_delete)
 {
-  MyFileMD5List::iterator it1 = m_file_md5_list.begin(), it2 = target.m_file_md5_list.begin(), it;
+  CFileMD5Vec::iterator it1 = m_file_md5_list.begin(), it2 = target.m_file_md5_list.begin(), it;
   //the below algorithm is based on STL's set_difference() function
   text fn[PATH_MAX];
   while (it1 != m_file_md5_list.end() && it2 != target.m_file_md5_list.end())
@@ -542,7 +542,7 @@ truefalse CFileMD5s::add_file(CONST text * pathname, CONST text * filename, ni p
 ni CFileMD5s::total_size(truefalse include_md5_value)
 {
   ni result = 0;
-  MyFileMD5List::iterator it;
+  CFileMD5Vec::iterator it;
   for (it = m_file_md5_list.begin(); it != m_file_md5_list.end(); ++it)
   {
     CFileMD5 & fm = **it;
@@ -555,7 +555,7 @@ ni CFileMD5s::total_size(truefalse include_md5_value)
 
 truefalse CFileMD5s::to_buffer(text * buff, ni buff_len, truefalse include_md5_value)
 {
-  MyFileMD5List::iterator it;
+  CFileMD5Vec::iterator it;
   if (unlikely(!buff || buff_len <= 0))
   {
     C_ERROR("invalid parameter MyFileMD5s::to_buffer(%s, %d)\n", buff, buff_len);
@@ -575,13 +575,13 @@ truefalse CFileMD5s::to_buffer(text * buff, ni buff_len, truefalse include_md5_v
     }
     ni fm_file_length = fm.size(false);
     memcpy(buff + len, fm.filename(), fm_file_length);
-    buff[len + fm_file_length - 1] = include_md5_value? MyDataPacketHeader::MIDDLE_SEPARATOR: MyDataPacketHeader::ITEM_SEPARATOR;
+    buff[len + fm_file_length - 1] = include_md5_value? CCmdHeader::MIDDLE_SEPARATOR: CCmdHeader::ITEM_SEPARATOR;
     len += fm_file_length;
     if (include_md5_value)
     {
       memcpy(buff + len, fm.md5(), CFileMD5::MD5_STRING_LENGTH);
       len += CFileMD5::MD5_STRING_LENGTH;
-      buff[len++] = MyDataPacketHeader::ITEM_SEPARATOR;
+      buff[len++] = CCmdHeader::ITEM_SEPARATOR;
     }
   }
   buff[len] = 0;
@@ -593,7 +593,7 @@ truefalse CFileMD5s::from_buffer(text * buff, CMfileSplit * spl)
   if (!buff || !*buff)
     return true;
 
-  text seperator[2] = {MyDataPacketHeader::ITEM_SEPARATOR, 0};
+  text seperator[2] = {CCmdHeader::ITEM_SEPARATOR, 0};
   text *str, *token, *saveptr, *md5;
 
 //  ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
@@ -604,7 +604,7 @@ truefalse CFileMD5s::from_buffer(text * buff, CMfileSplit * spl)
       break;
     if (unlikely(!*token))
       continue;
-    md5 = strchr(token, MyDataPacketHeader::MIDDLE_SEPARATOR);
+    md5 = strchr(token, CCmdHeader::MIDDLE_SEPARATOR);
     if (unlikely(md5 == token || !md5))
     {
       C_ERROR("bad file/md5 list item @MyFileMD5s::from_buffer: %s\n", token);
@@ -632,7 +632,7 @@ truefalse CFileMD5s::calculate_diff(CONST text * dirname, CMfileSplit * spl)
   C_ASSERT_RETURN(dirname && *dirname, "NULL dirname @MyFileMD5s::calculate_diff()\n", false);
   CMemGuard fn;
   ni n = strlen(dirname);
-  MyFileMD5List::iterator it;
+  CFileMD5Vec::iterator it;
   for (it = m_file_md5_list.begin(); it != m_file_md5_list.end(); )
   {
     CONST text * new_name = spl? spl->translate((**it).filename()): (**it).filename();
@@ -856,7 +856,7 @@ ni CArchiveLoader::read(text * buff, ni buff_len)
 
 CONST text * CArchiveLoader::file_name() CONST
 {
-  return ((CPackHead*)m_wrapped_header.data())->file_name;
+  return ((CPackHead*)m_wrapped_header.data())->fn;
 }
 
 
@@ -865,33 +865,33 @@ truefalse CArchiveLoader::read_header()
   CPackHead header;
   if (do_read((char*)&header, sizeof(header)) != sizeof(header))
     return false;
-  if (header.magic != CPackHead::HEADER_MAGIC)
+  if (header.signature != CPackHead::SIGNATURE)
   {
     C_ERROR("corrupted compressed file %s\n", m_file_name.data());
     return false;
   }
 
-  ni name_length = header.header_length - sizeof(header);
+  ni name_length = header.header_size - sizeof(header);
   if (name_length <= 1 || name_length > PATH_MAX)
   {
     C_ERROR("invalid compressed header file name length: %s\n", m_file_name.data());
     return false;
   }
 
-  if (header.encrypted_data_length < 0 || header.encrypted_data_length > header.data_length)
+  if (header.encrypted_data_length < 0 || header.encrypted_data_length > header.data_size)
   {
     C_ERROR("invalid encrypted data length value\n");
     return false;
   }
 
-  CMemPoolX::instance()->alloc_mem(header.header_length, &m_wrapped_header);
+  CMemPoolX::instance()->alloc_mem(header.header_size, &m_wrapped_header);
   memcpy((void*)m_wrapped_header.data(), &header, sizeof(header));
   text * name_ptr = m_wrapped_header.data() + sizeof(header);
   if (!do_read(name_ptr, name_length))
     return false;
   name_ptr[name_length - 1] = 0;
 
-  m_remain_length = header.data_length;
+  m_remain_length = header.data_size;
   m_remain_encrypted_length = header.encrypted_data_length;
   return true;
 };
@@ -1029,7 +1029,7 @@ truefalse CArchiveSaver::finish()
       return false;
   }
 
-  m_pack_header.data_length = m_data_length;
+  m_pack_header.data_size = m_data_length;
 
   if (::lseek(m_file.handle(), 0, SEEK_SET) == -1)
   {
@@ -1054,9 +1054,9 @@ truefalse CArchiveSaver::write_header(CONST text * filename)
   if (unlikely(!filename || !*filename))
     return false;
   ni filename_len = strlen(filename) + 1;
-  m_pack_header.magic = CPackHead::HEADER_MAGIC;
-  m_pack_header.header_length = sizeof(m_pack_header) + filename_len;
-  m_pack_header.data_length = -1;
+  m_pack_header.signature = CPackHead::SIGNATURE;
+  m_pack_header.header_size = sizeof(m_pack_header) + filename_len;
+  m_pack_header.data_size = -1;
   m_pack_header.encrypted_data_length = -1;
   if (!do_write((char*)&m_pack_header, sizeof(m_pack_header)))
     return false;
@@ -1116,8 +1116,8 @@ CDataComp::CDataComp()
 
 truefalse CDataComp::prepare_buffers()
 {
-  return (m_buff_in.data() || CMemPoolX::instance()->alloc_mem(BUFFER_LEN, &m_buff_in)) &&
-         (m_buff_out.data() || CMemPoolX::instance()->alloc_mem(BUFFER_LEN, &m_buff_out));
+  return (m_buff_in.data() || CMemPoolX::instance()->alloc_mem(BUFF_SIZE, &m_buff_in)) &&
+         (m_buff_out.data() || CMemPoolX::instance()->alloc_mem(BUFF_SIZE, &m_buff_out));
 }
 
 truefalse CDataComp::do_compress(CArchiveloaderBase * _reader, CArchiveSaverBase * _writer)
@@ -1126,7 +1126,7 @@ truefalse CDataComp::do_compress(CArchiveloaderBase * _reader, CArchiveSaverBase
 
   while (true)
   {
-    n = _reader->read(m_buff_in.data(), BUFFER_LEN);
+    n = _reader->read(m_buff_in.data(), BUFF_SIZE);
     if (n < 0)
       return false;
     else if (n == 0)
@@ -1136,7 +1136,7 @@ truefalse CDataComp::do_compress(CArchiveloaderBase * _reader, CArchiveSaverBase
     m_bz_stream.next_in = m_buff_in.data();
     while (true)
     {
-      m_bz_stream.avail_out = BUFFER_LEN;
+      m_bz_stream.avail_out = BUFF_SIZE;
       m_bz_stream.next_out = m_buff_out.data();
       ret = BZ2_bzCompress(&m_bz_stream, BZ_RUN);
       if (ret != BZ_RUN_OK)
@@ -1145,9 +1145,9 @@ truefalse CDataComp::do_compress(CArchiveloaderBase * _reader, CArchiveSaverBase
         return false;
       };
 
-      if (m_bz_stream.avail_out < BUFFER_LEN)
+      if (m_bz_stream.avail_out < BUFF_SIZE)
       {
-        n2 = BUFFER_LEN - m_bz_stream.avail_out;
+        n2 = BUFF_SIZE - m_bz_stream.avail_out;
         if (!_writer->write(m_buff_out.data(), n2))
          return false;
       }
@@ -1156,13 +1156,13 @@ truefalse CDataComp::do_compress(CArchiveloaderBase * _reader, CArchiveSaverBase
         break;
     }
 
-   if (n < BUFFER_LEN)
+   if (n < BUFF_SIZE)
     break;
   }
 
   while (true)
   {
-    m_bz_stream.avail_out = BUFFER_LEN;
+    m_bz_stream.avail_out = BUFF_SIZE;
     m_bz_stream.next_out = m_buff_out.data();
     ret = BZ2_bzCompress(&m_bz_stream, BZ_FINISH);
     if (ret != BZ_FINISH_OK && ret != BZ_STREAM_END)
@@ -1171,9 +1171,9 @@ truefalse CDataComp::do_compress(CArchiveloaderBase * _reader, CArchiveSaverBase
       return false;
     };
 
-    if (m_bz_stream.avail_out < BUFFER_LEN)
+    if (m_bz_stream.avail_out < BUFF_SIZE)
     {
-      n2 = BUFFER_LEN - m_bz_stream.avail_out;
+      n2 = BUFF_SIZE - m_bz_stream.avail_out;
       if (!_writer->write(m_buff_out.data(), n2))
         return false;
     }
@@ -1219,7 +1219,7 @@ truefalse CDataComp::do_decompress(CArchiveloaderBase * _reader, CArchiveSaverBa
 {
   ni n, n2, ret;
 
-  m_bz_stream.avail_out = BUFFER_LEN;
+  m_bz_stream.avail_out = BUFF_SIZE;
   m_bz_stream.next_out = m_buff_out.data();
   m_bz_stream.avail_in = 0;
 
@@ -1227,7 +1227,7 @@ truefalse CDataComp::do_decompress(CArchiveloaderBase * _reader, CArchiveSaverBa
   {
     if (m_bz_stream.avail_in == 0)
     {
-       n = _reader->read(m_buff_in.data(), BUFFER_LEN);
+       n = _reader->read(m_buff_in.data(), BUFF_SIZE);
        if (n < 0)
          return false;
        else if (n == 0)
@@ -1247,12 +1247,12 @@ truefalse CDataComp::do_decompress(CArchiveloaderBase * _reader, CArchiveSaverBa
       return false;
     };
 
-    if (m_bz_stream.avail_out < BUFFER_LEN)
+    if (m_bz_stream.avail_out < BUFF_SIZE)
     {
-      n2 = BUFFER_LEN - m_bz_stream.avail_out;
+      n2 = BUFF_SIZE - m_bz_stream.avail_out;
       if (!_writer->write(m_buff_out.data(), n2))
         return false;
-      m_bz_stream.avail_out = BUFFER_LEN;
+      m_bz_stream.avail_out = BUFF_SIZE;
       m_bz_stream.next_out = m_buff_out.data();
     }
 
@@ -1283,7 +1283,7 @@ truefalse CDataComp::decompress(CONST text * srcfn, CONST text * destdir, CONST 
     if (unlikely(!_file_name))
       return false;
 
-    if (!CSysFS::make_path(destdir, _file_name, true, true))
+    if (!CSysFS::create_dir(destdir, _file_name, true, true))
     {
       C_ERROR("can not mkdir %s/%s %s\n", destdir, _file_name, (CONST char*)CErrno());
       return false;
@@ -1392,7 +1392,7 @@ CProcBase::~CProcBase()
 
 }
 
-DVOID CProcBase::info_string(CMemGuard & info) CONST
+DVOID CProcBase::get_sinfo(CMemGuard & info) CONST
 {
   ACE_UNUSED_ARG(info);
 }
@@ -1422,7 +1422,7 @@ ni CProcBase::handle_input()
   return 0;
 }
 
-truefalse CProcBase::can_send_data(CMB * mb) CONST
+truefalse CProcBase::ok_to_send(CMB * mb) CONST
 {
   ACE_UNUSED_ARG(mb);
   return true;
@@ -1447,7 +1447,7 @@ ni CProcBase::handle_input_wait_for_close()
 }
 
 
-truefalse CProcBase::dead() CONST
+truefalse CProcBase::broken() CONST
 {
   return m_last_activity + 100 < g_clock_counter;
 }
@@ -1462,7 +1462,7 @@ long CProcBase::last_activity() CONST
   return m_last_activity;
 }
 
-CONST MyClientID & CProcBase::client_id() CONST
+CONST CNumber & CProcBase::client_id() CONST
 {
   return m_client_id;
 }
@@ -1483,133 +1483,6 @@ int32_t CProcBase::client_id_index() CONST
 }
 
 
-//MyBaseRemoteAccessProcessor//
-
-CProcRemoteAccessBase::CProcRemoteAccessBase(CHandlerBase * handler):
-    CProcBase(handler)
-{
-  m_mb = NULL;
-}
-
-CProcRemoteAccessBase::~CProcRemoteAccessBase()
-{
-  if (m_mb)
-    m_mb->release();
-}
-
-ni CProcRemoteAccessBase::handle_input()
-{
-  if (m_mb == NULL)
-    m_mb = CMemPoolX::instance()->get_mb(MAX_COMMAND_LINE_LENGTH);
-  if (c_util_recv_message_block(m_handler, m_mb) < 0)
-    return -1;
-  ni i, len = m_mb->length();
-  text * ptr = m_mb->base();
-  m_handler->connection_manager()->on_data_received(len);
-  for (i = 0; i < len; ++ i)
-    if (ptr[i] == '\r' || ptr[i] == '\n')
-      break;
-  if (i >= len)
-  {
-    if (len == MAX_COMMAND_LINE_LENGTH)
-    {
-      text buff[100];
-      snprintf(buff, 100 - 1, "Error: command line too long, max line length = %d\n", MAX_COMMAND_LINE_LENGTH);
-      send_string(buff);
-      return 0;
-    }
-    return 0;
-  }
-
-  text last_cr_lf = ptr[i];
-
-  ptr[i] = 0;
-  if (process_command_line(m_mb->base()) < 0)
-    return -1;
-
-  ++i;
-  while (i < len && (ptr[i] == '\r' || ptr[i] == '\n') && (ptr[i] != last_cr_lf))
-    ++i;
-  if (i < len)
-    memmove(ptr, ptr + i, len - i);
-  m_mb->wr_ptr(m_mb->base() + len - i);
-  m_mb->rd_ptr(m_mb->base());
-  return 0;
-}
-
-ni CProcRemoteAccessBase::on_open()
-{
-  return say_hello();
-}
-
-ni CProcRemoteAccessBase::send_string(CONST text * s)
-{
-  if (!s || !*s)
-    return 0;
-  ni len = strlen(s);
-  CMB * mb = CMemPoolX::instance()->get_mb(len + 1);
-  memcpy(mb->base(), s, len + 1);
-  mb->wr_ptr(mb->capacity());
-  return (m_handler->send_data(mb) < 0 ? -1:0);
-}
-
-ni CProcRemoteAccessBase::process_command_line(text * cmd)
-{
-  if (!cmd || !*cmd)
-    return send_string(">");
-
-  text * ptr_start = cmd, * ptr_end;
-  while (*ptr_start == ' ' || *ptr_start == '\t')
-    ++ptr_start;
-  ptr_end = ptr_start;
-  while (*ptr_end && *ptr_end != ' ' && *ptr_end != '\t')
-    ++ptr_end;
-  if (*ptr_end)
-    *ptr_end++ = 0;
-  return do_command(ptr_start, ptr_end);
-}
-
-ni CProcRemoteAccessBase::do_command(CONST text * cmd, text * parameter)
-{
-  if (!strcmp(cmd, "help"))
-    return on_command_help();
-  if (!strcmp(cmd, "quit") || !strcmp(cmd, "exit"))
-    return on_command_quit();
-  return on_command(cmd, parameter);
-}
-
-ni CProcRemoteAccessBase::on_command(CONST text * cmd, text * parameter)
-{
-  ACE_UNUSED_ARG(cmd);
-  ACE_UNUSED_ARG(parameter);
-  return 0;
-}
-
-ni CProcRemoteAccessBase::on_unsupported_command(CONST text * cmd)
-{
-  text buff[4096];
-  snprintf(buff, 4096 - 1, "Error: unknown command '%s', to see a list of supported commands, type 'help'\n>", cmd);
-  return send_string(buff);
-}
-
-ni CProcRemoteAccessBase::on_command_help()
-{
-  return 0;
-}
-
-ni CProcRemoteAccessBase::on_command_quit()
-{
-  send_string("Bye!\n");
-  return -1;
-}
-
-ni CProcRemoteAccessBase::say_hello()
-{
-  return send_string("Welcome\n>");
-}
-
-
-
 //MyBasePacketProcessor//
 
 CFormatProcBase::CFormatProcBase(CHandlerBase * handler): super(handler)
@@ -1622,16 +1495,16 @@ CONST text * CFormatProcBase::name() CONST
   return "MyBasePacketProcessor";
 }
 
-DVOID CFormatProcBase::info_string(CMemGuard & info) CONST
+DVOID CFormatProcBase::get_sinfo(CMemGuard & info) CONST
 {
-  CONST text * str_id = m_client_id.as_string();
+  CONST text * str_id = m_client_id.to_str();
   if (!*str_id)
     str_id = "NULL";
   CONST text * ss[5];
   ss[0] = "(remote addr=";
   ss[1] = m_peer_addr;
   ss[2] = ", client_id=";
-  ss[3] = m_client_id.as_string();
+  ss[3] = m_client_id.to_str();
   ss[4] = ")";
   info.from_strings(ss, 5);
 }
@@ -1648,24 +1521,24 @@ ni CFormatProcBase::on_open()
 
 ni CFormatProcBase::packet_length()
 {
-  return m_packet_header.length;
+  return m_packet_header.size;
 }
 
-CProcBase::EVENT_RESULT CFormatProcBase::on_recv_header()
+CProcBase::OUTPUT CFormatProcBase::on_recv_header()
 {
-  return ER_CONTINUE;
+  return OP_CONTINUE;
 }
 
-CProcBase::EVENT_RESULT CFormatProcBase::on_recv_packet_i(CMB * mb)
+CProcBase::OUTPUT CFormatProcBase::on_recv_packet_i(CMB * mb)
 {
-  MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
-  header->magic = m_client_id_index;
-  return ER_OK;
+  CCmdHeader * header = (CCmdHeader *)mb->base();
+  header->signature = m_client_id_index;
+  return OP_OK;
 }
 
 CMB * CFormatProcBase::make_version_check_request_mb(CONST ni extra)
 {
-  CMB * mb = CMemPoolX::instance()->get_mb_cmd_direct(sizeof(MyClientVersionCheckRequest) + extra, MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
+  CMB * mb = CMemPoolX::instance()->get_mb_cmd_direct(sizeof(CTerminalVerReq) + extra, CCmdHeader::PT_VER_REQ);
   return mb;
 }
 
@@ -1677,25 +1550,25 @@ CBSProceBase::CBSProceBase(CHandlerBase * handler): super(handler)
 
 }
 
-CProcBase::EVENT_RESULT CBSProceBase::on_recv_header()
+CProcBase::OUTPUT CBSProceBase::on_recv_header()
 {
-  return (m_packet_header.check_header()? ER_OK : ER_ERROR);
+  return (m_packet_header.validate_header()? OP_OK : OP_FAIL);
 }
 
-CProcBase::EVENT_RESULT CBSProceBase::on_recv_packet_i(CMB * mb)
+CProcBase::OUTPUT CBSProceBase::on_recv_packet_i(CMB * mb)
 {
-  MyBSBasePacket * bspacket = (MyBSBasePacket *) mb->base();
-  if (!bspacket->guard())
+  CBSData * bspacket = (CBSData *) mb->base();
+  if (!bspacket->fix_data())
   {
     C_ERROR("bad packet recieved from bs, no tail terminator\n");
-    return ER_ERROR;
+    return OP_FAIL;
   }
-  return ER_OK;
+  return OP_OK;
 }
 
 ni CBSProceBase::packet_length()
 {
-  return m_packet_header.packet_len();
+  return m_packet_header.data_len();
 }
 
 
@@ -1718,80 +1591,80 @@ CONST text * CServerProcBase::name() CONST
 
 truefalse CServerProcBase::client_id_verified() CONST
 {
-  return !m_client_id.is_null();
+  return !m_client_id.empty();
 }
 
-truefalse CServerProcBase::can_send_data(CMB * mb) CONST
+truefalse CServerProcBase::ok_to_send(CMB * mb) CONST
 {
   ACE_UNUSED_ARG(mb);
   return client_id_verified();
 }
 
-CProcBase::EVENT_RESULT CServerProcBase::on_recv_header()
+CProcBase::OUTPUT CServerProcBase::on_recv_header()
 {
-  CProcBase::EVENT_RESULT result = super::on_recv_header();
-  if (result != ER_CONTINUE)
+  CProcBase::OUTPUT result = super::on_recv_header();
+  if (result != OP_CONTINUE)
     return result;
 
   truefalse bVerified = client_id_verified();
-  truefalse bVersionCheck = (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
+  truefalse bVersionCheck = (m_packet_header.cmd == CCmdHeader::PT_VER_REQ);
   if (bVerified == bVersionCheck)
   {
     CMemGuard info;
-    info_string(info);
+    get_sinfo(info);
     C_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s, \n"),
-        m_packet_header.command, bVerified, bVersionCheck, info.data());
-    return ER_ERROR;
+        m_packet_header.cmd, bVerified, bVersionCheck, info.data());
+    return OP_FAIL;
   }
 
-  return ER_CONTINUE;
+  return OP_CONTINUE;
 }
 
-CProcBase::EVENT_RESULT CServerProcBase::do_version_check_common(CMB * mb, CClientIDS & client_id_table)
+CProcBase::OUTPUT CServerProcBase::do_version_check_common(CMB * mb, CTermSNs & client_id_table)
 {
-  MyClientVersionCheckRequest * vcr = (MyClientVersionCheckRequest *) mb->base();
-  vcr->validate_data();
+  CTerminalVerReq * vcr = (CTerminalVerReq *) mb->base();
+  vcr->fix_data();
   CMB * reply_mb = NULL;
-  m_client_version.init(vcr->client_version_major, vcr->client_version_minor);
-  ni client_id_index = client_id_table.index_of(vcr->client_id);
+  m_client_version.init(vcr->term_ver_major, vcr->term_ver_minor);
+  ni client_id_index = client_id_table.index_of(vcr->term_sn);
   truefalse valid = false;
 
   m_client_id_index = client_id_index;
-  m_client_id = vcr->client_id;
-  m_client_id_length = strlen(m_client_id.as_string());
+  m_client_id = vcr->term_sn;
+  m_client_id_length = strlen(m_client_id.to_str());
 
   if (client_id_index >= 0)
   {
-    CClientInfo client_info;
+    CTermData client_info;
     if (client_id_table.value_all(client_id_index, client_info))
       valid = ! client_info.expired;
   }
   if (!valid)
   {
     m_wait_for_close = true;
-    C_WARNING(ACE_TEXT("closing connection due to invalid client_id = %s\n"), vcr->client_id.as_string());
-    reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_ACCESS_DENIED);
+    C_WARNING(ACE_TEXT("closing connection due to invalid client_id = %s\n"), vcr->term_sn.to_str());
+    reply_mb = make_version_check_reply_mb(CTermVerReply::SC_ACCESS_DENIED);
   }
 
   if (m_wait_for_close)
   {
     if (m_handler->send_data(reply_mb) <= 0)
-      return ER_ERROR;
+      return OP_FAIL;
     else
-      return ER_OK;
+      return OP_OK;
   }
 
   m_handler->connection_manager()->set_connection_client_id_index(m_handler, client_id_index, m_handler->client_id_table());
-  return ER_CONTINUE;
+  return OP_CONTINUE;
 }
 
 CMB * CServerProcBase::make_version_check_reply_mb
-   (MyClientVersionCheckReply::REPLY_CODE code, ni extra_len)
+   (CTermVerReply::SUBCMD code, ni extra_len)
 {
-  ni total_len = sizeof(MyClientVersionCheckReply) + extra_len;
-  CMB * mb = CMemPoolX::instance()->get_mb_cmd_direct(total_len, MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY);
-  MyClientVersionCheckReply * vcr = (MyClientVersionCheckReply *) mb->base();
-  vcr->reply_code = code;
+  ni total_len = sizeof(CTermVerReply) + extra_len;
+  CMB * mb = CMemPoolX::instance()->get_mb_cmd_direct(total_len, CCmdHeader::PT_VER_REPLY);
+  CTermVerReply * vcr = (CTermVerReply *) mb->base();
+  vcr->ret_subcmd = code;
   return mb;
 }
 
@@ -1823,10 +1696,10 @@ DVOID CClientProcBase::client_verified(truefalse _verified)
   m_client_verified = _verified;
 }
 
-truefalse CClientProcBase::can_send_data(CMB * mb) CONST
+truefalse CClientProcBase::ok_to_send(CMB * mb) CONST
 {
-  MyDataPacketHeader * dph = (MyDataPacketHeader*) mb->base();
-  truefalse is_request = dph->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ;
+  CCmdHeader * dph = (CCmdHeader*) mb->base();
+  truefalse is_request = dph->cmd == CCmdHeader::PT_VER_REQ;
   truefalse client_verified = client_id_verified();
   return is_request != client_verified;
 }
@@ -1857,24 +1730,24 @@ DVOID CClientProcBase::on_close()
   }
 }
 
-CProcBase::EVENT_RESULT CClientProcBase::on_recv_header()
+CProcBase::OUTPUT CClientProcBase::on_recv_header()
 {
-  CProcBase::EVENT_RESULT result = super::on_recv_header();
-  if (result != ER_CONTINUE)
+  CProcBase::OUTPUT result = super::on_recv_header();
+  if (result != OP_CONTINUE)
     return result;
 
   truefalse bVerified = client_id_verified();
-  truefalse bVersionCheck = (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY);
+  truefalse bVersionCheck = (m_packet_header.cmd == CCmdHeader::PT_VER_REPLY);
   if (bVerified == bVersionCheck)
   {
     CMemGuard info;
-    info_string(info);
+    get_sinfo(info);
     C_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s \n"),
-        m_packet_header.command, bVerified, bVersionCheck, info.data());
-    return ER_ERROR;
+        m_packet_header.cmd, bVerified, bVersionCheck, info.data());
+    return OP_FAIL;
   }
 
-  return ER_CONTINUE;
+  return OP_CONTINUE;
 }
 
 
@@ -1959,9 +1832,9 @@ truefalse CConnectionManagerBase::locked() CONST
   return m_locked;
 }
 
-DVOID CConnectionManagerBase::dump_info()
+DVOID CConnectionManagerBase::print_all()
 {
-  do_dump_info();
+  i_print();
 }
 
 DVOID CConnectionManagerBase::broadcast(CMB * mb)
@@ -2004,7 +1877,7 @@ DVOID CConnectionManagerBase::do_send(CMB * mb, truefalse broadcast)
     (*it2)->handle_close();
 }
 
-DVOID CConnectionManagerBase::do_dump_info()
+DVOID CConnectionManagerBase::i_print()
 {
   CONST ni BUFF_LEN = 1024;
   text buff[BUFF_LEN];
@@ -2015,9 +1888,9 @@ DVOID CConnectionManagerBase::do_dump_info()
   ACE_DEBUG((LM_INFO, buff));
   snprintf(buff, BUFF_LEN, "        dead connections closed = %d\n", reaped_count());
   ACE_DEBUG((LM_INFO, buff));
-  snprintf(buff, BUFF_LEN, "        bytes_received = %lld\n", (long long ni) bytes_received());
+  snprintf(buff, BUFF_LEN, "        bytes_received = %lld\n", (long long int) bytes_received());
   ACE_DEBUG((LM_INFO, buff));
-  snprintf(buff, BUFF_LEN, "        bytes_sent = %lld\n", (long long ni) bytes_sent());
+  snprintf(buff, BUFF_LEN, "        bytes_sent = %lld\n", (long long int) bytes_sent());
   ACE_DEBUG((LM_INFO, buff));
 }
 
@@ -2025,13 +1898,13 @@ DVOID CConnectionManagerBase::do_dump_info()
 DVOID CConnectionManagerBase::detect_dead_connections(ni timeout)
 {
   MyConnectionsPtr it;
-  CHandlerBase * handler;
+  CHandlerBase * h;
   MyConnectionManagerLockGuard guard(this);
-  long deadline = g_clock_counter - long(timeout * 60 / CApp::CLOCK_INTERVAL);
+  long deadline = g_clock_counter - long(timeout * 60 / CApp::CLOCK_TIME);
   for (it = m_active_connections.begin(); it != m_active_connections.end();)
   {
-    handler = it->first;
-    if (!handler)
+    h = it->first;
+    if (!h)
     {
       m_active_connections.erase(it++);
       --m_num_connections;
@@ -2039,13 +1912,13 @@ DVOID CConnectionManagerBase::detect_dead_connections(ni timeout)
       continue;
     }
 
-    if (handler->processor()->last_activity() < deadline)
+    if (h->processor()->last_activity() < deadline)
     {
       if (it->second == CS_Pending)
         -- m_pending;
-      handler->mark_as_reap();
-      remove_from_handler_map(handler, handler->client_id_table());
-      handler->handle_close(ACE_INVALID_HANDLE, 0);
+      h->mark_as_reap();
+      remove_from_handler_map(h, h->client_id_table());
+      h->handle_close(ACE_INVALID_HANDLE, 0);
       m_active_connections.erase(it++);
       --m_num_connections;
       ++m_reaped_connections;
@@ -2055,7 +1928,7 @@ DVOID CConnectionManagerBase::detect_dead_connections(ni timeout)
   }
 }
 
-DVOID CConnectionManagerBase::set_connection_client_id_index(CHandlerBase * handler, ni index, CClientIDS * id_table)
+DVOID CConnectionManagerBase::set_connection_client_id_index(CHandlerBase * handler, ni index, CTermSNs * id_table)
 {
   if (unlikely(!handler || m_locked || index < 0))
     return;
@@ -2070,7 +1943,7 @@ DVOID CConnectionManagerBase::set_connection_client_id_index(CHandlerBase * hand
     {
       remove_from_active_table(handler_old);
       CMemGuard info;
-      handler_old->processor()->info_string(info);
+      handler_old->processor()->get_sinfo(info);
       C_DEBUG("closing previous connection %s\n", info.data());
       handler_old->mark_as_reap();
       handler_old->handle_close(ACE_INVALID_HANDLE, 0);
@@ -2113,7 +1986,7 @@ DVOID CConnectionManagerBase::set_connection_state(CHandlerBase * handler, CStat
   add_connection(handler, state);
 }
 
-DVOID CConnectionManagerBase::remove_connection(CHandlerBase * handler, CClientIDS * id_table)
+DVOID CConnectionManagerBase::remove_connection(CHandlerBase * handler, CTermSNs * id_table)
 {
   if (unlikely(m_locked))
     return;
@@ -2134,7 +2007,7 @@ DVOID CConnectionManagerBase::remove_from_active_table(CHandlerBase * handler)
   }
 }
 
-DVOID CConnectionManagerBase::remove_from_handler_map(CHandlerBase * handler, CClientIDS * id_table)
+DVOID CConnectionManagerBase::remove_from_handler_map(CHandlerBase * handler, CTermSNs * id_table)
 {
   ni index = handler->processor()->client_id_index();
   if (index < 0)
@@ -2166,7 +2039,7 @@ CHandlerBase::CHandlerBase(CConnectionManagerBase * xptr)
 {
   m_reaped = false;
   m_connection_manager = xptr;
-  m_processor = NULL;
+  m_proc = NULL;
   m_parent = NULL;
 }
 
@@ -2177,7 +2050,7 @@ CConnectionManagerBase * CHandlerBase::connection_manager()
 
 CProcBase * CHandlerBase::processor() CONST
 {
-  return m_processor;
+  return m_proc;
 }
 
 ni CHandlerBase::on_open()
@@ -2192,7 +2065,7 @@ ni CHandlerBase::open(DVOID * p)
     return -1;
   if (on_open() < 0)
     return -1;
-  if (m_processor->on_open() < 0)
+  if (m_proc->on_open() < 0)
     return -1;
   if (m_connection_manager)
     m_connection_manager->set_connection_state(this, CConnectionManagerBase::CS_Connected);
@@ -2201,12 +2074,12 @@ ni CHandlerBase::open(DVOID * p)
 
 ni CHandlerBase::send_data(CMB * mb)
 {
-  if (unlikely(!m_processor->can_send_data(mb)))
+  if (unlikely(!m_proc->ok_to_send(mb)))
   {
     mb->release();
     return 0;
   }
-  m_processor->update_last_activity();
+  m_proc->update_last_activity();
   ni sent_len = mb->length();
   ni ret = c_util_send_message_block_queue(this, mb, true);
   if (ret >= 0)
@@ -2226,10 +2099,10 @@ ni CHandlerBase::handle_input(ACE_HANDLE h)
 {
   ACE_UNUSED_ARG(h);
 //  C_DEBUG("handle_input (handle = %d)\n", h);
-  return m_processor->handle_input();
+  return m_proc->handle_input();
 }
 
-CClientIDS * CHandlerBase::client_id_table() CONST
+CTermSNs * CHandlerBase::client_id_table() CONST
 {
   return NULL;
 }
@@ -2263,7 +2136,7 @@ ni CHandlerBase::handle_close (ACE_HANDLE handle,
   if (m_connection_manager && !m_reaped)
     m_connection_manager->remove_connection(this, client_id_table());
   on_close();
-  m_processor->on_close();
+  m_proc->on_close();
   //here comes the tricky part, parent class will NOT call delete as it normally does
   //since we override the operator new/delete pair, the same thing parent class does
   //see ACE_Svc_Handler @ Svc_Handler.cpp
@@ -2310,7 +2183,7 @@ ni CHandlerBase::handle_output (ACE_HANDLE fd)
 
 CHandlerBase::~CHandlerBase()
 {
-  delete m_processor;
+  delete m_proc;
 }
 
 
@@ -2345,12 +2218,12 @@ CConnectionManagerBase * CAcceptorBase::connection_manager() CONST
   return m_connection_manager;
 }
 
-truefalse CAcceptorBase::on_start()
+truefalse CAcceptorBase::before_begin()
 {
   return true;
 }
 
-DVOID CAcceptorBase::on_stop()
+DVOID CAcceptorBase::before_finish()
 {
 
 }
@@ -2392,7 +2265,7 @@ ni CAcceptorBase::start()
     }
   }
 
-  if (!on_start())
+  if (!before_begin())
     return -1;
 
   return 0;
@@ -2400,7 +2273,7 @@ ni CAcceptorBase::start()
 
 ni CAcceptorBase::stop()
 {
-  on_stop();
+  before_finish();
   m_connection_manager->lock();
   if (m_idle_connection_timer_id >= 0)
     reactor()->cancel_timer(m_idle_connection_timer_id);
@@ -2408,15 +2281,15 @@ ni CAcceptorBase::stop()
   return 0;
 }
 
-DVOID CAcceptorBase::do_dump_info()
+DVOID CAcceptorBase::i_print()
 {
-  m_connection_manager->dump_info();
+  m_connection_manager->print_all();
 }
 
 DVOID CAcceptorBase::print_info()
 {
   ACE_DEBUG((LM_INFO, "      +++ acceptor dump: %s start\n", name()));
-  do_dump_info();
+  i_print();
   ACE_DEBUG((LM_INFO, "      +++ acceptor dump: %s end\n", name()));
 }
 
@@ -2496,12 +2369,12 @@ ni CConnectorBase::handle_timeout(CONST ACE_Time_Value &current_time, CONST DVOI
   return 0;
 }
 
-truefalse CConnectorBase::on_start()
+truefalse CConnectorBase::before_begin()
 {
   return true;
 }
 
-DVOID CConnectorBase::on_stop()
+DVOID CConnectorBase::before_finish()
 {
 
 }
@@ -2552,21 +2425,21 @@ ni CConnectorBase::start()
     }
   }
 
-  if (!on_start())
+  if (!before_begin())
     return -1;
 
   return 0; //
 }
 
-DVOID CConnectorBase::do_dump_info()
+DVOID CConnectorBase::i_print()
 {
-  m_connection_manager->dump_info();
+  m_connection_manager->print_all();
 }
 
 DVOID CConnectorBase::dump_info()
 {
   ACE_DEBUG((LM_INFO, "      +++ connector dump: %s start\n", name()));
-  do_dump_info();
+  i_print();
   ACE_DEBUG((LM_INFO, "      +++ connector dump: %s end\n", name()));
 }
 
@@ -2577,7 +2450,7 @@ CONST text * CConnectorBase::name() CONST
 
 ni CConnectorBase::stop()
 {
-  on_stop();
+  before_finish();
   if (m_reconnect_timer_id >= 0)
     reactor()->cancel_timer(m_reconnect_timer_id);
   if (m_idle_connection_timer_id >= 0)
@@ -2711,12 +2584,12 @@ ni CTaskBase::stop()
   return 0;
 }
 
-DVOID CTaskBase::dump_info()
+DVOID CTaskBase::print_all()
 {
 
 }
 
-DVOID CTaskBase::do_dump_info()
+DVOID CTaskBase::i_print()
 {
 
 }
@@ -2805,7 +2678,7 @@ DVOID CDispatchBase::add_acceptor(CAcceptorBase * _acceptor)
   m_acceptors.push_back(_acceptor);
 }
 
-truefalse CDispatchBase::on_start()
+truefalse CDispatchBase::before_begin()
 {
   return true;
 }
@@ -2815,17 +2688,17 @@ ni CDispatchBase::start()
   return activate (THR_NEW_LWP, m_numThreads);
 }
 
-truefalse CDispatchBase::on_event_loop()
+truefalse CDispatchBase::do_schedule_work()
 {
   return true;
 }
 
-DVOID CDispatchBase::on_stop()
+DVOID CDispatchBase::before_finish()
 {
 
 }
 
-DVOID CDispatchBase::on_stop_stage_1()
+DVOID CDispatchBase::before_finish_stage_1()
 {
 
 }
@@ -2844,13 +2717,13 @@ CONST text * CDispatchBase::name() CONST
 DVOID CDispatchBase::dump_info()
 {
   ACE_DEBUG((LM_INFO, "    --- dispatcher dump: %s start\n", name()));
-  do_dump_info();
+  i_print();
   std::for_each(m_connectors.begin(), m_connectors.end(), std::mem_fun(&CConnectorBase::dump_info));
   std::for_each(m_acceptors.begin(), m_acceptors.end(), std::mem_fun(&CAcceptorBase::print_info));
   ACE_DEBUG((LM_INFO, "    --- dispatcher dump: %s end\n", name()));
 }
 
-DVOID CDispatchBase::do_dump_info()
+DVOID CDispatchBase::i_print()
 {
 
 }
@@ -2869,7 +2742,7 @@ truefalse CDispatchBase::do_start_i()
     if (open(NULL) == -1)
       return false;
     msg_queue()->flush();
-    if (!on_start())
+    if (!before_begin())
       return false;
     std::for_each(m_connectors.begin(), m_connectors.end(), std::mem_fun(&CConnectorBase::start));
     std::for_each(m_acceptors.begin(), m_acceptors.end(), std::mem_fun(&CAcceptorBase::start));
@@ -2882,7 +2755,7 @@ DVOID CDispatchBase::do_stop_i()
   ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
   if (!m_reactor) //reuse m_reactor as cleanup flag
     return;
-  on_stop_stage_1();
+  before_finish_stage_1();
   msg_queue()->flush();
   if (m_reactor && m_clock_interval > 0)
     m_reactor->cancel_timer(this);
@@ -2894,7 +2767,7 @@ DVOID CDispatchBase::do_stop_i()
     m_reactor->close();
   m_connectors.clear();
   m_acceptors.clear();
-  on_stop();
+  before_finish();
   delete m_reactor;
   m_reactor = NULL;
 }
@@ -2917,7 +2790,7 @@ ni CDispatchBase::svc()
       C_INFO(ACE_TEXT ("exiting %s::svc() due to %s\n"), name(), (CONST char*)CErrno());
       break;
     }
-    if (!on_event_loop())
+    if (!do_schedule_work())
       break;
     //C_DEBUG("    returning from reactor()->handle_events()\n");
   }
@@ -2955,12 +2828,12 @@ truefalse CMod::running_with_app() CONST
   return (m_running && m_app->running());
 }
 
-truefalse CMod::on_start()
+truefalse CMod::before_begin()
 {
   return true;
 }
 
-DVOID CMod::on_stop()
+DVOID CMod::before_finish()
 {
 
 }
@@ -2971,7 +2844,7 @@ ni CMod::start()
   if (m_running)
     return 0;
 
-  if (!on_start())
+  if (!before_begin())
     return -1;
   m_running = true;
   std::for_each(m_tasks.begin(), m_tasks.end(), std::mem_fun(&CTaskBase::start));
@@ -2990,7 +2863,7 @@ ni CMod::stop()
   std::for_each(m_dispatchs.begin(), m_dispatchs.end(), CObjDeletor());
   m_tasks.clear();
   m_dispatchs.clear();
-  on_stop();
+  before_finish();
   return 0;
 }
 
@@ -2999,16 +2872,16 @@ CONST text * CMod::name() CONST
   return "MyBaseModule";
 }
 
-DVOID CMod::dump_info()
+DVOID CMod::print_all()
 {
-  ACE_DEBUG((LM_INFO, "  *** module dump: %s start\n", name()));
-  do_dump_info();
+  ACE_DEBUG((LM_INFO, "  *** component: %s begin\n", name()));
+  i_print();
   std::for_each(m_dispatchs.begin(), m_dispatchs.end(), std::mem_fun(&CDispatchBase::dump_info));
-  std::for_each(m_tasks.begin(), m_tasks.end(), std::mem_fun(&CTaskBase::dump_info));
-  ACE_DEBUG((LM_INFO, "  *** module dump: %s end\n", name()));
+  std::for_each(m_tasks.begin(), m_tasks.end(), std::mem_fun(&CTaskBase::print_all));
+  ACE_DEBUG((LM_INFO, "  *** component: %s finish\n", name()));
 }
 
-DVOID CMod::do_dump_info()
+DVOID CMod::i_print()
 {
 
 }

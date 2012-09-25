@@ -25,7 +25,7 @@ MyServerApp::~MyServerApp()
 
 }
 
-CClientIDS & MyServerApp::client_id_table()
+CTermSNs & MyServerApp::client_id_table()
 {
   return m_client_ids;
 }
@@ -73,13 +73,13 @@ truefalse MyServerApp::dist_put_to_service(CMB * mb)
   return c_util_mb_putq(m_heart_beat_module->service(), mb, "to service's queue");
 }
 
-truefalse MyServerApp::on_start()
+truefalse MyServerApp::before_begin()
 {
 
   return true;
 }
 
-DVOID MyServerApp::on_stop()
+DVOID MyServerApp::before_finish()
 {
 
 }
@@ -88,7 +88,7 @@ DVOID MyServerApp::dump_mem_pool_info()
 {
   ACE_DEBUG((LM_INFO, "  !!! Memory Dump start !!!\n"));
   long nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
-  if (!g_use_mem_pool)
+  if (!g_cache)
   {
     ACE_DEBUG((LM_INFO, "    Memory Pool Disabled\n"));
     goto _exit_;
@@ -172,12 +172,12 @@ _exit_:
   ACE_DEBUG((LM_INFO, "  !!! Memory Dump End !!!\n"));
 }
 
-DVOID MyServerApp::do_dump_info()
+DVOID MyServerApp::i_print()
 {
   MyServerApp::dump_mem_pool_info();
 }
 
-truefalse MyServerApp::on_construct()
+truefalse MyServerApp::do_init()
 {
   CCfg * cfg = CCfgX::instance();
   g_client_ids = &m_client_ids;
@@ -193,16 +193,16 @@ truefalse MyServerApp::on_construct()
     return false;
   }
 
-  if (cfg->is_dist())
+  if (cfg->dist())
   {
-    add_module(m_heart_beat_module = new MyHeartBeatModule(this));
-    add_module(m_dist_to_middle_module = new MyDistToMiddleModule(this));
+    add_component(m_heart_beat_module = new MyHeartBeatModule(this));
+    add_component(m_dist_to_middle_module = new MyDistToMiddleModule(this));
   }
-  if (cfg->is_middle())
+  if (cfg->middle())
   {
-    add_module(m_location_module = new MyLocationModule(this));
-    add_module(m_dist_load_module = new MyDistLoadModule(this));
-    add_module(m_http_module = new MyHttpModule(this));
+    add_component(m_location_module = new MyLocationModule(this));
+    add_component(m_dist_load_module = new MyDistLoadModule(this));
+    add_component(m_http_module = new MyHttpModule(this));
   }
   return true;
 }
@@ -216,16 +216,16 @@ truefalse MyServerApp::app_init(CONST text * app_home_path, CCfg::CAppMode mode)
     std::printf("error loading config file, quitting\n");
     exit(5);
   }
-  if (cfg->as_demon)
+  if (cfg->is_demon)
     CApp::demon();
-  if (cfg->is_dist())
+  if (cfg->dist())
   {
-    MyHeartBeatProcessor::init_mem_pool(cfg->max_client_count);
-    MyHeartBeatHandler::init_mem_pool(cfg->max_client_count);
+    MyHeartBeatProcessor::init_mem_pool(cfg->client_peak);
+    MyHeartBeatHandler::init_mem_pool(cfg->client_peak);
     MyDistToMiddleHandler::init_mem_pool(20);
     MyDistToBSHandler::init_mem_pool(20);
   }
-  if (cfg->is_middle())
+  if (cfg->middle())
   {
     MyDistLoadHandler::init_mem_pool(50);
     MyLocationHandler::init_mem_pool(1000);
@@ -275,7 +275,7 @@ int main(ni argc, CONST text * argv[])
     ret = MyServerApp::app_init(NULL, CCfg::AM_UNKNOWN);
 
   if (ret)
-    MyServerAppX::instance()->start();
+    MyServerAppX::instance()->begin();
   MyServerApp::app_fini();
   return 0;
 }

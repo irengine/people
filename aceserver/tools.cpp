@@ -2,9 +2,7 @@
 #include "tools.h"
 #include "app.h"
 
-truefalse g_use_mem_pool = true;
-
-//MyCached_Message_Block//
+truefalse g_cache = true;
 
 CCachedMB::CCachedMB(size_t size,
                 ACE_Allocator * allocator_strategy,
@@ -143,7 +141,7 @@ DVOID CMemGuard::from_strings(CONST text * arr[], ni len)
   }
 }
 
-DVOID c_util_hex_dump(DVOID * ptr, ni len, text * result_buff, ni buff_len)
+DVOID c_util_dump_hex(DVOID * ptr, ni len, text * result_buff, ni buff_len)
 {
   if (unlikely(!ptr || len <= 0 || buff_len < 2 * len))
     return;
@@ -449,7 +447,7 @@ truefalse md5file (CONST text *fn , u32 seed, MD5_CTX *mdContext, text * result_
       break;
     else if (rb < 0)
     {
-      C_ERROR("error while reading file %s %s\n", fn, (CONST char*)CErrno());
+      C_ERROR("error read file %s %s\n", fn, (CONST char*)CErrno());
       return -1;
     }
     MD5Update (mdContext, (utext *) buf, rb);
@@ -458,7 +456,7 @@ truefalse md5file (CONST text *fn , u32 seed, MD5_CTX *mdContext, text * result_
   }
   close (fd);
   MD5Final(mdContext);
-  c_util_hex_dump(mdContext->digest, 16, result_buff, 16 * 2);
+  c_util_dump_hex(mdContext->digest, 16, result_buff, 16 * 2);
   return true;
 }
 
@@ -518,7 +516,7 @@ truefalse c_util_mb_putq(ACE_Task<ACE_MT_SYNCH> * target, CMB * mb, CONST text *
   if (unlikely(target->putq(mb, &tv) < 0))
   {
     if (err_msg)
-      C_ERROR("can not put message %s: %s\n", err_msg, (CONST text *)CErrno());
+      C_ERROR("fail to place message %s: %s\n", err_msg, (CONST text *)CErrno());
     mb->release();
     return false;
   }
@@ -561,58 +559,6 @@ ni c_util_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * 
 ni c_util_send_message_block_queue(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler,
     CMB *mb, truefalse discard)
 {
-/*************
-  if (!mb)
-    return -1;
-  ni ret;
-  if (!handler)
-  {
-    C_FATAL("null handler @mycomutil_send_message_block_queue.\n");
-    ret = -1;
-    goto _exit_;
-  }
-
-  if (!handler->msg_queue()->is_empty())
-  {
-    ACE_Time_Value nowait(ACE_OS::gettimeofday());
-    if (handler->putq(mb, &nowait) < 0)
-    {
-      ret = -1;
-      goto _exit_;
-    }
-    else return 1;
-  }
-
-  ret = mycomutil_send_message_block(handler, mb);
-  if (ret < 0)
-  {
-    ret = -1;
-    goto _exit_;
-  }
-
-  if (mb->length() == 0)
-  {
-    ret = 0;
-    goto _exit_;
-  } else
-  {
-    ACE_Time_Value nowait(ACE_OS::gettimeofday());
-    if (handler->putq(mb, &nowait) < 0)
-    {
-      ret = -1;
-      goto _exit_;
-    }
-    handler->reactor()->register_handler(handler, ACE_Event_Handler::WRITE_MASK);
-    return 1;
-  }
-
-_exit_:
-  if (discard)
-    mb->release();
-  return ret;
-*******/
-
-//the above implementation is error prone, rewrite to a simpler one
   if (!mb)
     return -1;
   if (!handler)
@@ -654,25 +600,21 @@ _exit_:
 
 ni c_util_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, CMB *mb)
 {
-//  C_DEBUG("on enter: mb->space()=%d\n", mb->space());
   if (!mb || !handler)
     return -1;
   if (mb->space() == 0)
     return 0;
   ssize_t recv_cnt = handler->peer().recv(mb->wr_ptr(), mb->space());//TEMP_FAILURE_RETRY(handler->peer().recv(mb->wr_ptr(), mb->space()));
-//  C_DEBUG("handler->recv() returns %d\n", (ni)recv_cnt);
   ni ret = c_util_translate_tcp_result(recv_cnt);
-//  C_DEBUG("tcp result = %d\n", ret);
   if (ret < 0)
     return -1;
   if (recv_cnt > 0)
     mb->wr_ptr(recv_cnt);
-//  C_DEBUG("on exit: mb->space()=%d\n", mb->space());
   return (mb->space() == 0 ? 0:1);
 }
 
 
-//MyFilePaths//
+
 
 truefalse CSysFS::exist(CONST text * path)
 {
@@ -680,12 +622,12 @@ truefalse CSysFS::exist(CONST text * path)
   return stat(path, &buf);
 }
 
-truefalse CSysFS::make_path(CONST char* path, truefalse self_only)
+truefalse CSysFS::create_dir(CONST char* path, truefalse owned_by_me)
 {
-  return (mkdir(path, self_only? DIR_FLAG_SELF : DIR_FLAG_ALL) == 0 || ACE_OS::last_error() == EEXIST);
+  return (mkdir(path, owned_by_me? DIR_FLAG_ME : DIR_FLAG_ALL) == 0 || ACE_OS::last_error() == EEXIST);
 }
 
-truefalse CSysFS::make_path(text * path, ni prefix_len, truefalse is_file, truefalse self_only)
+truefalse CSysFS::create_dir(text * path, ni prefix_len, truefalse is_file, truefalse owned_by_me)
 {
   if (!path || !*path)
     return false;
@@ -694,44 +636,44 @@ truefalse CSysFS::make_path(text * path, ni prefix_len, truefalse is_file, truef
   text * ptr = path + prefix_len;
   while (*ptr == '/')
     ++ptr;
-  text * end_ptr;
-  while ((end_ptr = strchr(ptr, '/')) != NULL)
+  text * ptr2;
+  while ((ptr2 = strchr(ptr, '/')) != NULL)
   {
-    *end_ptr = 0;
-    if (!make_path(path, self_only))
+    *ptr2 = 0;
+    if (!create_dir(path, owned_by_me))
       return false;
     //C_INFO("mkdir: %s\n", path);
-    *end_ptr = '/';
-    ptr = end_ptr + 1;
+    *ptr2 = '/';
+    ptr = ptr2 + 1;
   }
 
   if (!is_file)
-    return make_path(path, self_only);
+    return create_dir(path, owned_by_me);
     //C_INFO("mkdir: %s\n", path);
   return true;
 }
 
-truefalse CSysFS::make_path_const(CONST char* path, ni prefix_len, truefalse is_file, truefalse self_only)
+truefalse CSysFS::create_dir_const(CONST char* path, ni prefix_len, truefalse is_file, truefalse owned_by_me)
 {
   CMemGuard path_copy;
   path_copy.from_string(path);
-  return CSysFS::make_path(path_copy.data(), prefix_len, is_file, self_only);
+  return CSysFS::create_dir(path_copy.data(), prefix_len, is_file, owned_by_me);
 }
 
-truefalse CSysFS::make_path(CONST text * path, CONST text * subpath, truefalse is_file, truefalse self_only)
+truefalse CSysFS::create_dir(CONST text * path, CONST text * subpath, truefalse is_file, truefalse owned_by_me)
 {
   if (unlikely(!path || !subpath))
     return false;
   CMemGuard path_x;
   path_x.from_string(path, "/", subpath);
-  return make_path(path_x.data(), strlen(path) + 1, is_file, self_only);
+  return create_dir(path_x.data(), strlen(path) + 1, is_file, owned_by_me);
 }
 
-truefalse CSysFS::copy_path(CONST text * srcdir, CONST text * destdir, truefalse self_only, truefalse syn)
+truefalse CSysFS::copy_dir(CONST text * srcdir, CONST text * destdir, truefalse owned_by_me, truefalse syn)
 {
   if (unlikely(!srcdir || !*srcdir || !destdir || !*destdir))
     return false;
-  if (!make_path(destdir, self_only))
+  if (!create_dir(destdir, owned_by_me))
   {
     C_ERROR("can not create directory %s, %s\n", destdir, (CONST text *)CErrno());
     return false;
@@ -764,7 +706,7 @@ truefalse CSysFS::copy_path(CONST text * srcdir, CONST text * destdir, truefalse
 
     if (entry->d_type == DT_REG)
     {
-      if (!copy_file(msrc.data(), mdest.data(), self_only, syn))
+      if (!copy_file(msrc.data(), mdest.data(), owned_by_me, syn))
       {
         C_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (CONST text *)CErrno());
         closedir(dir);
@@ -773,7 +715,7 @@ truefalse CSysFS::copy_path(CONST text * srcdir, CONST text * destdir, truefalse
     }
     else if(entry->d_type == DT_DIR)
     {
-      if (!copy_path(msrc.data(), mdest.data(), self_only, syn))
+      if (!copy_dir(msrc.data(), mdest.data(), owned_by_me, syn))
       {
         closedir(dir);
         return false;
@@ -787,29 +729,29 @@ truefalse CSysFS::copy_path(CONST text * srcdir, CONST text * destdir, truefalse
   return true;
 }
 
-truefalse CSysFS::copy_path_zap(CONST text * srcdir, CONST text * destdir, truefalse self_only, truefalse zap, truefalse syn)
+truefalse CSysFS::copy_dir_zap(CONST text * src, CONST text * dest, truefalse owned_by_me, truefalse zap, truefalse syn)
 {
-  if (unlikely(!srcdir || !*srcdir || !destdir || !*destdir))
+  if (unlikely(!src || !*src || !dest || !*dest))
     return false;
 
   if (zap)
-    remove_path(destdir, true);
+    delete_dir(dest, true);
 
-  if (!make_path_const(destdir, 1, false, self_only))
+  if (!create_dir_const(dest, 1, false, owned_by_me))
   {
-    C_ERROR("can not create directory %s, %s\n", destdir, (CONST text *)CErrno());
+    C_ERROR("can not create directory %s, %s\n", dest, (CONST text *)CErrno());
     return false;
   }
 
-  DIR * dir = opendir(srcdir);
+  DIR * dir = opendir(src);
   if (!dir)
   {
-    C_ERROR("can not open directory: %s %s\n", srcdir, (CONST char*)CErrno());
+    C_ERROR("can not open directory: %s %s\n", src, (CONST char*)CErrno());
     return false;
   }
 
-  ni len1 = strlen(srcdir);
-  ni len2 = strlen(destdir);
+  ni len1 = strlen(src);
+  ni len2 = strlen(dest);
 
   struct dirent *entry;
   while ((entry = readdir(dir)) != NULL)
@@ -822,13 +764,13 @@ truefalse CSysFS::copy_path_zap(CONST text * srcdir, CONST text * destdir, truef
     CMemGuard msrc, mdest;
     ni len = strlen(entry->d_name);
     CMemPoolX::instance()->alloc_mem(len1 + len + 2, &msrc);
-    sprintf(msrc.data(), "%s/%s", srcdir, entry->d_name);
+    sprintf(msrc.data(), "%s/%s", src, entry->d_name);
     CMemPoolX::instance()->alloc_mem(len2 + len + 2, &mdest);
-    sprintf(mdest.data(), "%s/%s", destdir, entry->d_name);
+    sprintf(mdest.data(), "%s/%s", dest, entry->d_name);
 
     if (entry->d_type == DT_REG)
     {
-      if (!copy_file(msrc.data(), mdest.data(), self_only, syn))
+      if (!copy_file(msrc.data(), mdest.data(), owned_by_me, syn))
       {
         C_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (CONST text *)CErrno());
         closedir(dir);
@@ -837,21 +779,21 @@ truefalse CSysFS::copy_path_zap(CONST text * srcdir, CONST text * destdir, truef
     }
     else if(entry->d_type == DT_DIR)
     {
-      if (!copy_path_zap(msrc.data(), mdest.data(), self_only, true, syn))
+      if (!copy_dir_zap(msrc.data(), mdest.data(), owned_by_me, true, syn))
       {
         closedir(dir);
         return false;
       }
     } else
-      C_WARNING("unknown file type (= %d) for file @MyFilePaths::copy_directory file = %s/%s\n",
-           entry->d_type, srcdir, entry->d_name);
+      C_WARNING("unknown file type (= %d) for file @CSysFS::copy_dir_zap file = %s/%s\n",
+           entry->d_type, src, entry->d_name);
   };
 
   closedir(dir);
   return true;
 }
 
-truefalse CSysFS::remove_path(CONST text * path, truefalse ignore_eror)
+truefalse CSysFS::delete_dir(CONST text * path, truefalse ignore_eror)
 {
   if (unlikely(!path || !*path))
     return false;
@@ -882,7 +824,7 @@ truefalse CSysFS::remove_path(CONST text * path, truefalse ignore_eror)
 
     if(entry->d_type == DT_DIR)
     {
-      if (!remove_path(msrc.data(), ignore_eror))
+      if (!delete_dir(msrc.data(), ignore_eror))
       {
         closedir(dir);
         return false;
@@ -986,12 +928,12 @@ truefalse CSysFS::copy_file_by_fd(ni src_fd, ni dest_fd)
   ACE_NOTREACHED(return true);
 }
 
-truefalse CSysFS::copy_file(CONST text * src, CONST text * dest, truefalse self_only, truefalse syn)
+truefalse CSysFS::copy_file(CONST text * src, CONST text * dest, truefalse owned_by_me, truefalse syn)
 {
   CUnixFileGuard hsrc, hdest;
   if (!hsrc.open_read(src))
     return false;
-  if (!hdest.open_write(dest, true, true, false, self_only))
+  if (!hdest.open_write(dest, true, true, false, owned_by_me))
     return false;
   truefalse ret = copy_file_by_fd(hsrc.handle(), hdest.handle());
   if (ret && syn)
@@ -1029,49 +971,49 @@ truefalse CSysFS::rename(CONST text *old_path, CONST text * new_path, truefalse 
   return result;
 }
 
-truefalse CSysFS::remove(CONST text *pathfile, truefalse ignore_error)
+truefalse CSysFS::remove(CONST text *pathfile, truefalse no_report_failure)
 {
-  truefalse result = (::remove(pathfile) == 0 || ACE_OS::last_error() == ENOENT);
-  if (!result && !ignore_error)
+  truefalse b = (::remove(pathfile) == 0 || ACE_OS::last_error() == ENOENT);
+  if (!b && !no_report_failure)
     C_ERROR("remove %s failed %s\n", pathfile, (CONST char*)CErrno());
-  return result;
+  return b;
 }
 
-truefalse CSysFS::zap(CONST text *pathfile, truefalse ignore_error)
+truefalse CSysFS::zap(CONST text *p, truefalse no_report_failure)
 {
   struct stat _stat;
-  if (!stat(pathfile, &_stat))
+  if (!stat(p, &_stat))
   {
     if (ACE_OS::last_error() == ENOENT)
       return true;
     else
     {
-      if (!ignore_error)
+      if (!no_report_failure)
         C_ERROR("stat(%s) failed %s\n", (CONST text *)CErrno());
       return false;
     }
   }
 
   if (S_ISDIR(_stat.st_mode))
-    return remove_path(pathfile, ignore_error);
+    return delete_dir(p, no_report_failure);
   else
-    return remove(pathfile, ignore_error);
+    return remove(p, no_report_failure);
 }
 
-truefalse CSysFS::stat(CONST text *pathfile, struct stat * _stat)
+truefalse CSysFS::stat(CONST text *p, struct stat * _stat)
 {
-  return (::stat(pathfile, _stat) == 0);
+  return (::stat(p, _stat) == 0);
 }
 
-ni CSysFS::filesize(CONST text *pathfile)
+ni CSysFS::filesize(CONST text *p)
 {
   struct stat _stat;
-  if (!stat(pathfile, &_stat))
+  if (!stat(p, &_stat))
     return 0;
   return (ni)_stat.st_size;
 }
 
-truefalse CSysFS::zap_path_except_mfile(CONST CMemGuard & path, CONST CMemGuard & mfile, truefalse ignore_error)
+truefalse CSysFS::clean_dir_keep_mfile(CONST CMemGuard & path, CONST CMemGuard & mfile, truefalse no_report_failure)
 {
   CMemGuard mfile_path;
   mfile_path.from_string(mfile.data());
@@ -1082,7 +1024,7 @@ truefalse CSysFS::zap_path_except_mfile(CONST CMemGuard & path, CONST CMemGuard 
   DIR * dir = opendir(path.data());
   if (!dir)
   {
-    if (!ignore_error)
+    if (!no_report_failure)
       C_ERROR("can not open directory: %s %s\n", path.data(), (CONST char*)CErrno());
     return false;
   }
@@ -1102,9 +1044,9 @@ truefalse CSysFS::zap_path_except_mfile(CONST CMemGuard & path, CONST CMemGuard 
 
     if(entry->d_type == DT_DIR)
     {
-      if (!remove_path(msrc.data(), ignore_error))
+      if (!delete_dir(msrc.data(), no_report_failure))
         ret =  false;
-    } else if (!remove(msrc.data(), ignore_error))
+    } else if (!remove(msrc.data(), no_report_failure))
       ret = false;
   };
 
@@ -1112,9 +1054,9 @@ truefalse CSysFS::zap_path_except_mfile(CONST CMemGuard & path, CONST CMemGuard 
   return ret;
 }
 
-DVOID CSysFS::zap_empty_paths(CONST CMemGuard & path)
+DVOID CSysFS::clean_empty_dir(CONST CMemGuard & p)
 {
-  DIR * dir = opendir(path.data());
+  DIR * dir = opendir(p.data());
   if (!dir)
     return;
 
@@ -1129,64 +1071,63 @@ DVOID CSysFS::zap_empty_paths(CONST CMemGuard & path)
     if(entry->d_type == DT_DIR)
     {
       CMemGuard msrc;
-      msrc.from_string(path.data(), "/", entry->d_name);
-      zap_empty_paths(msrc);
+      msrc.from_string(p.data(), "/", entry->d_name);
+      clean_empty_dir(msrc);
     }
   };
   closedir(dir);
-  remove(path.data(), true);
+  remove(p.data(), true);
 }
 
-//MyTestClientPathGenerator//
 
-DVOID CClientPathGenerator::make_paths(CONST text * app_data_path, int64_t _start, ni _count)
+DVOID CTerminalDirCreator::create_dirs(CONST text * data_dir, int64_t _begin, ni _number)
 {
-  if (!app_data_path || !*app_data_path)
+  if (!data_dir || !*data_dir)
     return;
-  text buff[PATH_MAX], str_client_id[64];
-  snprintf(buff, PATH_MAX - 1, "%s/", app_data_path);
+  text buff[PATH_MAX], sn[64];
+  snprintf(buff, PATH_MAX - 1, "%s/", data_dir);
   ni prefix_len = strlen(buff);
-  for (long long id = _start; id < _start + _count; ++ id)
+  for (long long id = _begin; id < _begin + _number; ++ id)
   {
-    snprintf(str_client_id, 64 - 1, "%lld", (long long)id);
-    client_id_to_path(str_client_id, buff + prefix_len, PATH_MAX - prefix_len - 1);
-    CSysFS::make_path(buff, prefix_len + 1, false, true);
+    snprintf(sn, 64 - 1, "%lld", (long long)id);
+    term_sn_to_dir(sn, buff + prefix_len, PATH_MAX - prefix_len - 1);
+    CSysFS::create_dir(buff, prefix_len + 1, false, true);
   }
 }
 
-DVOID CClientPathGenerator::make_paths_from_id_table(CONST text * app_data_path, CClientIDS * id_table)
+DVOID CTerminalDirCreator::create_dirs_from_TermSNs(CONST text * data_dir, CTermSNs * termsns)
 {
-  if (!app_data_path || !*app_data_path || !id_table)
+  if (!data_dir || !*data_dir || !termsns)
     return;
-  text buff[PATH_MAX], str_client_id[64];
-  snprintf(buff, PATH_MAX - 1, "%s/", app_data_path);
+  text buff[PATH_MAX], sn[64];
+  snprintf(buff, PATH_MAX - 1, "%s/", data_dir);
   ni prefix_len = strlen(buff);
-  ni count = id_table->count();
-  MyClientID id;
+  ni count = termsns->count();
+  CNumber id;
   CMemGuard path_x;
   for (ni i = 0; i < count; ++ i)
   {
-    id_table->value(i, &id);
-    snprintf(str_client_id, 64, "%s", id.as_string());
-    client_id_to_path(str_client_id, buff + prefix_len, PATH_MAX - prefix_len - 1);
-    CSysFS::make_path(buff, prefix_len + 1, false, true);
+    termsns->value(i, &id);
+    snprintf(sn, 64, "%s", id.to_str());
+    term_sn_to_dir(sn, buff + prefix_len, PATH_MAX - prefix_len - 1);
+    CSysFS::create_dir(buff, prefix_len + 1, false, true);
     path_x.from_string(buff, "/download");
-    CSysFS::make_path(path_x.data(), true);
+    CSysFS::create_dir(path_x.data(), true);
     path_x.from_string(buff, "/daily");
-    CSysFS::make_path(path_x.data(), true);
+    CSysFS::create_dir(path_x.data(), true);
     path_x.from_string(buff, "/tmp");
-    CSysFS::remove_path(path_x.data(), true);
-    CSysFS::make_path(path_x.data(), true);
+    CSysFS::delete_dir(path_x.data(), true);
+    CSysFS::create_dir(path_x.data(), true);
     path_x.from_string(buff, "/backup");
-    CSysFS::make_path(path_x.data(), true);
+    CSysFS::create_dir(path_x.data(), true);
   }
 }
 
-truefalse CClientPathGenerator::client_id_to_path(CONST text * id, text * result, ni result_len)
+truefalse CTerminalDirCreator::term_sn_to_dir(CONST text * sn, text * result, ni result_len)
 {
-  if (!id || !*id || !result)
+  if (!sn || !*sn || !result)
     return false;
-  ni len = strlen(id);
+  ni len = strlen(sn);
   if (result_len < len + 4)
   {
     C_ERROR("not enough result_len\n");
@@ -1195,23 +1136,22 @@ truefalse CClientPathGenerator::client_id_to_path(CONST text * id, text * result
 
   text prefix[3];
   len = (len >= 2 ? len - 2: 0);
-  prefix[0] = id[len];
-  prefix[1] = id[len + 1];
+  prefix[0] = sn[len];
+  prefix[1] = sn[len + 1];
   prefix[2] = 0;
-  sprintf(result, "%s/%s", prefix, id);
+  sprintf(result, "%s/%s", prefix, sn);
   return true;
 }
 
 
-//MyUnixHandleGuard//
 
-truefalse CUnixFileGuard::do_open(CONST text * filename, truefalse readonly, truefalse create, truefalse truncate, truefalse append, truefalse self_only)
+truefalse CUnixFileGuard::do_open(CONST text * f, truefalse readonly, truefalse create, truefalse truncate, truefalse append, truefalse owned_by_me)
 {
   ni fd;
-  if (unlikely(!filename || !*filename))
+  if (unlikely(!f || !*f))
     return false;
   if (readonly)
-    fd = ::open(filename, O_RDONLY);//O_CREAT | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
+    fd = ::open(f, O_RDONLY);//O_CREAT | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
   else
   {
     ni flag = O_RDWR;
@@ -1221,12 +1161,12 @@ truefalse CUnixFileGuard::do_open(CONST text * filename, truefalse readonly, tru
       flag |= O_TRUNC;
     if (append)
       flag |= O_APPEND;
-    fd = ::open(filename, flag, (self_only ? CSysFS::FILE_FLAG_SELF : CSysFS::FILE_FLAG_ALL));
+    fd = ::open(f, flag, (owned_by_me ? CSysFS::FILE_FLAG_ME : CSysFS::FILE_FLAG_ALL));
   }
   if (fd < 0)
   {
     if (m_error_report)
-      C_ERROR("can not open file %s, %s\n", filename, (CONST text *)CErrno());
+      C_ERROR("can not open file %s, %s\n", f, (CONST text *)CErrno());
     return false;
   }
   attach(fd);
@@ -1240,7 +1180,7 @@ CMemPool::CMemPool()
 {
   m_mb_pool = NULL;
   m_data_block_pool = NULL;
-  m_g_alloc_number = 0;
+  m_total_count = 0;
 }
 
 CMemPool::~CMemPool()
@@ -1255,94 +1195,90 @@ CMemPool::~CMemPool()
 
 DVOID CMemPool::init(CCfg * config)
 {
-  if(!g_use_mem_pool)
+  if(!g_cache)
       return;
 
   CONST ni KB = 1024;
   CONST ni MB = 1024 * 1024;
-  CONST ni pool_size[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8 * KB, 16 * KB, 32 * KB,
+  CONST ni l_sizes[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8 * KB, 16 * KB, 32 * KB,
                            64 * KB, 128 * KB, 256 * KB, 512 * KB, 2 * MB};
-  ni count = sizeof (pool_size) / sizeof (ni);
-  m_pools.reserve(count);
-  m_pool_sizes.reserve(count);
-
-  if (config->is_client())
+  ni cnt = sizeof (l_sizes) / sizeof (ni);
+  m_pools.reserve(cnt);
+  m_pool_sizes.reserve(cnt);
+  ni m;
+  if (config->client())
   {
-    for(size_t i = 0;i < sizeof (pool_size) / sizeof (ni);++i)
+    for(size_t i = 0;i < sizeof (l_sizes) / sizeof (ni);++i)
     {
-      ni m;
-      if (pool_size[i] <= 512)
+      if (l_sizes[i] <= 512)
         m = 1000;
-      else if (pool_size[i] < 8 * KB)
+      else if (l_sizes[i] < 8 * KB)
         m = 300;
-      else if (pool_size[i] < 512 * KB)
+      else if (l_sizes[i] < 512 * KB)
         m = 20;
       else
         m = 4;
-      m_pool_sizes.push_back(pool_size[i]);
-      m_pools.push_back(new CCachedAllocator<ACE_Thread_Mutex>(m, pool_size[i]));
+      m_pool_sizes.push_back(l_sizes[i]);
+      m_pools.push_back(new CCachedAllocator<ACE_Thread_Mutex>(m, l_sizes[i]));
       m_pools[i]->setup();
     }
   }
-  else if (CCfgX::instance()->is_dist())
+  else if (config->middle())
   {
-    ni m;
-
-    for(size_t i = 0;i < sizeof (pool_size) / sizeof (ni);++i)
+    for(size_t i = 0;i < sizeof (l_sizes) / sizeof (ni);++i)
     {
-      if (pool_size[i] == 32 || pool_size[i] == 128)
-        m = std::max((ni)((config->max_client_count * 20)), 10000);
-      else if (pool_size[i] <= 1 * KB)
-        m = std::max((ni)((config->max_client_count * 2)), 3000);
-      else if (pool_size[i] < 512 * KB)
-        m = 2 * MB / pool_size[i];
-      else
-        m = 4;
-      m_pool_sizes.push_back(pool_size[i]);
-      m_pools.push_back(new CCachedAllocator<ACE_Thread_Mutex>(m, pool_size[i]));
-      m_pools[i]->setup();
-    }
-  }
-  else if (config->is_middle())
-  {
-    for(size_t i = 0;i < sizeof (pool_size) / sizeof (ni);++i)
-    {
-      ni m;
-      if (pool_size[i] <= 8 * KB)
+      if (l_sizes[i] <= 8 * KB)
         m = 2000;
-      else if (pool_size[i] < 512 * KB)
-        m = MB / pool_size[i];
+      else if (l_sizes[i] < 512 * KB)
+        m = MB / l_sizes[i];
       else
         m = 4;
-      m_pool_sizes.push_back(pool_size[i]);
-      m_pools.push_back(new CCachedAllocator<ACE_Thread_Mutex>(m, pool_size[i]));
+      m_pool_sizes.push_back(l_sizes[i]);
+      m_pools.push_back(new CCachedAllocator<ACE_Thread_Mutex>(m, l_sizes[i]));
+      m_pools[i]->setup();
+    }
+  }
+  else if (CCfgX::instance()->dist())
+  {
+    for(size_t i = 0;i < sizeof (l_sizes) / sizeof (ni);++i)
+    {
+      if (l_sizes[i] == 32 || l_sizes[i] == 128)
+        m = std::max((ni)((config->client_peak * 20)), 10000);
+      else if (l_sizes[i] <= 1 * KB)
+        m = std::max((ni)((config->client_peak * 2)), 3000);
+      else if (l_sizes[i] < 512 * KB)
+        m = 2 * MB / l_sizes[i];
+      else
+        m = 4;
+      m_pool_sizes.push_back(l_sizes[i]);
+      m_pools.push_back(new CCachedAllocator<ACE_Thread_Mutex>(m, l_sizes[i]));
       m_pools[i]->setup();
     }
   }
 
   ni mb_number;
-  if (config->is_client())
+  if (config->client())
     mb_number = 200;
-  else if (config->is_dist())
-    mb_number = std::max((ni)((config->max_client_count * 4)), 4000);
+  else if (config->dist())
+    mb_number = std::max((ni)((config->client_peak * 4)), 4000);
   else
-    mb_number = std::max((ni)((config->max_client_count * 2)), 2000);
+    mb_number = std::max((ni)((config->client_peak * 2)), 2000);
   m_mb_pool = new CCachedAllocator<ACE_Thread_Mutex>(mb_number, sizeof (CMB));
   m_data_block_pool = new CCachedAllocator<ACE_Thread_Mutex>(mb_number, sizeof (ACE_Data_Block));
 }
 
-ni CMemPool::get_first_index(ni capacity)
+ni CMemPool::find_best_index(ni size)
 {
   ni count = m_pool_sizes.size();
   for (ni i = 0; i < count; ++i)
   {
-    if (capacity <= m_pool_sizes[i])
+    if (size <= m_pool_sizes[i])
       return i;
   }
-  return INVALID_INDEX;
+  return BAD_IDX;
 }
 
-ni CMemPool::get_pool(DVOID * ptr)
+ni CMemPool::find_index_by_ptr(DVOID * ptr)
 {
   ni count = m_pools.size();
   for (ni i = 0; i < count; ++i)
@@ -1350,35 +1286,35 @@ ni CMemPool::get_pool(DVOID * ptr)
     if (m_pools[i]->in_range(ptr))
       return i;
   }
-  return INVALID_INDEX;
+  return BAD_IDX;
 }
 
-CMB * CMemPool::get_mb(ni capacity)
+CMB * CMemPool::get_mb(ni size)
 {
-  if (unlikely(capacity <= 0))
+  if (unlikely(size <= 0))
   {
-    C_ERROR(ACE_TEXT("calling MyMemPoolFactory::get_message_block() with invalid capacity = %d\n"), capacity);
+    C_ERROR(ACE_TEXT("CMemPool::get_mb(capacity = %d)\n"), size);
     return NULL;
   }
-  if (!g_use_mem_pool)
+  if (!g_cache)
   {
-    ++ m_g_alloc_number;
-    return new CMB(capacity);
+    ++ m_total_count;
+    return new CMB(size);
   }
   ni count = m_pools.size();
   CMB * result;
   truefalse bRetried = false;
   DVOID * p;
-  ni idx = get_first_index(capacity);
+  ni idx = find_best_index(size);
   for (ni i = idx; i < count; ++i)
   {
     p = m_mb_pool->malloc();
-    if (!p) //no way to go on
+    if (!p) //oom
     {
-      ++ m_g_alloc_number;
-      return new CMB(capacity);
+      ++ m_total_count;
+      return new CMB(size);
     }
-    result = new (p) CCachedMB(capacity, m_pools[i], m_data_block_pool, m_mb_pool);
+    result = new (p) CCachedMB(size, m_pools[i], m_data_block_pool, m_mb_pool);
     if (!result->data_block())
     {
       result->release();
@@ -1388,60 +1324,58 @@ CMB * CMemPool::get_mb(ni capacity)
         continue;
       } else
       {
-        ++ m_g_alloc_number;
+        ++ m_total_count;
         //C_DEBUG("global alloc of size(%d)\n", capacity);
-        return new CMB(capacity);
+        return new CMB(size);
       }
     } else
       return result;
   }
-  ++ m_g_alloc_number;
-  return new CMB(capacity);
+  ++ m_total_count;
+  return new CMB(size);
 }
 
 CMB * CMemPool::get_mb_cmd_direct(ni capacity, ni command, truefalse b_no_uuid)
 {
-  return get_mb_cmd(capacity - sizeof(MyDataPacketHeader), command, b_no_uuid);
+  return get_mb_cmd(capacity - sizeof(CCmdHeader), command, b_no_uuid);
 }
 
-CMB * CMemPool::get_mb_cmd(ni capacity, ni command, truefalse b_no_uuid)
+CMB * CMemPool::get_mb_cmd(ni size, ni cmd, truefalse b_no_uuid)
 {
-  if (unlikely(capacity < 0))
+  if (unlikely(size < 0))
   {
-    C_FATAL("too samll capacity value (=%d) @MyMemPoolFactory::get_message_block(command)\n", capacity);
+    C_FATAL("bad capacity(=%d) @CMemPool::get_mb_cmd()\n", size);
     return NULL;
   }
-  CMB * mb = get_mb(capacity + (ni)sizeof(MyDataPacketHeader));
+  CMB * mb = get_mb(size + (ni)sizeof(CCmdHeader));
   mb->wr_ptr(mb->capacity());
-  MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
-  dph->command = command;
-  dph->length = capacity + (ni)sizeof(MyDataPacketHeader);
-  dph->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
+  CCmdHeader * dph = (CCmdHeader *) mb->base();
+  dph->cmd = cmd;
+  dph->size = size + (ni)sizeof(CCmdHeader);
+  dph->signature = CCmdHeader::SIGNATURE;
   if (likely(b_no_uuid))
     ::uuid_clear(dph->uuid);
-    //ACE_OS::memset(&(dph->uuid), 0, sizeof(uuid_t));
   else
     ::uuid_generate(dph->uuid);
   return mb;
 }
 
-CMB * CMemPool::get_mb_ack(CMB * src)
+CMB * CMemPool::get_mb_ack(CMB * p)
 {
-  if (unlikely(!src) || src->capacity() < (ni)sizeof(MyDataPacketHeader))
+  if (unlikely(!p) || p->capacity() < (ni)sizeof(CCmdHeader))
   {
-    C_WARNING("invalid src for ack message packet\n");
+    C_WARNING("bad src data\n");
     return NULL;
   }
 
-  CMB * mb = get_mb((ni)sizeof(MyDataPacketHeader));
+  CMB * mb = get_mb((ni)sizeof(CCmdHeader));
   mb->wr_ptr(mb->capacity());
-  MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
-  MyDataPacketHeader * dph_src = (MyDataPacketHeader *) src->base();
-  dph->command = MyDataPacketHeader::CMD_ACK;
-  dph->length = (ni)sizeof(MyDataPacketHeader);
-  dph->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
-  //ACE_OS::memcpy(&(dph->uuid), &(dph_src->uuid), sizeof(uuid_t));
-  uuid_copy(dph->uuid, dph_src->uuid);
+  CCmdHeader * h = (CCmdHeader *) mb->base();
+  CCmdHeader * h_src = (CCmdHeader *) p->base();
+  h->cmd = CCmdHeader::PT_ACK;
+  h->size = (ni)sizeof(CCmdHeader);
+  h->signature = CCmdHeader::SIGNATURE;
+  uuid_copy(h->uuid, h_src->uuid);
   return mb;
 
 }
@@ -1457,49 +1391,49 @@ CMB * CMemPool::get_mb_bs(ni data_len, CONST text * cmd)
   CMB * mb = get_mb(total_len);
   mb->wr_ptr(mb->capacity());
   text * ptr = mb->base();
-  ptr[total_len - 1] = MyBSBasePacket::BS_PACKET_END_MARK;
+  ptr[total_len - 1] = CBSData::END_MARK;
   snprintf(ptr, 9, "%08d", total_len);
   memcpy(ptr + 8, "vc5X", 4);
   memcpy(ptr + 12, cmd, 2);
   return mb;
 }
 
-truefalse CMemPool::alloc_mem(ni size, CMemGuard * guard)
+truefalse CMemPool::alloc_mem(ni size, CMemGuard * g)
 {
-  if (unlikely(!guard))
+  if (unlikely(!g))
     return false;
-  if (unlikely(guard->data() != NULL))
+  if (unlikely(g->data() != NULL))
   {
-    if (guard->m_size >= size)
+    if (g->m_size >= size)
       return true;
     else
-      release_mem(guard);
+      release_mem(g);
   }
 
   text * p;
-  ni idx = g_use_mem_pool? get_first_index(size): INVALID_INDEX;
-  if (idx == INVALID_INDEX || (p = (char*)m_pools[idx]->malloc()) == NULL)
+  ni idx = g_cache? find_best_index(size): BAD_IDX;
+  if (idx == BAD_IDX || (p = (char*)m_pools[idx]->malloc()) == NULL)
   {
-//    if (g_use_mem_pool)
+//    if (g_cache)
 //      C_DEBUG("global alloc of size(%d)\n", size);
-    ++ m_g_alloc_number;
+    ++ m_total_count;
     p = new text[size];
-    guard->data(p, INVALID_INDEX, size);
+    g->data(p, BAD_IDX, size);
     return true;
   }
-  guard->data(p, idx, m_pools[idx]->chunk_size());
+  g->data(p, idx, m_pools[idx]->chunk_size());
   return true;
 }
 
 DVOID * CMemPool::alloc_mem_x(ni size)
 {
   DVOID * p;
-  ni idx = g_use_mem_pool? get_first_index(size): INVALID_INDEX;
-  if (idx == INVALID_INDEX || (p = m_pools[idx]->malloc()) == NULL)
+  ni i = g_cache? find_best_index(size): BAD_IDX;
+  if (i == BAD_IDX || (p = m_pools[i]->malloc()) == NULL)
   {
-//    if (g_use_mem_pool)
+//    if (g_cache)
 //      C_DEBUG("global alloc of size(%d)\n", size);
-    ++ m_g_alloc_number;
+    ++ m_total_count;
     p = (void*)new text[size];
   }
   return p;
@@ -1513,33 +1447,33 @@ DVOID CMemPool::release_mem_x(DVOID * ptr)
     return;
   }
 
-  ni idx = g_use_mem_pool? get_pool(ptr): INVALID_INDEX;
-  if (idx != INVALID_INDEX)
-    m_pools[idx]->free(ptr);
+  ni i = g_cache? find_index_by_ptr(ptr): BAD_IDX;
+  if (i != BAD_IDX)
+    m_pools[i]->free(ptr);
   else
     ::delete [](char*)ptr;
 }
 
-DVOID CMemPool::release_mem(CMemGuard * guard)
+DVOID CMemPool::release_mem(CMemGuard * p)
 {
-  if (!guard || !guard->data())
+  if (!p || !p->data())
     return;
-  ni idx = guard->index();
-  if (idx == INVALID_INDEX)
-    delete [] (char*)guard->data();
-  else if (unlikely(idx < 0 || idx >= (ni)m_pools.size()))
+  ni i = p->index();
+  if (i == BAD_IDX)
+    delete [] (char*)p->data();
+  else if (unlikely(i < 0 || i >= (ni)m_pools.size()))
     C_FATAL("attempt to release bad mem_pool data: index = %d, pool.size() = %d\n",
-        idx, (ni)m_pools.size());
+        i, (ni)m_pools.size());
   else
-    m_pools[idx]->free(guard->data());
-  guard->m_buff = NULL;
-  guard->m_size = 0;
+    m_pools[i]->free(p->data());
+  p->m_buff = NULL;
+  p->m_size = 0;
 }
 
 DVOID CMemPool::print_info()
 {
-  ACE_DEBUG((LM_INFO, ACE_TEXT("    Global mem pool: alloc outside of mem pool=%d\n"), m_g_alloc_number.value()));
-  if (!g_use_mem_pool)
+  ACE_DEBUG((LM_INFO, ACE_TEXT("    Outside of pool: alloc=%d\n"), m_total_count.value()));
+  if (!g_cache)
     return;
 
   long nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
@@ -1566,8 +1500,6 @@ DVOID CMemPool::print_info()
 }
 
 
-//MyStringTokenizer//
-
 CStringTokenizer::CStringTokenizer(text * str, CONST text * separator)
 {
   m_str = str;
@@ -1586,8 +1518,6 @@ text * CStringTokenizer::get()
       m_str = NULL;
       return NULL;
     }
-//    if (unlikely(!*token))
-//      continue;
     m_str = NULL;
     return token;
   }
@@ -2422,144 +2352,142 @@ ni main( DVOID )
 #endif
 
 
-truefalse my_dph_validate_file_md5_list(CONST MyDataPacketHeader * header)
+truefalse c_packet_check_file_md5_list(CONST CCmdHeader * h)
 {
-  return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
-         header->length > (int32_t)sizeof(MyDataPacketHeader) &&
-         header->length < 2 * 1024 * 1024;
+  return h->signature == CCmdHeader::SIGNATURE &&
+         h->size > (i32)sizeof(CCmdHeader) &&
+         h->size < 2000000;
 }
 
-truefalse my_dph_validate_ftp_file(CONST MyDataPacketHeader * header)
+truefalse c_packet_check_ftp_file(CONST CCmdHeader * h)
 {
-  return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
-         header->length > (int32_t)sizeof(MyDataPacketHeader) &&
-         header->length < 4096;
+  return h->signature == CCmdHeader::SIGNATURE &&
+         h->size > (i32)sizeof(CCmdHeader) &&
+         h->size < 4096;
 }
 
-truefalse my_dph_validate_base(CONST MyDataPacketHeader * header)
+truefalse c_packet_check_base(CONST CCmdHeader * h)
 {
-  return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
-         header->length == (int32_t)sizeof(MyDataPacketHeader);
+  return h->signature == CCmdHeader::SIGNATURE &&
+         h->size == (i32)sizeof(CCmdHeader);
 }
 
-truefalse my_dph_validate_plc_alarm(CONST MyDataPacketHeader * header)
+truefalse c_packet_check_plc_alarm(CONST CCmdHeader * h)
 {
-  return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
-         header->length == (int32_t)sizeof(MyPLCAlarm);
+  return h->signature == CCmdHeader::SIGNATURE &&
+         h->size == (i32)sizeof(CPLCWarning);
 }
 
-truefalse my_dph_validate_load_balance_req(CONST MyDataPacketHeader * header)
+truefalse c_packet_check_load_balance_req(CONST CCmdHeader * h)
 {
-  return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
-         header->length == (int32_t)sizeof(MyLoadBalanceRequest);
+  return h->signature == CCmdHeader::SIGNATURE &&
+         h->size == (i32)sizeof(CLoadBalanceReq);
 }
 
-truefalse my_dph_validate_client_version_check_reply(CONST MyDataPacketHeader * header)
+truefalse c_packet_check_term_ver_reply(CONST CCmdHeader * h)
 {
-  return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
-         header->length >= (int32_t)sizeof(MyClientVersionCheckReply) &&
-         header->length <= (int32_t)sizeof(MyClientVersionCheckReply) + MyClientVersionCheckReply::MAX_REPLY_DATA_LENGTH;
+  return h->signature == CCmdHeader::SIGNATURE &&
+         h->size >= (i32)sizeof(CTermVerReply) &&
+         h->size <= (i32)sizeof(CTermVerReply) + CTermVerReply::DATA_LENGTH_MAX;
 }
 
-truefalse my_dph_validate_client_version_check_req(CONST MyDataPacketHeader * header, CONST ni extra)
+truefalse c_packet_check_term_ver_req(CONST CCmdHeader * h, CONST ni extra)
 {
   if (extra > 0)
-    return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
-           header->length > (int32_t)sizeof(MyClientVersionCheckRequest) &&
-           header->length <= (int32_t)sizeof(MyClientVersionCheckRequest) + extra;
+    return h->signature == CCmdHeader::SIGNATURE &&
+           h->size > (i32)sizeof(CTerminalVerReq) &&
+           h->size <= (i32)sizeof(CTerminalVerReq) + extra;
   else
-    return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
-           header->length == (int32_t)sizeof(MyClientVersionCheckRequest);
+    return h->signature == CCmdHeader::SIGNATURE &&
+           h->size == (i32)sizeof(CTerminalVerReq);
 }
 
-truefalse my_dph_validate_vlc_empty(CONST MyDataPacketHeader * header)
+truefalse c_packet_check_vlc_empty(CONST CCmdHeader * h)
 {
-  return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
-         header->length == (int32_t)sizeof(MyDataPacketHeader) + 1;
+  return h->signature == CCmdHeader::SIGNATURE &&
+         h->size == (i32)sizeof(CCmdHeader) + 1;
 }
 
 
-//MyDataPacketExt//
 
-truefalse MyDataPacketExt::guard()
+truefalse CCmdExt::validate()
 {
-  if (unlikely(length <= (ni)sizeof(MyDataPacketHeader)))
+  if (unlikely(size <= (ni)sizeof(CCmdHeader)))
     return false;
-  return data[length - sizeof(MyDataPacketHeader) - 1] == 0;
+  return data[size - sizeof(CCmdHeader) - 1] == 0;
 }
 
 
-//MyBSBasePacket//
 
-CONST text * CONST_bs_packet_magic = "vc5X";
+CONST text * CONST_bs_leading = "vc5X";
 
-DVOID MyBSBasePacket::packet_magic()
+DVOID CBSData::data_signature()
 {
-  memcpy(magic, CONST_bs_packet_magic, MAGIC_SIZE);
+  memcpy(signature, CONST_bs_leading, SIGNATURE_LEN);
 }
 
-truefalse MyBSBasePacket::check_header() CONST
+truefalse CBSData::validate_header() CONST
 {
-  if (memcmp(magic, CONST_bs_packet_magic, MAGIC_SIZE) != 0)
+  if (memcmp(signature, CONST_bs_leading, SIGNATURE_LEN) != 0)
   {
-    C_ERROR("bad magic from bs packet\n");
+    C_ERROR("bad bs signature\n");
     return false;
   }
 
-  for (ni i = 0; i < LEN_SIZE; ++i)
+  for (ni i = 0; i < LEN; ++i)
   {
-    if (unlikely(len[i] < '0' || len[i] > '9'))
+    if (unlikely(length[i] < '0' || length[i] > '9'))
     {
-      C_ERROR("bad len text code from bs packet\n");
+      C_ERROR("bad bs len char\n");
       return false;
     }
   }
 
-  ni l = packet_len();
-  if (unlikely(l <= 15 || l > 10 * 1024 * 1024))
+  ni l = data_len();
+  if (unlikely(l <= 15 || l > 10000000))
   {
-    C_ERROR("invalid len (= %d) bs packet\n", l);
+    C_ERROR("invalid bs len (= %d)\n", l);
     return false;
   }
 
   return true;
 }
 
-DVOID MyBSBasePacket::packet_len(ni _len)
+DVOID CBSData::data_len(ni m)
 {
-  text tmp[LEN_SIZE + 1];
-  snprintf(tmp, LEN_SIZE + 1, "%08d", _len);
-  memcpy(len, tmp, LEN_SIZE);
+  text buff[LEN + 1];
+  snprintf(buff, LEN + 1, "%08d", m);
+  memcpy(length, buff, LEN);
 }
 
 
-ni MyBSBasePacket::packet_len() CONST
+ni CBSData::data_len() CONST
 {
-  text tmp[LEN_SIZE + 1];
-  memcpy(tmp, len, LEN_SIZE);
-  tmp[LEN_SIZE] = 0;
-  return atoll(tmp);
+  text buff[LEN + 1];
+  memcpy(buff, length, LEN);
+  buff[LEN] = 0;
+  return atoll(buff);
 }
 
-DVOID MyBSBasePacket::packet_cmd(CONST text * _cmd)
+DVOID CBSData::set_cmd(CONST text * s)
 {
-  if (unlikely(!_cmd || !*cmd))
+  if (unlikely(!s || !*command))
     return;
-  memcpy(len, _cmd, 2);
+  memcpy(length, s, 2);
 }
 
-truefalse MyBSBasePacket::is_cmd(CONST text * _cmd)
+truefalse CBSData::is_cmd(CONST text * s)
 {
-  if (unlikely(!_cmd || !*cmd))
+  if (unlikely(!s || !*command))
     return false;
-  return memcmp(len, _cmd, 2) == 0;
+  return memcmp(length, s, 2) == 0;
 }
 
-truefalse MyBSBasePacket::guard()
+truefalse CBSData::fix_data()
 {
-  ni len = packet_len();
-  if (data[len - 14 - 1] != '$')
+  ni m = data_len();
+  if (data[m - 14 - 1] != '$')
     return false;
-  data[len - 14 - 1] = 0;
+  data[m - 14 - 1] = 0;
   return true;
 }
