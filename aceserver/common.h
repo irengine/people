@@ -1,10 +1,3 @@
-/*
- * common.h
- *
- *  Created on: Jan 9, 2012
- *      Author: root
- */
-
 #ifndef COMMON_H_
 #define COMMON_H_
 

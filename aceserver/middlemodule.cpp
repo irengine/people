@@ -89,7 +89,7 @@ void MyDistLoads::calc_server_list()
       continue;
     if (unlikely(len > remain_len))
     {
-      MY_ERROR("dist server addr list is too long @MyDistLoads::calc_server_list()\n");
+      C_ERROR("dist server addr list is too long @MyDistLoads::calc_server_list()\n");
       break;
     }
     ACE_OS::memcpy(ptr, it->m_ip_addr, len + 1);
@@ -102,7 +102,7 @@ void MyDistLoads::calc_server_list()
 
   int ftp_list_len = CCfgX::instance()->ftp_addr_list.length();
   if (unlikely(ftp_list_len + 3 > remain_len))
-    MY_ERROR("ftp server addr list is too long @MyDistLoads::calc_server_list()\n");
+    C_ERROR("ftp server addr list is too long @MyDistLoads::calc_server_list()\n");
   else
   {
     *ptr++ = MyDataPacketHeader::FINISH_SEPARATOR;
@@ -163,7 +163,7 @@ void MyUnusedPathRemover::check_path(const char * path)
   DIR * dir = opendir(path);
   if (!dir)
   {
-    MY_ERROR("can not open directory: %s %s\n", path, (const char*)CErrno());
+    C_ERROR("can not open directory: %s %s\n", path, (const char*)CErrno());
     return;
   }
 
@@ -190,7 +190,7 @@ void MyUnusedPathRemover::check_path(const char * path)
   };
 
   closedir(dir);
-  MY_INFO("removed %d/%d unused path(s) from compress_store\n", ok_count, count);
+  C_INFO("removed %d/%d unused path(s) from compress_store\n", ok_count, count);
 }
 
 
@@ -217,7 +217,7 @@ MyBaseProcessor::EVENT_RESULT MyLocationProcessor::on_recv_header()
   {
     if (!my_dph_validate_client_version_check_req(&m_packet_header))
     {
-      MY_ERROR("failed to validate header for client version check req\n");
+      C_ERROR("failed to validate header for client version check req\n");
       return ER_ERROR;
     }
     return ER_OK;
@@ -235,7 +235,7 @@ MyBaseProcessor::EVENT_RESULT MyLocationProcessor::on_recv_packet_i(ACE_Message_
     return do_version_check(mb);
 
   CMBGuard guard(mb);
-  MY_ERROR("unsupported command received, command = %d\n", header->command);
+  C_ERROR("unsupported command received, command = %d\n", header->command);
   return ER_ERROR;
 }
 
@@ -287,7 +287,7 @@ MyLocationService::MyLocationService(CMod * module, int numThreads):
 
 int MyLocationService::svc()
 {
-  MY_INFO("running %s::svc()\n", name());
+  C_INFO("running %s::svc()\n", name());
 
   for (ACE_Message_Block * mb; getq(mb) != -1;)
   {
@@ -295,7 +295,7 @@ int MyLocationService::svc()
     mb->release ();
   }
 
-  MY_INFO("exiting %s::svc()\n", name());
+  C_INFO("exiting %s::svc()\n", name());
   return 0;
 }
 
@@ -314,7 +314,7 @@ int MyLocationAcceptor::make_svc_handler(MyBaseHandler *& sh)
   sh = new MyLocationHandler(m_connection_manager);
   if (!sh)
   {
-    MY_ERROR("can not alloc MyLocationHandler from %s\n", name());
+    C_ERROR("can not alloc MyLocationHandler from %s\n", name());
     return -1;
   }
   sh->parent((void*)this);
@@ -423,23 +423,23 @@ MyBaseProcessor::EVENT_RESULT MyHttpProcessor::on_recv_header()
   int len = packet_length();
   if (len > 1024 * 1024 || len <= 32)
   {
-    MY_ERROR("got an invalid http packet with size = %d\n", len);
+    C_ERROR("got an invalid http packet with size = %d\n", len);
     return ER_ERROR;
   }
-  MY_INFO("http processor got packet len = %d\n", len);
+  C_INFO("http processor got packet len = %d\n", len);
   return ER_OK;
 }
 
 MyBaseProcessor::EVENT_RESULT MyHttpProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
   ACE_UNUSED_ARG(mb);
-  MY_INFO("http processor got complete packet, len = %d\n", mb->length());
+  C_INFO("http processor got complete packet, len = %d\n", mb->length());
   m_wait_for_close = true;
   bool ok = do_process_input_data();
   ACE_Message_Block * reply_mb = MyMemPoolFactoryX::instance()->get_message_block(1);
   if (!reply_mb)
   {
-    MY_ERROR(ACE_TEXT("failed to allocate 1 bytes sized memory block @MyHttpProcessor::handle_input().\n"));
+    C_ERROR(ACE_TEXT("failed to allocate 1 bytes sized memory block @MyHttpProcessor::handle_input().\n"));
     return ER_ERROR;
   }
   *(reply_mb->base()) = (ok? '1':'0');
@@ -491,14 +491,14 @@ bool MyHttpProcessor::do_prio(ACE_Message_Block * mb)
   mb->base()[mb_len - 4] = 0;
   if (unlikely((int)(mb->length()) <= const_header_len + 10))
   {
-    MY_ERROR("bad http request, packet too short\n", const_header);
+    C_ERROR("bad http request, packet too short\n", const_header);
     return false;
   }
 
   char * packet = mb->base();
   if (ACE_OS::memcmp(packet, const_header, const_header_len) != 0)
   {
-    MY_ERROR("bad http packet, no match header of (%s) found\n", const_header);
+    C_ERROR("bad http packet, no match header of (%s) found\n", const_header);
     return false;
   }
 
@@ -509,7 +509,7 @@ bool MyHttpProcessor::do_prio(ACE_Message_Block * mb)
   char * ver = 0;
   if (!mycomutil_find_tag_value(packet, const_ver, ver, const_separator))
   {
-    MY_ERROR("can not find tag %s at http packet\n", const_ver);
+    C_ERROR("can not find tag %s at http packet\n", const_ver);
     return false;
   }
 
@@ -518,7 +518,7 @@ bool MyHttpProcessor::do_prio(ACE_Message_Block * mb)
   char * plist = 0;
   if (!mycomutil_find_tag_value(packet, const_plist, plist, const_separator))
   {
-    MY_ERROR("can not find tag %s at http packet\n", const_plist);
+    C_ERROR("can not find tag %s at http packet\n", const_plist);
     return false;
   }
 
@@ -526,11 +526,11 @@ bool MyHttpProcessor::do_prio(ACE_Message_Block * mb)
   MyDB & db = MyServerAppX::instance()->db();
   if (!db.ping_db_server())
   {
-    MY_ERROR("no connection to db, aborting processing\n");
+    C_ERROR("no connection to db, aborting processing\n");
     return false;
   }
 
-  MY_INFO("prio list = %s\n", plist? plist:"NULL");
+  C_INFO("prio list = %s\n", plist? plist:"NULL");
   return db.save_prio(plist);
 }
 
@@ -561,7 +561,7 @@ int MyHttpAcceptor::make_svc_handler(MyBaseHandler *& sh)
   sh = new MyHttpHandler(m_connection_manager);
   if (!sh)
   {
-    MY_ERROR("not enough memory to create MyHttpHandler object\n");
+    C_ERROR("not enough memory to create MyHttpHandler object\n");
     return -1;
   }
   sh->parent((void*)this);
@@ -585,7 +585,7 @@ MyHttpService::MyHttpService(CMod * module, int numThreads)
 
 int MyHttpService::svc()
 {
-  MY_INFO("running %s::svc()\n", name());
+  C_INFO("running %s::svc()\n", name());
 
   for (ACE_Message_Block * mb; getq(mb) != -1; )
   {
@@ -593,7 +593,7 @@ int MyHttpService::svc()
     mb->release();
   }
 
-  MY_INFO("exiting %s::svc()\n", name());
+  C_INFO("exiting %s::svc()\n", name());
   return 0;
 };
 
@@ -611,14 +611,14 @@ bool MyHttpService::parse_request(ACE_Message_Block * mb, MyHttpDistRequest &htt
   mb->base()[mb_len - 4] = 0;
   if (unlikely((int)(mb->length()) <= const_header_len + 10))
   {
-    MY_ERROR("bad http request, packet too short\n", const_header);
+    C_ERROR("bad http request, packet too short\n", const_header);
     return false;
   }
 
   char * packet = mb->base();
   if (ACE_OS::memcmp(packet, const_header, const_header_len) != 0)
   {
-    MY_ERROR("bad http packet, no match header of (%s) found\n", const_header);
+    C_ERROR("bad http packet, no match header of (%s) found\n", const_header);
     return false;
   }
 
@@ -628,56 +628,56 @@ bool MyHttpService::parse_request(ACE_Message_Block * mb, MyHttpDistRequest &htt
   const char * const_acode = "acode=";
   if (!mycomutil_find_tag_value(packet, const_acode, http_dist_request.acode, const_separator))
   {
-    MY_ERROR("can not find tag %s at http packet\n", const_acode);
+    C_ERROR("can not find tag %s at http packet\n", const_acode);
     return false;
   }
 
   const char * const_ftype = "ftype=";
   if (!mycomutil_find_tag_value(packet, const_ftype, http_dist_request.ftype, const_separator))
   {
-    MY_ERROR("can not find tag %s at http packet\n", const_ftype);
+    C_ERROR("can not find tag %s at http packet\n", const_ftype);
     return false;
   }
 
   const char * const_fdir = "fdir=";
   if (!mycomutil_find_tag_value(packet, const_fdir, http_dist_request.fdir, const_separator))
   {
-    MY_ERROR("can not find tag %s at http packet\n", const_fdir);
+    C_ERROR("can not find tag %s at http packet\n", const_fdir);
     return false;
   }
 
   const char * const_findex = "findex=";
   if (!mycomutil_find_tag_value(packet, const_findex, http_dist_request.findex, const_separator))
   {
-    MY_ERROR("can not find tag %s at http packet\n", const_findex);
+    C_ERROR("can not find tag %s at http packet\n", const_findex);
     return false;
   }
 
   const char * const_adir = "adir=";
   if (!mycomutil_find_tag_value(packet, const_adir, http_dist_request.adir, const_separator))
   {
-    MY_ERROR("can not find tag %s at http packet\n", const_adir);
+    C_ERROR("can not find tag %s at http packet\n", const_adir);
     return false;
   }
 
   const char * const_aindex = "aindex=";
   if (!mycomutil_find_tag_value(packet, const_aindex, http_dist_request.aindex, const_separator))
   {
-    MY_ERROR("can not find tag %s at http packet\n", const_aindex);
+    C_ERROR("can not find tag %s at http packet\n", const_aindex);
     return false;
   }
 
   const char * const_ver = "ver=";
   if (!mycomutil_find_tag_value(packet, const_ver, http_dist_request.ver, const_separator))
   {
-    MY_ERROR("can not find tag %s at http packet\n", const_ver);
+    C_ERROR("can not find tag %s at http packet\n", const_ver);
     return false;
   }
 
   const char * const_type = "type=";
   if (!mycomutil_find_tag_value(packet, const_type, http_dist_request.type, const_separator))
   {
-    MY_ERROR("can not find tag %s at http packet\n", const_type);
+    C_ERROR("can not find tag %s at http packet\n", const_type);
     return false;
   }
 
@@ -752,19 +752,19 @@ bool MyHttpService::do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest &
 
   if (!db.ping_db_server())
   {
-    MY_ERROR("no connection to db, aborting processing of dist %s\n", http_dist_request.ver);
+    C_ERROR("no connection to db, aborting processing of dist %s\n", http_dist_request.ver);
     return false;
   }
 
   if (!db.save_dist(http_dist_request, md5_result.data(), mbz_md5_result.data()))
   {
-    MY_ERROR("can not save_dist to db\n");
+    C_ERROR("can not save_dist to db\n");
     return false;
   }
 
   if (!db.save_dist_clients(http_dist_request.acode, http_dist_request.adir, http_dist_request.ver))
   {
-    MY_ERROR("can not save_dist_clients to db\n");
+    C_ERROR("can not save_dist_clients to db\n");
     return false;
   }
 
@@ -773,7 +773,7 @@ bool MyHttpService::do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest &
 
   if (!db.dist_info_update_status())
   {
-    MY_ERROR("call to dist_info_update_status() failed\n");
+    C_ERROR("call to dist_info_update_status() failed\n");
     return false;
   }
 
@@ -797,14 +797,14 @@ bool MyHttpService::do_handle_packet2(ACE_Message_Block * mb)
   mb->base()[mb_len - 4] = 0;
   if (unlikely((int)(mb->length()) <= const_header_len + 10))
   {
-    MY_ERROR("bad http request, packet too short\n", const_header);
+    C_ERROR("bad http request, packet too short\n", const_header);
     return false;
   }
 
   char * packet = mb->base();
   if (ACE_OS::memcmp(packet, const_header, const_header_len) != 0)
   {
-    MY_ERROR("bad http packet, no match header of (%s) found\n", const_header);
+    C_ERROR("bad http packet, no match header of (%s) found\n", const_header);
     return false;
   }
 
@@ -815,7 +815,7 @@ bool MyHttpService::do_handle_packet2(ACE_Message_Block * mb)
   char * ver = 0;
   if (!mycomutil_find_tag_value(packet, const_ver, ver, const_separator))
   {
-    MY_ERROR("can not find tag %s at http packet\n", const_ver);
+    C_ERROR("can not find tag %s at http packet\n", const_ver);
     return false;
   }
 
@@ -824,7 +824,7 @@ bool MyHttpService::do_handle_packet2(ACE_Message_Block * mb)
   char * cmd = 0;
   if (!mycomutil_find_tag_value(packet, const_cmd, cmd, const_separator))
   {
-    MY_ERROR("can not find tag %s at http packet\n", const_cmd);
+    C_ERROR("can not find tag %s at http packet\n", const_cmd);
     return false;
   }
 
@@ -832,7 +832,7 @@ bool MyHttpService::do_handle_packet2(ACE_Message_Block * mb)
   char * backid = 0;
   if (!mycomutil_find_tag_value(packet, const_backid, backid, const_separator))
   {
-    MY_ERROR("can not find tag %s at http packet\n", const_backid);
+    C_ERROR("can not find tag %s at http packet\n", const_backid);
     return false;
   }
 
@@ -840,21 +840,21 @@ bool MyHttpService::do_handle_packet2(ACE_Message_Block * mb)
   char * acode = 0;
   if (!mycomutil_find_tag_value(packet, const_acode, acode, const_separator))
   {
-    MY_ERROR("can not find tag %s at http packet\n", const_acode);
+    C_ERROR("can not find tag %s at http packet\n", const_acode);
     return false;
   }
 
   MyDB & db = MyServerAppX::instance()->db();
   if (!db.ping_db_server())
   {
-    MY_ERROR("no connection to db, aborting processing\n");
+    C_ERROR("no connection to db, aborting processing\n");
     return false;
   }
 
   db.save_sr(backid, cmd, acode);
   if (!db.dist_info_update_status())
   {
-    MY_ERROR("call to dist_info_update_status() failed\n");
+    C_ERROR("call to dist_info_update_status() failed\n");
     return false;
   }
 
@@ -985,7 +985,7 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
     {
       CMemGuard info;
       info_string(info);
-      MY_ERROR("bad client version check req packet received from %s\n", info.data());
+      C_ERROR("bad client version check req packet received from %s\n", info.data());
       return ER_ERROR;
     }
     return ER_OK;
@@ -997,13 +997,13 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
     {
       CMemGuard info;
       info_string(info);
-      MY_ERROR("bad load_balance packet received from %s\n", info.data());
+      C_ERROR("bad load_balance packet received from %s\n", info.data());
       return ER_ERROR;
     }
     return ER_OK;
   }
 
-  MY_ERROR(ACE_TEXT("unexpected packet header received @MyDistLoadProcessor.on_recv_header, cmd = %d\n"),
+  C_ERROR(ACE_TEXT("unexpected packet header received @MyDistLoadProcessor.on_recv_header, cmd = %d\n"),
       m_packet_header.command);
   return ER_ERROR;
 }
@@ -1020,7 +1020,7 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::on_recv_packet_i(ACE_Message_
   if (header->command == MyDataPacketHeader::CMD_LOAD_BALANCE_REQ)
     return do_load_balance(mb);
 
-  MY_ERROR("unsupported command received @MyDistLoadProcessor::on_recv_packet_i, command = %d\n",
+  C_ERROR("unsupported command received @MyDistLoadProcessor::on_recv_packet_i, command = %d\n",
       header->command);
   return ER_ERROR;
 }
@@ -1034,7 +1034,7 @@ MyBaseProcessor::EVENT_RESULT MyDistLoadProcessor::do_version_check(ACE_Message_
   {
     CMemGuard info;
     info_string(info);
-    MY_ERROR("bad load_balance version check (bad key) received from %s\n", info.data());
+    C_ERROR("bad load_balance version check (bad key) received from %s\n", info.data());
     return ER_ERROR;
   }
   m_client_id_verified = true;
@@ -1087,7 +1087,7 @@ int MyDistLoadAcceptor::make_svc_handler(MyBaseHandler *& sh)
   sh = new MyDistLoadHandler(m_connection_manager);
   if (!sh)
   {
-    MY_ERROR("not enough memory to create MyDistLoadHandler object\n");
+    C_ERROR("not enough memory to create MyDistLoadHandler object\n");
     return -1;
   }
   sh->parent((void*)this);
@@ -1122,7 +1122,7 @@ MyDistLoadDispatcher::~MyDistLoadDispatcher()
     mb->release();
   }
   if (i > 0)
-    MY_INFO("releasing %d mb on %s::termination\n", i, name());
+    C_INFO("releasing %d mb on %s::termination\n", i, name());
 }
 
 const char * MyDistLoadDispatcher::name() const
@@ -1135,7 +1135,7 @@ void MyDistLoadDispatcher::send_to_bs(ACE_Message_Block * mb)
   ACE_Time_Value tv(ACE_Time_Value::zero);
   if (m_to_bs_queue.enqueue(mb, &tv) < 0)
   {
-    MY_ERROR("MyDistLoadDispatcher::send_to_bs() failed, %s\n", (const char*)CErrno());
+    C_ERROR("MyDistLoadDispatcher::send_to_bs() failed, %s\n", (const char*)CErrno());
     mb->release();
   }
 }
@@ -1165,7 +1165,7 @@ bool MyDistLoadDispatcher::on_start()
   ACE_Time_Value interval(int(MyDistLoads::DEAD_TIME * 60 / CApp::CLOCK_INTERVAL / 2));
   if (reactor()->schedule_timer(this, 0, interval, interval) == -1)
   {
-    MY_ERROR("can not setup dist load server scan timer\n");
+    C_ERROR("can not setup dist load server scan timer\n");
     return false;
   }
   return true;
@@ -1270,7 +1270,7 @@ int MyMiddleToBSHandler::handle_timeout(const ACE_Time_Value &, const void *)
 {
   if (m_checker.expired())
   {
-    MY_ERROR("no data received from bs @MyMiddleToBSHandler ...\n");
+    C_ERROR("no data received from bs @MyMiddleToBSHandler ...\n");
     return -1;
   }
   ACE_Message_Block * mb = my_get_hb_mb();
@@ -1287,12 +1287,12 @@ int MyMiddleToBSHandler::on_open()
   ACE_Time_Value interval(30);
   if (reactor()->schedule_timer(this, (void*)0, interval, interval) < 0)
   {
-    MY_ERROR(ACE_TEXT("MyMiddleToBSHandler setup timer failed, %s"), (const char*)CErrno());
+    C_ERROR(ACE_TEXT("MyMiddleToBSHandler setup timer failed, %s"), (const char*)CErrno());
     return -1;
   }
 
   if (!g_test_mode)
-    MY_INFO("MyMiddleToBSHandler setup timer: OK\n");
+    C_INFO("MyMiddleToBSHandler setup timer: OK\n");
 
   ACE_Message_Block * mb = my_get_hb_mb();
   if (mb)
@@ -1334,7 +1334,7 @@ int MyMiddleToBSConnector::make_svc_handler(MyBaseHandler *& sh)
   sh = new MyMiddleToBSHandler(m_connection_manager);
   if (!sh)
   {
-    MY_ERROR("can not alloc MyMiddleToBSHandler from %s\n", name());
+    C_ERROR("can not alloc MyMiddleToBSHandler from %s\n", name());
     return -1;
   }
   sh->parent((void*)this);

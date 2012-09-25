@@ -32,17 +32,17 @@ void MyProgramLauncher::kill_instance()
 /*
   if (m_pid != INVALID_PID)
   {
-    MY_INFO("killing child process [%d]...\n", (int)m_pid);
+    C_INFO("killing child process [%d]...\n", (int)m_pid);
     kill(m_pid, SIGTERM);
     m_wait_for_term = true;
     m_last_kill = time(NULL);
   }
 */
-  MY_INFO("searching to kill %s\n", name());
+  C_INFO("searching to kill %s\n", name());
   DIR * dir = opendir("/proc");
   if (!dir)
   {
-    MY_ERROR("can not open directory: /proc %s\n", (const char*)CErrno());
+    C_ERROR("can not open directory: /proc %s\n", (const char*)CErrno());
     return;
   }
 
@@ -75,7 +75,7 @@ void MyProgramLauncher::kill_instance()
         buff2[count - 1] = 0;
       if (strcmp(name(), buff2) == 0)
       {
-        MY_INFO("find pid (%d) of %s, killing...\n", m, name());
+        C_INFO("find pid (%d) of %s, killing...\n", m, name());
         kill(m, SIGKILL);
       }
     }
@@ -89,7 +89,7 @@ void MyProgramLauncher::check_relaunch()
 {
   if (m_wait_for_term && m_pid != INVALID_PID && time(NULL) > m_last_kill + 6)
   {
-    MY_INFO("killing forcefully child process [%d]...\n", (int)m_pid);
+    C_INFO("killing forcefully child process [%d]...\n", (int)m_pid);
     kill(m_pid, SIGKILL);
     m_last_kill = time(NULL);
   }
@@ -113,7 +113,7 @@ bool MyProgramLauncher::launch()
 /*
   if (m_pid != INVALID_PID)
   {
-    MY_INFO("killing child process (%d)...\n", (int)m_pid);
+    C_INFO("killing child process (%d)...\n", (int)m_pid);
     kill(m_pid, SIGTERM);
     m_pid = INVALID_PID;
   }
@@ -126,13 +126,13 @@ bool MyProgramLauncher::launch()
   pid_t pid = child.spawn(m_options);
   if (pid == -1)
   {
-    MY_ERROR("failed to launch program %s %s\n", m_options.command_line_buf(), (const char *)MyErrno());
+    C_ERROR("failed to launch program %s %s\n", m_options.command_line_buf(), (const char *)MyErrno());
     return false;
   } else
   {
     m_pid = pid;
     m_launch_time = time(NULL);
-    MY_INFO("launch program OK (pid = %d): %s\n", (int)pid, m_options.command_line_buf());
+    C_INFO("launch program OK (pid = %d): %s\n", (int)pid, m_options.command_line_buf());
     return true;
   }
 */
@@ -240,7 +240,7 @@ void MyVLCLauncher::check_status()
   m_check = false;
   if (!file_changed())
   {
-    MY_WARNING("restart vlc for it seems not running...\n");
+    C_WARNING("restart vlc for it seems not running...\n");
     kill_instance();
   }
 }
@@ -259,7 +259,7 @@ bool MyVLCLauncher::load(CMemGuard & file_list)
 
   m_next = 0;
   time_t next_time = 0;
-  m_current_line.init_from_string(NULL);
+  m_current_line.from_string(NULL);
   if (!CSysFS::exist(adv_txt()))
     return false;
 
@@ -268,7 +268,7 @@ bool MyVLCLauncher::load(CMemGuard & file_list)
   std::ifstream ifs(adv_txt());
   if (!ifs || ifs.bad())
   {
-    MY_WARNING("failed to open %s: %s\n", adv_txt(), (const char*)CErrno());
+    C_WARNING("failed to open %s: %s\n", adv_txt(), (const char*)CErrno());
     return false;
   }
 
@@ -338,10 +338,10 @@ bool MyVLCLauncher::parse_line(char * ptr, CMemGuard & file_list, bool fill_opti
   std::string p5 = CCfgX::instance()->app_data_path + "/5/";
   while ((token = tkn.get_token()) != NULL)
   {
-    fn.init_from_string(p5.c_str(), token);
+    fn.from_string(p5.c_str(), token);
     if (!CSysFS::exist(fn.data()))
     {
-      MY_INFO("skipping non-existing adv file %s\n", token);
+      C_INFO("skipping non-existing adv file %s\n", token);
       continue;
     }
     if (!fill_options)
@@ -367,9 +367,9 @@ bool MyVLCLauncher::parse_line(char * ptr, CMemGuard & file_list, bool fill_opti
 
   //options.command_line("%s%s%s", vlc, (fake ? " --fake-duration 10000 " : ""), cmdline.data());
   if (fake)
-    file_list.init_from_string(cmdline.data());
+    file_list.from_string(cmdline.data());
   else
-    file_list.init_from_string(cmdline.data() + ACE_OS::strlen(sfake));
+    file_list.from_string(cmdline.data() + ACE_OS::strlen(sfake));
   return true;
 }
 
@@ -396,24 +396,24 @@ bool MyVLCLauncher::on_launch(ACE_Process_Options & )
     if (load(file_list))
     {
       m_check = true;
-      MY_INFO("%s OK, loading vlc...\n", adv_txt());
+      C_INFO("%s OK, loading vlc...\n", adv_txt());
       save_file(file_list.data());
       kill_instance();
       return true;
     }
-    MY_INFO("%s not exist or content empty, trying %s\n", adv_txt(), gasket());
+    C_INFO("%s not exist or content empty, trying %s\n", adv_txt(), gasket());
   }
 
   m_empty_advlist = true;
 
   if (!CSysFS::exist(gasket()))
   {
-    MY_ERROR("no %s file\n", gasket());
+    C_ERROR("no %s file\n", gasket());
     kill_instance();
     return false;
   }
   m_check = true;
-  MY_INFO("%s OK, loading vlc...\n", gasket());
+  C_INFO("%s OK, loading vlc...\n", gasket());
   save_file(gasket());
   kill_instance();
   return true;
@@ -464,9 +464,9 @@ void MyVLCMonitor::launch_vlc()
     ACE_Reactor::instance()->cancel_timer(this);
     ACE_Time_Value tv(m_app->vlc_launcher().next());
     if (ACE_Reactor::instance()->schedule_timer(this, 0, tv) < 0)
-      MY_ERROR("failed to setup vlc monitor timer\n");
+      C_ERROR("failed to setup vlc monitor timer\n");
     else
-      MY_INFO("vlc next playlist will be shown in %d minute(s)\n", (int)(m_app->vlc_launcher().next() / 60));
+      C_INFO("vlc next playlist will be shown in %d minute(s)\n", (int)(m_app->vlc_launcher().next() / 60));
   }
 }
 
@@ -502,16 +502,16 @@ bool MyOperaLauncher::on_launch(ACE_Process_Options & options)
 //  char buff[1024];
 //  if (!MyFilePaths::exist(indexhtml))
 //  {
-//    MY_INFO("file %s not exist, trying %s instead\n", indexhtml, indexfile.c_str());
+//    C_INFO("file %s not exist, trying %s instead\n", indexhtml, indexfile.c_str());
 //    std::ifstream ifs(indexfile.c_str());
 //    if (!ifs || ifs.bad())
 //    {
-//      MY_ERROR("failed to open %s: %s\n", indexfile.c_str(), (const char*)MyErrno());
+//      C_ERROR("failed to open %s: %s\n", indexfile.c_str(), (const char*)MyErrno());
 //      return false;
 //    }
 //    if (ifs.eof())
 //    {
-//      MY_ERROR("file %s is empty\n", indexfile.c_str());
+//      C_ERROR("file %s is empty\n", indexfile.c_str());
 //      return false;
 //    }
 //    char line[500];
@@ -532,7 +532,7 @@ bool MyOperaLauncher::ready() const
 //    return true;
 //  struct stat  _stat;
 //  MyPooledMemGuard indexfile;
-//  indexfile.init_from_string("/tmp/daily/", MyClientApp::index_frame_file());
+//  indexfile.from_string("/tmp/daily/", MyClientApp::index_frame_file());
 //  if (!MyFilePaths::stat(indexfile.data(), &_stat))
 //    return false;
 //  return _stat.st_size > 1;
@@ -566,7 +566,7 @@ MyClientToDistModule * MyClientApp::client_to_dist_module() const
 
 bool MyClientApp::send_mb_to_dist(ACE_Message_Block * mb)
 {
-  MY_ASSERT_RETURN(mb, "", false);
+  C_ASSERT_RETURN(mb, "", false);
 
   if (unlikely(!running()))
   {
@@ -596,7 +596,7 @@ const char * MyClientApp::ftp_password()
 void MyClientApp::ftp_password(const char * password)
 {
   ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
-  m_ftp_password.init_from_string(password);
+  m_ftp_password.from_string(password);
 }
 
 MyVLCLauncher & MyClientApp::vlc_launcher()
@@ -621,9 +621,9 @@ void MyClientApp::data_path(CMemGuard & _data_path, const char * client_id)
     char tmp[128];
     tmp[0] = 0;
     CClientPathGenerator::client_id_to_path(client_id, tmp, 128);
-    _data_path.init_from_string(CCfgX::instance()->app_path.c_str(), "/data/", tmp);
+    _data_path.from_string(CCfgX::instance()->app_path.c_str(), "/data/", tmp);
   } else
-    _data_path.init_from_string(CCfgX::instance()->app_path.c_str(), "/data");
+    _data_path.from_string(CCfgX::instance()->app_path.c_str(), "/data");
 }
 
 void MyClientApp::calc_display_parent_path(CMemGuard & parent_path, const char * client_id)
@@ -632,30 +632,30 @@ void MyClientApp::calc_display_parent_path(CMemGuard & parent_path, const char *
   {
     CMemGuard path_x;
     MyClientApp::data_path(path_x, client_id);
-    parent_path.init_from_string(path_x.data(), "/daily");
+    parent_path.from_string(path_x.data(), "/daily");
   } else
-    parent_path.init_from_string("/tmp/daily");
+    parent_path.from_string("/tmp/daily");
 }
 
 void MyClientApp::calc_dist_parent_path(CMemGuard & parent_path, const char * dist_id, const char * client_id)
 {
   CMemGuard path_x;
   MyClientApp::data_path(path_x, client_id);
-  parent_path.init_from_string(path_x.data(), "/tmp/", dist_id);
+  parent_path.from_string(path_x.data(), "/tmp/", dist_id);
 }
 
 void MyClientApp::calc_backup_parent_path(CMemGuard & parent_path, const char * client_id)
 {
   CMemGuard path_x;
   MyClientApp::data_path(path_x, client_id);
-  parent_path.init_from_string(path_x.data(), "/backup");
+  parent_path.from_string(path_x.data(), "/backup");
 }
 
 void MyClientApp::calc_download_parent_path(CMemGuard & parent_path, const char * client_id)
 {
   CMemGuard path_x;
   MyClientApp::data_path(path_x, client_id);
-  parent_path.init_from_string(path_x.data(), "/download");
+  parent_path.from_string(path_x.data(), "/download");
 }
 
 bool MyClientApp::full_backup(const char * dist_id, const char * client_id)
@@ -667,13 +667,13 @@ bool MyClientApp::full_backup(const char * dist_id, const char * client_id)
   CMemGuard snew, dest_parent_path, sold;
   calc_backup_parent_path(dest_parent_path, client_id);
 
-  snew.init_from_string(dest_parent_path.data(), "/new");
-  sold.init_from_string(dest_parent_path.data(), "/old");
+  snew.from_string(dest_parent_path.data(), "/new");
+  sold.from_string(dest_parent_path.data(), "/old");
   CSysFS::remove_path(sold.data(), true);
 
   if (!CSysFS::make_path(sold.data(), true))
   {
-    MY_ERROR("can not mkdir(%s) %s\n", sold.data(), (const char *)CErrno());
+    C_ERROR("can not mkdir(%s) %s\n", sold.data(), (const char *)CErrno());
     return false;
   }
 
@@ -688,9 +688,9 @@ bool MyClientApp::full_restore(const char * dist_id, bool remove_existing, bool 
   CMemGuard tmp, src_parent_path;
   calc_backup_parent_path(tmp, client_id);
   if (is_new)
-    src_parent_path.init_from_string(tmp.data(), "/new");
+    src_parent_path.from_string(tmp.data(), "/new");
   else
-    src_parent_path.init_from_string(tmp.data(), "/old");
+    src_parent_path.from_string(tmp.data(), "/old");
 
   if (!CSysFS::exist(src_parent_path.data()))
     return false;
@@ -699,7 +699,7 @@ bool MyClientApp::full_restore(const char * dist_id, bool remove_existing, bool 
 
   if (dist_id && *dist_id)
   {
-    src_path.init_from_string(src_parent_path.data(), "/dist_id.txt");
+    src_path.from_string(src_parent_path.data(), "/dist_id.txt");
     CUnixFileGuard fh;
     if (fh.open_read(src_path.data()))
       return false;
@@ -723,7 +723,7 @@ bool MyClientApp::do_backup_restore(const CMemGuard & src_parent_path, const CMe
 
   if (!get_mfile(src_parent_path, mfile))
   {
-    MY_ERROR("no main index file found @MyClientApp::do_backup_restore() in path: %s\n", src_parent_path.data());
+    C_ERROR("no main index file found @MyClientApp::do_backup_restore() in path: %s\n", src_parent_path.data());
     return false;
   }
 
@@ -732,7 +732,7 @@ bool MyClientApp::do_backup_restore(const CMemGuard & src_parent_path, const CMe
     CMemGuard mfile_dest;
     if (get_mfile(dest_parent_path, mfile_dest))
     {
-      dest_path.init_from_string(dest_parent_path.data(), "/", mfile_dest.data());
+      dest_path.from_string(dest_parent_path.data(), "/", mfile_dest.data());
       CSysFS::zap(dest_path.data(), true);
       CSysFS::get_correlate_path(dest_path, 0);
       CSysFS::zap(dest_path.data(), true);
@@ -745,8 +745,8 @@ bool MyClientApp::do_backup_restore(const CMemGuard & src_parent_path, const CMe
     MyClientAppX::instance()->vlc_launcher().launch();
   }
 
-  src_path.init_from_string(src_parent_path.data(), "/", mfile.data());
-  dest_path.init_from_string(dest_parent_path.data(), "/", mfile.data());
+  src_path.from_string(src_parent_path.data(), "/", mfile.data());
+  dest_path.from_string(dest_parent_path.data(), "/", mfile.data());
   CSysFS::get_correlate_path(src_path, 0);
   CSysFS::get_correlate_path(dest_path, 0);
   if (remove_existing)
@@ -755,31 +755,31 @@ bool MyClientApp::do_backup_restore(const CMemGuard & src_parent_path, const CMe
   {
     if (!CSysFS::copy_path(src_path.data(), dest_path.data(), true, syn))
     {
-      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)CErrno());
+      C_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)CErrno());
       return false;
     }
   }
 
-  src_path.init_from_string(src_parent_path.data(), "/", mfile.data());
+  src_path.from_string(src_parent_path.data(), "/", mfile.data());
   if (CSysFS::stat(src_path.data(), &buf) && S_ISREG(buf.st_mode))
   {
-    dest_path.init_from_string(dest_parent_path.data(), "/", mfile.data());
+    dest_path.from_string(dest_parent_path.data(), "/", mfile.data());
     if (!CSysFS::copy_file(src_path.data(), dest_path.data(), true, syn))
     {
-      MY_ERROR("failed to copy file (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)CErrno());
+      C_ERROR("failed to copy file (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)CErrno());
       return false;
     }
   }
 
-  src_path.init_from_string(src_parent_path.data(), "/led");
-  dest_path.init_from_string(dest_parent_path.data(), "/led");
+  src_path.from_string(src_parent_path.data(), "/led");
+  dest_path.from_string(dest_parent_path.data(), "/led");
   if (remove_existing)
     CSysFS::zap(dest_path.data(), true);
   if (CSysFS::stat(src_path.data(), &buf) && S_ISDIR(buf.st_mode))
   {
     if (!CSysFS::copy_path(src_path.data(), dest_path.data(), true, syn))
     {
-      MY_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)CErrno());
+      C_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)CErrno());
       return false;
     }
   }
@@ -787,8 +787,8 @@ bool MyClientApp::do_backup_restore(const CMemGuard & src_parent_path, const CMe
 //  if (init && !g_test_mode)
 //    MyClientAppX::instance()->opera_launcher().launch();
 
-//  src_path.init_from_string(src_parent_path.data(), "/", index_frame_file());
-//  dest_path.init_from_string(dest_parent_path.data(), "/", index_frame_file());
+//  src_path.from_string(src_parent_path.data(), "/", index_frame_file());
+//  dest_path.from_string(dest_parent_path.data(), "/", index_frame_file());
 //  MyFilePaths::copy_file(src_path.data(), dest_path.data(), true);
   return true;
 }
@@ -798,9 +798,9 @@ bool MyClientApp::get_mfile(const CMemGuard & parent_path, CMemGuard & mfile)
 //  if (get_mfile_from_file(parent_path, mfile))
 //    return true;
 
-  mfile.init_from_string("index.html");
+  mfile.from_string("index.html");
   CMemGuard tmp;
-  tmp.init_from_string(parent_path.data(), "/", mfile.data());
+  tmp.from_string(parent_path.data(), "/", mfile.data());
   if (CSysFS::exist(tmp.data()))
   {
     CSysFS::get_correlate_path(tmp, 0);
@@ -814,7 +814,7 @@ bool MyClientApp::get_mfile_from_file(const CMemGuard & parent_path, CMemGuard &
 {
   CMemGuard index_file_name;
   CMemGuard tmp;
-  index_file_name.init_from_string(parent_path.data(), "/", index_frame_file());
+  index_file_name.from_string(parent_path.data(), "/", index_frame_file());
   CUnixFileGuard fh;
   char buff[512];
   if (!fh.open_read(index_file_name.data()))
@@ -825,8 +825,8 @@ bool MyClientApp::get_mfile_from_file(const CMemGuard & parent_path, CMemGuard &
   buff[n] = 0;
   while (--n >= 0 && (buff[n] == '\r' || buff[n] == '\t' || buff[n] == '\n' || buff[n] == ' '))
     buff[n] = 0;
-  mfile.init_from_string(buff);
-  tmp.init_from_string(parent_path.data(), "/", mfile.data());
+  mfile.from_string(buff);
+  tmp.from_string(parent_path.data(), "/", mfile.data());
   if (CSysFS::exist(tmp.data()))
   {
     if (!CSysFS::get_correlate_path(tmp, 0))
@@ -852,7 +852,7 @@ bool MyClientApp::on_construct()
   if (!g_test_mode)
   {
     const char * const_id_ini = "/tmp/daily/id.ini";
-    MY_INFO("trying to read client id from %s\n", const_id_ini);
+    C_INFO("trying to read client id from %s\n", const_id_ini);
     while (true)
     {
       CUnixFileGuard fh;
@@ -876,7 +876,7 @@ bool MyClientApp::on_construct()
       }
       ACE_OS::sleep(5);
     }
-    MY_INFO("get client id [%s] from %s\n", m_client_id.c_str(), const_id_ini);
+    C_INFO("get client id [%s] from %s\n", m_client_id.c_str(), const_id_ini);
     MyConnectIni::update_connect_status(MyConnectIni::CS_DISCONNECTED);
 
     {
@@ -894,25 +894,25 @@ bool MyClientApp::on_construct()
   {
     CMemGuard pn, po, dest_parent_path;
     MyClientApp::calc_backup_parent_path(dest_parent_path, NULL);
-    pn.init_from_string(dest_parent_path.data(), "/new");
-    po.init_from_string(dest_parent_path.data(), "/old");
+    pn.from_string(dest_parent_path.data(), "/new");
+    po.from_string(dest_parent_path.data(), "/old");
     bool bn = MyDistFtpFileExtractor::has_id(pn);
     bool bo = MyDistFtpFileExtractor::has_id(po);
     bool b = bn && full_restore(NULL, true, true, NULL, true);
     if (!b)
     {
-      MY_WARNING("restore of latest data failed\n");
+      C_WARNING("restore of latest data failed\n");
       if (bo)
       {
-        MY_WARNING("restoring previous data...\n");
+        C_WARNING("restoring previous data...\n");
         b = full_restore(NULL, true, false, NULL, true);
         if (!b)
-          MY_WARNING("restore of previous data failed\n");
+          C_WARNING("restore of previous data failed\n");
       }
       if (!b && !bn)
         b = full_restore(NULL, true, true, NULL, true);
       if (!b)
-        MY_ERROR("restore of data failed\n");
+        C_ERROR("restore of data failed\n");
     }
   }
 
@@ -953,14 +953,14 @@ void MyClientApp::dump_mem_pool_info()
   {
     chunks = MyClientToDistHandler::mem_pool()->chunks();
     MyClientToDistHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::mem_pool_dump_one("MyClientToDistHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToDistHandler), chunks);
+    CApp::print_pool_one("MyClientToDistHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToDistHandler), chunks);
   }
 
   if (likely(MyClientToMiddleHandler::mem_pool() != NULL))
   {
     chunks = MyClientToMiddleHandler::mem_pool()->chunks();
     MyClientToMiddleHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::mem_pool_dump_one("MyClientToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToMiddleHandler), chunks);
+    CApp::print_pool_one("MyClientToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToMiddleHandler), chunks);
   }
 
   MyMemPoolFactoryX::instance()->dump_info();
@@ -978,7 +978,7 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::RUNNING_MODE mode)
 {
   MyClientApp * app = MyClientAppX::instance();
   CCfg * cfg = CCfgX::instance();
-  if (!cfg->load_config(app_home_path, mode))
+  if (!cfg->readall(app_home_path, mode))
   {
     std::printf("error loading config file, quitting\n");
     exit(5);
@@ -989,7 +989,7 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::RUNNING_MODE mode)
     exit(6);
   }
   if (cfg->run_as_demon)
-    CApp::app_demonize();
+    CApp::demon();
 
   MyClientToMiddleHandler::init_mem_pool(20);
   MyMemPoolFactoryX::instance()->init(cfg);
@@ -997,7 +997,7 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::RUNNING_MODE mode)
 
   if (getenv("DISPLAY") == NULL)
   {
-    MY_ERROR("no DISPLAY environment var found\n");
+    C_ERROR("no DISPLAY environment var found\n");
     exit(5);
   }
 
@@ -1007,7 +1007,7 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::RUNNING_MODE mode)
     std::ifstream ifs(idfile.c_str(), std::ifstream::in);
     if (!ifs || ifs.bad())
     {
-      MY_ERROR("can not open file %s %s\n", idfile.c_str(), (const char *)CErrno());
+      C_ERROR("can not open file %s %s\n", idfile.c_str(), (const char *)CErrno());
       exit(6);
     }
     char id[64];
@@ -1045,7 +1045,7 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::RUNNING_MODE mode)
 //    if(cfg->adv_expire_days > 0)
 //    {
 //      MyPooledMemGuard mpath;
-//      mpath.init_from_string(cfg->app_path.c_str(), "/data/backup/new");
+//      mpath.from_string(cfg->app_path.c_str(), "/data/backup/new");
 //      MyAdvCleaner cleaner;
 //      cleaner.do_clean(mpath, app->client_id(), cfg->adv_expire_days);
 //    }
@@ -1064,7 +1064,7 @@ void MyClientApp::check_prev_extract_task(const char * client_id)
   DIR * dir = opendir(path.data());
   if (!dir)
   {
-    MY_ERROR("can not open directory: %s %s\n", path.data(), (const char*)CErrno());
+    C_ERROR("can not open directory: %s %s\n", path.data(), (const char*)CErrno());
     return;
   }
 
@@ -1080,7 +1080,7 @@ void MyClientApp::check_prev_extract_task(const char * client_id)
 
     if (likely(mycomutil_string_end_with(entry->d_name, ".mbz")))
     {
-      msrc.init_from_string(entry->d_name);
+      msrc.from_string(entry->d_name);
       msrc.data()[ACE_OS::strlen(msrc.data()) - ACE_OS::strlen(".mbz")] = 0;
       MyDistInfoFtp * dist_info = new MyDistInfoFtp;
       {
@@ -1095,12 +1095,12 @@ void MyClientApp::check_prev_extract_task(const char * client_id)
         continue;
       } else
       {
-        MY_INFO("removing downloaded file %s (%d)\n", entry->d_name, dist_info->status);
+        C_INFO("removing downloaded file %s (%d)\n", entry->d_name, dist_info->status);
         delete dist_info;
       }
     }
 
-    msrc.init_from_string(path.data(), "/", entry->d_name);
+    msrc.from_string(path.data(), "/", entry->d_name);
     CSysFS::remove(msrc.data(), true);
   };
 
@@ -1109,7 +1109,7 @@ void MyClientApp::check_prev_extract_task(const char * client_id)
 
 void MyClientApp::app_fini()
 {
-  MY_INFO(ACE_TEXT("shutdown client...\n"));
+  C_INFO(ACE_TEXT("shutdown client...\n"));
   MyClientAppX::close();  //this comes before the releasing of memory pool
   CCfgX::close();
   dump_mem_pool_info(); //only mem pool info, other objects should gone by now

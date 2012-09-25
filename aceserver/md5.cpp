@@ -228,14 +228,14 @@ bool md5file (const char *fn , u_int32_t seed, MD5_CTX *mdContext, char * result
 {
   if (!fn || !*fn || !result_buff || result_buff_len < 32)
   {
-    MY_ERROR("invalid parameter @md5file()\n");
+    C_ERROR("invalid parameter @md5file()\n");
     return false;
   }
   int fd = open (fn, O_RDONLY);
   if (fd < 0)
   {
     if (ACE_OS::last_error() != ENOENT)
-      MY_ERROR("can not open file %s for read %s\n", fn, (const char*)CErrno());
+      C_ERROR("can not open file %s for read %s\n", fn, (const char*)CErrno());
     return false;
   }
   MD5Init (mdContext, seed);
@@ -249,7 +249,7 @@ bool md5file (const char *fn , u_int32_t seed, MD5_CTX *mdContext, char * result
       break;
     else if (rb < 0)
     {
-      MY_ERROR("error while reading file %s %s\n", fn, (const char*)CErrno());
+      C_ERROR("error while reading file %s %s\n", fn, (const char*)CErrno());
       return -1;
     }
     MD5Update (mdContext, (unsigned char *) buf, rb);

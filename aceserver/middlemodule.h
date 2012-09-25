@@ -1,10 +1,3 @@
-/*
- * distmodule.h
- *
- *  Created on: Jan 7, 2012
- *      Author: root
- */
-
 #ifndef DISTMODULE_H_
 #define DISTMODULE_H_
 
@@ -12,7 +5,6 @@
 #include <new>
 #include <tr1/unordered_set>
 
-#include "common.h"
 #include "baseapp.h"
 #include "basemodule.h"
 #include "servercommon.h"

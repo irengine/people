@@ -4,7 +4,6 @@
 #include <ace/Singleton.h>
 #include <string>
 #include <ace/Configuration_Import_Export.h>
-#include "common.h"
 #include "basemodule.h"
 
 

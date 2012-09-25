@@ -1,14 +1,7 @@
-/*
- * server.h
- *
- *  Created on: Jan 9, 2012
- *      Author: root
- */
-
 #ifndef SERVER_H_
 #define SERVER_H_
 
-#include "common.h"
+#include "mycomutil.h"
 #include "baseapp.h"
 #include "dbmodule.h"
 #include "middlemodule.h"

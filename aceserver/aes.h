@@ -3,14 +3,6 @@
 
 #include <sys/types.h>
 
-//#ifndef u_int8_t
-//#define u_int8_t  unsigned char
-//#endif
-//
-//#ifndef u_int32_t
-//#define u_int32_t unsigned long int
-//#endif
-
 typedef struct
 {
     u_int32_t erk[64];     /* encryption round keys */

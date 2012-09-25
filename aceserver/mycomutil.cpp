@@ -230,7 +230,7 @@ bool mycomutil_calculate_file_md5(const char * _file, CMemGuard & md5_result)
 
 bool mycomutil_generate_time_string(char * result_buff, int buff_len, bool full, time_t t)
 {
-  MY_ASSERT_RETURN(full? buff_len > 19: buff_len > 15, "buffer len too small @mycomutil_generate_time_string\n", false);
+  C_ASSERT_RETURN(full? buff_len > 19: buff_len > 15, "buffer len too small @mycomutil_generate_time_string\n", false);
   struct tm _tm;
   if (unlikely(localtime_r(&t, &_tm) == NULL))
     return false;
@@ -272,7 +272,7 @@ bool mycomutil_mb_putq(ACE_Task<ACE_MT_SYNCH> * target, ACE_Message_Block * mb, 
   if (unlikely(target->putq(mb, &tv) < 0))
   {
     if (err_msg)
-      MY_ERROR("can not put message %s: %s\n", err_msg, (const char *)CErrno());
+      C_ERROR("can not put message %s: %s\n", err_msg, (const char *)CErrno());
     mb->release();
     return false;
   }
@@ -321,7 +321,7 @@ int mycomutil_send_message_block_queue(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL
   int ret;
   if (!handler)
   {
-    MY_FATAL("null handler @mycomutil_send_message_block_queue.\n");
+    C_FATAL("null handler @mycomutil_send_message_block_queue.\n");
     ret = -1;
     goto _exit_;
   }
@@ -371,7 +371,7 @@ _exit_:
     return -1;
   if (!handler)
   {
-    MY_FATAL("null handler @mycomutil_send_message_block_queue.\n");
+    C_FATAL("null handler @mycomutil_send_message_block_queue.\n");
     return -1;
   }
 
@@ -408,20 +408,20 @@ _exit_:
 
 int mycomutil_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb)
 {
-//  MY_DEBUG("on enter: mb->space()=%d\n", mb->space());
+//  C_DEBUG("on enter: mb->space()=%d\n", mb->space());
   if (!mb || !handler)
     return -1;
   if (mb->space() == 0)
     return 0;
   ssize_t recv_cnt = handler->peer().recv(mb->wr_ptr(), mb->space());//TEMP_FAILURE_RETRY(handler->peer().recv(mb->wr_ptr(), mb->space()));
-//  MY_DEBUG("handler->recv() returns %d\n", (int)recv_cnt);
+//  C_DEBUG("handler->recv() returns %d\n", (int)recv_cnt);
   int ret = mycomutil_translate_tcp_result(recv_cnt);
-//  MY_DEBUG("tcp result = %d\n", ret);
+//  C_DEBUG("tcp result = %d\n", ret);
   if (ret < 0)
     return -1;
   if (recv_cnt > 0)
     mb->wr_ptr(recv_cnt);
-//  MY_DEBUG("on exit: mb->space()=%d\n", mb->space());
+//  C_DEBUG("on exit: mb->space()=%d\n", mb->space());
   return (mb->space() == 0 ? 0:1);
 }
 
@@ -454,14 +454,14 @@ bool CSysFS::make_path(char * path, int prefix_len, bool is_file, bool self_only
     *end_ptr = 0;
     if (!make_path(path, self_only))
       return false;
-    //MY_INFO("mkdir: %s\n", path);
+    //C_INFO("mkdir: %s\n", path);
     *end_ptr = '/';
     ptr = end_ptr + 1;
   }
 
   if (!is_file)
     return make_path(path, self_only);
-    //MY_INFO("mkdir: %s\n", path);
+    //C_INFO("mkdir: %s\n", path);
   return true;
 }
 
@@ -487,14 +487,14 @@ bool CSysFS::copy_path(const char * srcdir, const char * destdir, bool self_only
     return false;
   if (!make_path(destdir, self_only))
   {
-    MY_ERROR("can not create directory %s, %s\n", destdir, (const char *)CErrno());
+    C_ERROR("can not create directory %s, %s\n", destdir, (const char *)CErrno());
     return false;
   }
 
   DIR * dir = opendir(srcdir);
   if (!dir)
   {
-    MY_ERROR("can not open directory: %s %s\n", srcdir, (const char*)CErrno());
+    C_ERROR("can not open directory: %s %s\n", srcdir, (const char*)CErrno());
     return false;
   }
 
@@ -520,7 +520,7 @@ bool CSysFS::copy_path(const char * srcdir, const char * destdir, bool self_only
     {
       if (!copy_file(msrc.data(), mdest.data(), self_only, syn))
       {
-        MY_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (const char *)CErrno());
+        C_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (const char *)CErrno());
         closedir(dir);
         return false;
       }
@@ -533,7 +533,7 @@ bool CSysFS::copy_path(const char * srcdir, const char * destdir, bool self_only
         return false;
       }
     } else
-      MY_WARNING("unknown file type (= %d) for file @MyFilePaths::copy_directory file = %s/%s\n",
+      C_WARNING("unknown file type (= %d) for file @MyFilePaths::copy_directory file = %s/%s\n",
            entry->d_type, srcdir, entry->d_name);
   };
 
@@ -551,14 +551,14 @@ bool CSysFS::copy_path_zap(const char * srcdir, const char * destdir, bool self_
 
   if (!make_path_const(destdir, 1, false, self_only))
   {
-    MY_ERROR("can not create directory %s, %s\n", destdir, (const char *)CErrno());
+    C_ERROR("can not create directory %s, %s\n", destdir, (const char *)CErrno());
     return false;
   }
 
   DIR * dir = opendir(srcdir);
   if (!dir)
   {
-    MY_ERROR("can not open directory: %s %s\n", srcdir, (const char*)CErrno());
+    C_ERROR("can not open directory: %s %s\n", srcdir, (const char*)CErrno());
     return false;
   }
 
@@ -584,7 +584,7 @@ bool CSysFS::copy_path_zap(const char * srcdir, const char * destdir, bool self_
     {
       if (!copy_file(msrc.data(), mdest.data(), self_only, syn))
       {
-        MY_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (const char *)CErrno());
+        C_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (const char *)CErrno());
         closedir(dir);
         return false;
       }
@@ -597,7 +597,7 @@ bool CSysFS::copy_path_zap(const char * srcdir, const char * destdir, bool self_
         return false;
       }
     } else
-      MY_WARNING("unknown file type (= %d) for file @MyFilePaths::copy_directory file = %s/%s\n",
+      C_WARNING("unknown file type (= %d) for file @MyFilePaths::copy_directory file = %s/%s\n",
            entry->d_type, srcdir, entry->d_name);
   };
 
@@ -614,7 +614,7 @@ bool CSysFS::remove_path(const char * path, bool ignore_eror)
   if (!dir)
   {
     if (!ignore_eror)
-      MY_ERROR("can not open directory: %s %s\n", path, (const char*)CErrno());
+      C_ERROR("can not open directory: %s %s\n", path, (const char*)CErrno());
     return false;
   }
 
@@ -646,7 +646,7 @@ bool CSysFS::remove_path(const char * path, bool ignore_eror)
       if (unlink(msrc.data()) != 0)
       {
         if (!ignore_eror)
-          MY_ERROR("can not remove file %s %s\n", msrc.data(), (const char*)CErrno());
+          C_ERROR("can not remove file %s %s\n", msrc.data(), (const char*)CErrno());
         ret = false;
       }
     }
@@ -676,7 +676,7 @@ bool CSysFS::remove_old_files(const char * path, time_t deadline)
     DIR * dir = opendir(path);
     if (!dir)
     {
-      MY_ERROR("can not open directory: %s %s\n", path, (const char*)CErrno());
+      C_ERROR("can not open directory: %s %s\n", path, (const char*)CErrno());
       return false;
     }
 
@@ -703,7 +703,7 @@ bool CSysFS::remove_old_files(const char * path, time_t deadline)
     return ret;
   } else
   {
-    MY_ERROR("unknown type for file(%s) stat.st_mode(%d)\n", path, buf.st_mode);
+    C_ERROR("unknown type for file(%s) stat.st_mode(%d)\n", path, buf.st_mode);
     return false;
   }
 
@@ -722,14 +722,14 @@ bool CSysFS::copy_file_by_fd(int src_fd, int dest_fd)
       return true;
     else if (n_read < 0)
     {
-      MY_ERROR("can not read from file %s\n", (const char*)CErrno());
+      C_ERROR("can not read from file %s\n", (const char*)CErrno());
       return false;
     }
 
     n_write = ::write(dest_fd, buff, n_read);
     if (n_write != n_read)
     {
-      MY_ERROR("can not write to file %s\n", (const char*)CErrno());
+      C_ERROR("can not write to file %s\n", (const char*)CErrno());
       return false;
     }
 
@@ -779,7 +779,7 @@ bool CSysFS::rename(const char *old_path, const char * new_path, bool ignore_ero
 {
   bool result = (::rename(old_path, new_path) == 0);
   if (!result && !ignore_eror)
-    MY_ERROR("rename %s to %s failed %s\n", old_path, new_path, (const char*)CErrno());
+    C_ERROR("rename %s to %s failed %s\n", old_path, new_path, (const char*)CErrno());
   return result;
 }
 
@@ -787,7 +787,7 @@ bool CSysFS::remove(const char *pathfile, bool ignore_error)
 {
   bool result = (::remove(pathfile) == 0 || ACE_OS::last_error() == ENOENT);
   if (!result && !ignore_error)
-    MY_ERROR("remove %s failed %s\n", pathfile, (const char*)CErrno());
+    C_ERROR("remove %s failed %s\n", pathfile, (const char*)CErrno());
   return result;
 }
 
@@ -801,7 +801,7 @@ bool CSysFS::zap(const char *pathfile, bool ignore_error)
     else
     {
       if (!ignore_error)
-        MY_ERROR("stat(%s) failed %s\n", (const char *)CErrno());
+        C_ERROR("stat(%s) failed %s\n", (const char *)CErrno());
       return false;
     }
   }
@@ -837,7 +837,7 @@ bool CSysFS::zap_path_except_mfile(const CMemGuard & path, const CMemGuard & mfi
   if (!dir)
   {
     if (!ignore_error)
-      MY_ERROR("can not open directory: %s %s\n", path.data(), (const char*)CErrno());
+      C_ERROR("can not open directory: %s %s\n", path.data(), (const char*)CErrno());
     return false;
   }
 
@@ -943,7 +943,7 @@ bool CClientPathGenerator::client_id_to_path(const char * id, char * result, int
   int len = ACE_OS::strlen(id);
   if (result_len < len + 4)
   {
-    MY_ERROR("not enough result_len\n");
+    C_ERROR("not enough result_len\n");
     return false;
   }
 
@@ -980,7 +980,7 @@ bool CUnixFileGuard::do_open(const char * filename, bool readonly, bool create, 
   if (fd < 0)
   {
     if (m_error_report)
-      MY_ERROR("can not open file %s, %s\n", filename, (const char *)CErrno());
+      C_ERROR("can not open file %s, %s\n", filename, (const char *)CErrno());
     return false;
   }
   attach(fd);
@@ -1111,7 +1111,7 @@ ACE_Message_Block * CMemPool::get_message_block(int capacity)
 {
   if (unlikely(capacity <= 0))
   {
-    MY_ERROR(ACE_TEXT("calling MyMemPoolFactory::get_message_block() with invalid capacity = %d\n"), capacity);
+    C_ERROR(ACE_TEXT("calling MyMemPoolFactory::get_message_block() with invalid capacity = %d\n"), capacity);
     return NULL;
   }
   if (!g_use_mem_pool)
@@ -1143,7 +1143,7 @@ ACE_Message_Block * CMemPool::get_message_block(int capacity)
       } else
       {
         ++ m_global_alloc_count;
-        //MY_DEBUG("global alloc of size(%d)\n", capacity);
+        //C_DEBUG("global alloc of size(%d)\n", capacity);
         return new ACE_Message_Block(capacity);
       }
     } else
@@ -1162,7 +1162,7 @@ ACE_Message_Block * CMemPool::get_message_block_cmd(int capacity, int command, b
 {
   if (unlikely(capacity < 0))
   {
-    MY_FATAL("too samll capacity value (=%d) @MyMemPoolFactory::get_message_block(command)\n", capacity);
+    C_FATAL("too samll capacity value (=%d) @MyMemPoolFactory::get_message_block(command)\n", capacity);
     return NULL;
   }
   ACE_Message_Block * mb = get_message_block(capacity + (int)sizeof(MyDataPacketHeader));
@@ -1183,7 +1183,7 @@ ACE_Message_Block * CMemPool::get_message_block_ack(ACE_Message_Block * src)
 {
   if (unlikely(!src) || src->capacity() < (int)sizeof(MyDataPacketHeader))
   {
-    MY_WARNING("invalid src for ack message packet\n");
+    C_WARNING("invalid src for ack message packet\n");
     return NULL;
   }
 
@@ -1204,7 +1204,7 @@ ACE_Message_Block * CMemPool::get_message_block_bs(int data_len, const char * cm
 {
   if (unlikely(data_len < 0 || data_len > 10 * 1024 * 1024))
   {
-    MY_FATAL("unexpected data_len (=%d) @MyMemPoolFactory::get_message_block_bs\n", data_len);
+    C_FATAL("unexpected data_len (=%d) @MyMemPoolFactory::get_message_block_bs\n", data_len);
     return NULL;
   }
   int total_len = data_len + 8 + 4 + 2 + 1;
@@ -1235,7 +1235,7 @@ bool CMemPool::get_mem(int size, CMemGuard * guard)
   if (idx == INVALID_INDEX || (p = (char*)m_pools[idx]->malloc()) == NULL)
   {
 //    if (g_use_mem_pool)
-//      MY_DEBUG("global alloc of size(%d)\n", size);
+//      C_DEBUG("global alloc of size(%d)\n", size);
     ++ m_global_alloc_count;
     p = new char[size];
     guard->data(p, INVALID_INDEX, size);
@@ -1252,7 +1252,7 @@ void * CMemPool::get_mem_x(int size)
   if (idx == INVALID_INDEX || (p = m_pools[idx]->malloc()) == NULL)
   {
 //    if (g_use_mem_pool)
-//      MY_DEBUG("global alloc of size(%d)\n", size);
+//      C_DEBUG("global alloc of size(%d)\n", size);
     ++ m_global_alloc_count;
     p = (void*)new char[size];
   }
@@ -1282,7 +1282,7 @@ void CMemPool::free_mem(CMemGuard * guard)
   if (idx == INVALID_INDEX)
     delete [] (char*)guard->data();
   else if (unlikely(idx < 0 || idx >= (int)m_pools.size()))
-    MY_FATAL("attempt to release bad mem_pool data: index = %d, pool.size() = %d\n",
+    C_FATAL("attempt to release bad mem_pool data: index = %d, pool.size() = %d\n",
         idx, (int)m_pools.size());
   else
     m_pools[idx]->free(guard->data());

@@ -1,12 +1,6 @@
-/*
- * datapacket.cpp
- *
- *  Created on: Dec 30, 2011
- *      Author: root
- */
-
-#include "datapacket.h"
 #include "mycomutil.h"
+#include "datapacket.h"
+
 
 bool my_dph_validate_file_md5_list(const MyDataPacketHeader * header)
 {
@@ -88,7 +82,7 @@ bool MyBSBasePacket::check_header() const
 {
   if (ACE_OS::memcmp(magic, const_bs_packet_magic, MAGIC_SIZE) != 0)
   {
-    MY_ERROR("bad magic from bs packet\n");
+    C_ERROR("bad magic from bs packet\n");
     return false;
   }
 
@@ -96,7 +90,7 @@ bool MyBSBasePacket::check_header() const
   {
     if (unlikely(len[i] < '0' || len[i] > '9'))
     {
-      MY_ERROR("bad len char code from bs packet\n");
+      C_ERROR("bad len char code from bs packet\n");
       return false;
     }
   }
@@ -104,7 +98,7 @@ bool MyBSBasePacket::check_header() const
   int l = packet_len();
   if (unlikely(l <= 15 || l > 10 * 1024 * 1024))
   {
-    MY_ERROR("invalid len (= %d) bs packet\n", l);
+    C_ERROR("invalid len (= %d) bs packet\n", l);
     return false;
   }
 

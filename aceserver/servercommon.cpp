@@ -83,7 +83,7 @@ bool MyHttpDistRequest::check_value(const char * value, const char * value_name)
 {
   if (!value || !*value)
   {
-    MY_ERROR("bad http dist request, no %s value\n", value_name);
+    C_ERROR("bad http dist request, no %s value\n", value_name);
     return false;
   }
 
@@ -100,7 +100,7 @@ bool MyHttpDistRequest::check_valid(const bool check_acode) const
 
   if (unlikely(ftype[1] != 0 || !ftype_is_valid(ftype[0])))
   {
-    MY_ERROR("bad http dist request, ftype = %s\n", ftype);
+    C_ERROR("bad http dist request, ftype = %s\n", ftype);
     return false;
   }
 
@@ -118,7 +118,7 @@ bool MyHttpDistRequest::check_valid(const bool check_acode) const
 
   if (unlikely(type[1] != 0 || !type_is_valid(type[0])))
   {
-    MY_ERROR("bad http dist request, type = %s\n", type);
+    C_ERROR("bad http dist request, type = %s\n", type);
     return false;
   }
 
@@ -225,14 +225,14 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
   destdir.from_string(CCfgX::instance()->compressed_store_path.c_str(), "/", http_dist_request.ver);
   if (!CSysFS::make_path(destdir.data(), false))
   {
-    MY_ERROR("can not create directory %s, %s\n", destdir.data(), (const char *)CErrno());
+    C_ERROR("can not create directory %s, %s\n", destdir.data(), (const char *)CErrno());
     goto __exit__;
   }
 
   composite_dir.from_string(destdir.data(), "/", composite_path());
   if (!CSysFS::make_path(composite_dir.data(), false))
   {
-    MY_ERROR("can not create directory %s, %s\n", composite_dir.data(), (const char *)CErrno());
+    C_ERROR("can not create directory %s, %s\n", composite_dir.data(), (const char *)CErrno());
     goto __exit__;
   }
   all_in_one.from_string(composite_dir.data(), "/all_in_one.mbz");
@@ -245,7 +245,7 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
   bm = m_compressor.compress(mfile.data(), prefix_len, mdestfile.data(), http_dist_request.password);
   if (!bm && !type_is_multi(*http_dist_request.type))
   {
-    MY_ERROR("compress(%s) to (%s) failed\n", mfile.data(), mdestfile.data());
+    C_ERROR("compress(%s) to (%s) failed\n", mfile.data(), mdestfile.data());
     m_compositor.close();
     return false;
   }
@@ -263,7 +263,7 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
 
   if (unlikely(!CSysFS::get_correlate_path(mfile, prefix_len)))
   {
-    MY_ERROR("can not calculate related path for %s\n", mfile.data());
+    C_ERROR("can not calculate related path for %s\n", mfile.data());
     m_compositor.close();
     goto __exit__;
   }
@@ -274,9 +274,9 @@ bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
 
 __exit__:
   if (!result)
-    MY_ERROR("can not generate compressed files for %s\n", http_dist_request.ver);
+    C_ERROR("can not generate compressed files for %s\n", http_dist_request.ver);
   else
-    MY_INFO("generation of compressed files for %s is done\n", http_dist_request.ver);
+    C_INFO("generation of compressed files for %s is done\n", http_dist_request.ver);
 
   if (type_is_all(*http_dist_request.type))
   {
@@ -300,14 +300,14 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
 
   if (!CSysFS::make_path(dest_path, false))
   {
-    MY_ERROR("can not create directory %s, %s\n", dest_path, (const char *)CErrno());
+    C_ERROR("can not create directory %s, %s\n", dest_path, (const char *)CErrno());
     return false;
   }
 
   DIR * dir = opendir(src_path);
   if (!dir)
   {
-    MY_ERROR("can not open directory: %s, %s\n", src_path, (const char*)CErrno());
+    C_ERROR("can not open directory: %s, %s\n", src_path, (const char*)CErrno());
     return false;
   }
 
@@ -320,7 +320,7 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
   {
     if (!CSysFS::make_path(dest_path, src_path + prefix_len + 1, false, false))
     {
-      MY_ERROR("failed to create dir %s%s %s\n", dest_path, src_path + prefix_len, (const char*)CErrno());
+      C_ERROR("failed to create dir %s%s %s\n", dest_path, src_path + prefix_len, (const char*)CErrno());
       return false;
     }
   }
@@ -346,7 +346,7 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
         ACE_OS::sprintf(mdest.data(), "%s/%s.mbz", dest_path, entry->d_name);
       if (!m_compressor.compress(msrc.data(), prefix_len, mdest.data(), password))
       {
-        MY_ERROR("compress(%s) to (%s) failed\n", msrc.data(), mdest.data());
+        C_ERROR("compress(%s) to (%s) failed\n", msrc.data(), mdest.data());
         closedir(dir);
         return false;
       }
@@ -369,7 +369,7 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
         return false;
       }
     } else
-      MY_WARNING("unknown file type (= %d) for file @MyHttpService::generate_compressed_files file = %s/%s\n",
+      C_WARNING("unknown file type (= %d) for file @MyHttpService::generate_compressed_files file = %s/%s\n",
            entry->d_type, src_path, entry->d_name);
   };
 
@@ -384,14 +384,14 @@ bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, CMemG
 {
   if (!http_dist_request.need_md5())
   {
-    MY_INFO("skipping file md5 generation for %s, not needed\n", http_dist_request.ver);
+    C_INFO("skipping file md5 generation for %s, not needed\n", http_dist_request.ver);
     return true;
   }
 
   MyFileMD5s md5s_server;
   if (unlikely(!md5s_server.calculate(http_dist_request.fdir, http_dist_request.findex, type_is_single(*http_dist_request.type))))
   {
-    MY_ERROR("failed to calculate md5 file list for dist %s\n", http_dist_request.ver);
+    C_ERROR("failed to calculate md5 file list for dist %s\n", http_dist_request.ver);
     return false;
   }
   md5s_server.sort();
@@ -400,15 +400,15 @@ bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, CMemG
   MyMemPoolFactoryX::instance()->get_mem(md5_len, &md5_result);
   if (unlikely(!md5s_server.to_buffer(md5_result.data(), md5_len, true)))
   {
-    MY_ERROR("can not get md5 file list result for dist %s\n", http_dist_request.ver);
+    C_ERROR("can not get md5 file list result for dist %s\n", http_dist_request.ver);
     return false;
   }
 
 //  bool result = MyServerAppX::instance()->db().save_dist_md5(http_dist_request.ver, md5_result.data(), md5_len);
 //  if (likely(result))
-//    MY_INFO("file md5 list for %s generated and stored into database\n", http_dist_request.ver);
+//    C_INFO("file md5 list for %s generated and stored into database\n", http_dist_request.ver);
 //  else
-//    MY_ERROR("can not save file md5 list for %s into database\n", http_dist_request.ver);
+//    C_ERROR("can not save file md5 list for %s into database\n", http_dist_request.ver);
   return true;
 }
 

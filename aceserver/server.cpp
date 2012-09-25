@@ -71,7 +71,7 @@ MyDB & MyServerApp::db()
 
 bool MyServerApp::dist_put_to_service(ACE_Message_Block * mb)
 {
-  MY_ASSERT_RETURN(mb, "\n", false);
+  C_ASSERT_RETURN(mb, "\n", false);
 
   if (unlikely(!running()))
   {
@@ -193,12 +193,12 @@ bool MyServerApp::on_construct()
 
   if (!m_db.connect())
   {
-    MY_FATAL("can not connect to database. quitting...\n");
+    C_FATAL("can not connect to database. quitting...\n");
     return false;
   }
   if (!m_db.get_client_ids(&m_client_id_table))
   {
-    MY_FATAL("can not get client_ids database. quitting...\n");
+    C_FATAL("can not get client_ids database. quitting...\n");
     return false;
   }
 
@@ -251,7 +251,7 @@ bool MyServerApp::app_init(const char * app_home_path, CCfg::RUNNING_MODE mode)
 
 void MyServerApp::app_fini()
 {
-  MY_INFO(ACE_TEXT("shutdown server...\n"));
+  C_INFO(ACE_TEXT("shutdown server...\n"));
   MyServerAppX::close();  //this comes before the releasing of memory pool
   g_client_id_table = NULL;
   CCfgX::close();

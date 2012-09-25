@@ -74,7 +74,7 @@ bool MyMfileSplitter::init(const char * mfile)
   char * ptr = ACE_OS::strrchr(m_path.data(), '.');
   if (unlikely(!ptr))
   {
-    MY_ERROR("bad file name @MyMfileSplitter::init(%s)\n", mfile);
+    C_ERROR("bad file name @MyMfileSplitter::init(%s)\n", mfile);
     return false;
   }
   else
@@ -225,7 +225,7 @@ int MyClientIDTable::index_of_i(const MyClientID & id, ClientIDTable_map::iterat
     return -1;
   if (unlikely(it->second < 0 || it->second >= (int)m_table.size()))
   {
-    MY_ERROR("Invalid MyClientInfos map index = %d, table size = %d\n", it->second, (int)m_table.size());
+    C_ERROR("Invalid MyClientInfos map index = %d, table size = %d\n", it->second, (int)m_table.size());
     return -1;
   }
   return it->second;
@@ -355,7 +355,7 @@ MyFileMD5::MyFileMD5(const char * _filename, const char * md5, int prefix_len, c
   int len = strlen(_filename);
   if (unlikely(len <= prefix_len))
   {
-    MY_FATAL("invalid parameter in MyFileMD5::MyFileMD5(%s, %d)\n", _filename, prefix_len);
+    C_FATAL("invalid parameter in MyFileMD5::MyFileMD5(%s, %d)\n", _filename, prefix_len);
     return;
   }
   if (!alias || !*alias)
@@ -373,7 +373,7 @@ MyFileMD5::MyFileMD5(const char * _filename, const char * md5, int prefix_len, c
     MD5_CTX mdContext;
     md5file(_filename, 0, &mdContext, m_md5, MD5_STRING_LENGTH);
 //    if (!md5file(_filename, 0, &mdContext, m_md5, MD5_STRING_LENGTH))
-//      MY_ERROR("failed to calculate md5 value of file %s\n", _filename);
+//      C_ERROR("failed to calculate md5 value of file %s\n", _filename);
   } else
     memcpy((void*)m_md5, (void*)md5, MD5_STRING_LENGTH);
 }
@@ -383,14 +383,14 @@ MyFileMD5::MyFileMD5(const char * _filename, const char * md5, int prefix_len, c
 
 MyFileMD5s::MyFileMD5s()
 {
-//  MY_DEBUG("creating md5s: %X\n", (int)(long)this);
+//  C_DEBUG("creating md5s: %X\n", (int)(long)this);
   m_base_dir_len = 0;
   m_md5_map = NULL;
 }
 
 MyFileMD5s::~MyFileMD5s()
 {
-//  MY_DEBUG("destroying md5s: %X\n", (int)(long)this);
+//  C_DEBUG("destroying md5s: %X\n", (int)(long)this);
   std::for_each(m_file_md5_list.begin(), m_file_md5_list.end(), CPoolObjectDeletor());
   if (m_md5_map)
     delete m_md5_map;
@@ -406,7 +406,7 @@ bool MyFileMD5s::base_dir(const char * dir)
 {
   if (unlikely(!dir || !*dir))
   {
-    MY_FATAL("MyFileMD5s::base_dir(empty dir)\n");
+    C_FATAL("MyFileMD5s::base_dir(empty dir)\n");
     return false;
   }
 
@@ -424,7 +424,7 @@ MyFileMD5 * MyFileMD5s::find(const char * fn)
 {
   if (unlikely(!fn || !*fn))
     return NULL;
-  MY_ASSERT_RETURN(m_md5_map != NULL, "MyFileMD5s::find NULL map\n", NULL);
+  C_ASSERT_RETURN(m_md5_map != NULL, "MyFileMD5s::find NULL map\n", NULL);
 
   MyMD5map::iterator it;
   it = m_md5_map->find(fn);
@@ -451,7 +451,7 @@ void MyFileMD5s::minus(MyFileMD5s & target, MyMfileSplitter * spl, bool do_delet
       if (do_delete)
       {
         ACE_OS::snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
-        //MY_INFO("deleting file %s\n", fn);
+        //C_INFO("deleting file %s\n", fn);
         remove(fn);
       }
       ++it2;
@@ -474,7 +474,7 @@ void MyFileMD5s::minus(MyFileMD5s & target, MyMfileSplitter * spl, bool do_delet
     while (it2 != target.m_file_md5_list.end())
     {
       ACE_OS::snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
-      //MY_INFO("deleting file %s\n", fn);
+      //C_INFO("deleting file %s\n", fn);
       remove(fn);
       ++it2;
     }
@@ -521,7 +521,7 @@ bool MyFileMD5s::add_file(const char * pathname, const char * filename, int pref
   int len = ACE_OS::strlen(pathname);
   if (unlikely(len + 1 < prefix_len || len  + strlen(filename) + 2 > PATH_MAX))
   {
-    MY_FATAL("invalid parameter @ MyFileMD5s::add_file(%s, %s, %d)\n", pathname, filename, prefix_len);
+    C_FATAL("invalid parameter @ MyFileMD5s::add_file(%s, %s, %d)\n", pathname, filename, prefix_len);
     return false;
   }
   MyFileMD5 * fm;
@@ -557,7 +557,7 @@ bool MyFileMD5s::to_buffer(char * buff, int buff_len, bool include_md5_value)
   MyFileMD5List::iterator it;
   if (unlikely(!buff || buff_len <= 0))
   {
-    MY_ERROR("invalid parameter MyFileMD5s::to_buffer(%s, %d)\n", buff, buff_len);
+    C_ERROR("invalid parameter MyFileMD5s::to_buffer(%s, %d)\n", buff, buff_len);
     return false;
   }
   int len = 0;
@@ -568,7 +568,7 @@ bool MyFileMD5s::to_buffer(char * buff, int buff_len, bool include_md5_value)
       continue;
     if (unlikely(buff_len <= len + fm.size(include_md5_value)))
     {
-      MY_ERROR("buffer is too small @MyFileMD5s::to_buffer(buff_len=%d, need_length=%d)\n",
+      C_ERROR("buffer is too small @MyFileMD5s::to_buffer(buff_len=%d, need_length=%d)\n",
           buff_len, len + fm.size(include_md5_value) + 1);
       return false;
     }
@@ -606,13 +606,13 @@ bool MyFileMD5s::from_buffer(char * buff, MyMfileSplitter * spl)
     md5 = ACE_OS::strchr(token, MyDataPacketHeader::MIDDLE_SEPARATOR);
     if (unlikely(md5 == token || !md5))
     {
-      MY_ERROR("bad file/md5 list item @MyFileMD5s::from_buffer: %s\n", token);
+      C_ERROR("bad file/md5 list item @MyFileMD5s::from_buffer: %s\n", token);
       return false;
     }
     *md5++ = 0;
     if (unlikely(ACE_OS::strlen(md5) != MyFileMD5::MD5_STRING_LENGTH))
     {
-      MY_ERROR("empty md5 in file/md5 list @MyFileMD5s::from_buffer: %s\n", token);
+      C_ERROR("empty md5 in file/md5 list @MyFileMD5s::from_buffer: %s\n", token);
       return false;
     }
     void * p = MyMemPoolFactoryX::instance()->get_mem_x(sizeof(MyFileMD5));
@@ -628,7 +628,7 @@ bool MyFileMD5s::from_buffer(char * buff, MyMfileSplitter * spl)
 
 bool MyFileMD5s::calculate_diff(const char * dirname, MyMfileSplitter * spl)
 {
-  MY_ASSERT_RETURN(dirname && *dirname, "NULL dirname @MyFileMD5s::calculate_diff()\n", false);
+  C_ASSERT_RETURN(dirname && *dirname, "NULL dirname @MyFileMD5s::calculate_diff()\n", false);
   CMemGuard fn;
   int n = ACE_OS::strlen(dirname);
   MyFileMD5List::iterator it;
@@ -654,7 +654,7 @@ bool MyFileMD5s::calculate_diff(const char * dirname, MyMfileSplitter * spl)
 
 bool MyFileMD5s::calculate(const char * dirname, const char * mfile, bool single)
 {
-  MY_ASSERT_RETURN(dirname && *dirname, "NULL dirname @MyFileMD5s::calculate()\n", false);
+  C_ASSERT_RETURN(dirname && *dirname, "NULL dirname @MyFileMD5s::calculate()\n", false);
   base_dir(dirname);
 
   if (mfile && *mfile)
@@ -673,7 +673,7 @@ bool MyFileMD5s::calculate(const char * dirname, const char * mfile, bool single
   {
     if (single)
     {
-      MY_ERROR("unsupported operation @MyFileMD5s::calculate\n");
+      C_ERROR("unsupported operation @MyFileMD5s::calculate\n");
       return false;
     }
     return do_scan_directory(dirname, ACE_OS::strlen(dirname) + 1);
@@ -687,7 +687,7 @@ bool MyFileMD5s::do_scan_directory(const char * dirname, int start_len)
   {
     if (ACE_OS::last_error() != ENOENT)
     {
-      MY_ERROR("can not open directory: %s %s\n", dirname, (const char*)CErrno());
+      C_ERROR("can not open directory: %s %s\n", dirname, (const char*)CErrno());
       return false;
     } else
       return true;
@@ -719,7 +719,7 @@ bool MyFileMD5s::do_scan_directory(const char * dirname, int start_len)
         return false;
       }
     } else
-      MY_WARNING("unknown file type (= %d) for file @MyFileMD5s::do_scan_directory file = %s/%s\n",
+      C_WARNING("unknown file type (= %d) for file @MyFileMD5s::do_scan_directory file = %s/%s\n",
            entry->d_type, dirname, entry->d_name);
   };
 
@@ -733,7 +733,7 @@ void MyFileMD5s::do_trim_garbage(const char * dirname, int start_len)
   if (!dir)
   {
     if (ACE_OS::last_error() != ENOENT)
-      MY_ERROR("can not open directory: %s %s\n", dirname, (const char*)CErrno());
+      C_ERROR("can not open directory: %s %s\n", dirname, (const char*)CErrno());
     return;
   }
 
@@ -758,7 +758,7 @@ void MyFileMD5s::do_trim_garbage(const char * dirname, int start_len)
       ACE_OS::snprintf(buff, PATH_MAX - 1, "%s/%s", dirname, entry->d_name);
       do_trim_garbage(buff, start_len);
     } else
-      MY_WARNING("unknown file type (= %d) for file @MyFileMD5s::do_trim_garbage file = %s/%s\n",
+      C_WARNING("unknown file type (= %d) for file @MyFileMD5s::do_trim_garbage file = %s/%s\n",
            entry->d_type, dirname, entry->d_name);
   };
 
@@ -779,7 +779,7 @@ bool MyBaseArchiveReader::open(const char * filename)
 {
   if (unlikely(!filename || !*filename))
   {
-    MY_ERROR("empty file name @MyBaseArchiveReader::open()\n");
+    C_ERROR("empty file name @MyBaseArchiveReader::open()\n");
     return false;
   }
 
@@ -789,7 +789,7 @@ bool MyBaseArchiveReader::open(const char * filename)
   struct stat sbuf;
   if (::fstat(m_file.handle(), &sbuf) == -1)
   {
-    MY_ERROR("can not get file info @MyBaseArchiveReader::open(), name = %s %s\n", filename, (const char*)CErrno());
+    C_ERROR("can not get file info @MyBaseArchiveReader::open(), name = %s %s\n", filename, (const char*)CErrno());
     return false;
   }
   m_file_length = sbuf.st_size;
@@ -805,7 +805,7 @@ int MyBaseArchiveReader::do_read(char * buff, int buff_len)
 {
   int n = ::read(m_file.handle(), buff, buff_len);
   if (unlikely(n < 0))
-    MY_ERROR("read file %s %s\n", m_file_name.data(), (const char*)CErrno());
+    C_ERROR("read file %s %s\n", m_file_name.data(), (const char*)CErrno());
   return n;
 }
 
@@ -866,20 +866,20 @@ bool MyWrappedArchiveReader::read_header()
     return false;
   if (header.magic != MyWrappedHeader::HEADER_MAGIC)
   {
-    MY_ERROR("corrupted compressed file %s\n", m_file_name.data());
+    C_ERROR("corrupted compressed file %s\n", m_file_name.data());
     return false;
   }
 
   int name_length = header.header_length - sizeof(header);
   if (name_length <= 1 || name_length > PATH_MAX)
   {
-    MY_ERROR("invalid compressed header file name length: %s\n", m_file_name.data());
+    C_ERROR("invalid compressed header file name length: %s\n", m_file_name.data());
     return false;
   }
 
   if (header.encrypted_data_length < 0 || header.encrypted_data_length > header.data_length)
   {
-    MY_ERROR("invalid encrypted data length value\n");
+    C_ERROR("invalid encrypted data length value\n");
     return false;
   }
 
@@ -921,7 +921,7 @@ bool MyBaseArchiveWriter::open(const char * filename)
 {
   if (unlikely(!filename || !*filename))
   {
-    MY_ERROR("empty file name @MyBaseArchiveWriter::open()\n");
+    C_ERROR("empty file name @MyBaseArchiveWriter::open()\n");
     return false;
   }
   m_file_name.from_string(filename);
@@ -932,7 +932,7 @@ bool MyBaseArchiveWriter::open(const char * dir, const char * filename)
 {
   if (unlikely(!filename || !*filename || !filename || !*filename))
   {
-    MY_ERROR("empty dir/file name @MyBaseArchiveWriter::open(,)\n");
+    C_ERROR("empty dir/file name @MyBaseArchiveWriter::open(,)\n");
     return false;
   }
   m_file_name.from_string(dir, filename);
@@ -957,7 +957,7 @@ bool MyBaseArchiveWriter::do_write(char * buff, int buff_len)
   int n = ::write(m_file.handle(), buff, buff_len);
   if (unlikely(n != buff_len))
   {
-    MY_ERROR("write file %s %s\n", m_file_name.data(), (const char*)CErrno());
+    C_ERROR("write file %s %s\n", m_file_name.data(), (const char*)CErrno());
     return false;
   }
   return true;
@@ -1004,12 +1004,12 @@ bool MyWrappedArchiveWriter::start(const char * filename, int prefix_len)
 {
   if (unlikely(prefix_len < 0 || prefix_len >= (int)ACE_OS::strlen(filename)))
   {
-    MY_ERROR("invalid prefix_len @MyWrappedArchiveWriter::start(%s, %d)\n", filename, prefix_len);
+    C_ERROR("invalid prefix_len @MyWrappedArchiveWriter::start(%s, %d)\n", filename, prefix_len);
     return false;
   }
   if (unlikely(filename[prefix_len] != '/' || filename[prefix_len + 1] == '/'))
   {
-    MY_ERROR("bad prefix_len split @MyWrappedArchiveWriter::start(%s, %d)\n", filename, prefix_len);
+    C_ERROR("bad prefix_len split @MyWrappedArchiveWriter::start(%s, %d)\n", filename, prefix_len);
     return false;
   }
 
@@ -1032,7 +1032,7 @@ bool MyWrappedArchiveWriter::finish()
 
   if (::lseek(m_file.handle(), 0, SEEK_SET) == -1)
   {
-    MY_ERROR("fseek on file %s failed %s\n", m_file_name.data(), (const char*)CErrno());
+    C_ERROR("fseek on file %s failed %s\n", m_file_name.data(), (const char*)CErrno());
     return false;
   }
 
@@ -1139,7 +1139,7 @@ bool MyBZCompressor::do_compress(MyBaseArchiveReader * _reader, MyBaseArchiveWri
       ret = BZ2_bzCompress(&m_bz_stream, BZ_RUN);
       if (ret != BZ_RUN_OK)
       {
-        MY_ERROR("BZ2_bzCompress(BZ_RUN) returns %d\n", ret);
+        C_ERROR("BZ2_bzCompress(BZ_RUN) returns %d\n", ret);
         return false;
       };
 
@@ -1165,7 +1165,7 @@ bool MyBZCompressor::do_compress(MyBaseArchiveReader * _reader, MyBaseArchiveWri
     ret = BZ2_bzCompress(&m_bz_stream, BZ_FINISH);
     if (ret != BZ_FINISH_OK && ret != BZ_STREAM_END)
     {
-      MY_ERROR("BZ2_bzCompress(BZ_FINISH) returns %d\n", ret);
+      C_ERROR("BZ2_bzCompress(BZ_FINISH) returns %d\n", ret);
       return false;
     };
 
@@ -1194,18 +1194,18 @@ bool MyBZCompressor::compress(const char * srcfn, int prefix_len, const char * d
   writer.set_key(key);
   if (!writer.start(srcfn + prefix_len))
     return false;
-//  MY_DEBUG("MyBZCompressor::compress, srcfn=%s, destfn=%d, save_as=%s\n", srcfn, destfn, srcfn + prefix_len);
+//  C_DEBUG("MyBZCompressor::compress, srcfn=%s, destfn=%d, save_as=%s\n", srcfn, destfn, srcfn + prefix_len);
   prepare_buffers();
   int ret = BZ2_bzCompressInit(&m_bz_stream, COMPRESS_100k, 0, 30);
   if (ret != BZ_OK)
   {
-    MY_ERROR("BZ2_bzCompressInit() return value = %d\n", ret);
+    C_ERROR("BZ2_bzCompressInit() return value = %d\n", ret);
     return false;
   }
 
   bool result = do_compress(&reader, &writer);
   if (!result)
-    MY_ERROR("failed to compress file: %s to %s\n", srcfn, destfn);
+    C_ERROR("failed to compress file: %s to %s\n", srcfn, destfn);
   BZ2_bzCompressEnd(&m_bz_stream);
 
   if (!writer.finish())
@@ -1230,7 +1230,7 @@ bool MyBZCompressor::do_decompress(MyBaseArchiveReader * _reader, MyBaseArchiveW
          return false;
        else if (n == 0)
        {
-         MY_ERROR("error: unexpected eof\n");
+         C_ERROR("error: unexpected eof\n");
          return false;
        }
        m_bz_stream.avail_in = n;
@@ -1241,7 +1241,7 @@ bool MyBZCompressor::do_decompress(MyBaseArchiveReader * _reader, MyBaseArchiveW
 
     if (ret != BZ_OK && ret != BZ_STREAM_END)
     {
-      MY_ERROR("BZ2_bzDecompress() returns %d\n", ret);
+      C_ERROR("BZ2_bzDecompress() returns %d\n", ret);
       return false;
     };
 
@@ -1283,7 +1283,7 @@ bool MyBZCompressor::decompress(const char * srcfn, const char * destdir, const 
 
     if (!CSysFS::make_path(destdir, _file_name, true, true))
     {
-      MY_ERROR("can not mkdir %s/%s %s\n", destdir, _file_name, (const char*)CErrno());
+      C_ERROR("can not mkdir %s/%s %s\n", destdir, _file_name, (const char*)CErrno());
       return false;
     }
     CMemGuard dest_file_name;
@@ -1295,7 +1295,7 @@ bool MyBZCompressor::decompress(const char * srcfn, const char * destdir, const 
     ret = BZ2_bzDecompressInit(&m_bz_stream, 0, 0);
     if (ret != BZ_OK)
     {
-      MY_ERROR("BZ2_bzCompressInit() return value = %d\n", ret);
+      C_ERROR("BZ2_bzCompressInit() return value = %d\n", ret);
       return false;
     }
 
@@ -1303,7 +1303,7 @@ bool MyBZCompressor::decompress(const char * srcfn, const char * destdir, const 
     BZ2_bzDecompressEnd(&m_bz_stream);
     if (!result)
     {
-      MY_ERROR("failed to decompress file: %s to %s\n", srcfn, destdir);
+      C_ERROR("failed to decompress file: %s to %s\n", srcfn, destdir);
       return false;
     }
     if (reader.eof())
@@ -1338,7 +1338,7 @@ bool MyBZCompositor::add(const char * filename)
     return false;
   bool result = CSysFS::copy_file_by_fd(src.handle(), m_file.handle());
   if (!result)
-    MY_ERROR("MyBZCompositor::add(%s) failed\n", filename);
+    C_ERROR("MyBZCompositor::add(%s) failed\n", filename);
   return result;
 }
 
@@ -1440,7 +1440,7 @@ int MyBaseProcessor::handle_input_wait_for_close()
   if (ret < 0)
     return -1;
   if (ret > 0)
-    MY_DEBUG("discarding %d data @%s::handle_input_wait_for_close()\n", recv_cnt, name());
+    C_DEBUG("discarding %d data @%s::handle_input_wait_for_close()\n", recv_cnt, name());
   return (m_handler->msg_queue()->is_empty ()) ? -1 : 0;
 }
 
@@ -1685,7 +1685,7 @@ MyBaseProcessor::EVENT_RESULT MyBSBasePacketProcessor::on_recv_packet_i(ACE_Mess
   MyBSBasePacket * bspacket = (MyBSBasePacket *) mb->base();
   if (!bspacket->guard())
   {
-    MY_ERROR("bad packet recieved from bs, no tail terminator\n");
+    C_ERROR("bad packet recieved from bs, no tail terminator\n");
     return ER_ERROR;
   }
   return ER_OK;
@@ -1737,7 +1737,7 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::on_recv_header()
   {
     CMemGuard info;
     info_string(info);
-    MY_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s, \n"),
+    C_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s, \n"),
         m_packet_header.command, bVerified, bVersionCheck, info.data());
     return ER_ERROR;
   }
@@ -1767,7 +1767,7 @@ MyBaseProcessor::EVENT_RESULT MyBaseServerProcessor::do_version_check_common(ACE
   if (!valid)
   {
     m_wait_for_close = true;
-    MY_WARNING(ACE_TEXT("closing connection due to invalid client_id = %s\n"), vcr->client_id.as_string());
+    C_WARNING(ACE_TEXT("closing connection due to invalid client_id = %s\n"), vcr->client_id.as_string());
     reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_ACCESS_DENIED);
   }
 
@@ -1867,7 +1867,7 @@ MyBaseProcessor::EVENT_RESULT MyBaseClientProcessor::on_recv_header()
   {
     CMemGuard info;
     info_string(info);
-    MY_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s \n"),
+    C_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s \n"),
         m_packet_header.command, bVerified, bVersionCheck, info.data());
     return ER_ERROR;
   }
@@ -1989,7 +1989,7 @@ void MyBaseConnectionManager::do_send(ACE_Message_Block * mb, bool broadcast)
     if (!broadcast)
     {
       MyBaseHandler * handler = it->first;
-      MY_DEBUG("do_send: handler=%X, socket=%d, length=%d\n", (int)(long)handler, handler->get_handle(), mb->length());
+      C_DEBUG("do_send: handler=%X, socket=%d, length=%d\n", (int)(long)handler, handler->get_handle(), mb->length());
     }
     if (it->first->send_data(mb->duplicate()) < 0)
       ptrs.push_back(it->first);
@@ -2069,7 +2069,7 @@ void MyBaseConnectionManager::set_connection_client_id_index(MyBaseHandler * han
       remove_from_active_table(handler_old);
       CMemGuard info;
       handler_old->processor()->info_string(info);
-      MY_DEBUG("closing previous connection %s\n", info.data());
+      C_DEBUG("closing previous connection %s\n", info.data());
       handler_old->mark_as_reap();
       handler_old->handle_close(ACE_INVALID_HANDLE, 0);
     }
@@ -2165,6 +2165,7 @@ MyBaseHandler::MyBaseHandler(MyBaseConnectionManager * xptr)
   m_reaped = false;
   m_connection_manager = xptr;
   m_processor = NULL;
+  m_parent = NULL;
 }
 
 MyBaseConnectionManager * MyBaseHandler::connection_manager()
@@ -2184,7 +2185,7 @@ int MyBaseHandler::on_open()
 
 int MyBaseHandler::open(void * p)
 {
-//  MY_DEBUG("MyBaseHandler::open(void * p = %X), this = %X\n", long(p), long(this));
+//  C_DEBUG("MyBaseHandler::open(void * p = %X), this = %X\n", long(p), long(this));
   if (super::open(p) == -1)
     return -1;
   if (on_open() < 0)
@@ -2222,7 +2223,7 @@ void MyBaseHandler::mark_as_reap()
 int MyBaseHandler::handle_input(ACE_HANDLE h)
 {
   ACE_UNUSED_ARG(h);
-//  MY_DEBUG("handle_input (handle = %d)\n", h);
+//  C_DEBUG("handle_input (handle = %d)\n", h);
   return m_processor->handle_input();
 }
 
@@ -2241,7 +2242,7 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
 {
   ACE_UNUSED_ARG(handle);
   ACE_UNUSED_ARG(close_mask);
-  //  MY_DEBUG("handle_close.y (handle = %d, mask=%x)\n", handle, close_mask);
+  //  C_DEBUG("handle_close.y (handle = %d, mask=%x)\n", handle, close_mask);
 //  if (close_mask == ACE_Event_Handler::WRITE_MASK)
 //  {
 //    if (!m_processor->wait_for_close())
@@ -2269,7 +2270,7 @@ int MyBaseHandler::handle_close (ACE_HANDLE handle,
   //             delete this;
   //so do NOT use the normal method: return super::handle_close(handle, close_mask);
   //for it will cause memory leaks
-//  MY_DEBUG("handle_close.3 deleting object (handle = %d, mask=%x)\n", handle, close_mask);
+//  C_DEBUG("handle_close.3 deleting object (handle = %d, mask=%x)\n", handle, close_mask);
   delete this;
   return 0;
   //return super::handle_close (handle, close_mask); //do NOT use
@@ -2363,7 +2364,7 @@ int MyBaseAcceptor::start()
 {
   if (m_tcp_port <= 0)
   {
-    MY_FATAL(ACE_TEXT ("attempt to listen on invalid port %d\n"), m_tcp_port);
+    C_FATAL(ACE_TEXT ("attempt to listen on invalid port %d\n"), m_tcp_port);
     return -1;
   }
   ACE_INET_Addr port_to_listen (m_tcp_port);
@@ -2371,10 +2372,10 @@ int MyBaseAcceptor::start()
 
   int ret = super::open (port_to_listen, m_dispatcher->reactor(), ACE_NONBLOCK);
   if (ret == 0)
-    MY_INFO(ACE_TEXT ("%s listening on port %d... OK\n"), module_x()->name(), m_tcp_port);
+    C_INFO(ACE_TEXT ("%s listening on port %d... OK\n"), module_x()->name(), m_tcp_port);
   else if (ret < 0)
   {
-    MY_ERROR(ACE_TEXT ("%s acceptor.open on port %d failed!\n"), module_x()->name(), m_tcp_port);
+    C_ERROR(ACE_TEXT ("%s acceptor.open on port %d failed!\n"), module_x()->name(), m_tcp_port);
     return -1;
   }
 
@@ -2384,7 +2385,7 @@ int MyBaseAcceptor::start()
     m_idle_connection_timer_id = reactor()->schedule_timer(this, (void*)TIMER_ID_check_dead_connection, tv, tv);
     if (m_idle_connection_timer_id < 0)
     {
-      MY_ERROR("can not setup dead connection timer @%s\n", name());
+      C_ERROR("can not setup dead connection timer @%s\n", name());
       return -1;
     }
   }
@@ -2514,13 +2515,13 @@ int MyBaseConnector::start()
 
   if (m_tcp_port <= 0)
   {
-    MY_FATAL(ACE_TEXT ("attempt to connect to an invalid port %d @%s\n"), m_tcp_port, name());
+    C_FATAL(ACE_TEXT ("attempt to connect to an invalid port %d @%s\n"), m_tcp_port, name());
     return -1;
   }
 
   if (m_tcp_addr.length() == 0)
   {
-    MY_FATAL(ACE_TEXT ("attempt to connect to an NULL host from @%s\n"), name());
+    C_FATAL(ACE_TEXT ("attempt to connect to an NULL host from @%s\n"), name());
     return -1;
   }
 
@@ -2535,7 +2536,7 @@ int MyBaseConnector::start()
     ACE_Time_Value interval (m_reconnect_interval * 60);
     m_reconnect_timer_id = reactor()->schedule_timer (this, (void*)TIMER_ID_reconnect, interval, interval);
     if (m_reconnect_timer_id < 0)
-      MY_ERROR(ACE_TEXT("%s setup reconnect timer failed, %s\n"), name(), (const char*)CErrno());
+      C_ERROR(ACE_TEXT("%s setup reconnect timer failed, %s\n"), name(), (const char*)CErrno());
   }
 
   if (m_idle_time_as_dead > 0)
@@ -2544,7 +2545,7 @@ int MyBaseConnector::start()
     m_idle_connection_timer_id = reactor()->schedule_timer(this, (void*)TIMER_ID_check_dead_connection, tv, tv);
     if (m_idle_connection_timer_id < 0)
     {
-      MY_ERROR("can not setup dead connection timer @%s\n", name());
+      C_ERROR("can not setup dead connection timer @%s\n", name());
       return -1;
     }
   }
@@ -2606,7 +2607,7 @@ int MyBaseConnector::do_connect(int count, bool bNew)
 
     if (unlikely(count > m_num_connection))
     {
-      MY_FATAL(ACE_TEXT("invalid connect count = %d, maximum allowed connections = %d"), count, m_num_connection);
+      C_FATAL(ACE_TEXT("invalid connect count = %d, maximum allowed connections = %d"), count, m_num_connection);
       return -1;
     }
 
@@ -2636,7 +2637,7 @@ int MyBaseConnector::do_connect(int count, bool bNew)
     {
       handler = NULL;
       int ret_i = connect(handler, port_to_connect, synch_options);
-  //    MY_DEBUG("connect result = %d, handler = %X\n", ret_i, handler);
+  //    C_DEBUG("connect result = %d, handler = %X\n", ret_i, handler);
       if (ret_i == 0)
       {
         ++ok_count;
@@ -2656,7 +2657,7 @@ int MyBaseConnector::do_connect(int count, bool bNew)
     else if (bNew)
       m_remain_to_connect = count - true_count;
 
-    MY_INFO(ACE_TEXT("%s connecting to %s:%d (total=%d, ok=%d, failed=%d, pending=%d)... \n"), name(),
+    C_INFO(ACE_TEXT("%s connecting to %s:%d (total=%d, ok=%d, failed=%d, pending=%d)... \n"), name(),
         m_tcp_addr.c_str(), m_tcp_port, true_count, ok_count, true_count - ok_count- pending_count, pending_count);
 
     return ok_count + pending_count > 0;
@@ -2666,7 +2667,7 @@ int MyBaseConnector::do_connect(int count, bool bNew)
     MyBaseHandler * handler = NULL;
     ACE_Time_Value timeout(60);
     ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
-    MY_INFO(ACE_TEXT("%s connecting to %s:%d ...\n"), name(), m_tcp_addr.c_str(), m_tcp_port);
+    C_INFO(ACE_TEXT("%s connecting to %s:%d ...\n"), name(), m_tcp_addr.c_str(), m_tcp_port);
     if (connect(handler, port_to_connect, synch_options) == -1)
     {
       if (errno == EWOULDBLOCK)
@@ -2774,7 +2775,7 @@ int MyBaseDispatcher::open (void *)
     ACE_Time_Value interval(m_clock_interval);
     if (m_reactor->schedule_timer(this, (const void*)TIMER_ID_BASE, interval, interval) < 0)
     {
-      MY_ERROR("setup timer failed %s %s\n", name(), (const char*)CErrno());
+      C_ERROR("setup timer failed %s %s\n", name(), (const char*)CErrno());
       return -1;
     }
   }
@@ -2786,7 +2787,7 @@ void MyBaseDispatcher::add_connector(MyBaseConnector * _connector)
 {
   if (!_connector)
   {
-    MY_FATAL("MyBaseDispatcher::add_connector NULL _connector\n");
+    C_FATAL("MyBaseDispatcher::add_connector NULL _connector\n");
     return;
   }
   m_connectors.push_back(_connector);
@@ -2796,7 +2797,7 @@ void MyBaseDispatcher::add_acceptor(MyBaseAcceptor * _acceptor)
 {
   if (!_acceptor)
   {
-    MY_FATAL("MyBaseDispatcher::add_acceptor NULL _acceptor\n");
+    C_FATAL("MyBaseDispatcher::add_acceptor NULL _acceptor\n");
     return;
   }
   m_acceptors.push_back(_acceptor);
@@ -2898,7 +2899,7 @@ void MyBaseDispatcher::do_stop_i()
 
 int MyBaseDispatcher::svc()
 {
-  MY_INFO(ACE_TEXT ("running %s::svc()\n"), name());
+  C_INFO(ACE_TEXT ("running %s::svc()\n"), name());
 
   if (!do_start_i())
     return -1;
@@ -2911,15 +2912,15 @@ int MyBaseDispatcher::svc()
     {
       if (errno == EINTR)
         continue;
-      MY_INFO(ACE_TEXT ("exiting %s::svc() due to %s\n"), name(), (const char*)CErrno());
+      C_INFO(ACE_TEXT ("exiting %s::svc() due to %s\n"), name(), (const char*)CErrno());
       break;
     }
     if (!on_event_loop())
       break;
-    //MY_DEBUG("    returning from reactor()->handle_events()\n");
+    //C_DEBUG("    returning from reactor()->handle_events()\n");
   }
 
-  MY_INFO(ACE_TEXT ("exiting %s::svc()\n"), name());
+  C_INFO(ACE_TEXT ("exiting %s::svc()\n"), name());
   do_stop_i();
   return 0;
 }
@@ -3014,7 +3015,7 @@ void CMod::add_service(MyBaseService * _service)
 {
   if (!_service)
   {
-    MY_FATAL("MyBaseModule::add_service() NULL _service\n");
+    C_FATAL("MyBaseModule::add_service() NULL _service\n");
     return;
   }
   m_services.push_back(_service);
@@ -3024,7 +3025,7 @@ void CMod::add_dispatcher(MyBaseDispatcher * _dispatcher)
 {
   if (!_dispatcher)
   {
-    MY_FATAL("MyBaseModule::add_dispatcher() NULL _dispatcher\n");
+    C_FATAL("MyBaseModule::add_dispatcher() NULL _dispatcher\n");
     return;
   }
   m_dispatchers.push_back(_dispatcher);

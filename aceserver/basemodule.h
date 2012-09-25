@@ -31,7 +31,6 @@
 #include <algorithm>
 #include <tr1/unordered_map>
 
-#include "common.h"
 #include "mycomutil.h"
 #include "datapacket.h"
 #include "md5.h"

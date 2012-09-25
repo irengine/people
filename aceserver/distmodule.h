@@ -12,7 +12,7 @@
 #include <new>
 #include <tr1/unordered_map>
 
-#include "common.h"
+#include "mycomutil.h"
 #include "baseapp.h"
 #include "basemodule.h"
 #include "servercommon.h"

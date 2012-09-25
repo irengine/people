@@ -1,16 +1,8 @@
-/*
- * dbmodule.h
- *
- *  Created on: Jan 20, 2012
- *      Author: root
- */
-
 #ifndef DBMODULE_H_
 #define DBMODULE_H_
 
 #include <libpq-fe.h>
 
-#include "common.h"
 #include "mycomutil.h"
 #include "servercommon.h"
 #include "distmodule.h"
