@@ -5,9 +5,9 @@
 
 typedef struct
 {
-    u_int32_t erk[64];     /* encryption round keys */
-    u_int32_t drk[64];     /* decryption round keys */
-    int nr;             /* number of rounds */
+    u_int32_t erk[64];
+    u_int32_t drk[64];
+    int nr;
 }
 aes_context;
 
