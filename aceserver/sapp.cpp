@@ -1,7 +1,6 @@
 #include <cstdio>
 #include "component.h"
 #include "sapp.h"
-#include "distmodule.h"
 
 std::string current_ver()
 {

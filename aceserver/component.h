@@ -16,7 +16,6 @@
 #include <ace/SOCK_Connector.h>
 
 #include <bzlib.h>
-
 #include <vector>
 #include <map>
 #include <list>
@@ -25,7 +24,6 @@
 #include <tr1/unordered_map>
 
 #include "tools.h"
-#include "datapacket.h"
 
 class CMod;
 class CHandlerBase;
@@ -50,8 +48,8 @@ private:
   enum { DATA_BUFF_SIZE = 8 };
   void prepare_buff();
 
-  u_int8_t m_major;
-  u_int8_t m_minor;
+  u8 m_major;
+  u8 m_minor;
   char m_data[DATA_BUFF_SIZE];
 };
 

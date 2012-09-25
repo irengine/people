@@ -4,7 +4,6 @@
 #include "tools.h"
 #include "app.h"
 #include "sall.h"
-#include "distmodule.h"
 
 class MyHeartBeatModule;
 class MyLocationModule;

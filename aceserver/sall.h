@@ -8,6 +8,7 @@
 
 #include "tools.h"
 #include "component.h"
+#include "app.h"
 
 class MyHttpDistInfo;
 

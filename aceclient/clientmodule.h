@@ -11,12 +11,11 @@
 #include <ace/Malloc_T.h>
 #include <new>
 #include <ace/Process.h>
+#include <sqlite3.h>
 
 #include "tools.h"
 #include "app.h"
 #include "component.h"
-
-#include <sqlite3.h>
 
 class MyClientToDistModule;
 class MyClientToDistConnector;
