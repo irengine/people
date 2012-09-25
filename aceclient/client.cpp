@@ -208,15 +208,15 @@ bool MyVLCLauncher::save_file(const char * buff)
 
 void MyVLCLauncher::init_mode(bool)
 {
-  m_adv_txt = CCfgX::instance()->app_data_path + "/5/adv.txt";
-  m_gasket = CCfgX::instance()->app_data_path + "/8/gasket.avi";
-  std::string s = CCfgX::instance()->app_data_path + "/5";
+  m_adv_txt = CCfgX::instance()->data_path + "/5/adv.txt";
+  m_gasket = CCfgX::instance()->data_path + "/8/gasket.avi";
+  std::string s = CCfgX::instance()->data_path + "/5";
   m_options.working_directory(s.c_str());
 }
 
 void MyVLCLauncher::get_file_stat(time_t &t, int & n)
 {
-  std::string fn = CCfgX::instance()->app_data_path + "/vlc-history.txt";
+  std::string fn = CCfgX::instance()->data_path + "/vlc-history.txt";
   struct stat stat;
   if (CSysFS::stat(fn.c_str(), &stat))
   {
@@ -335,7 +335,7 @@ bool MyVLCLauncher::parse_line(char * ptr, CMemGuard & file_list, bool fill_opti
   char * token;
   ACE_OS::strcpy(cmdline.data(), sfake);
   CMemGuard fn;
-  std::string p5 = CCfgX::instance()->app_data_path + "/5/";
+  std::string p5 = CCfgX::instance()->data_path + "/5/";
   while ((token = tkn.get()) != NULL)
   {
     fn.from_string(p5.c_str(), token);
@@ -883,7 +883,7 @@ bool MyClientApp::on_construct()
       MyClientDBGuard dbg;
       if (dbg.db().open_db(NULL, true))
       {
-        time_t deadline = time_t(NULL) - const_one_day * 20;
+        time_t deadline = time_t(NULL) - CONST_one_day * 20;
         dbg.db().remove_outdated_ftp_command(deadline);
       }
     }
@@ -953,14 +953,14 @@ void MyClientApp::dump_mem_pool_info()
   {
     chunks = MyClientToDistHandler::mem_pool()->chunks();
     MyClientToDistHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool_one("MyClientToDistHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToDistHandler), chunks);
+    CApp::print_pool("MyClientToDistHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToDistHandler), chunks);
   }
 
   if (likely(MyClientToMiddleHandler::mem_pool() != NULL))
   {
     chunks = MyClientToMiddleHandler::mem_pool()->chunks();
     MyClientToMiddleHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool_one("MyClientToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToMiddleHandler), chunks);
+    CApp::print_pool("MyClientToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToMiddleHandler), chunks);
   }
 
   CMemPoolX::instance()->print_info();
@@ -1016,12 +1016,12 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::CAppMode mode)
       ifs.getline(id, 64);
       app->m_client_id_table.add(id);
     }
-    CClientPathGenerator::make_paths_from_id_table(cfg->app_data_path.c_str(), &app->m_client_id_table);
+    CClientPathGenerator::make_paths_from_id_table(cfg->data_path.c_str(), &app->m_client_id_table);
     MyClientToDistHandler::init_mem_pool(app->m_client_id_table.count() * 1.2);
 
     int m = app->m_client_id_table.count();
     MyClientID client_id;
-    time_t deadline = time_t(NULL) - const_one_day * 10;
+    time_t deadline = time_t(NULL) - CONST_one_day * 10;
     for (int i = 0; i < m; ++i)
     {
       app->m_client_id_table.value(i, &client_id);
@@ -1053,7 +1053,7 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::CAppMode mode)
     MyClientToDistHandler::init_mem_pool(100);
   }
 
-  return app->do_constructor();
+  return app->delayed_init();
 }
 
 void MyClientApp::check_prev_extract_task(const char * client_id)

@@ -1,5 +1,5 @@
-#ifndef APP_H_
-#define APP_H_
+#ifndef APP_H_djkakifu33laf
+#define APP_H_djkakifu33laf
 
 #include <ace/Singleton.h>
 #include <string>
@@ -8,9 +8,12 @@
 #include "component.h"
 
 
-extern bool g_is_test;
-extern long g_clock_counter;
-extern const char * g_const_app_ver;
+EXTERN truefalse g_is_test;
+EXTERN long g_clock_counter;
+EXTERN CONST text * g_CONST_app_ver;
+
+typedef ACE_Configuration_Heap CCfgHeap;
+typedef ACE_Configuration_Section_Key CCfgKey;
 
 std::string current_ver();
 
@@ -28,83 +31,83 @@ public:
   };
 
   CCfg();
-  bool readall(const char * home_dir, CAppMode mode);
-  void print_all();
-  bool is_dist() const;
-  bool is_middle() const;
-  bool is_server() const;
-  bool is_client() const;
+  truefalse readall(CONST text * home_dir, CAppMode mode);
+  DVOID print_all();
+  truefalse is_dist() CONST;
+  truefalse is_middle() CONST;
+  truefalse is_server() CONST;
+  truefalse is_client() CONST;
 
   //common
   CAppMode  app_mode;
 
-  bool use_mem_pool;
-  bool as_demon;
-  int  mem_dump_interval;
-  int  file_check_interval;
+  truefalse use_mem_pool;
+  truefalse as_demon;
+  ni  mem_dump_interval;
+  ni  file_check_interval;
 
-  int  log_file_count;
-  int  log_file_size_in_MB;
-  bool log_debug;
-  bool log_stderr;
+  ni  log_file_count;
+  ni  log_file_size; //megabytes
+  truefalse log_debug;
+  truefalse log_stderr;
 
-  int remote_port;
+  ni remote_port;
 
   //server
-  int  max_client_count;
-  int  middle_server_dist_port;
-  std::string middle_server_key;
+  ni  max_client_count;
+  ni  middle_server_dist_port;
+  std::string skey;
   std::string db_addr;
-  int db_port;
+  ni db_port;
   std::string db_name;
   std::string db_password;
-  std::string compressed_store_path;
+  std::string bz_files_path;
   std::string bs_addr;
-  int bs_port;
+  ni bs_port;
 
   //client dist
-  int ping_port;
+  ni ping_port;
   std::string middle_addr;
 
   //client middle
-  int middle_server_client_port;
+  ni middle_server_client_port;
 
   //client
-  int client_ping_interval;
-  int test_client_download_thread_count;
-  int client_adv_expire_days;
-  int client_download_timeout;
-  int client_download_retry_count;
-  int client_download_retry_interval;
-  int client_can_root;
+  ni client_ping_interval;
+  ni test_client_download_thread_count;
+  ni client_adv_expire_days;
+  ni client_download_timeout;
+  ni client_download_retry_count;
+  ni client_download_retry_interval;
+  ni client_can_root;
 
   //dist
-  int module_heart_beat_mem_pool_size;
+  ni module_heart_beat_mem_pool_size;
   CClientVer client_ver_min;
   CClientVer client_ver_now;
-  u_int8_t dist_server_id;
+  u8 dist_server_id;
 
   //middle
-  int http_port;
+  ni http_port;
   std::string ftp_addr_list;
 
   //all paths
-  std::string app_data_path;
-  std::string app_exe_path;
-  std::string app_status_file_name;
+  std::string data_path;
+  std::string exe_path;
+  std::string status_fn;
   std::string app_path;
-  std::string app_log_file_name;
-  std::string app_config_file_name;
+  std::string log_fn;
+  std::string cfg_fn;
 
 private:
-  bool read_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
-  bool read_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
-  void do_init(const char * app_home_path);
-  bool read_dist_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
-  bool read_client_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
-  bool read_client_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
-  bool read_base(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
-  bool read_client(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
+  truefalse read_dist(CCfgHeap & , CCfgKey & );
+  truefalse read_middle(CCfgHeap & , CCfgKey & );
+  DVOID do_init(CONST text * app_home_path);
+  truefalse read_dist_middle(CCfgHeap &, CCfgKey &);
+  truefalse read_client_middle(CCfgHeap &, CCfgKey &);
+  truefalse read_client_dist(CCfgHeap &, CCfgKey &);
+  truefalse read_base(CCfgHeap &, CCfgKey &);
+  truefalse read_client(CCfgHeap &, CCfgKey &);
 };
 
 typedef ACE_Unmanaged_Singleton<CCfg, ACE_Null_Mutex> CCfgX;
@@ -112,41 +115,37 @@ typedef ACE_Unmanaged_Singleton<CCfg, ACE_Null_Mutex> CCfgX;
 class CSignaller: public ACE_Event_Handler
 {
 public:
-  CSignaller(CApp * app);
-  virtual int handle_signal (int signum,
-                             siginfo_t * = 0,
-                             ucontext_t * = 0);
+  CSignaller(CApp *);
+  virtual ni handle_signal (ni signum, siginfo_t * = 0, ucontext_t * = 0);
+
 private:
-  CApp * m_app;
+  CApp * m_parent;
 };
 
 class CNotificationFiler: public ACE_Event_Handler
 {
 public:
-  CNotificationFiler(CApp * app);
-  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
+  CNotificationFiler(CApp *);
+  virtual ni handle_timeout (CONST ACE_Time_Value &, CONST DVOID * = 0);
 
 private:
-  CApp * m_app;
+  CApp * m_parent;
 };
 
 class CPrinter: public ACE_Event_Handler
 {
 public:
-  CPrinter(CApp * app);
-  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
+  CPrinter(CApp *);
+  virtual ni handle_timeout (CONST ACE_Time_Value &, CONST DVOID * = 0);
 
 private:
-  CApp * m_app;
+  CApp * m_parent;
 };
 
 class CClocker: public ACE_Event_Handler
 {
 public:
-  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
-
-private:
-  CApp * m_app;
+  virtual ni handle_timeout (CONST ACE_Time_Value &, CONST DVOID * = 0);
 };
 
 class CApp
@@ -155,15 +154,13 @@ public:
   enum { CLOCK_INTERVAL = 10 };
   CApp();
   virtual ~CApp();
-
-  bool running() const;
-  void init_log();
-  void start();
-  void stop();
-  void print_info();
-
-  static void demon();
-  static void print_pool_one(const char * poolname, long nAlloc, long nFree, long nMaxUse, long nAllocFull, int block_size, int chunks);
+  truefalse running() CONST;
+  DVOID start();
+  DVOID stop();
+  DVOID print_info();
+  DVOID init_log();
+  SF DVOID demon();
+  SF DVOID print_pool(CONST text * name_of_pool, long nAlloc, long nFree, long nMaxUse, long nAllocFull, ni block_size, ni chunks);
 
 protected:
   friend class CSignaller;
@@ -171,20 +168,20 @@ protected:
 
   typedef std::vector<CMod *> CMods;
 
-  virtual void do_dump_info();
-  virtual bool on_sigchild(pid_t pid);
-  virtual bool on_event_loop();
-  virtual bool on_start();
-  virtual bool on_construct();
-  virtual void on_stop();
+  virtual DVOID do_dump_info();
+  virtual truefalse on_sigchild(pid_t);
+  virtual truefalse on_event_loop();
+  virtual truefalse on_start();
+  virtual truefalse on_construct();
+  virtual DVOID on_stop();
 
-  bool do_sigchild();
-  void on_sig_event(int signum);
-  void do_event_loop();
-  bool do_sighup();
-  void on_status_file_missing();
-  bool do_constructor();
-  void add_module(CMod * module);
+  truefalse do_sigchild();
+  DVOID on_sig_event(ni);
+  DVOID schedule_works();
+  truefalse do_sighup();
+  DVOID on_status_file_missing();
+  truefalse delayed_init();
+  DVOID add_module(CMod *);
 
   CMods m_modules;
 private:
@@ -192,14 +189,14 @@ private:
   CSignaller m_sig_handler;
   ACE_Sig_Handler m_ace_sig_handler;
   CNotificationFiler m_status_file_checker;
-  CPrinter m_info_dumper;
+  CPrinter m_printer;
   CClocker m_clock;
-  bool m_is_running;
-  bool m_sighup;
-  bool m_sigchld;
-  bool m_sigterm;
-  bool m_status_file_ok;
-  bool m_status_file_checking;
+  truefalse m_running;
+  truefalse m_sighup;
+  truefalse m_sigchld;
+  truefalse m_sigterm;
+  truefalse m_status_file_ok;
+  truefalse m_status_file_check;
 };
 
 #endif /* SERVERAPP_H_ */

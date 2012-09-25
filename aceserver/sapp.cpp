@@ -30,27 +30,27 @@ CClientIDS & MyServerApp::client_id_table()
   return m_client_ids;
 }
 
-MyHeartBeatModule * MyServerApp::heart_beat_module() const
+MyHeartBeatModule * MyServerApp::heart_beat_module() CONST
 {
   return m_heart_beat_module;
 }
 
-MyDistLoadModule * MyServerApp::dist_load_module() const
+MyDistLoadModule * MyServerApp::dist_load_module() CONST
 {
   return m_dist_load_module;
 }
 
-MyHttpModule * MyServerApp::http_module() const
+MyHttpModule * MyServerApp::http_module() CONST
 {
   return m_http_module;
 }
 
-MyLocationModule * MyServerApp::location_module() const
+MyLocationModule * MyServerApp::location_module() CONST
 {
   return m_location_module;
 }
 
-MyDistToMiddleModule * MyServerApp::dist_to_middle_module() const
+MyDistToMiddleModule * MyServerApp::dist_to_middle_module() CONST
 {
   return m_dist_to_middle_module;
 }
@@ -60,7 +60,7 @@ MyDB & MyServerApp::db()
   return m_db;
 }
 
-bool MyServerApp::dist_put_to_service(ACE_Message_Block * mb)
+truefalse MyServerApp::dist_put_to_service(CMB * mb)
 {
   C_ASSERT_RETURN(mb, "\n", false);
 
@@ -73,18 +73,18 @@ bool MyServerApp::dist_put_to_service(ACE_Message_Block * mb)
   return c_util_mb_putq(m_heart_beat_module->service(), mb, "to service's queue");
 }
 
-bool MyServerApp::on_start()
+truefalse MyServerApp::on_start()
 {
 
   return true;
 }
 
-void MyServerApp::on_stop()
+DVOID MyServerApp::on_stop()
 {
 
 }
 
-void MyServerApp::dump_mem_pool_info()
+DVOID MyServerApp::dump_mem_pool_info()
 {
   ACE_DEBUG((LM_INFO, "  !!! Memory Dump start !!!\n"));
   long nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
@@ -93,34 +93,34 @@ void MyServerApp::dump_mem_pool_info()
     ACE_DEBUG((LM_INFO, "    Memory Pool Disabled\n"));
     goto _exit_;
   }
-  int chunks;
+  ni chunks;
   //start of dist server stuff
   if (MyHeartBeatHandler::mem_pool())
   {
     chunks = MyHeartBeatHandler::mem_pool()->chunks();
     MyHeartBeatHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool_one("MyHeartBeatHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatHandler), chunks);
+    CApp::print_pool("MyHeartBeatHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatHandler), chunks);
   }
 
   if (MyHeartBeatProcessor::mem_pool())
   {
     chunks = MyHeartBeatProcessor::mem_pool()->chunks();
     MyHeartBeatProcessor::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool_one("MyHeartBeatProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatProcessor), chunks);
+    CApp::print_pool("MyHeartBeatProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatProcessor), chunks);
   }
 
   if (MyDistToBSHandler::mem_pool())
   {
     chunks = MyDistToBSHandler::mem_pool()->chunks();
     MyDistToBSHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool_one("MyDistToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToBSHandler), chunks);
+    CApp::print_pool("MyDistToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToBSHandler), chunks);
   }
 
   if (MyDistToMiddleHandler::mem_pool())
   {
     chunks = MyDistToMiddleHandler::mem_pool()->chunks();
     MyDistToMiddleHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool_one("MyDistToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToMiddleHandler), chunks);
+    CApp::print_pool("MyDistToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToMiddleHandler), chunks);
   }
 
   //start of middle server stuff
@@ -128,42 +128,42 @@ void MyServerApp::dump_mem_pool_info()
   {
     chunks = MyLocationHandler::mem_pool()->chunks();
     MyLocationHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool_one("MyLocationHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationHandler), chunks);
+    CApp::print_pool("MyLocationHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationHandler), chunks);
   }
 
   if (MyLocationProcessor::mem_pool())
   {
     chunks = MyLocationProcessor::mem_pool()->chunks();
     MyLocationProcessor::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool_one("MyLocationProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationProcessor), chunks);
+    CApp::print_pool("MyLocationProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationProcessor), chunks);
   }
 
   if (MyHttpHandler::mem_pool())
   {
     chunks = MyHttpHandler::mem_pool()->chunks();
     MyHttpHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool_one("MyHttpHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpHandler), chunks);
+    CApp::print_pool("MyHttpHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpHandler), chunks);
   }
 
   if (MyHttpProcessor::mem_pool())
   {
     chunks = MyHttpProcessor::mem_pool()->chunks();
     MyHttpProcessor::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool_one("MyHttpProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpProcessor), chunks);
+    CApp::print_pool("MyHttpProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpProcessor), chunks);
   }
 
   if (MyDistLoadHandler::mem_pool())
   {
     chunks = MyDistLoadHandler::mem_pool()->chunks();
     MyDistLoadHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool_one("MyDistLoadHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistLoadHandler), chunks);
+    CApp::print_pool("MyDistLoadHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistLoadHandler), chunks);
   }
 
   if (MyMiddleToBSHandler::mem_pool())
   {
     chunks = MyMiddleToBSHandler::mem_pool()->chunks();
     MyMiddleToBSHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool_one("MyMiddleToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyMiddleToBSHandler), chunks);
+    CApp::print_pool("MyMiddleToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyMiddleToBSHandler), chunks);
   }
 
   CMemPoolX::instance()->print_info();
@@ -172,12 +172,12 @@ _exit_:
   ACE_DEBUG((LM_INFO, "  !!! Memory Dump End !!!\n"));
 }
 
-void MyServerApp::do_dump_info()
+DVOID MyServerApp::do_dump_info()
 {
   MyServerApp::dump_mem_pool_info();
 }
 
-bool MyServerApp::on_construct()
+truefalse MyServerApp::on_construct()
 {
   CCfg * cfg = CCfgX::instance();
   g_client_ids = &m_client_ids;
@@ -207,7 +207,7 @@ bool MyServerApp::on_construct()
   return true;
 }
 
-bool MyServerApp::app_init(const char * app_home_path, CCfg::CAppMode mode)
+truefalse MyServerApp::app_init(CONST text * app_home_path, CCfg::CAppMode mode)
 {
   MyServerApp * app = MyServerAppX::instance();
   CCfg* cfg = CCfgX::instance();
@@ -237,10 +237,10 @@ bool MyServerApp::app_init(const char * app_home_path, CCfg::CAppMode mode)
   }
   CMemPoolX::instance()->init(cfg);
   app->init_log();
-  return app->do_constructor();
+  return app->delayed_init();
 }
 
-void MyServerApp::app_fini()
+DVOID MyServerApp::app_fini()
 {
   C_INFO(ACE_TEXT("shutdown server...\n"));
   MyServerAppX::close();  //this comes before the releasing of memory pool
@@ -262,12 +262,12 @@ void MyServerApp::app_fini()
 }
 
 
-int main(int argc, const char * argv[])
+int main(ni argc, CONST text * argv[])
 {
   ACE_Sig_Action no_sigpipe ((ACE_SignalHandler) SIG_IGN);
   ACE_Sig_Action original_action;
   no_sigpipe.register_action (SIGPIPE, &original_action);
-  bool ret;
+  truefalse ret;
 
   if (argc == 3 && strcmp(argv[1], "-home") == 0 && argv[2][0] == '/')
     ret = MyServerApp::app_init(argv[2], CCfg::AM_UNKNOWN);

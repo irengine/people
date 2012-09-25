@@ -15,23 +15,23 @@ public:
   virtual ~MyServerApp();
 
   CClientIDS & client_id_table();
-  MyHeartBeatModule * heart_beat_module() const;
-  MyDistLoadModule * dist_load_module() const;
-  MyHttpModule * http_module() const;
-  MyLocationModule * location_module() const;
-  MyDistToMiddleModule * dist_to_middle_module() const;
+  MyHeartBeatModule * heart_beat_module() CONST;
+  MyDistLoadModule * dist_load_module() CONST;
+  MyHttpModule * http_module() CONST;
+  MyLocationModule * location_module() CONST;
+  MyDistToMiddleModule * dist_to_middle_module() CONST;
   MyDB & db();
 
-  static bool app_init(const char * app_home_path = NULL, CCfg::CAppMode mode = CCfg::AM_UNKNOWN);
-  static void app_fini();
-  static void dump_mem_pool_info();
-  bool dist_put_to_service(ACE_Message_Block * mb);
+  SF truefalse app_init(CONST text * app_home_path = NULL, CCfg::CAppMode mode = CCfg::AM_UNKNOWN);
+  SF DVOID app_fini();
+  SF DVOID dump_mem_pool_info();
+  truefalse dist_put_to_service(CMB * mb);
 
 protected:
-  virtual bool on_start();
-  virtual bool on_construct();
-  virtual void on_stop();
-  virtual void do_dump_info();
+  virtual truefalse on_start();
+  virtual truefalse on_construct();
+  virtual DVOID on_stop();
+  virtual DVOID do_dump_info();
 
 private:
   MyHeartBeatModule * m_heart_beat_module;

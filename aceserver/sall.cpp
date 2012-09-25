@@ -4,7 +4,7 @@
 
 //MyHttpDistInfo//
 
-MyHttpDistInfo::MyHttpDistInfo(const char * dist_id)
+MyHttpDistInfo::MyHttpDistInfo(CONST text * dist_id)
 {
   exist = false;
   md5_len = 0;
@@ -16,22 +16,22 @@ MyHttpDistInfo::MyHttpDistInfo(const char * dist_id)
   ftype[0] = ftype[1] = 0;
   type[0] = type[1] = 0;
   ver.from_string(dist_id);
-  ver_len = ACE_OS::strlen(dist_id);
+  ver_len = strlen(dist_id);
 
   md5_opt_len = 0;
 }
 
-bool MyHttpDistInfo::need_md5() const
+truefalse MyHttpDistInfo::need_md5() CONST
 {
   return (type_is_multi(type[0]));
 }
 
-bool MyHttpDistInfo::need_mbz_md5() const
+truefalse MyHttpDistInfo::need_mbz_md5() CONST
 {
   return !need_md5();
 }
 
-void MyHttpDistInfo::calc_md5_opt_len()
+DVOID MyHttpDistInfo::calc_md5_opt_len()
 {
   if (need_md5() && md5_len > 0 && md5_opt_len == 0)
   {
@@ -59,7 +59,7 @@ MyHttpDistRequest::MyHttpDistRequest()
   password = NULL;
 }
 
-MyHttpDistRequest::MyHttpDistRequest(const MyHttpDistInfo & info)
+MyHttpDistRequest::MyHttpDistRequest(CONST MyHttpDistInfo & info)
 {
   acode = NULL;
   ftype = (char*)info.ftype;
@@ -72,7 +72,7 @@ MyHttpDistRequest::MyHttpDistRequest(const MyHttpDistInfo & info)
   password = info.password.data();
 }
 
-bool MyHttpDistRequest::check_value(const char * value, const char * value_name) const
+truefalse MyHttpDistRequest::check_value(CONST text * value, CONST text * value_name) CONST
 {
   if (!value || !*value)
   {
@@ -83,7 +83,7 @@ bool MyHttpDistRequest::check_value(const char * value, const char * value_name)
   return true;
 }
 
-bool MyHttpDistRequest::check_valid(const bool check_acode) const
+truefalse MyHttpDistRequest::check_valid(CONST truefalse check_acode) CONST
 {
   if (check_acode && !check_value(acode, "acode"))
     return false;
@@ -118,12 +118,12 @@ bool MyHttpDistRequest::check_valid(const bool check_acode) const
   return true;
 }
 
-bool MyHttpDistRequest::need_md5() const
+truefalse MyHttpDistRequest::need_md5() CONST
 {
   return (type && type_is_multi(*type));
 }
 
-bool MyHttpDistRequest::need_mbz_md5() const
+truefalse MyHttpDistRequest::need_mbz_md5() CONST
 {
   return !need_md5();
 }
@@ -141,12 +141,12 @@ MyHttpDistInfos::~MyHttpDistInfos()
   clear();
 }
 
-int MyHttpDistInfos::count() const
+ni MyHttpDistInfos::count() CONST
 {
   return m_info_map.size();
 }
 
-void MyHttpDistInfos::clear()
+DVOID MyHttpDistInfos::clear()
 {
   std::for_each(dist_infos.begin(), dist_infos.end(), CPoolObjectDeletor());
   dist_infos.clear();
@@ -155,27 +155,27 @@ void MyHttpDistInfos::clear()
   m_info_map.clear();
 }
 
-MyHttpDistInfo * MyHttpDistInfos::create_http_dist_info(const char * dist_id)
+MyHttpDistInfo * MyHttpDistInfos::create_http_dist_info(CONST text * dist_id)
 {
-  void * p = CMemPoolX::instance()->alloc_mem_x(sizeof(MyHttpDistInfo));
+  DVOID * p = CMemPoolX::instance()->alloc_mem_x(sizeof(MyHttpDistInfo));
   MyHttpDistInfo * result = new (p) MyHttpDistInfo(dist_id);
   dist_infos.push_back(result);
-  m_info_map.insert(std::pair<const char *, MyHttpDistInfo *>(result->ver.data(), result));
+  m_info_map.insert(std::pair<const text *, MyHttpDistInfo *>(result->ver.data(), result));
   return result;
 }
 
-bool MyHttpDistInfos::need_reload()
+truefalse MyHttpDistInfos::need_reload()
 {
   return (!MyServerAppX::instance()->db().dist_info_is_update(*this));
 }
 
-void MyHttpDistInfos::prepare_update(const int capacity)
+DVOID MyHttpDistInfos::prepare_update(CONST ni capacity)
 {
   clear();
   dist_infos.reserve(capacity);
 }
 
-MyHttpDistInfo * MyHttpDistInfos::find(const char * dist_id)
+MyHttpDistInfo * MyHttpDistInfos::find(CONST text * dist_id)
 {
   if (unlikely(!dist_id || !*dist_id))
     return NULL;
@@ -187,45 +187,45 @@ MyHttpDistInfo * MyHttpDistInfos::find(const char * dist_id)
 
 //MyDistCompressor//
 
-const char * MyDistCompressor::composite_path()
+CONST text * MyDistCompressor::composite_path()
 {
   return "_x_cmp_x_";
 }
 
-const char * MyDistCompressor::all_in_one_mbz()
+CONST text * MyDistCompressor::all_in_one_mbz()
 {
   return "_x_cmp_x_/all_in_one.mbz";
 }
 
-void MyDistCompressor::get_all_in_one_mbz_file_name(const char * dist_id, CMemGuard & filename)
+DVOID MyDistCompressor::get_all_in_one_mbz_file_name(CONST text * dist_id, CMemGuard & filename)
 {
   CMemGuard tmp;
-  tmp.from_string(CCfgX::instance()->compressed_store_path.c_str(), "/", dist_id);
+  tmp.from_string(CCfgX::instance()->bz_files_path.c_str(), "/", dist_id);
   filename.from_string(tmp.data(), "/", all_in_one_mbz());
 }
 
-bool MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
+truefalse MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
 {
-  bool result = false;
-  bool bm = false;
-  int prefix_len = ACE_OS::strlen(http_dist_request.fdir) - 1;
+  truefalse result = false;
+  truefalse bm = false;
+  ni prefix_len = strlen(http_dist_request.fdir) - 1;
   CMemGuard destdir;
   CMemGuard composite_dir;
   CMemGuard all_in_one;
   CMemGuard mfile;
   CMemGuard mdestfile;
 //  MyPooledMemGuard destdir_mfile;
-  destdir.from_string(CCfgX::instance()->compressed_store_path.c_str(), "/", http_dist_request.ver);
+  destdir.from_string(CCfgX::instance()->bz_files_path.c_str(), "/", http_dist_request.ver);
   if (!CSysFS::make_path(destdir.data(), false))
   {
-    C_ERROR("can not create directory %s, %s\n", destdir.data(), (const char *)CErrno());
+    C_ERROR("can not create directory %s, %s\n", destdir.data(), (CONST text *)CErrno());
     goto __exit__;
   }
 
   composite_dir.from_string(destdir.data(), "/", composite_path());
   if (!CSysFS::make_path(composite_dir.data(), false))
   {
-    C_ERROR("can not create directory %s, %s\n", composite_dir.data(), (const char *)CErrno());
+    C_ERROR("can not create directory %s, %s\n", composite_dir.data(), (CONST text *)CErrno());
     goto __exit__;
   }
   all_in_one.from_string(composite_dir.data(), "/all_in_one.mbz");
@@ -274,7 +274,7 @@ __exit__:
   if (type_is_all(*http_dist_request.type))
   {
     CSysFS::remove(mdestfile.data());
-    int len = ACE_OS::strlen(mdestfile.data());
+    ni len = strlen(mdestfile.data());
     if (likely(len > 4))
     {
       mdestfile.data()[len - 4] = 0;
@@ -285,35 +285,35 @@ __exit__:
   return result;
 }
 
-bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const char * dest_path,
-     int prefix_len, const char * password)
+truefalse MyDistCompressor::do_generate_compressed_files(CONST text * src_path, CONST text * dest_path,
+     ni prefix_len, CONST text * password)
 {
   if (unlikely(!src_path || !*src_path || !dest_path || !*dest_path))
     return false;
 
   if (!CSysFS::make_path(dest_path, false))
   {
-    C_ERROR("can not create directory %s, %s\n", dest_path, (const char *)CErrno());
+    C_ERROR("can not create directory %s, %s\n", dest_path, (CONST text *)CErrno());
     return false;
   }
 
   DIR * dir = opendir(src_path);
   if (!dir)
   {
-    C_ERROR("can not open directory: %s, %s\n", src_path, (const char*)CErrno());
+    C_ERROR("can not open directory: %s, %s\n", src_path, (CONST char*)CErrno());
     return false;
   }
 
-  int len1 = ACE_OS::strlen(src_path);
-  int len2 = ACE_OS::strlen(dest_path);
+  ni len1 = strlen(src_path);
+  ni len2 = strlen(dest_path);
 
   struct dirent *entry;
-  int dest_middle_leading_path_len = len1 - prefix_len;
+  ni dest_middle_leading_path_len = len1 - prefix_len;
   if (dest_middle_leading_path_len > 0)
   {
     if (!CSysFS::make_path(dest_path, src_path + prefix_len + 1, false, false))
     {
-      C_ERROR("failed to create dir %s%s %s\n", dest_path, src_path + prefix_len, (const char*)CErrno());
+      C_ERROR("failed to create dir %s%s %s\n", dest_path, src_path + prefix_len, (CONST char*)CErrno());
       return false;
     }
   }
@@ -326,17 +326,17 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
       continue;
 
     CMemGuard msrc, mdest;
-    int len = ACE_OS::strlen(entry->d_name);
+    ni len = strlen(entry->d_name);
     CMemPoolX::instance()->alloc_mem(len1 + len + 2, &msrc);
-    ACE_OS::sprintf(msrc.data(), "%s/%s", src_path, entry->d_name);
+    sprintf(msrc.data(), "%s/%s", src_path, entry->d_name);
     CMemPoolX::instance()->alloc_mem(len2 + len + 10 + dest_middle_leading_path_len, &mdest);
 
     if (entry->d_type == DT_REG)
     {
       if (dest_middle_leading_path_len > 0)
-        ACE_OS::sprintf(mdest.data(), "%s%s/%s.mbz", dest_path, src_path + prefix_len, entry->d_name);
+        sprintf(mdest.data(), "%s%s/%s.mbz", dest_path, src_path + prefix_len, entry->d_name);
       else
-        ACE_OS::sprintf(mdest.data(), "%s/%s.mbz", dest_path, entry->d_name);
+        sprintf(mdest.data(), "%s/%s.mbz", dest_path, entry->d_name);
       if (!m_compressor.compress(msrc.data(), prefix_len, mdest.data(), password))
       {
         C_ERROR("compress(%s) to (%s) failed\n", msrc.data(), mdest.data());
@@ -352,9 +352,9 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
     else if(entry->d_type == DT_DIR)
     {
       if (dest_middle_leading_path_len > 0)
-        ACE_OS::sprintf(mdest.data(), "%s%s/%s", dest_path, src_path + prefix_len, entry->d_name);
+        sprintf(mdest.data(), "%s%s/%s", dest_path, src_path + prefix_len, entry->d_name);
       else
-        ACE_OS::sprintf(mdest.data(), "%s/%s", dest_path, entry->d_name);
+        sprintf(mdest.data(), "%s/%s", dest_path, entry->d_name);
 
       if (!do_generate_compressed_files(msrc.data(), dest_path, prefix_len, password))
       {
@@ -373,7 +373,7 @@ bool MyDistCompressor::do_generate_compressed_files(const char * src_path, const
 
 //MyDistMd5Calculator//
 
-bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, CMemGuard &md5_result, int & md5_len)
+truefalse MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, CMemGuard &md5_result, ni & md5_len)
 {
   if (!http_dist_request.need_md5())
   {
@@ -397,7 +397,7 @@ bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, CMemG
     return false;
   }
 
-//  bool result = MyServerAppX::instance()->db().save_dist_md5(http_dist_request.ver, md5_result.data(), md5_len);
+//  truefalse result = MyServerAppX::instance()->db().save_dist_md5(http_dist_request.ver, md5_result.data(), md5_len);
 //  if (likely(result))
 //    C_INFO("file md5 list for %s generated and stored into database\n", http_dist_request.ver);
 //  else
@@ -406,7 +406,7 @@ bool MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, CMemG
 }
 
 
-bool MyDistMd5Calculator::calculate_all_in_one_ftp_md5(const char * dist_id, CMemGuard & md5_result)
+truefalse MyDistMd5Calculator::calculate_all_in_one_ftp_md5(CONST text * dist_id, CMemGuard & md5_result)
 {
   CMemGuard filename;
   MyDistCompressor::get_all_in_one_mbz_file_name(dist_id, filename);
@@ -414,12 +414,12 @@ bool MyDistMd5Calculator::calculate_all_in_one_ftp_md5(const char * dist_id, CMe
 }
 
 
-ACE_Message_Block * my_get_hb_mb()
+CMB * my_get_hb_mb()
 {
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_bs(1, "99");
+  CMB * mb = CMemPoolX::instance()->get_mb_bs(1, "99");
   if (!mb)
     return NULL;
-  char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
+  text * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
   *dest = '1';
   *(dest + 1) = MyBSBasePacket::BS_PACKET_END_MARK;
   return mb;
@@ -431,12 +431,12 @@ ACE_Message_Block * my_get_hb_mb()
 class MyFindDistLoad
 {
 public:
-  MyFindDistLoad(const char * addr)
+  MyFindDistLoad(CONST text * addr)
   {
     m_addr = addr;
   }
 
-  bool operator()(MyDistLoad& load) const
+  truefalse operator()(MyDistLoad& load) CONST
   {
     if (!m_addr)
       return false;
@@ -444,7 +444,7 @@ public:
   }
 
 private:
-  const char * m_addr;
+  CONST text * m_addr;
 };
 
 
@@ -457,7 +457,7 @@ MyDistLoads::MyDistLoads()
   m_server_list[0] = 0;
 }
 
-void MyDistLoads::update(const MyDistLoad & load)
+DVOID MyDistLoads::update(CONST MyDistLoad & load)
 {
   if (load.m_ip_addr[0] == 0)
     return;
@@ -474,7 +474,7 @@ void MyDistLoads::update(const MyDistLoad & load)
   calc_server_list();
 }
 
-void MyDistLoads::remove(const char * addr)
+DVOID MyDistLoads::remove(CONST text * addr)
 {
   if (!addr || !*addr)
     return;
@@ -487,21 +487,21 @@ void MyDistLoads::remove(const char * addr)
   calc_server_list();
 }
 
-MyDistLoads::MyDistLoadVecIt MyDistLoads::find_i(const char * addr)
+MyDistLoads::MyDistLoadVecIt MyDistLoads::find_i(CONST text * addr)
 {
   return find_if(m_loads.begin(), m_loads.end(), MyFindDistLoad(addr));
 }
 
-void MyDistLoads::calc_server_list()
+DVOID MyDistLoads::calc_server_list()
 {
   m_server_list[0] = 0;
   sort(m_loads.begin(), m_loads.end());
   MyDistLoadVecIt it;
-  int remain_len = SERVER_LIST_LENGTH - 2;
-  char * ptr = m_server_list;
+  ni remain_len = SERVER_LIST_LENGTH - 2;
+  text * ptr = m_server_list;
   for (it = m_loads.begin(); it != m_loads.end(); ++it)
   {
-    int len = strlen(it->m_ip_addr);
+    ni len = strlen(it->m_ip_addr);
     if (len == 0)
       continue;
     if (unlikely(len > remain_len))
@@ -509,7 +509,7 @@ void MyDistLoads::calc_server_list()
       C_ERROR("dist server addr list is too long @MyDistLoads::calc_server_list()\n");
       break;
     }
-    ACE_OS::memcpy(ptr, it->m_ip_addr, len + 1);
+    memcpy(ptr, it->m_ip_addr, len + 1);
     ptr += len;
     remain_len -= (len + 1);
     *ptr = MyDataPacketHeader::ITEM_SEPARATOR;
@@ -517,7 +517,7 @@ void MyDistLoads::calc_server_list()
   }
   *ptr = 0;
 
-  int ftp_list_len = CCfgX::instance()->ftp_addr_list.length();
+  ni ftp_list_len = CCfgX::instance()->ftp_addr_list.length();
   if (unlikely(ftp_list_len + 3 > remain_len))
     C_ERROR("ftp server addr list is too long @MyDistLoads::calc_server_list()\n");
   else
@@ -526,11 +526,11 @@ void MyDistLoads::calc_server_list()
     ACE_OS::strsncpy(ptr, CCfgX::instance()->ftp_addr_list.c_str(), remain_len + 1);
   }
 
-  m_server_list_length = ACE_OS::strlen(m_server_list);
+  m_server_list_length = strlen(m_server_list);
   ++m_server_list_length;
 }
 
-int MyDistLoads::get_server_list(char * buffer, int buffer_len)
+ni MyDistLoads::get_server_list(text * buffer, ni buffer_len)
 {
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_mutex, 0);
   if (!buffer || buffer_len < m_server_list_length)
@@ -539,13 +539,13 @@ int MyDistLoads::get_server_list(char * buffer, int buffer_len)
   return m_server_list_length;
 }
 
-void MyDistLoads::scan_for_dead()
+DVOID MyDistLoads::scan_for_dead()
 {
   ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_mutex));
   MyDistLoadVecIt it;
   for (it = m_loads.begin(); it != m_loads.end(); )
   {
-    if (it->m_last_access + int(DEAD_TIME * 60 / CApp::CLOCK_INTERVAL) < g_clock_counter)
+    if (it->m_last_access + ni(DEAD_TIME * 60 / CApp::CLOCK_INTERVAL) < g_clock_counter)
       it = m_loads.erase(it);
     else
       ++it;
@@ -562,7 +562,7 @@ MyUnusedPathRemover::~MyUnusedPathRemover()
   std::for_each(m_path_list.begin(), m_path_list.end(), CObjDeletor());
 }
 
-void MyUnusedPathRemover::add_dist_id(const char * dist_id)
+DVOID MyUnusedPathRemover::add_dist_id(CONST text * dist_id)
 {
   CMemGuard * guard = new CMemGuard;
   guard->from_string(dist_id);
@@ -570,21 +570,21 @@ void MyUnusedPathRemover::add_dist_id(const char * dist_id)
   m_path_set.insert(guard->data());
 }
 
-bool MyUnusedPathRemover::path_ok(const char * _path)
+truefalse MyUnusedPathRemover::path_ok(CONST text * _path)
 {
   return m_path_set.find(_path) != m_path_set.end();
 }
 
-void MyUnusedPathRemover::check_path(const char * path)
+DVOID MyUnusedPathRemover::check_path(CONST text * path)
 {
   DIR * dir = opendir(path);
   if (!dir)
   {
-    C_ERROR("can not open directory: %s %s\n", path, (const char*)CErrno());
+    C_ERROR("can not open directory: %s %s\n", path, (CONST char*)CErrno());
     return;
   }
 
-  int count = 0, ok_count = 0;
+  ni count = 0, ok_count = 0;
   struct dirent *entry;
   while ((entry = readdir(dir)) != NULL)
   {
@@ -620,7 +620,7 @@ MyLocationProcessor::MyLocationProcessor(CHandlerBase * handler): CServerProcBas
 
 }
 
-const char * MyLocationProcessor::name() const
+CONST text * MyLocationProcessor::name() CONST
 {
   return "MyLocationProcessor";
 }
@@ -643,7 +643,7 @@ CProcBase::EVENT_RESULT MyLocationProcessor::on_recv_header()
   return ER_ERROR;
 }
 
-CProcBase::EVENT_RESULT MyLocationProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyLocationProcessor::on_recv_packet_i(CMB * mb)
 {
   CServerProcBase::on_recv_packet_i(mb);
 
@@ -657,7 +657,7 @@ CProcBase::EVENT_RESULT MyLocationProcessor::on_recv_packet_i(ACE_Message_Block 
 }
 
 
-CProcBase::EVENT_RESULT MyLocationProcessor::do_version_check(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyLocationProcessor::do_version_check(CMB * mb)
 {
   CMBGuard guard(mb);
 
@@ -668,13 +668,13 @@ CProcBase::EVENT_RESULT MyLocationProcessor::do_version_check(ACE_Message_Block 
 //    return ret;
   m_client_id = "dummy";
 
-  char server_list[MyDistLoads::SERVER_LIST_LENGTH];
-  int len = m_dist_loads->get_server_list(server_list, MyDistLoads::SERVER_LIST_LENGTH); //double copy
-  ACE_Message_Block * reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_SERVER_LIST, len);
+  text server_list[MyDistLoads::SERVER_LIST_LENGTH];
+  ni len = m_dist_loads->get_server_list(server_list, MyDistLoads::SERVER_LIST_LENGTH); //double copy
+  CMB * reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_SERVER_LIST, len);
 
   MyClientVersionCheckReply *reply = (MyClientVersionCheckReply *)reply_mb->base();
   if (likely(len > 0))
-    ACE_OS::memcpy(reply->data, server_list, len);
+    memcpy(reply->data, server_list, len);
 
   if (m_handler->send_data(reply_mb) <= 0)
     return ER_ERROR; //no unsent data, force a close
@@ -696,17 +696,17 @@ PREPARE_MEMORY_POOL(MyLocationHandler);
 
 //MyLocationService//
 
-MyLocationService::MyLocationService(CMod * module, int numThreads):
+MyLocationService::MyLocationService(CMod * module, ni numThreads):
     CTaskBase(module, numThreads)
 {
 
 }
 
-int MyLocationService::svc()
+ni MyLocationService::svc()
 {
   C_INFO("running %s::svc()\n", name());
 
-  for (ACE_Message_Block * mb; getq(mb) != -1;)
+  for (CMB * mb; getq(mb) != -1;)
   {
 
     mb->release ();
@@ -726,7 +726,7 @@ MyLocationAcceptor::MyLocationAcceptor(CDispatchBase * _dispatcher, CConnectionM
   m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 
-int MyLocationAcceptor::make_svc_handler(CHandlerBase *& sh)
+ni MyLocationAcceptor::make_svc_handler(CHandlerBase *& sh)
 {
   sh = new MyLocationHandler(m_connection_manager);
   if (!sh)
@@ -739,7 +739,7 @@ int MyLocationAcceptor::make_svc_handler(CHandlerBase *& sh)
   return 0;
 }
 
-const char * MyLocationAcceptor::name() const
+CONST text * MyLocationAcceptor::name() CONST
 {
   return "MyLocationAcceptor";
 }
@@ -747,14 +747,14 @@ const char * MyLocationAcceptor::name() const
 
 //MyLocationDispatcher//
 
-MyLocationDispatcher::MyLocationDispatcher(CMod * _module, int numThreads):
+MyLocationDispatcher::MyLocationDispatcher(CMod * _module, ni numThreads):
     CDispatchBase(_module, numThreads)
 {
   m_acceptor = NULL;
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
-bool MyLocationDispatcher::on_start()
+truefalse MyLocationDispatcher::on_start()
 {
   if (!m_acceptor)
     m_acceptor = new MyLocationAcceptor(this, new CConnectionManagerBase());
@@ -762,12 +762,12 @@ bool MyLocationDispatcher::on_start()
   return true;
 }
 
-void MyLocationDispatcher::on_stop()
+DVOID MyLocationDispatcher::on_stop()
 {
   m_acceptor = NULL;
 }
 
-const char * MyLocationDispatcher::name() const
+CONST text * MyLocationDispatcher::name() CONST
 {
   return "MyLocationDispatcher";
 }
@@ -791,20 +791,20 @@ MyDistLoads * MyLocationModule::dist_loads()
   return &m_dist_loads;
 }
 
-bool MyLocationModule::on_start()
+truefalse MyLocationModule::on_start()
 {
   add_task(m_service = new MyLocationService(this, 1));
   add_dispatch(m_dispatcher = new MyLocationDispatcher(this));
   return true;
 }
 
-void MyLocationModule::on_stop()
+DVOID MyLocationModule::on_stop()
 {
   m_service = NULL;
   m_dispatcher = NULL;
 }
 
-const char * MyLocationModule::name() const
+CONST text * MyLocationModule::name() CONST
 {
   return "MyLocationModule";
 }
@@ -825,19 +825,19 @@ MyHttpProcessor::~MyHttpProcessor()
 
 }
 
-const char * MyHttpProcessor::name() const
+CONST text * MyHttpProcessor::name() CONST
 {
   return "MyHttpProcessor";
 }
 
-int MyHttpProcessor::packet_length()
+ni MyHttpProcessor::packet_length()
 {
   return m_packet_header;
 }
 
 CProcBase::EVENT_RESULT MyHttpProcessor::on_recv_header()
 {
-  int len = packet_length();
+  ni len = packet_length();
   if (len > 1024 * 1024 || len <= 32)
   {
     C_ERROR("got an invalid http packet with size = %d\n", len);
@@ -847,13 +847,13 @@ CProcBase::EVENT_RESULT MyHttpProcessor::on_recv_header()
   return ER_OK;
 }
 
-CProcBase::EVENT_RESULT MyHttpProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHttpProcessor::on_recv_packet_i(CMB * mb)
 {
   ACE_UNUSED_ARG(mb);
   C_INFO("http processor got complete packet, len = %d\n", mb->length());
   m_wait_for_close = true;
-  bool ok = do_process_input_data();
-  ACE_Message_Block * reply_mb = CMemPoolX::instance()->get_mb(1);
+  truefalse ok = do_process_input_data();
+  CMB * reply_mb = CMemPoolX::instance()->get_mb(1);
   if (!reply_mb)
   {
     C_ERROR(ACE_TEXT("failed to allocate 1 bytes sized memory block @MyHttpProcessor::handle_input().\n"));
@@ -864,23 +864,23 @@ CProcBase::EVENT_RESULT MyHttpProcessor::on_recv_packet_i(ACE_Message_Block * mb
   return (m_handler->send_data(reply_mb) <= 0 ? ER_ERROR:ER_OK);
 }
 
-bool MyHttpProcessor::do_process_input_data()
+truefalse MyHttpProcessor::do_process_input_data()
 {
-  bool result = true;
-  const char * const_dist_cmd = "http://127.0.0.1:10092/file?";
-  const char * const_task_cmd = "http://127.0.0.1:10092/task?";
-  const char * const_prio_cmd = "http://127.0.0.1:10092/prio?";
-  int ntype = -1;
-  if (likely(ACE_OS::strncmp(const_dist_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_dist_cmd)) == 0))
+  truefalse result = true;
+  CONST text * CONST_dist_cmd = "http://127.0.0.1:10092/file?";
+  CONST text * CONST_task_cmd = "http://127.0.0.1:10092/task?";
+  CONST text * CONST_prio_cmd = "http://127.0.0.1:10092/prio?";
+  ni ntype = -1;
+  if (likely(ACE_OS::strncmp(CONST_dist_cmd, m_current_block->base() + 4, strlen(CONST_dist_cmd)) == 0))
     ntype = 1;
-  else if (ACE_OS::strncmp(const_task_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_task_cmd)) == 0)
+  else if (ACE_OS::strncmp(CONST_task_cmd, m_current_block->base() + 4, strlen(CONST_task_cmd)) == 0)
   {
     ntype = 3;
     m_current_block->set_self_flags(0x2000);
   }
-  else if (ACE_OS::strncmp(const_prio_cmd, m_current_block->base() + 4, ACE_OS::strlen(const_prio_cmd)) == 0)
+  else if (ACE_OS::strncmp(CONST_prio_cmd, m_current_block->base() + 4, strlen(CONST_prio_cmd)) == 0)
   {
-    bool ret = do_prio(m_current_block);
+    truefalse ret = do_prio(m_current_block);
     m_current_block->release();
     m_current_block = NULL;
     return ret;
@@ -899,43 +899,43 @@ bool MyHttpProcessor::do_process_input_data()
   return result;
 }
 
-bool MyHttpProcessor::do_prio(ACE_Message_Block * mb)
+truefalse MyHttpProcessor::do_prio(CMB * mb)
 {
-  const char const_header[] = "http://127.0.0.1:10092/prio?";
-  const int const_header_len = sizeof(const_header) / sizeof(char) - 1;
-  int mb_len = mb->length();
-  ACE_OS::memmove(mb->base(), mb->base() + 4, mb_len - 4);
+  CONST text CONST_header[] = "http://127.0.0.1:10092/prio?";
+  CONST ni CONST_header_len = sizeof(CONST_header) / sizeof(text) - 1;
+  ni mb_len = mb->length();
+  memmove(mb->base(), mb->base() + 4, mb_len - 4);
   mb->base()[mb_len - 4] = 0;
-  if (unlikely((int)(mb->length()) <= const_header_len + 10))
+  if (unlikely((ni)(mb->length()) <= CONST_header_len + 10))
   {
-    C_ERROR("bad http request, packet too short\n", const_header);
+    C_ERROR("bad http request, packet too short\n", CONST_header);
     return false;
   }
 
-  char * packet = mb->base();
-  if (ACE_OS::memcmp(packet, const_header, const_header_len) != 0)
+  text * packet = mb->base();
+  if (memcmp(packet, CONST_header, CONST_header_len) != 0)
   {
-    C_ERROR("bad http packet, no match header of (%s) found\n", const_header);
+    C_ERROR("bad http packet, no match header of (%s) found\n", CONST_header);
     return false;
   }
 
-  packet += const_header_len;
-  const char const_separator = '&';
+  packet += CONST_header_len;
+  CONST text CONST_separator = '&';
 
-  const char * const_ver = "ver=";
-  char * ver = 0;
-  if (!c_util_find_tag_value(packet, const_ver, ver, const_separator))
+  CONST text * CONST_ver = "ver=";
+  text * ver = 0;
+  if (!c_util_find_tag_value(packet, CONST_ver, ver, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", const_ver);
+    C_ERROR("can not find tag %s at http packet\n", CONST_ver);
     return false;
   }
 
 
-  const char * const_plist = "plist=";
-  char * plist = 0;
-  if (!c_util_find_tag_value(packet, const_plist, plist, const_separator))
+  CONST text * CONST_plist = "plist=";
+  text * plist = 0;
+  if (!c_util_find_tag_value(packet, CONST_plist, plist, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", const_plist);
+    C_ERROR("can not find tag %s at http packet\n", CONST_plist);
     return false;
   }
 
@@ -973,7 +973,7 @@ MyHttpAcceptor::MyHttpAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBa
   m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 
-int MyHttpAcceptor::make_svc_handler(CHandlerBase *& sh)
+ni MyHttpAcceptor::make_svc_handler(CHandlerBase *& sh)
 {
   sh = new MyHttpHandler(m_connection_manager);
   if (!sh)
@@ -986,7 +986,7 @@ int MyHttpAcceptor::make_svc_handler(CHandlerBase *& sh)
   return 0;
 }
 
-const char * MyHttpAcceptor::name() const
+CONST text * MyHttpAcceptor::name() CONST
 {
   return "MyHttpAcceptor";
 }
@@ -994,17 +994,17 @@ const char * MyHttpAcceptor::name() const
 
 //MyHttpService//
 
-MyHttpService::MyHttpService(CMod * module, int numThreads)
+MyHttpService::MyHttpService(CMod * module, ni numThreads)
   : CTaskBase(module, numThreads)
 {
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
-int MyHttpService::svc()
+ni MyHttpService::svc()
 {
   C_INFO("running %s::svc()\n", name());
 
-  for (ACE_Message_Block * mb; getq(mb) != -1; )
+  for (CMB * mb; getq(mb) != -1; )
   {
     handle_packet(mb);
     mb->release();
@@ -1014,108 +1014,108 @@ int MyHttpService::svc()
   return 0;
 };
 
-const char * MyHttpService::name() const
+CONST text * MyHttpService::name() CONST
 {
   return "MyHttpService";
 }
 
-bool MyHttpService::parse_request(ACE_Message_Block * mb, MyHttpDistRequest &http_dist_request)
+truefalse MyHttpService::parse_request(CMB * mb, MyHttpDistRequest &http_dist_request)
 {
-  const char const_header[] = "http://127.0.0.1:10092/file?";
-  const int const_header_len = sizeof(const_header) / sizeof(char) - 1;
-  int mb_len = mb->length();
-  ACE_OS::memmove(mb->base(), mb->base() + 4, mb_len - 4);
+  CONST text CONST_header[] = "http://127.0.0.1:10092/file?";
+  CONST ni CONST_header_len = sizeof(CONST_header) / sizeof(text) - 1;
+  ni mb_len = mb->length();
+  memmove(mb->base(), mb->base() + 4, mb_len - 4);
   mb->base()[mb_len - 4] = 0;
-  if (unlikely((int)(mb->length()) <= const_header_len + 10))
+  if (unlikely((ni)(mb->length()) <= CONST_header_len + 10))
   {
-    C_ERROR("bad http request, packet too short\n", const_header);
+    C_ERROR("bad http request, packet too short\n", CONST_header);
     return false;
   }
 
-  char * packet = mb->base();
-  if (ACE_OS::memcmp(packet, const_header, const_header_len) != 0)
+  text * packet = mb->base();
+  if (memcmp(packet, CONST_header, CONST_header_len) != 0)
   {
-    C_ERROR("bad http packet, no match header of (%s) found\n", const_header);
+    C_ERROR("bad http packet, no match header of (%s) found\n", CONST_header);
     return false;
   }
 
-  packet += const_header_len;
-  const char const_separator = '&';
+  packet += CONST_header_len;
+  CONST text CONST_separator = '&';
 
-  const char * const_acode = "acode=";
-  if (!c_util_find_tag_value(packet, const_acode, http_dist_request.acode, const_separator))
+  CONST text * CONST_acode = "acode=";
+  if (!c_util_find_tag_value(packet, CONST_acode, http_dist_request.acode, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", const_acode);
+    C_ERROR("can not find tag %s at http packet\n", CONST_acode);
     return false;
   }
 
-  const char * const_ftype = "ftype=";
-  if (!c_util_find_tag_value(packet, const_ftype, http_dist_request.ftype, const_separator))
+  CONST text * CONST_ftype = "ftype=";
+  if (!c_util_find_tag_value(packet, CONST_ftype, http_dist_request.ftype, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", const_ftype);
+    C_ERROR("can not find tag %s at http packet\n", CONST_ftype);
     return false;
   }
 
-  const char * const_fdir = "fdir=";
-  if (!c_util_find_tag_value(packet, const_fdir, http_dist_request.fdir, const_separator))
+  CONST text * CONST_fdir = "fdir=";
+  if (!c_util_find_tag_value(packet, CONST_fdir, http_dist_request.fdir, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", const_fdir);
+    C_ERROR("can not find tag %s at http packet\n", CONST_fdir);
     return false;
   }
 
-  const char * const_findex = "findex=";
-  if (!c_util_find_tag_value(packet, const_findex, http_dist_request.findex, const_separator))
+  CONST text * CONST_findex = "findex=";
+  if (!c_util_find_tag_value(packet, CONST_findex, http_dist_request.findex, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", const_findex);
+    C_ERROR("can not find tag %s at http packet\n", CONST_findex);
     return false;
   }
 
-  const char * const_adir = "adir=";
-  if (!c_util_find_tag_value(packet, const_adir, http_dist_request.adir, const_separator))
+  CONST text * CONST_adir = "adir=";
+  if (!c_util_find_tag_value(packet, CONST_adir, http_dist_request.adir, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", const_adir);
+    C_ERROR("can not find tag %s at http packet\n", CONST_adir);
     return false;
   }
 
-  const char * const_aindex = "aindex=";
-  if (!c_util_find_tag_value(packet, const_aindex, http_dist_request.aindex, const_separator))
+  CONST text * CONST_aindex = "aindex=";
+  if (!c_util_find_tag_value(packet, CONST_aindex, http_dist_request.aindex, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", const_aindex);
+    C_ERROR("can not find tag %s at http packet\n", CONST_aindex);
     return false;
   }
 
-  const char * const_ver = "ver=";
-  if (!c_util_find_tag_value(packet, const_ver, http_dist_request.ver, const_separator))
+  CONST text * CONST_ver = "ver=";
+  if (!c_util_find_tag_value(packet, CONST_ver, http_dist_request.ver, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", const_ver);
+    C_ERROR("can not find tag %s at http packet\n", CONST_ver);
     return false;
   }
 
-  const char * const_type = "type=";
-  if (!c_util_find_tag_value(packet, const_type, http_dist_request.type, const_separator))
+  CONST text * CONST_type = "type=";
+  if (!c_util_find_tag_value(packet, CONST_type, http_dist_request.type, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", const_type);
+    C_ERROR("can not find tag %s at http packet\n", CONST_type);
     return false;
   }
 
   return true;
 }
 
-bool MyHttpService::handle_packet(ACE_Message_Block * _mb)
+truefalse MyHttpService::handle_packet(CMB * _mb)
 {
   if ((_mb->self_flags() & 0x2000) == 0)
   {
     MyHttpDistRequest http_dist_request;
-    bool result = do_handle_packet(_mb, http_dist_request);
+    truefalse result = do_handle_packet(_mb, http_dist_request);
     if (unlikely(!result && !http_dist_request.check_valid(true)))
       return false;
-    int total_len;
-    char buff[32];
+    ni total_len;
+    text buff[32];
     c_util_generate_time_string(buff, 32, true);
-    total_len = ACE_OS::strlen(buff) + ACE_OS::strlen(http_dist_request.ver) + 8;
-    ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_bs(total_len, MY_BS_DIST_FEEDBACK_CMD);
-    char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
-    ACE_OS::sprintf(dest, "%s#%c##1#%c#%s", http_dist_request.ver, *http_dist_request.ftype,
+    total_len = strlen(buff) + strlen(http_dist_request.ver) + 8;
+    CMB * mb = CMemPoolX::instance()->get_mb_bs(total_len, MY_BS_DIST_FEEDBACK_CMD);
+    text * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
+    sprintf(dest, "%s#%c##1#%c#%s", http_dist_request.ver, *http_dist_request.ftype,
         result? '1':'0', buff);
     dest[total_len] = MyBSBasePacket::BS_PACKET_END_MARK;
     MyServerAppX::instance()->dist_load_module()->dispatcher()->send_to_bs(mb);
@@ -1127,7 +1127,7 @@ bool MyHttpService::handle_packet(ACE_Message_Block * _mb)
   }
 }
 
-bool MyHttpService::do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest & http_dist_request)
+truefalse MyHttpService::do_handle_packet(CMB * mb, MyHttpDistRequest & http_dist_request)
 {
   if (!parse_request(mb, http_dist_request))
     return false;
@@ -1135,8 +1135,8 @@ bool MyHttpService::do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest &
   if (!http_dist_request.check_valid(true))
     return false;
 
-  char password[12];
-  c_util_generate_random_password(password, 12);
+  text password[12];
+  c_util_gen_random_password(password, 12);
   http_dist_request.password = password;
   MyDB & db = MyServerAppX::instance()->db();
 
@@ -1152,7 +1152,7 @@ bool MyHttpService::do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest &
   CMemGuard md5_result;
   {
     MyDistMd5Calculator calc;
-    int md5_len;
+    ni md5_len;
     if (!calc.calculate(http_dist_request, md5_result, md5_len))
       return false;
   }
@@ -1200,64 +1200,64 @@ bool MyHttpService::do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest &
 
   MyUnusedPathRemover path_remover;
   if (db.get_dist_ids(path_remover))
-    path_remover.check_path(CCfgX::instance()->compressed_store_path.c_str());
+    path_remover.check_path(CCfgX::instance()->bz_files_path.c_str());
 
   return true;
 }
 
-bool MyHttpService::do_handle_packet2(ACE_Message_Block * mb)
+truefalse MyHttpService::do_handle_packet2(CMB * mb)
 {
-  const char const_header[] = "http://127.0.0.1:10092/task?";
-  const int const_header_len = sizeof(const_header) / sizeof(char) - 1;
-  int mb_len = mb->length();
-  ACE_OS::memmove(mb->base(), mb->base() + 4, mb_len - 4);
+  CONST text CONST_header[] = "http://127.0.0.1:10092/task?";
+  CONST ni CONST_header_len = sizeof(CONST_header) / sizeof(text) - 1;
+  ni mb_len = mb->length();
+  memmove(mb->base(), mb->base() + 4, mb_len - 4);
   mb->base()[mb_len - 4] = 0;
-  if (unlikely((int)(mb->length()) <= const_header_len + 10))
+  if (unlikely((ni)(mb->length()) <= CONST_header_len + 10))
   {
-    C_ERROR("bad http request, packet too short\n", const_header);
+    C_ERROR("bad http request, packet too short\n", CONST_header);
     return false;
   }
 
-  char * packet = mb->base();
-  if (ACE_OS::memcmp(packet, const_header, const_header_len) != 0)
+  text * packet = mb->base();
+  if (memcmp(packet, CONST_header, CONST_header_len) != 0)
   {
-    C_ERROR("bad http packet, no match header of (%s) found\n", const_header);
+    C_ERROR("bad http packet, no match header of (%s) found\n", CONST_header);
     return false;
   }
 
-  packet += const_header_len;
-  const char const_separator = '&';
+  packet += CONST_header_len;
+  CONST text CONST_separator = '&';
 
-  const char * const_ver = "ver=";
-  char * ver = 0;
-  if (!c_util_find_tag_value(packet, const_ver, ver, const_separator))
+  CONST text * CONST_ver = "ver=";
+  text * ver = 0;
+  if (!c_util_find_tag_value(packet, CONST_ver, ver, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", const_ver);
+    C_ERROR("can not find tag %s at http packet\n", CONST_ver);
     return false;
   }
 
 
-  const char * const_cmd = "cmd=";
-  char * cmd = 0;
-  if (!c_util_find_tag_value(packet, const_cmd, cmd, const_separator))
+  CONST text * CONST_cmd = "cmd=";
+  text * cmd = 0;
+  if (!c_util_find_tag_value(packet, CONST_cmd, cmd, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", const_cmd);
+    C_ERROR("can not find tag %s at http packet\n", CONST_cmd);
     return false;
   }
 
-  const char * const_backid = "backid=";
-  char * backid = 0;
-  if (!c_util_find_tag_value(packet, const_backid, backid, const_separator))
+  CONST text * CONST_backid = "backid=";
+  text * backid = 0;
+  if (!c_util_find_tag_value(packet, CONST_backid, backid, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", const_backid);
+    C_ERROR("can not find tag %s at http packet\n", CONST_backid);
     return false;
   }
 
-  const char * const_acode = "acode=";
-  char * acode = 0;
-  if (!c_util_find_tag_value(packet, const_acode, acode, const_separator))
+  CONST text * CONST_acode = "acode=";
+  text * acode = 0;
+  if (!c_util_find_tag_value(packet, CONST_acode, acode, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", const_acode);
+    C_ERROR("can not find tag %s at http packet\n", CONST_acode);
     return false;
   }
 
@@ -1279,45 +1279,45 @@ bool MyHttpService::do_handle_packet2(ACE_Message_Block * mb)
   return true;
 }
 
-bool MyHttpService::do_compress(MyHttpDistRequest & http_dist_request)
+truefalse MyHttpService::do_compress(MyHttpDistRequest & http_dist_request)
 {
   MyDistCompressor compressor;
   return compressor.compress(http_dist_request);
 }
 
-bool MyHttpService::do_calc_md5(MyHttpDistRequest & http_dist_request)
+truefalse MyHttpService::do_calc_md5(MyHttpDistRequest & http_dist_request)
 {
   MyDistMd5Calculator calc;
   CMemGuard md5_result;
-  int md5_len;
+  ni md5_len;
   return calc.calculate(http_dist_request, md5_result, md5_len);
 }
 
-bool MyHttpService::notify_dist_servers()
+truefalse MyHttpService::notify_dist_servers()
 {
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(0, MyDataPacketHeader::CMD_HAVE_DIST_TASK);
+  CMB * mb = CMemPoolX::instance()->get_mb_cmd(0, MyDataPacketHeader::CMD_HAVE_DIST_TASK);
   return c_util_mb_putq(MyServerAppX::instance()->dist_load_module()->dispatcher(), mb, "dist task notification to target queue");
 }
 
 //MyHttpDispatcher//
 
-MyHttpDispatcher::MyHttpDispatcher(CMod * pModule, int numThreads):
+MyHttpDispatcher::MyHttpDispatcher(CMod * pModule, ni numThreads):
     CDispatchBase(pModule, numThreads)
 {
   m_acceptor = NULL;
 }
 
-const char * MyHttpDispatcher::name() const
+CONST text * MyHttpDispatcher::name() CONST
 {
   return "MyHttpDispatcher";
 }
 
-void MyHttpDispatcher::on_stop()
+DVOID MyHttpDispatcher::on_stop()
 {
   m_acceptor = NULL;
 }
 
-bool MyHttpDispatcher::on_start()
+truefalse MyHttpDispatcher::on_start()
 {
   if (!m_acceptor)
     m_acceptor = new MyHttpAcceptor(this, new CConnectionManagerBase());
@@ -1339,7 +1339,7 @@ MyHttpModule::~MyHttpModule()
 
 }
 
-const char * MyHttpModule::name() const
+CONST text * MyHttpModule::name() CONST
 {
   return "MyHttpModule";
 }
@@ -1349,14 +1349,14 @@ MyHttpService * MyHttpModule::http_service()
   return m_service;
 }
 
-bool MyHttpModule::on_start()
+truefalse MyHttpModule::on_start()
 {
   add_task(m_service = new MyHttpService(this, 1));
   add_dispatch(m_dispatcher = new MyHttpDispatcher(this));
   return true;
 }
 
-void MyHttpModule::on_stop()
+DVOID MyHttpModule::on_stop()
 {
   m_dispatcher = NULL;
   m_service = NULL;
@@ -1381,12 +1381,12 @@ MyDistLoadProcessor::~MyDistLoadProcessor()
 
 }
 
-const char * MyDistLoadProcessor::name() const
+CONST text * MyDistLoadProcessor::name() CONST
 {
   return "MyDistLoadProcessor";
 }
 
-void MyDistLoadProcessor::dist_loads(MyDistLoads * dist_loads)
+DVOID MyDistLoadProcessor::dist_loads(MyDistLoads * dist_loads)
 {
   m_dist_loads = dist_loads;
 }
@@ -1425,7 +1425,7 @@ CProcBase::EVENT_RESULT MyDistLoadProcessor::on_recv_header()
   return ER_ERROR;
 }
 
-CProcBase::EVENT_RESULT MyDistLoadProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyDistLoadProcessor::on_recv_packet_i(CMB * mb)
 {
   CServerProcBase::on_recv_packet_i(mb);
   CMBGuard guard(mb);
@@ -1442,11 +1442,11 @@ CProcBase::EVENT_RESULT MyDistLoadProcessor::on_recv_packet_i(ACE_Message_Block 
   return ER_ERROR;
 }
 
-CProcBase::EVENT_RESULT MyDistLoadProcessor::do_version_check(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyDistLoadProcessor::do_version_check(CMB * mb)
 {
   MyClientVersionCheckRequest * p = (MyClientVersionCheckRequest *) mb->base();
   m_client_id = "DistServer";
-  bool result = (p->client_id == CCfgX::instance()->middle_server_key.c_str());
+  truefalse result = (p->client_id == CCfgX::instance()->skey.c_str());
   if (!result)
   {
     CMemGuard info;
@@ -1456,16 +1456,16 @@ CProcBase::EVENT_RESULT MyDistLoadProcessor::do_version_check(ACE_Message_Block 
   }
   m_client_id_verified = true;
 
-  ACE_Message_Block * reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK);
+  CMB * reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK);
   return (m_handler->send_data(reply_mb) < 0 ? ER_ERROR: ER_OK);
 }
 
-bool MyDistLoadProcessor::client_id_verified() const
+truefalse MyDistLoadProcessor::client_id_verified() CONST
 {
   return m_client_id_verified;
 }
 
-CProcBase::EVENT_RESULT MyDistLoadProcessor::do_load_balance(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyDistLoadProcessor::do_load_balance(CMB * mb)
 {
   MyLoadBalanceRequest * br = (MyLoadBalanceRequest *)mb->base();
   MyDistLoad dl;
@@ -1483,7 +1483,7 @@ MyDistLoadHandler::MyDistLoadHandler(CConnectionManagerBase * xptr): CHandlerBas
   m_processor = new MyDistLoadProcessor(this);
 }
 
-void MyDistLoadHandler::dist_loads(MyDistLoads * dist_loads)
+DVOID MyDistLoadHandler::dist_loads(MyDistLoads * dist_loads)
 {
   ((MyDistLoadProcessor*)m_processor)->dist_loads(dist_loads);
 }
@@ -1499,7 +1499,7 @@ MyDistLoadAcceptor::MyDistLoadAcceptor(CDispatchBase * _dispatcher, CConnectionM
   m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 
-int MyDistLoadAcceptor::make_svc_handler(CHandlerBase *& sh)
+ni MyDistLoadAcceptor::make_svc_handler(CHandlerBase *& sh)
 {
   sh = new MyDistLoadHandler(m_connection_manager);
   if (!sh)
@@ -1513,7 +1513,7 @@ int MyDistLoadAcceptor::make_svc_handler(CHandlerBase *& sh)
   return 0;
 }
 
-const char * MyDistLoadAcceptor::name() const
+CONST text * MyDistLoadAcceptor::name() CONST
 {
   return "MyDistLoadAcceptor";
 }
@@ -1521,7 +1521,7 @@ const char * MyDistLoadAcceptor::name() const
 
 //MyDistLoadDispatcher//
 
-MyDistLoadDispatcher::MyDistLoadDispatcher(CMod * pModule, int numThreads):
+MyDistLoadDispatcher::MyDistLoadDispatcher(CMod * pModule, ni numThreads):
     CDispatchBase(pModule, numThreads)
 {
   m_acceptor = NULL;
@@ -1532,8 +1532,8 @@ MyDistLoadDispatcher::MyDistLoadDispatcher(CMod * pModule, int numThreads):
 MyDistLoadDispatcher::~MyDistLoadDispatcher()
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);
-  int i = 0;
-  for (ACE_Message_Block * mb; m_to_bs_queue.dequeue(mb, &tv) != -1; )
+  ni i = 0;
+  for (CMB * mb; m_to_bs_queue.dequeue(mb, &tv) != -1; )
   {
     ++i;
     mb->release();
@@ -1542,35 +1542,35 @@ MyDistLoadDispatcher::~MyDistLoadDispatcher()
     C_INFO("releasing %d mb on %s::termination\n", i, name());
 }
 
-const char * MyDistLoadDispatcher::name() const
+CONST text * MyDistLoadDispatcher::name() CONST
 {
   return "MyDistLoadDispatcher";
 }
 
-void MyDistLoadDispatcher::send_to_bs(ACE_Message_Block * mb)
+DVOID MyDistLoadDispatcher::send_to_bs(CMB * mb)
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);
   if (m_to_bs_queue.enqueue(mb, &tv) < 0)
   {
-    C_ERROR("MyDistLoadDispatcher::send_to_bs() failed, %s\n", (const char*)CErrno());
+    C_ERROR("MyDistLoadDispatcher::send_to_bs() failed, %s\n", (CONST char*)CErrno());
     mb->release();
   }
 }
 
-int MyDistLoadDispatcher::handle_timeout(const ACE_Time_Value &, const void *)
+ni MyDistLoadDispatcher::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
 {
   MyServerAppX::instance()->location_module()->dist_loads()->scan_for_dead();
   return 0;
 }
 
-void MyDistLoadDispatcher::on_stop()
+DVOID MyDistLoadDispatcher::on_stop()
 {
   m_acceptor = NULL;
   m_bs_connector = NULL;
   reactor()->cancel_timer(this);
 }
 
-bool MyDistLoadDispatcher::on_start()
+truefalse MyDistLoadDispatcher::on_start()
 {
   if (!m_acceptor)
     m_acceptor = new MyDistLoadAcceptor(this, new CConnectionManagerBase());
@@ -1579,7 +1579,7 @@ bool MyDistLoadDispatcher::on_start()
     m_bs_connector = new MyMiddleToBSConnector(this, new CConnectionManagerBase());
   add_connector(m_bs_connector);
 
-  ACE_Time_Value interval(int(MyDistLoads::DEAD_TIME * 60 / CApp::CLOCK_INTERVAL / 2));
+  ACE_Time_Value interval(ni(MyDistLoads::DEAD_TIME * 60 / CApp::CLOCK_INTERVAL / 2));
   if (reactor()->schedule_timer(this, 0, interval, interval) == -1)
   {
     C_ERROR("can not setup dist load server scan timer\n");
@@ -1588,17 +1588,17 @@ bool MyDistLoadDispatcher::on_start()
   return true;
 }
 
-bool MyDistLoadDispatcher::on_event_loop()
+truefalse MyDistLoadDispatcher::on_event_loop()
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);
-  ACE_Message_Block * mb;
-  const int const_max_count = 10;
-  int i = 0;
-  while (++i < const_max_count && this->getq(mb, &tv) != -1)
+  CMB * mb;
+  CONST ni CONST_max_count = 10;
+  ni i = 0;
+  while (++i < CONST_max_count && this->getq(mb, &tv) != -1)
     m_acceptor->connection_manager()->broadcast(mb);
 
   i = 0;
-  while (++i < const_max_count && m_to_bs_queue.dequeue(mb, &tv) != -1)
+  while (++i < CONST_max_count && m_to_bs_queue.dequeue(mb, &tv) != -1)
     m_bs_connector->connection_manager()->broadcast(mb);
 
   return true;
@@ -1617,23 +1617,23 @@ MyDistLoadModule::~MyDistLoadModule()
 
 }
 
-const char * MyDistLoadModule::name() const
+CONST text * MyDistLoadModule::name() CONST
 {
   return "MyDistLoadModule";
 }
 
-MyDistLoadDispatcher * MyDistLoadModule::dispatcher() const
+MyDistLoadDispatcher * MyDistLoadModule::dispatcher() CONST
 {
   return m_dispatcher;
 }
 
-bool MyDistLoadModule::on_start()
+truefalse MyDistLoadModule::on_start()
 {
   add_dispatch(m_dispatcher = new MyDistLoadDispatcher(this));
   return true;
 }
 
-void MyDistLoadModule::on_stop()
+DVOID MyDistLoadModule::on_stop()
 {
   m_dispatcher = NULL;
 }
@@ -1650,12 +1650,12 @@ MyMiddleToBSProcessor::MyMiddleToBSProcessor(CHandlerBase * handler): super(hand
 
 }
 
-const char * MyMiddleToBSProcessor::name() const
+CONST text * MyMiddleToBSProcessor::name() CONST
 {
   return "MyMiddleToBSProcessor";
 }
 
-CProcBase::EVENT_RESULT MyMiddleToBSProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyMiddleToBSProcessor::on_recv_packet_i(CMB * mb)
 {
   if (mb)
     mb->release();
@@ -1673,24 +1673,24 @@ MyMiddleToBSHandler::MyMiddleToBSHandler(CConnectionManagerBase * xptr): CHandle
   m_processor = new MyMiddleToBSProcessor(this);
 }
 
-MyDistLoadModule * MyMiddleToBSHandler::module_x() const
+MyDistLoadModule * MyMiddleToBSHandler::module_x() CONST
 {
   return (MyDistLoadModule *)connector()->module_x();
 }
 
-void MyMiddleToBSHandler::checker_update()
+DVOID MyMiddleToBSHandler::checker_update()
 {
   m_checker.update();
 }
 
-int MyMiddleToBSHandler::handle_timeout(const ACE_Time_Value &, const void *)
+ni MyMiddleToBSHandler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
 {
   if (m_checker.expired())
   {
     C_ERROR("no data received from bs @MyMiddleToBSHandler ...\n");
     return -1;
   }
-  ACE_Message_Block * mb = my_get_hb_mb();
+  CMB * mb = my_get_hb_mb();
   if (mb)
   {
     if (send_data(mb) < 0)
@@ -1699,19 +1699,19 @@ int MyMiddleToBSHandler::handle_timeout(const ACE_Time_Value &, const void *)
   return 0;
 }
 
-int MyMiddleToBSHandler::on_open()
+ni MyMiddleToBSHandler::on_open()
 {
   ACE_Time_Value interval(30);
   if (reactor()->schedule_timer(this, (void*)0, interval, interval) < 0)
   {
-    C_ERROR(ACE_TEXT("MyMiddleToBSHandler setup timer failed, %s"), (const char*)CErrno());
+    C_ERROR(ACE_TEXT("MyMiddleToBSHandler setup timer failed, %s"), (CONST char*)CErrno());
     return -1;
   }
 
   if (!g_is_test)
     C_INFO("MyMiddleToBSHandler setup timer: OK\n");
 
-  ACE_Message_Block * mb = my_get_hb_mb();
+  CMB * mb = my_get_hb_mb();
   if (mb)
   {
     if (send_data(mb) < 0)
@@ -1723,7 +1723,7 @@ int MyMiddleToBSHandler::on_open()
 }
 
 
-void MyMiddleToBSHandler::on_close()
+DVOID MyMiddleToBSHandler::on_close()
 {
 
 }
@@ -1741,12 +1741,12 @@ MyMiddleToBSConnector::MyMiddleToBSConnector(CDispatchBase * _dispatcher, CConne
   m_tcp_addr = CCfgX::instance()->bs_addr;
 }
 
-const char * MyMiddleToBSConnector::name() const
+CONST text * MyMiddleToBSConnector::name() CONST
 {
   return "MyMiddleToBSConnector";
 }
 
-int MyMiddleToBSConnector::make_svc_handler(CHandlerBase *& sh)
+ni MyMiddleToBSConnector::make_svc_handler(CHandlerBase *& sh)
 {
   sh = new MyMiddleToBSHandler(m_connection_manager);
   if (!sh)
@@ -1771,38 +1771,38 @@ MyDistClient::MyDistClient(MyHttpDistInfo * _dist_info, MyDistClientOne * _dist_
   dist_one = _dist_one;
 }
 
-bool MyDistClient::check_valid() const
+truefalse MyDistClient::check_valid() CONST
 {
   return ((dist_info != NULL) && (status >= 0 && status <= 4));
 }
 
-bool MyDistClient::active()
+truefalse MyDistClient::active()
 {
   return dist_one->active();
 }
 
-const char * MyDistClient::client_id() const
+CONST text * MyDistClient::client_id() CONST
 {
   return dist_one->client_id();
 }
 
-int MyDistClient::client_id_index() const
+ni MyDistClient::client_id_index() CONST
 {
   return dist_one->client_id_index();
 }
 
-void MyDistClient::update_status(int _status)
+DVOID MyDistClient::update_status(ni _status)
 {
   if (_status > status)
     status = _status;
 }
 
-void MyDistClient::delete_self()
+DVOID MyDistClient::delete_self()
 {
   dist_one->delete_dist_client(this);
 }
 
-void MyDistClient::update_md5_list(const char * _md5)
+DVOID MyDistClient::update_md5_list(CONST text * _md5)
 {
   if (unlikely(!dist_info->need_md5()))
   {
@@ -1818,13 +1818,13 @@ void MyDistClient::update_md5_list(const char * _md5)
   update_status(2);
 }
 
-void MyDistClient::send_fb_detail(bool ok)
+DVOID MyDistClient::send_fb_detail(truefalse ok)
 {
-  ACE_Message_Block * mb = make_ftp_fb_detail_mb(ok);
+  CMB * mb = make_ftp_fb_detail_mb(ok);
   MyServerAppX::instance()->dist_to_middle_module()->send_to_bs(mb);
 }
 
-void MyDistClient::psp(const char /*c*/)
+DVOID MyDistClient::psp(CONST text /*c*/)
 {
   delete_self();
 /*  if (c == '0')
@@ -1834,11 +1834,11 @@ void MyDistClient::psp(const char /*c*/)
 */
 }
 
-void MyDistClient::dist_ftp_md5_reply(const char * md5list)
+DVOID MyDistClient::dist_ftp_md5_reply(CONST text * md5list)
 {
   if (unlikely(*md5list == 0))
   {
-    char buff[50];
+    text buff[50];
     c_util_generate_time_string(buff, 50, true);
     MyServerAppX::instance()->heart_beat_module()->ftp_feedback_submitter().add(
         dist_info->ver.data(),
@@ -1875,7 +1875,7 @@ void MyDistClient::dist_ftp_md5_reply(const char * md5list)
   do_stage_2();
 }
 
-bool MyDistClient::dist_file()
+truefalse MyDistClient::dist_file()
 {
   if (!active())
     return true;
@@ -1915,7 +1915,7 @@ bool MyDistClient::dist_file()
   }
 }
 
-bool MyDistClient::do_stage_0()
+truefalse MyDistClient::do_stage_0()
 {
   if (dist_info->need_md5())
   {
@@ -1935,7 +1935,7 @@ bool MyDistClient::do_stage_0()
   return true;
 }
 
-bool MyDistClient::do_stage_1()
+truefalse MyDistClient::do_stage_1()
 {
   time_t now = time(NULL);
   if (now > last_update + MD5_REPLY_TIME_OUT * 60)
@@ -1944,11 +1944,11 @@ bool MyDistClient::do_stage_1()
   return true;
 }
 
-bool MyDistClient::do_stage_2()
+truefalse MyDistClient::do_stage_2()
 {
   if (!mbz_file.data() || !mbz_file.data()[0])
   {
-    if ((dist_info->md5_opt_len > 0 && (int)ACE_OS::strlen(md5.data()) >= dist_info->md5_opt_len) || !generate_diff_mbz())
+    if ((dist_info->md5_opt_len > 0 && (ni)strlen(md5.data()) >= dist_info->md5_opt_len) || !generate_diff_mbz())
     {
       mbz_file.from_string(MyDistCompressor::all_in_one_mbz());
       mbz_md5.from_string(dist_info->mbz_md5.data());
@@ -1964,7 +1964,7 @@ bool MyDistClient::do_stage_2()
   return true;
 }
 
-bool MyDistClient::do_stage_3()
+truefalse MyDistClient::do_stage_3()
 {
   time_t now = time(NULL);
   if (now > last_update + FTP_REPLY_TIME_OUT * 60)
@@ -1973,12 +1973,12 @@ bool MyDistClient::do_stage_3()
   return true;
 }
 
-bool MyDistClient::do_stage_4()
+truefalse MyDistClient::do_stage_4()
 {
   return false;
 }
 
-bool MyDistClient::do_stage_5()
+truefalse MyDistClient::do_stage_5()
 {
 //  time_t now = time(NULL);
 //  if (now > last_update + 5 * 60)
@@ -1986,12 +1986,12 @@ bool MyDistClient::do_stage_5()
   return true;
 }
 
-bool MyDistClient::do_stage_6()
+truefalse MyDistClient::do_stage_6()
 {
   return false;
 }
 
-bool MyDistClient::do_stage_7()
+truefalse MyDistClient::do_stage_7()
 {
 //  time_t now = time(NULL);
 //  if (now > last_update + 5 * 60)
@@ -1999,20 +1999,20 @@ bool MyDistClient::do_stage_7()
   return true;
 }
 
-bool MyDistClient::do_stage_8()
+truefalse MyDistClient::do_stage_8()
 {
   return false;
 }
 
 
-int MyDistClient::dist_out_leading_length()
+ni MyDistClient::dist_out_leading_length()
 {
-  int adir_len = adir.data() ? ACE_OS::strlen(adir.data()) : (int)MyDataPacketHeader::NULL_ITEM_LENGTH;
-  int aindex_len = dist_info->aindex_len > 0 ? dist_info->aindex_len : (int)MyDataPacketHeader::NULL_ITEM_LENGTH;
+  ni adir_len = adir.data() ? strlen(adir.data()) : (ni)MyDataPacketHeader::NULL_ITEM_LENGTH;
+  ni aindex_len = dist_info->aindex_len > 0 ? dist_info->aindex_len : (ni)MyDataPacketHeader::NULL_ITEM_LENGTH;
   return dist_info->ver_len + dist_info->findex_len + aindex_len + adir_len + 4 + 2 + 2;
 }
 
-void MyDistClient::dist_out_leading_data(char * data)
+DVOID MyDistClient::dist_out_leading_data(text * data)
 {
   sprintf(data, "%s%c%s%c%s%c%s%c%c%c%c%c",
       dist_info->ver.data(), MyDataPacketHeader::ITEM_SEPARATOR,
@@ -2023,12 +2023,12 @@ void MyDistClient::dist_out_leading_data(char * data)
       dist_info->type[0], MyDataPacketHeader::FINISH_SEPARATOR);
 }
 
-ACE_Message_Block * MyDistClient::make_ftp_fb_detail_mb(bool bok)
+CMB * MyDistClient::make_ftp_fb_detail_mb(truefalse bok)
 {
   CMemGuard md5_new;
-  char buff[32];
+  text buff[32];
   c_util_generate_time_string(buff, 32, true);
-  const char * detail_files;
+  CONST text * detail_files;
   if (type_is_multi(dist_info->type[0]))
   {
     if (!md5.data())
@@ -2036,8 +2036,8 @@ ACE_Message_Block * MyDistClient::make_ftp_fb_detail_mb(bool bok)
     else
     {
       md5_new.from_string(md5.data());
-      c_util_string_replace_char(md5_new.data(), MyDataPacketHeader::ITEM_SEPARATOR, ':');
-      int len = ACE_OS::strlen(md5_new.data());
+      c_util_string_replace_text(md5_new.data(), MyDataPacketHeader::ITEM_SEPARATOR, ':');
+      ni len = strlen(md5_new.data());
       if (md5_new.data()[len - 1] == ':')
         md5_new.data()[len - 1] = 0;
       detail_files = md5_new.data();
@@ -2046,13 +2046,13 @@ ACE_Message_Block * MyDistClient::make_ftp_fb_detail_mb(bool bok)
   else
     detail_files = dist_info->findex.data();
 
-  int total_len = ACE_OS::strlen(dist_one->client_id()) + ACE_OS::strlen(dist_info->ver.data()) +
-      ACE_OS::strlen(buff) + ACE_OS::strlen(dist_info->findex.data()) + ACE_OS::strlen(detail_files) +
+  ni total_len = strlen(dist_one->client_id()) + strlen(dist_info->ver.data()) +
+      strlen(buff) + strlen(dist_info->findex.data()) + strlen(detail_files) +
       10;
   //batNO, fileKindCode, agentCode, indexName, fileName, type,flag, date
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_bs(total_len, MY_BS_DIST_FBDETAIL_CMD);
-  char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
-  ACE_OS::sprintf(dest, "%s#%c#%s#%s#%s#%c#%c#%s",
+  CMB * mb = CMemPoolX::instance()->get_mb_bs(total_len, MY_BS_DIST_FBDETAIL_CMD);
+  text * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
+  sprintf(dest, "%s#%c#%s#%s#%s#%c#%c#%s",
       dist_info->ver.data(),
       dist_info->ftype[0],
       dist_one->client_id(),
@@ -2065,30 +2065,30 @@ ACE_Message_Block * MyDistClient::make_ftp_fb_detail_mb(bool bok)
   return mb;
 }
 
-bool MyDistClient::send_md5()
+truefalse MyDistClient::send_md5()
 {
   if (!dist_info->md5.data() || !dist_info->md5.data()[0] || dist_info->md5_len <= 0)
     return false;
 
-  int md5_len = dist_info->md5_len + 1;
-  int data_len = dist_out_leading_length() + md5_len;
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(data_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
+  ni md5_len = dist_info->md5_len + 1;
+  ni data_len = dist_out_leading_length() + md5_len;
+  CMB * mb = CMemPoolX::instance()->get_mb_cmd(data_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
   MyDataPacketExt * md5_packet = (MyDataPacketExt *)mb->base();
   md5_packet->magic = client_id_index();
   dist_out_leading_data(md5_packet->data);
-  ACE_OS::memcpy(md5_packet->data + data_len - md5_len, dist_info->md5.data(), md5_len);
+  memcpy(md5_packet->data + data_len - md5_len, dist_info->md5.data(), md5_len);
 
   last_update = time(NULL);
 
   return c_util_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "file md5 list to dispatcher's queue");
 }
 
-bool MyDistClient::generate_diff_mbz()
+truefalse MyDistClient::generate_diff_mbz()
 {
   CMemGuard destdir;
   CMemGuard composite_dir;
   CMemGuard mdestfile;
-  destdir.from_string(CCfgX::instance()->compressed_store_path.c_str(), "/", dist_info->ver.data());
+  destdir.from_string(CCfgX::instance()->bz_files_path.c_str(), "/", dist_info->ver.data());
   composite_dir.from_string(destdir.data(), "/", MyDistCompressor::composite_path());
   mdestfile.from_string(composite_dir.data(), "/", client_id(), ".mbz");
   CCompCombiner compositor;
@@ -2096,9 +2096,9 @@ bool MyDistClient::generate_diff_mbz()
     return false;
   CMemGuard md5_copy;
   md5_copy.from_string(md5.data());
-  char separators[2] = { MyDataPacketHeader::ITEM_SEPARATOR, 0 };
+  text separators[2] = { MyDataPacketHeader::ITEM_SEPARATOR, 0 };
   CStringTokenizer tokenizer(md5_copy.data(), separators);
-  char * token;
+  text * token;
   CMemGuard filename;
   while ((token =tokenizer.get()) != NULL)
   {
@@ -2118,27 +2118,27 @@ bool MyDistClient::generate_diff_mbz()
     return false;
   }
 
-  mbz_file.from_string(mdestfile.data() + ACE_OS::strlen(destdir.data()) + 1);
+  mbz_file.from_string(mdestfile.data() + strlen(destdir.data()) + 1);
   mbz_md5.from_string(md5_result.data());
   return true;
 }
 
-bool MyDistClient::send_psp(const char c)
+truefalse MyDistClient::send_psp(CONST text c)
 {
-  int data_len = dist_info->ver_len + 2;
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(data_len, MyDataPacketHeader::CMD_PSP);
+  ni data_len = dist_info->ver_len + 2;
+  CMB * mb = CMemPoolX::instance()->get_mb_cmd(data_len, MyDataPacketHeader::CMD_PSP);
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
   dpe->magic = client_id_index();
   dpe->data[0] = c;
-  ACE_OS::memcpy(dpe->data + 1, dist_info->ver.data(), data_len - 1);
+  memcpy(dpe->data + 1, dist_info->ver.data(), data_len - 1);
   last_update = time(NULL);
   return c_util_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "psp to dispatcher's queue");
 }
 
-bool MyDistClient::send_ftp()
+truefalse MyDistClient::send_ftp()
 {
-  const char * ftp_file_name;
-  const char * _mbz_md5;
+  CONST text * ftp_file_name;
+  CONST text * _mbz_md5;
 
   if (!dist_info->need_md5())
   {
@@ -2150,22 +2150,22 @@ bool MyDistClient::send_ftp()
     _mbz_md5 = mbz_md5.data();
   }
 
-  int _mbz_md5_len = ACE_OS::strlen(_mbz_md5) + 1;
-  int leading_length = dist_out_leading_length();
-  int ftp_file_name_len = ACE_OS::strlen(ftp_file_name) + 1;
-  int data_len = leading_length + ftp_file_name_len + dist_info->password_len + 1 + _mbz_md5_len;
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(data_len, MyDataPacketHeader::CMD_FTP_FILE);
+  ni _mbz_md5_len = strlen(_mbz_md5) + 1;
+  ni leading_length = dist_out_leading_length();
+  ni ftp_file_name_len = strlen(ftp_file_name) + 1;
+  ni data_len = leading_length + ftp_file_name_len + dist_info->password_len + 1 + _mbz_md5_len;
+  CMB * mb = CMemPoolX::instance()->get_mb_cmd(data_len, MyDataPacketHeader::CMD_FTP_FILE);
   MyDataPacketExt * packet = (MyDataPacketExt *)mb->base();
   packet->magic = client_id_index();
   dist_out_leading_data(packet->data);
-  char * ptr = packet->data + leading_length;
-  ACE_OS::memcpy(ptr, ftp_file_name, ftp_file_name_len);
+  text * ptr = packet->data + leading_length;
+  memcpy(ptr, ftp_file_name, ftp_file_name_len);
   ptr += ftp_file_name_len;
   *(ptr - 1) = MyDataPacketHeader::ITEM_SEPARATOR;
-  ACE_OS::memcpy(ptr, _mbz_md5, _mbz_md5_len);
+  memcpy(ptr, _mbz_md5, _mbz_md5_len);
   ptr += _mbz_md5_len;
   *(ptr - 1) = MyDataPacketHeader::FINISH_SEPARATOR;
-  ACE_OS::memcpy(ptr, dist_info->password.data(), dist_info->password_len + 1);
+  memcpy(ptr, dist_info->password.data(), dist_info->password_len + 1);
 
   last_update = time(NULL);
 
@@ -2175,7 +2175,7 @@ bool MyDistClient::send_ftp()
 
 //MyDistClientOne//
 
-MyDistClientOne::MyDistClientOne(MyDistClients * dist_clients, const char * client_id): m_client_id(client_id)
+MyDistClientOne::MyDistClientOne(MyDistClients * dist_clients, CONST text * client_id): m_client_id(client_id)
 {
   m_dist_clients = dist_clients;
   m_client_id_index = -1;
@@ -2186,37 +2186,37 @@ MyDistClientOne::~MyDistClientOne()
   clear();
 }
 
-const char * MyDistClientOne::client_id() const
+CONST text * MyDistClientOne::client_id() CONST
 {
   return m_client_id.as_string();
 }
 
-int MyDistClientOne::client_id_index() const
+ni MyDistClientOne::client_id_index() CONST
 {
   return m_client_id_index;
 }
 
-bool MyDistClientOne::active()
+truefalse MyDistClientOne::active()
 {
-  bool switched;
+  truefalse switched;
   return g_client_ids->active(m_client_id, m_client_id_index, switched);
 }
 
-bool MyDistClientOne::is_client_id(const char * _client_id) const
+truefalse MyDistClientOne::is_client_id(CONST text * _client_id) CONST
 {
-  return ACE_OS::strcmp(m_client_id.as_string(), _client_id) == 0;
+  return strcmp(m_client_id.as_string(), _client_id) == 0;
 }
 
 MyDistClient * MyDistClientOne::create_dist_client(MyHttpDistInfo * _dist_info)
 {
-  void * p = CMemPoolX::instance()->alloc_mem_x(sizeof(MyDistClient));
+  DVOID * p = CMemPoolX::instance()->alloc_mem_x(sizeof(MyDistClient));
   MyDistClient * result = new (p) MyDistClient(_dist_info, this);
   m_client_ones.push_back(result);
   m_dist_clients->on_create_dist_client(result);
   return result;
 }
 
-void MyDistClientOne::delete_dist_client(MyDistClient * dc)
+DVOID MyDistClientOne::delete_dist_client(MyDistClient * dc)
 {
   m_dist_clients->on_remove_dist_client(dc, false);
   m_client_ones.remove(dc);
@@ -2227,15 +2227,15 @@ void MyDistClientOne::delete_dist_client(MyDistClient * dc)
 //    m_dist_clients->delete_client_one(this);
 }
 
-void MyDistClientOne::clear()
+DVOID MyDistClientOne::clear()
 {
   std::for_each(m_client_ones.begin(), m_client_ones.end(), CPoolObjectDeletor());
   m_client_ones.clear();
 }
 
-bool MyDistClientOne::dist_files()
+truefalse MyDistClientOne::dist_files()
 {
-  bool switched;
+  truefalse switched;
   if (!g_client_ids->active(m_client_id, m_client_id_index, switched))
     return !m_client_ones.empty();
 
@@ -2268,16 +2268,16 @@ bool MyDistClientOne::dist_files()
 
 //MyClientMapKey//
 
-MyClientMapKey::MyClientMapKey(const char * _dist_id, const char * _client_id)
+MyClientMapKey::MyClientMapKey(CONST text * _dist_id, CONST text * _client_id)
 {
   dist_id = _dist_id;
   client_id = _client_id;
 }
 
-bool MyClientMapKey::operator == (const MyClientMapKey & rhs) const
+truefalse MyClientMapKey::operator == (CONST MyClientMapKey & rhs) CONST
 {
-  return ACE_OS::strcmp(dist_id, rhs.dist_id) == 0 &&
-      ACE_OS::strcmp(client_id, rhs.client_id) == 0;
+  return strcmp(dist_id, rhs.dist_id) == 0 &&
+      strcmp(client_id, rhs.client_id) == 0;
 }
 
 
@@ -2295,7 +2295,7 @@ MyDistClients::~MyDistClients()
   clear();
 }
 
-void MyDistClients::clear()
+DVOID MyDistClients::clear()
 {
   std::for_each(dist_clients.begin(), dist_clients.end(), CPoolObjectDeletor());
   dist_clients.clear();
@@ -2304,26 +2304,26 @@ void MyDistClients::clear()
   db_time = 0;
 }
 
-void MyDistClients::on_create_dist_client(MyDistClient * dc)
+DVOID MyDistClients::on_create_dist_client(MyDistClient * dc)
 {
   m_dist_clients_map.insert(std::pair<const MyClientMapKey, MyDistClient *>
      (MyClientMapKey(dc->dist_info->ver.data(), dc->client_id()), dc));
 }
 
-void MyDistClients::on_remove_dist_client(MyDistClient * dc, bool finished)
+DVOID MyDistClients::on_remove_dist_client(MyDistClient * dc, truefalse finished)
 {
   if (finished)
     ++m_dist_client_finished;
   m_dist_clients_map.erase(MyClientMapKey(dc->dist_info->ver.data(), dc->client_id()));
 }
 
-MyHttpDistInfo * MyDistClients::find_dist_info(const char * dist_id)
+MyHttpDistInfo * MyDistClients::find_dist_info(CONST text * dist_id)
 {
   C_ASSERT_RETURN(m_dist_infos, "", NULL);
   return m_dist_infos->find(dist_id);
 }
 
-MyDistClient * MyDistClients::find_dist_client(const char * client_id, const char * dist_id)
+MyDistClient * MyDistClients::find_dist_client(CONST text * client_id, CONST text * dist_id)
 {
   MyDistClientMap::iterator it;
   it = m_dist_clients_map.find(MyClientMapKey(dist_id, client_id));
@@ -2333,7 +2333,7 @@ MyDistClient * MyDistClients::find_dist_client(const char * client_id, const cha
     return it->second;
 }
 
-MyDistClientOne * MyDistClients::find_client_one(const char * client_id)
+MyDistClientOne * MyDistClients::find_client_one(CONST text * client_id)
 {
   MyDistClientOneMap::iterator it;
   it = m_dist_client_ones_map.find(client_id);
@@ -2343,23 +2343,23 @@ MyDistClientOne * MyDistClients::find_client_one(const char * client_id)
     return it->second;
 }
 
-MyDistClientOne * MyDistClients::create_client_one(const char * client_id)
+MyDistClientOne * MyDistClients::create_client_one(CONST text * client_id)
 {
-  void * p = CMemPoolX::instance()->alloc_mem_x(sizeof(MyDistClientOne));
+  DVOID * p = CMemPoolX::instance()->alloc_mem_x(sizeof(MyDistClientOne));
   MyDistClientOne * result = new (p) MyDistClientOne(this, client_id);
   dist_clients.push_back(result);
-  m_dist_client_ones_map.insert(std::pair<const char *, MyDistClientOne *>(result->client_id(), result));
+  m_dist_client_ones_map.insert(std::pair<const text *, MyDistClientOne *>(result->client_id(), result));
   return result;
 }
 
-void MyDistClients::delete_client_one(MyDistClientOne * dco)
+DVOID MyDistClients::delete_client_one(MyDistClientOne * dco)
 {
   m_dist_client_ones_map.erase(dco->client_id());
   CPoolObjectDeletor dlt;
   dlt(dco);
 }
 
-void MyDistClients::dist_files()
+DVOID MyDistClients::dist_files()
 {
   m_dist_client_finished = 0;
   MyDistClientOneList::iterator it;
@@ -2389,10 +2389,10 @@ MyClientFileDistributor::MyClientFileDistributor(): m_dist_clients(&m_dist_infos
   m_last_end = 0;
 }
 
-bool MyClientFileDistributor::distribute(bool check_reload)
+truefalse MyClientFileDistributor::distribute(truefalse check_reload)
 {
   time_t now = time(NULL);
-  bool reload = false;
+  truefalse reload = false;
   if (check_reload)
     reload = m_dist_infos.need_reload();
   else if (now - m_last_end < IDLE_TIME * 60)
@@ -2413,7 +2413,7 @@ bool MyClientFileDistributor::distribute(bool check_reload)
   return true;
 }
 
-bool MyClientFileDistributor::check_dist_info(bool reload)
+truefalse MyClientFileDistributor::check_dist_info(truefalse reload)
 {
   if (reload)
   {
@@ -2424,7 +2424,7 @@ bool MyClientFileDistributor::check_dist_info(bool reload)
   return true;
 }
 
-bool MyClientFileDistributor::check_dist_clients(bool reload)
+truefalse MyClientFileDistributor::check_dist_clients(truefalse reload)
 {
   if (reload)
   {
@@ -2437,7 +2437,7 @@ bool MyClientFileDistributor::check_dist_clients(bool reload)
   return true;
 }
 
-void MyClientFileDistributor::dist_ftp_file_reply(const char * client_id, const char * dist_id, int _status, bool ok)
+DVOID MyClientFileDistributor::dist_ftp_file_reply(CONST text * client_id, CONST text * dist_id, ni _status, truefalse ok)
 {
   MyDistClient * dc = m_dist_clients.find_dist_client(client_id, dist_id);
   if (unlikely(dc == NULL))
@@ -2455,14 +2455,14 @@ void MyClientFileDistributor::dist_ftp_file_reply(const char * client_id, const 
   }
 }
 
-void MyClientFileDistributor::dist_ftp_md5_reply(const char * client_id, const char * dist_id, const char * md5list)
+DVOID MyClientFileDistributor::dist_ftp_md5_reply(CONST text * client_id, CONST text * dist_id, CONST text * md5list)
 {
   MyDistClient * dc = m_dist_clients.find_dist_client(client_id, dist_id);
   if (likely(dc != NULL))
     dc->dist_ftp_md5_reply(md5list);
 }
 
-void MyClientFileDistributor::psp(const char * client_id, const char * dist_id, char c)
+DVOID MyClientFileDistributor::psp(CONST text * client_id, CONST text * dist_id, text c)
 {
   MyDistClient * dc = m_dist_clients.find_dist_client(client_id, dist_id);
   if (likely(dc != NULL))
@@ -2487,7 +2487,7 @@ MyHeartBeatProcessor::MyHeartBeatProcessor(CHandlerBase * handler): CServerProcB
   m_hw_ver[0] = 0;
 }
 
-const char * MyHeartBeatProcessor::name() const
+CONST text * MyHeartBeatProcessor::name() CONST
 {
   return "MyHeartBeatProcessor";
 }
@@ -2601,7 +2601,7 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_UI_CLICK)
   {
-    if (m_packet_header.length <= (int)sizeof(MyDataPacketHeader)
+    if (m_packet_header.length <= (ni)sizeof(MyDataPacketHeader)
         || m_packet_header.length >= 1 * 1024 * 1024
         || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
     {
@@ -2615,7 +2615,7 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_VLC)
   {
-    if (m_packet_header.length <= (int)sizeof(MyDataPacketHeader)
+    if (m_packet_header.length <= (ni)sizeof(MyDataPacketHeader)
         || m_packet_header.length >= 1 * 1024 * 1024
         || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
     {
@@ -2631,8 +2631,8 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_PC_ON_OFF)
   {
-    if (m_packet_header.length < (int)sizeof(MyDataPacketHeader) + 15 + 1 + 1
-        || m_packet_header.length > (int)sizeof(MyDataPacketHeader) + 30
+    if (m_packet_header.length < (ni)sizeof(MyDataPacketHeader) + 15 + 1 + 1
+        || m_packet_header.length > (ni)sizeof(MyDataPacketHeader) + 30
         || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
     {
       CMemGuard info;
@@ -2658,8 +2658,8 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
 
   if (m_packet_header.command == MyDataPacketHeader::CMD_PSP)
   {
-    if (m_packet_header.length < (int)sizeof(MyDataPacketHeader) + 10
-        || m_packet_header.length > (int)sizeof(MyDataPacketHeader) + 60
+    if (m_packet_header.length < (ni)sizeof(MyDataPacketHeader) + 10
+        || m_packet_header.length > (ni)sizeof(MyDataPacketHeader) + 60
         || m_packet_header.magic != MyDataPacketHeader::DATAPACKET_MAGIC)
     {
       CMemGuard info;
@@ -2677,7 +2677,7 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::on_recv_header()
   return ER_ERROR;
 }
 
-CProcBase::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(CMB * mb)
 {
   CServerProcBase::on_recv_packet_i(mb);
 
@@ -2728,13 +2728,13 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::on_recv_packet_i(ACE_Message_Block
   return ER_ERROR;
 }
 
-void MyHeartBeatProcessor::do_ping()
+DVOID MyHeartBeatProcessor::do_ping()
 {
 //  C_DEBUG(ACE_TEXT("got a heart beat from %s\n"), info_string().c_str());
   m_heart_beat_submitter->add_ping(m_client_id.as_string(), m_client_id_length);
 }
 
-CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_version_check(CMB * mb)
 {
   CMBGuard guard(mb);
   CClientIDS & client_id_table = MyServerAppX::instance()->client_id_table();
@@ -2750,7 +2750,7 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message_Block
   {
     MyClientVersionCheckRequest * vc = (MyClientVersionCheckRequest *)mb->base();
     if (vc->uuid[0] != 0)
-      ACE_OS::memcpy(m_peer_addr, vc->uuid, 16);
+      memcpy(m_peer_addr, vc->uuid, 16);
   }
 
   ACE_OS::strsncpy(m_hw_ver, ((MyClientVersionCheckRequest*)mb->base())->hw_ver, 12);
@@ -2771,7 +2771,7 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message_Block
   CClientInfo client_info;
   client_id_table.value_all(m_client_id_index, client_info);
 
-  ACE_Message_Block * reply_mb;
+  CMB * reply_mb;
   if (m_client_version < CCfgX::instance()->client_ver_min)
   {
     reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_MISMATCH, client_info.password_len + 2);
@@ -2795,7 +2795,7 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message_Block
 
   MyClientVersionCheckReply * vcr = (MyClientVersionCheckReply *) reply_mb->base();
   *((u_int8_t*)vcr->data) = CCfgX::instance()->dist_server_id;
-  ACE_OS::memcpy(vcr->data + 1, client_info.ftp_password, client_info.password_len + 1);
+  memcpy(vcr->data + 1, client_info.ftp_password, client_info.password_len + 1);
   if (m_handler->send_data(reply_mb) < 0)
     return ER_ERROR;
   return do_send_pq();
@@ -2806,17 +2806,17 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_send_pq()
   CMemGuard value;
   if (!MyServerAppX::instance()->heart_beat_module()->get_pl(value))
     return ER_OK;
-  int m = ACE_OS::strlen(value.data()) + 1;
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(m, MyDataPacketHeader::CMD_TQ);
+  ni m = strlen(value.data()) + 1;
+  CMB * mb = CMemPoolX::instance()->get_mb_cmd(m, MyDataPacketHeader::CMD_TQ);
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
-  ACE_OS::memcpy(dpe->data, value.data(), m);
+  memcpy(dpe->data, value.data(), m);
   if (m_handler->send_data(mb) < 0)
     return ER_ERROR;
   else
     return ER_OK;
 }
 
-CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_md5_file_list(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_md5_file_list(CMB * mb)
 {
   MyDataPacketExt * md5filelist = (MyDataPacketExt *)mb->base();
   if (unlikely(!md5filelist->guard()))
@@ -2837,7 +2837,7 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_md5_file_list(ACE_Message_Block
   return ER_OK;
 }
 
-CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(CMB * mb)
 {
   MyDataPacketExt * md5filelist = (MyDataPacketExt *)mb->base();
   if (unlikely(!md5filelist->guard()))
@@ -2847,7 +2847,7 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(ACE_Message_Block * m
     C_ERROR("bad ftp reply packet from %s\n", info.data());
     return ER_ERROR;
   }
-  ACE_Message_Block * mb_reply = CMemPoolX::instance()->get_mb_ack(mb);
+  CMB * mb_reply = CMemPoolX::instance()->get_mb_ack(mb);
 //  C_DEBUG("got one ftp reply packet, size = %d\n", mb->capacity());
   MyServerAppX::instance()->heart_beat_module()->service()->add_request(mb, true);
 
@@ -2858,14 +2858,14 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_ftp_reply(ACE_Message_Block * m
   return ER_OK;
 }
 
-CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_ip_ver_req(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_ip_ver_req(CMB * mb)
 {
   CMBGuard guard(mb);
   m_ip_ver_submitter->add_data(m_client_id.as_string(), m_client_id_length, m_peer_addr, m_client_version.to_string(), m_hw_ver);
   return ER_OK;
 }
 
-CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_adv_click_req(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_adv_click_req(CMB * mb)
 {
   CMBGuard guard(mb);
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
@@ -2877,22 +2877,22 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_adv_click_req(ACE_Message_Block
     return ER_ERROR;
   }
 
-  const char record_separator[] = {MyDataPacketHeader::FINISH_SEPARATOR, 0};
+  CONST text record_separator[] = {MyDataPacketHeader::FINISH_SEPARATOR, 0};
   CStringTokenizer tknz(dpe->data, record_separator);
-  char * record;
+  text * record;
   while ((record = tknz.get()) != NULL)
   {
-    const char separator[] = {MyDataPacketHeader::ITEM_SEPARATOR, 0};
+    CONST text separator[] = {MyDataPacketHeader::ITEM_SEPARATOR, 0};
     CStringTokenizer tknz_x(record, separator);
-    const char * chn = tknz_x.get();
-    const char * pcode = tknz_x.get();
-    const char * number;
+    CONST text * chn = tknz_x.get();
+    CONST text * pcode = tknz_x.get();
+    CONST text * number;
     if (unlikely(!pcode))
       continue;
     number = tknz_x.get();
     if (unlikely(!number))
       continue;
-    if (ACE_OS::strlen(number) >= 12)
+    if (strlen(number) >= 12)
       continue;
     m_adv_click_submitter->add_data(m_client_id.as_string(), m_client_id_length, chn, pcode, number);
   }
@@ -2900,7 +2900,7 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_adv_click_req(ACE_Message_Block
   return ER_OK;
 }
 
-CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_hardware_alarm_req(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_hardware_alarm_req(CMB * mb)
 {
   CMBGuard guard(mb);
   MyPLCAlarm * alarm = (MyPLCAlarm *) mb->base();
@@ -2913,13 +2913,13 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_hardware_alarm_req(ACE_Message_
     return ER_ERROR;
   }
 
-  char datetime[32];
+  text datetime[32];
   c_util_generate_time_string(datetime, 20, true);
   m_hardware_alarm_submitter->add_data(m_client_id.as_string(), m_client_id_length, alarm->x, alarm->y, datetime);
   return ER_OK;
 }
 
-CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_vlc_req(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_vlc_req(CMB * mb)
 {
   CMBGuard guard(mb);
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
@@ -2931,12 +2931,12 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_vlc_req(ACE_Message_Block * mb)
     return ER_ERROR;
   }
 
-  char separator[2] = {MyDataPacketHeader::ITEM_SEPARATOR, 0};
+  text separator[2] = {MyDataPacketHeader::ITEM_SEPARATOR, 0};
   CStringTokenizer tknizer(dpe->data, separator);
-  char * token;
+  text * token;
   while ((token = tknizer.get()) != NULL)
   {
-    char * ptr = ACE_OS::strchr(token, MyDataPacketHeader::MIDDLE_SEPARATOR);
+    text * ptr = strchr(token, MyDataPacketHeader::MIDDLE_SEPARATOR);
     if (!ptr)
       continue;
     *ptr ++ = 0;
@@ -2945,11 +2945,11 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_vlc_req(ACE_Message_Block * mb)
   return ER_OK;
 }
 
-CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_vlc_empty_req(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_vlc_empty_req(CMB * mb)
 {
   CMBGuard guard(mb);
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
-  char c = dpe->data[0];
+  text c = dpe->data[0];
   if (c != '1' && c != '0')
   {
     CMemGuard info;
@@ -2960,13 +2960,13 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_vlc_empty_req(ACE_Message_Block
   return ER_OK;
 }
 
-CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_psp(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_psp(CMB * mb)
 {
   MyServerAppX::instance()->heart_beat_module()->service()->add_request(mb, true);
   return ER_OK;
 }
 
-CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_pc_on_off_req(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_pc_on_off_req(CMB * mb)
 {
   CMBGuard guard(mb);
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
@@ -2988,7 +2988,7 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_pc_on_off_req(ACE_Message_Block
   return ER_OK;
 }
 
-CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_test(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_test(CMB * mb)
 {
 //  MyMessageBlockGuard guard(mb);
   C_DEBUG("playback test packet of %d bytes...\n", mb->length());
@@ -3005,7 +3005,7 @@ PREPARE_MEMORY_POOL(MyHeartBeatProcessor);
 
 //MyAccumulatorBlock//
 
-MyAccumulatorBlock::MyAccumulatorBlock(int block_size, int max_item_length, MyBaseSubmitter * submitter, bool auto_submit)
+MyAccumulatorBlock::MyAccumulatorBlock(ni block_size, ni max_item_length, MyBaseSubmitter * submitter, truefalse auto_submit)
 {
   m_block_size = block_size;
   m_max_item_length = max_item_length + 1;
@@ -3022,17 +3022,17 @@ MyAccumulatorBlock::~MyAccumulatorBlock()
     m_current_block->release();
 }
 
-void MyAccumulatorBlock::reset()
+DVOID MyAccumulatorBlock::reset()
 {
   m_current_ptr = m_current_block->base();
 }
 
-bool MyAccumulatorBlock::add(const char * item, int len)
+truefalse MyAccumulatorBlock::add(CONST text * item, ni len)
 {
   if (len == 0)
-    len = ACE_OS::strlen(item);
+    len = strlen(item);
   ++len;
-  int remain_len = m_block_size - (m_current_ptr - m_current_block->base());
+  ni remain_len = m_block_size - (m_current_ptr - m_current_block->base());
   if (unlikely(len > remain_len))
   {
     if (m_auto_submit)
@@ -3045,28 +3045,28 @@ bool MyAccumulatorBlock::add(const char * item, int len)
       return false;
     }
   }
-  ACE_OS::memcpy(m_current_ptr, item, len - 1);
+  memcpy(m_current_ptr, item, len - 1);
   m_current_ptr += len;
   *(m_current_ptr - 1) = ITEM_SEPARATOR;
   return (remain_len - len > m_max_item_length);
 }
 
-bool MyAccumulatorBlock::add(char c)
+truefalse MyAccumulatorBlock::add(text c)
 {
-  char buff[2];
+  text buff[2];
   buff[0] = c;
   buff[1] = 0;
   return add(buff, 1);
 }
 
-const char * MyAccumulatorBlock::data()
+CONST text * MyAccumulatorBlock::data()
 {
   return m_current_block->base();
 }
 
-int MyAccumulatorBlock::data_len() const
+ni MyAccumulatorBlock::data_len() CONST
 {
-  int result = (m_current_ptr - m_current_block->base());
+  ni result = (m_current_ptr - m_current_block->base());
   return std::max(result - 1, 0);
 }
 
@@ -3078,13 +3078,13 @@ MyBaseSubmitter::~MyBaseSubmitter()
 
 }
 
-void MyBaseSubmitter::submit()
+DVOID MyBaseSubmitter::submit()
 {
   do_submit(get_command());
   reset();
 }
 
-void MyBaseSubmitter::check_time_out()
+DVOID MyBaseSubmitter::check_time_out()
 {
   if ((*m_blocks.begin())->data_len() == 0)
     return;
@@ -3092,28 +3092,28 @@ void MyBaseSubmitter::check_time_out()
   submit();
 }
 
-void MyBaseSubmitter::add_block(MyAccumulatorBlock * block)
+DVOID MyBaseSubmitter::add_block(MyAccumulatorBlock * block)
 {
   m_blocks.push_back(block);
 }
 
-void MyBaseSubmitter::do_submit(const char * cmd)
+DVOID MyBaseSubmitter::do_submit(CONST text * cmd)
 {
   if (unlikely((*m_blocks.begin())->data_len() == 0))
     return;
   MyBlockList::iterator it;
 
-  int total_len = 0;
+  ni total_len = 0;
   for (it = m_blocks.begin(); it != m_blocks.end(); ++it)
     total_len += (*it)->data_len() + 1;
   --total_len;
 
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_bs(total_len, cmd);
-  char * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
+  CMB * mb = CMemPoolX::instance()->get_mb_bs(total_len, cmd);
+  text * dest = mb->base() + MyBSBasePacket::DATA_OFFSET;
   for (it = m_blocks.begin(); ; )
   {
-    int len = (*it)->data_len();
-    ACE_OS::memcpy(dest, (*it)->data(), len);
+    ni len = (*it)->data_len();
+    memcpy(dest, (*it)->data(), len);
     if (++it != m_blocks.end())
     {
       dest[len] = MyBSBasePacket::BS_PARAMETER_SEPARATOR;
@@ -3124,7 +3124,7 @@ void MyBaseSubmitter::do_submit(const char * cmd)
   MyServerAppX::instance()->dist_to_middle_module()->send_to_bs(mb);
 }
 
-void MyBaseSubmitter::reset()
+DVOID MyBaseSubmitter::reset()
 {
   std::for_each(m_blocks.begin(), m_blocks.end(), std::mem_fun(&MyAccumulatorBlock::reset));
 };
@@ -3144,14 +3144,14 @@ MyFtpFeedbackSubmitter::~MyFtpFeedbackSubmitter()
 
 }
 
-const char * MyFtpFeedbackSubmitter::get_command() const
+CONST text * MyFtpFeedbackSubmitter::get_command() CONST
 {
   return MY_BS_DIST_FEEDBACK_CMD;
 }
 
-void MyFtpFeedbackSubmitter::add(const char *dist_id, char ftype, const char *client_id, char step, char ok_flag, const char * date)
+DVOID MyFtpFeedbackSubmitter::add(CONST text *dist_id, text ftype, CONST text *client_id, text step, text ok_flag, CONST text * date)
 {
-  bool ret = true;
+  truefalse ret = true;
 
   if (!m_dist_id_block.add(dist_id))
     ret = false;
@@ -3183,7 +3183,7 @@ MyPingSubmitter::~MyPingSubmitter()
 
 }
 
-void MyPingSubmitter::add_ping(const char * client_id, const int len)
+DVOID MyPingSubmitter::add_ping(CONST text * client_id, CONST ni len)
 {
   if (unlikely(!client_id || !*client_id || len <= 0))
     return;
@@ -3191,7 +3191,7 @@ void MyPingSubmitter::add_ping(const char * client_id, const int len)
     submit();
 }
 
-const char * MyPingSubmitter::get_command() const
+CONST text * MyPingSubmitter::get_command() CONST
 {
   return MY_BS_HEART_BEAT_CMD;
 }
@@ -3209,10 +3209,10 @@ MyIPVerSubmitter::MyIPVerSubmitter():
 
 }
 
-void MyIPVerSubmitter::add_data(const char * client_id, int id_len, const char * ip, const char * ver, const char * hwver)
+DVOID MyIPVerSubmitter::add_data(CONST text * client_id, ni id_len, CONST text * ip, CONST text * ver, CONST text * hwver)
 {
   ACE_UNUSED_ARG(hwver);
-  bool ret = true;
+  truefalse ret = true;
   if (!m_id_block.add(client_id, id_len))
     ret = false;
   if (!m_ip_block.add(ip, 0))
@@ -3228,7 +3228,7 @@ void MyIPVerSubmitter::add_data(const char * client_id, int id_len, const char *
     submit();
 }
 
-const char * MyIPVerSubmitter::get_command() const
+CONST text * MyIPVerSubmitter::get_command() CONST
 {
   return MY_BS_IP_VER_CMD;
 }
@@ -3244,9 +3244,9 @@ MyPcOnOffSubmitter::MyPcOnOffSubmitter():
 
 }
 
-void MyPcOnOffSubmitter::add_data(const char * client_id, int id_len, const char c_on, const char * datetime)
+DVOID MyPcOnOffSubmitter::add_data(CONST text * client_id, ni id_len, CONST text c_on, CONST text * datetime)
 {
-  bool ret = true;
+  truefalse ret = true;
   if (!m_id_block.add(client_id, id_len))
     ret = false;
   if (!m_on_off_block.add(c_on))
@@ -3258,7 +3258,7 @@ void MyPcOnOffSubmitter::add_data(const char * client_id, int id_len, const char
     submit();
 }
 
-const char * MyPcOnOffSubmitter::get_command() const
+CONST text * MyPcOnOffSubmitter::get_command() CONST
 {
   return MY_BS_POWERON_LINK_CMD;
 }
@@ -3272,9 +3272,9 @@ MyAdvClickSubmitter::MyAdvClickSubmitter() : m_id_block(BLOCK_SIZE, sizeof(MyCli
 
 }
 
-void MyAdvClickSubmitter::add_data(const char * client_id, int id_len, const char * chn, const char * pcode, const char * number)
+DVOID MyAdvClickSubmitter::add_data(CONST text * client_id, ni id_len, CONST text * chn, CONST text * pcode, CONST text * number)
 {
-  bool ret = true;
+  truefalse ret = true;
   if (!m_id_block.add(client_id, id_len))
     ret = false;
   if (!m_chn_block.add(chn, 0))
@@ -3288,7 +3288,7 @@ void MyAdvClickSubmitter::add_data(const char * client_id, int id_len, const cha
     submit();
 }
 
-const char * MyAdvClickSubmitter::get_command() const
+CONST text * MyAdvClickSubmitter::get_command() CONST
 {
   return MY_BS_ADV_CLICK_CMD;
 }
@@ -3305,9 +3305,9 @@ MyHWAlarmSubmitter::MyHWAlarmSubmitter():
 
 }
 
-void MyHWAlarmSubmitter::add_data(const char * client_id, int id_len, const char x, const char y, const char * datetime)
+DVOID MyHWAlarmSubmitter::add_data(CONST text * client_id, ni id_len, CONST text x, CONST text y, CONST text * datetime)
 {
-  bool ret = true;
+  truefalse ret = true;
   if (!m_id_block.add(client_id, id_len))
     ret = false;
 
@@ -3320,7 +3320,7 @@ void MyHWAlarmSubmitter::add_data(const char * client_id, int id_len, const char
       ret = false;
   } else
   {
-    const char * _y = "00";
+    CONST text * _y = "00";
     if (y == '1')
       _y = "01";
     else if (y == '2')
@@ -3338,7 +3338,7 @@ void MyHWAlarmSubmitter::add_data(const char * client_id, int id_len, const char
     submit();
 }
 
-const char * MyHWAlarmSubmitter::get_command() const
+CONST text * MyHWAlarmSubmitter::get_command() CONST
 {
   return MY_BS_HARD_MON_CMD;
 }
@@ -3354,12 +3354,12 @@ MyVLCSubmitter::MyVLCSubmitter():
 
 }
 
-void MyVLCSubmitter::add_data(const char * client_id, int id_len, const char * fn, const char * number)
+DVOID MyVLCSubmitter::add_data(CONST text * client_id, ni id_len, CONST text * fn, CONST text * number)
 {
-  int fn_len = ACE_OS::strlen(fn);
+  ni fn_len = strlen(fn);
   if (fn_len >= 200)
     return;
-  bool ret = true;
+  truefalse ret = true;
   if (!m_id_block.add(client_id, id_len))
     ret = false;
   if (!m_fn_block.add(fn, fn_len))
@@ -3371,7 +3371,7 @@ void MyVLCSubmitter::add_data(const char * client_id, int id_len, const char * f
     submit();
 }
 
-const char * MyVLCSubmitter::get_command() const
+CONST text * MyVLCSubmitter::get_command() CONST
 {
   return MY_BS_VLC_CMD;
 }
@@ -3387,15 +3387,15 @@ MyVLCEmptySubmitter::MyVLCEmptySubmitter():
 
 }
 
-void MyVLCEmptySubmitter::add_data(const char * client_id, int id_len, const char state)
+DVOID MyVLCEmptySubmitter::add_data(CONST text * client_id, ni id_len, CONST text state)
 {
-  bool ret = true;
+  truefalse ret = true;
   if (!m_id_block.add(client_id, id_len))
     ret = false;
   if (!m_state_block.add(state))
     ret = false;
 
-  char datetime[32];
+  text datetime[32];
   c_util_generate_time_string(datetime, 20, true);
   if (!m_datetime_block.add(datetime))
     ret = false;
@@ -3404,7 +3404,7 @@ void MyVLCEmptySubmitter::add_data(const char * client_id, int id_len, const cha
     submit();
 }
 
-const char * MyVLCEmptySubmitter::get_command() const
+CONST text * MyVLCEmptySubmitter::get_command() CONST
 {
   return MY_BS_VLC_EMPTY_CMD;
 }
@@ -3417,7 +3417,7 @@ MyHeartBeatHandler::MyHeartBeatHandler(CConnectionManagerBase * xptr): CHandlerB
   m_processor = new MyHeartBeatProcessor(this);
 }
 
-CClientIDS * MyHeartBeatHandler::client_id_table() const
+CClientIDS * MyHeartBeatHandler::client_id_table() CONST
 {
   return g_client_ids;
 }
@@ -3427,24 +3427,24 @@ PREPARE_MEMORY_POOL(MyHeartBeatHandler);
 
 //MyHeartBeatService//
 
-MyHeartBeatService::MyHeartBeatService(CMod * module, int numThreads):
+MyHeartBeatService::MyHeartBeatService(CMod * module, ni numThreads):
     CTaskBase(module, numThreads)
 {
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
   m_queue2.high_water_mark(MSG_QUEUE_MAX_SIZE * 5);
 }
 
-bool MyHeartBeatService::add_request(ACE_Message_Block * mb, bool btail)
+truefalse MyHeartBeatService::add_request(CMB * mb, truefalse btail)
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);
-  int ret;
+  ni ret;
   if (btail)
     ret = this->msg_queue()->enqueue_tail(mb, &tv);
   else
     ret = this->msg_queue()->enqueue_head(mb, &tv);
   if (unlikely(ret < 0))
   {
-    C_ERROR("can not put message @MyHeartBeatService::add_request %s\n", (const char *)CErrno());
+    C_ERROR("can not put message @MyHeartBeatService::add_request %s\n", (CONST text *)CErrno());
     mb->release();
     return false;
   }
@@ -3452,12 +3452,12 @@ bool MyHeartBeatService::add_request(ACE_Message_Block * mb, bool btail)
   return true;
 }
 
-bool MyHeartBeatService::add_request_slow(ACE_Message_Block * mb)
+truefalse MyHeartBeatService::add_request_slow(CMB * mb)
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);
   if (unlikely(m_queue2.enqueue_tail(mb, &tv) < 0))
   {
-    C_ERROR("can not put message to MyHeartBeatService.m_queue2 %s\n", (const char *)CErrno());
+    C_ERROR("can not put message to MyHeartBeatService.m_queue2 %s\n", (CONST text *)CErrno());
     mb->release();
     return false;
   }
@@ -3465,21 +3465,21 @@ bool MyHeartBeatService::add_request_slow(ACE_Message_Block * mb)
   return true;
 }
 
-int MyHeartBeatService::svc()
+ni MyHeartBeatService::svc()
 {
   C_INFO("running %s::svc()\n", name());
-  ACE_Message_Block * mb;
+  CMB * mb;
   ACE_Time_Value tv(ACE_Time_Value::zero);
   while (MyServerAppX::instance()->running())
   {
-    bool idle = true;
+    truefalse idle = true;
     for (; this->msg_queue()->dequeue(mb, &tv) != -1; )
     {
       idle = false;
       CMBGuard guard(mb);
-      if (mb->capacity() == sizeof(int))
+      if (mb->capacity() == sizeof(ni))
       {
-        int cmd = *(int*)mb->base();
+        ni cmd = *(ni*)mb->base();
         if (cmd == TIMED_DIST_TASK)
         {
           m_distributor.distribute(false);
@@ -3522,12 +3522,12 @@ int MyHeartBeatService::svc()
   return 0;
 }
 
-void MyHeartBeatService::do_have_dist_task()
+DVOID MyHeartBeatService::do_have_dist_task()
 {
   m_distributor.distribute(true);
 }
 
-void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
+DVOID MyHeartBeatService::do_ftp_file_reply(CMB * mb)
 {
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
   MyClientID client_id;
@@ -3537,7 +3537,7 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
     return;
   } //todo: optimize: pass client_id directly from processor
 
-  int len = dpe->length - sizeof(MyDataPacketHeader);
+  ni len = dpe->length - sizeof(MyDataPacketHeader);
   if (unlikely(dpe->data[len - 5] != MyDataPacketHeader::ITEM_SEPARATOR))
   {
     C_ERROR("bad ftp file reply packet @%s::do_ftp_file_reply()\n", name());
@@ -3550,12 +3550,12 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
     return;
   }
 
-  const char * dist_id = dpe->data;
-  char ok = dpe->data[len - 4];
-  char recv_status = dpe->data[len - 3];
-  char ftype = dpe->data[len - 2];
-  char step = 0;
-  int status;
+  CONST text * dist_id = dpe->data;
+  text ok = dpe->data[len - 4];
+  text recv_status = dpe->data[len - 3];
+  text ftype = dpe->data[len - 2];
+  text step = 0;
+  ni status;
 
   if (unlikely(ok != '0' && ok != '1'))
   {
@@ -3603,7 +3603,7 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
 
   if ((ftype != 'x') && step != 0)
   {
-    char buff[32];
+    text buff[32];
     c_util_generate_time_string(buff, 32, true);
     ((MyHeartBeatModule *)module_x())->ftp_feedback_submitter().add(dist_id, ftype, client_id.as_string(), step, ok, buff);
     if (step == '3' && ok == '1')
@@ -3615,7 +3615,7 @@ void MyHeartBeatService::do_ftp_file_reply(ACE_Message_Block * mb)
   m_distributor.dist_ftp_file_reply(client_id.as_string(), dist_id, status, ok == '1');
 }
 
-void MyHeartBeatService::do_psp(ACE_Message_Block * mb)
+DVOID MyHeartBeatService::do_psp(CMB * mb)
 {
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
   MyClientID client_id;
@@ -3628,7 +3628,7 @@ void MyHeartBeatService::do_psp(ACE_Message_Block * mb)
   m_distributor.psp(client_id.as_string(), dpe->data + 1, dpe->data[0]);
 }
 
-void MyHeartBeatService::do_file_md5_reply(ACE_Message_Block * mb)
+DVOID MyHeartBeatService::do_file_md5_reply(CMB * mb)
 {
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
   MyClientID client_id;
@@ -3643,17 +3643,17 @@ void MyHeartBeatService::do_file_md5_reply(ACE_Message_Block * mb)
     C_ERROR("bad file md5 list reply packet @%s::do_file_md5_reply(), no dist_id\n", name());
     return;
   }
-  char * md5list = ACE_OS::strchr(dpe->data, MyDataPacketHeader::ITEM_SEPARATOR);
+  text * md5list = strchr(dpe->data, MyDataPacketHeader::ITEM_SEPARATOR);
   if (unlikely(!md5list))
   {
     C_ERROR("bad file md5 list reply packet @%s::do_file_md5_reply(), no dist_id mark\n", name());
     return;
   }
   *md5list ++ = 0;
-  const char * dist_id = dpe->data;
+  CONST text * dist_id = dpe->data;
 //  C_DEBUG("file md5 list from client_id(%s) dist_id(%s): %s\n", client_id.as_string(),
 //      dist_id, (*md5list? md5list: "(empty)"));
-  C_DEBUG("file md5 list from client_id(%s) dist_id(%s): len = %d\n", client_id.as_string(), dist_id, ACE_OS::strlen(md5list));
+  C_DEBUG("file md5 list from client_id(%s) dist_id(%s): len = %d\n", client_id.as_string(), dist_id, strlen(md5list));
 
   m_distributor.dist_ftp_md5_reply(client_id.as_string(), dist_id, md5list);
 }
@@ -3668,7 +3668,7 @@ MyHeartBeatAcceptor::MyHeartBeatAcceptor(CDispatchBase * _dispatcher, CConnectio
   m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 
-int MyHeartBeatAcceptor::make_svc_handler(CHandlerBase *& sh)
+ni MyHeartBeatAcceptor::make_svc_handler(CHandlerBase *& sh)
 {
   sh = new MyHeartBeatHandler(m_connection_manager);
   if (!sh)
@@ -3681,7 +3681,7 @@ int MyHeartBeatAcceptor::make_svc_handler(CHandlerBase *& sh)
   return 0;
 }
 
-const char * MyHeartBeatAcceptor::name() const
+CONST text * MyHeartBeatAcceptor::name() CONST
 {
   return "MyHeartBeatAcceptor";
 }
@@ -3689,7 +3689,7 @@ const char * MyHeartBeatAcceptor::name() const
 
 //MyHeartBeatDispatcher//
 
-MyHeartBeatDispatcher::MyHeartBeatDispatcher(CMod * pModule, int numThreads):
+MyHeartBeatDispatcher::MyHeartBeatDispatcher(CMod * pModule, ni numThreads):
     CDispatchBase(pModule, numThreads)
 {
   m_acceptor = NULL;
@@ -3697,23 +3697,23 @@ MyHeartBeatDispatcher::MyHeartBeatDispatcher(CMod * pModule, int numThreads):
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
-const char * MyHeartBeatDispatcher::name() const
+CONST text * MyHeartBeatDispatcher::name() CONST
 {
   return "MyHeartBeatDispatcher";
 }
 
-MyHeartBeatAcceptor * MyHeartBeatDispatcher::acceptor() const
+MyHeartBeatAcceptor * MyHeartBeatDispatcher::acceptor() CONST
 {
   return m_acceptor;
 }
 
-int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *act)
+ni MyHeartBeatDispatcher::handle_timeout(CONST ACE_Time_Value &tv, CONST DVOID *act)
 {
   ACE_UNUSED_ARG(tv);
   ACE_UNUSED_ARG(act);
   if ((long)act == CDispatchBase::TIMER_ID_BASE)
   {
-    ACE_Message_Block *mb;
+    CMB *mb;
     ACE_Time_Value nowait(ACE_Time_Value::zero);
     while (-1 != this->getq(mb, &nowait))
     {
@@ -3723,7 +3723,7 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
         mb->release();
         continue;
       }
-      int index = ((MyDataPacketHeader*)mb->base())->magic;
+      ni index = ((MyDataPacketHeader*)mb->base())->magic;
       CHandlerBase * handler = m_acceptor->connection_manager()->find_handler_by_index(index);
       if (!handler)
       {
@@ -3757,8 +3757,8 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
   }
   else if ((long)act == TIMER_ID_DIST_SERVICE)
   {
-    ACE_Message_Block * mb = CMemPoolX::instance()->get_mb(sizeof(int));
-    *(int*)mb->base() = MyHeartBeatService::TIMED_DIST_TASK;
+    CMB * mb = CMemPoolX::instance()->get_mb(sizeof(ni));
+    *(ni*)mb->base() = MyHeartBeatService::TIMED_DIST_TASK;
     MyServerAppX::instance()->heart_beat_module()->service()->add_request(mb, false);
   } else if ((long)act == TIMER_ID_ADV_CLICK)
   {
@@ -3771,17 +3771,17 @@ int MyHeartBeatDispatcher::handle_timeout(const ACE_Time_Value &tv, const void *
   return 0;
 }
 
-void MyHeartBeatDispatcher::on_stop()
+DVOID MyHeartBeatDispatcher::on_stop()
 {
   m_acceptor = NULL;
 }
 
-void MyHeartBeatDispatcher::on_stop_stage_1()
+DVOID MyHeartBeatDispatcher::on_stop_stage_1()
 {
 
 }
 
-bool MyHeartBeatDispatcher::on_start()
+truefalse MyHeartBeatDispatcher::on_start()
 {
   if (!m_acceptor)
     m_acceptor = new MyHeartBeatAcceptor(this, new CConnectionManagerBase());
@@ -3789,45 +3789,45 @@ bool MyHeartBeatDispatcher::on_start()
 
   {
     ACE_Time_Value interval(CLOCK_TICK_HEART_BEAT);
-    if (reactor()->schedule_timer(this, (const void*)TIMER_ID_HEART_BEAT, interval, interval) < 0)
+    if (reactor()->schedule_timer(this, (CONST void*)TIMER_ID_HEART_BEAT, interval, interval) < 0)
     {
-      C_ERROR("setup heart beat timer failed %s %s\n", name(), (const char*)CErrno());
+      C_ERROR("setup heart beat timer failed %s %s\n", name(), (CONST char*)CErrno());
       return false;
     }
   }
 
   {
     ACE_Time_Value interval(CLOCK_TICK_IP_VER);
-    if (reactor()->schedule_timer(this, (const void*)TIMER_ID_IP_VER, interval, interval) < 0)
+    if (reactor()->schedule_timer(this, (CONST void*)TIMER_ID_IP_VER, interval, interval) < 0)
     {
-      C_ERROR("setup heart beat timer failed %s %s\n", name(), (const char*)CErrno());
+      C_ERROR("setup heart beat timer failed %s %s\n", name(), (CONST char*)CErrno());
       return false;
     }
   }
 
   {
     ACE_Time_Value interval(CLOCK_TICK_FTP_FEEDBACK);
-    if (reactor()->schedule_timer(this, (const void*)TIMER_ID_FTP_FEEDBACK, interval, interval) < 0)
+    if (reactor()->schedule_timer(this, (CONST void*)TIMER_ID_FTP_FEEDBACK, interval, interval) < 0)
     {
-      C_ERROR("setup ftp feedback timer failed %s %s\n", name(), (const char*)CErrno());
+      C_ERROR("setup ftp feedback timer failed %s %s\n", name(), (CONST char*)CErrno());
       return false;
     }
   }
 
   {
     ACE_Time_Value interval(CLOCK_TICK_DIST_SERVICE * 60);
-    if (reactor()->schedule_timer(this, (const void*)TIMER_ID_DIST_SERVICE, interval, interval) < 0)
+    if (reactor()->schedule_timer(this, (CONST void*)TIMER_ID_DIST_SERVICE, interval, interval) < 0)
     {
-      C_ERROR("setup heart beat timer failed %s %s\n", name(), (const char*)CErrno());
+      C_ERROR("setup heart beat timer failed %s %s\n", name(), (CONST char*)CErrno());
       return false;
     }
   }
 
   {
     ACE_Time_Value interval(CLOCK_TICK_ADV_CLICK * 60);
-    if (reactor()->schedule_timer(this, (const void*)TIMER_ID_ADV_CLICK, interval, interval) < 0)
+    if (reactor()->schedule_timer(this, (CONST void*)TIMER_ID_ADV_CLICK, interval, interval) < 0)
     {
-      C_ERROR("setup adv click timer failed %s %s\n", name(), (const char*)CErrno());
+      C_ERROR("setup adv click timer failed %s %s\n", name(), (CONST char*)CErrno());
       return false;
     }
   }
@@ -3857,17 +3857,17 @@ MyHeartBeatModule::~MyHeartBeatModule()
 
 }
 
-MyHeartBeatDispatcher * MyHeartBeatModule::dispatcher() const
+MyHeartBeatDispatcher * MyHeartBeatModule::dispatcher() CONST
 {
   return m_dispatcher;
 }
 
-MyHeartBeatService * MyHeartBeatModule::service() const
+MyHeartBeatService * MyHeartBeatModule::service() CONST
 {
   return m_service;
 }
 
-int MyHeartBeatModule::num_active_clients() const
+ni MyHeartBeatModule::num_active_clients() CONST
 {
   if (unlikely(!m_dispatcher || !m_dispatcher->acceptor() || !m_dispatcher->acceptor()->connection_manager()))
     return 0xFFFFFF;
@@ -3879,7 +3879,7 @@ MyFtpFeedbackSubmitter & MyHeartBeatModule::ftp_feedback_submitter()
   return m_ftp_feedback_submitter;
 }
 
-void MyHeartBeatModule::pl()
+DVOID MyHeartBeatModule::pl()
 {
   CMemGuard value;
   if (!MyServerAppX::instance()->db().load_pl(value))
@@ -3888,7 +3888,7 @@ void MyHeartBeatModule::pl()
   m_pl.from_string(value.data());
 }
 
-bool MyHeartBeatModule::get_pl(CMemGuard & value)
+truefalse MyHeartBeatModule::get_pl(CMemGuard & value)
 {
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   if (!m_pl.data() || !*m_pl.data())
@@ -3897,19 +3897,19 @@ bool MyHeartBeatModule::get_pl(CMemGuard & value)
   return true;
 }
 
-const char * MyHeartBeatModule::name() const
+CONST text * MyHeartBeatModule::name() CONST
 {
   return "MyHeartBeatModule";
 }
 
-bool MyHeartBeatModule::on_start()
+truefalse MyHeartBeatModule::on_start()
 {
   add_task(m_service = new MyHeartBeatService(this, 1));
   add_dispatch(m_dispatcher = new MyHeartBeatDispatcher(this));
   return true;
 }
 
-void MyHeartBeatModule::on_stop()
+DVOID MyHeartBeatModule::on_stop()
 {
   m_service = NULL;
   m_dispatcher = NULL;
@@ -3927,19 +3927,19 @@ MyDistToBSProcessor::MyDistToBSProcessor(CHandlerBase * handler): super(handler)
   m_handler->msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
-const char * MyDistToBSProcessor::name() const
+CONST text * MyDistToBSProcessor::name() CONST
 {
   return "MyDistToBSProcessor";
 }
 
-CProcBase::EVENT_RESULT MyDistToBSProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyDistToBSProcessor::on_recv_packet_i(CMB * mb)
 {
   CMBGuard guard(mb);
 
   if (super::on_recv_packet_i(mb) != ER_OK)
     return ER_ERROR;
   MyBSBasePacket * bspacket = (MyBSBasePacket *) mb->base();
-  if (ACE_OS::memcmp(bspacket->cmd, MY_BS_IP_VER_CMD, sizeof(bspacket->cmd)) == 0)
+  if (memcmp(bspacket->cmd, MY_BS_IP_VER_CMD, sizeof(bspacket->cmd)) == 0)
     process_ip_ver_reply(bspacket);
 //  C_INFO("got a bs reply packet:%s\n", mb->base());
 
@@ -3948,43 +3948,43 @@ CProcBase::EVENT_RESULT MyDistToBSProcessor::on_recv_packet_i(ACE_Message_Block 
   return ER_OK;
 }
 
-void MyDistToBSProcessor::process_ip_ver_reply(MyBSBasePacket * bspacket)
+DVOID MyDistToBSProcessor::process_ip_ver_reply(MyBSBasePacket * bspacket)
 {
-  char separator[2] = {';', 0};
+  text separator[2] = {';', 0};
   CStringTokenizer tknizer(bspacket->data, separator);
-  char * token;
+  text * token;
   while ((token = tknizer.get()) != NULL)
     process_ip_ver_reply_one(token);
 }
 
-void MyDistToBSProcessor::process_ip_ver_reply_one(char * item)
+DVOID MyDistToBSProcessor::process_ip_ver_reply_one(text * item)
 {
-  char * id, * data;
+  text * id, * data;
   id = item;
   data = strchr(item, ':');
   if (unlikely(!data || data == item || *(data + 1) == 0))
     return;
   *data++ = 0;
-  bool client_valid = !(data[0] == '*' && data[1] == 0);
+  truefalse client_valid = !(data[0] == '*' && data[1] == 0);
   CClientIDS & id_table = MyServerAppX::instance()->client_id_table();
   MyClientID client_id(id);
-  int index;
+  ni index;
   if (unlikely(!id_table.mark_valid(client_id, client_valid, index)))
     MyServerAppX::instance()->db().mark_client_valid(id, client_valid);
 
   if (likely(client_valid))
   {
-    int len = ACE_OS::strlen(data) + 1;
-    ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(len, MyDataPacketHeader::CMD_IP_VER_REQ);
+    ni len = strlen(data) + 1;
+    CMB * mb = CMemPoolX::instance()->get_mb_cmd(len, MyDataPacketHeader::CMD_IP_VER_REQ);
     MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
-    ACE_OS::memcpy(dpe->data, data, len);
+    memcpy(dpe->data, data, len);
     dpe->magic = index;
     c_util_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "ip ver reply to dispatcher's queue");
   } else
   {
     if (index >= 0)
     {
-      ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd(0, MyDataPacketHeader::CMD_DISCONNECT_INTERNAL);
+      CMB * mb = CMemPoolX::instance()->get_mb_cmd(0, MyDataPacketHeader::CMD_DISCONNECT_INTERNAL);
       MyDataPacketExt * dpe = (MyDataPacketExt *) mb->base();
       dpe->magic = index;
       c_util_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "disconnect internal to dispatcher's queue");
@@ -4000,24 +4000,24 @@ MyDistToBSHandler::MyDistToBSHandler(CConnectionManagerBase * xptr): CHandlerBas
   m_processor = new MyDistToBSProcessor(this);
 }
 
-MyDistToMiddleModule * MyDistToBSHandler::module_x() const
+MyDistToMiddleModule * MyDistToBSHandler::module_x() CONST
 {
   return (MyDistToMiddleModule *)connector()->module_x();
 }
 
-void MyDistToBSHandler::checker_update()
+DVOID MyDistToBSHandler::checker_update()
 {
   m_checker.update();
 }
 
-int MyDistToBSHandler::handle_timeout(const ACE_Time_Value &, const void *)
+ni MyDistToBSHandler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
 {
   if (m_checker.expired())
   {
     C_ERROR("no data received from bs @MyDistToBSHandler ...\n");
     return -1;
   }
-  ACE_Message_Block * mb = my_get_hb_mb();
+  CMB * mb = my_get_hb_mb();
   if (mb)
   {
     if (send_data(mb) < 0)
@@ -4026,19 +4026,19 @@ int MyDistToBSHandler::handle_timeout(const ACE_Time_Value &, const void *)
   return 0;
 }
 
-int MyDistToBSHandler::on_open()
+ni MyDistToBSHandler::on_open()
 {
   ACE_Time_Value interval(30);
   if (reactor()->schedule_timer(this, (void*)0, interval, interval) < 0)
   {
-    C_ERROR(ACE_TEXT("MyDistToBSHandler setup timer failed, %s"), (const char*)CErrno());
+    C_ERROR(ACE_TEXT("MyDistToBSHandler setup timer failed, %s"), (CONST char*)CErrno());
     return -1;
   }
 
   if (!g_is_test)
     C_INFO("MyDistToBSHandler setup timer: OK\n");
 
-  ACE_Message_Block * mb = my_get_hb_mb();
+  CMB * mb = my_get_hb_mb();
   if (mb)
   {
     if (send_data(mb) < 0)
@@ -4050,7 +4050,7 @@ int MyDistToBSHandler::on_open()
 }
 
 
-void MyDistToBSHandler::on_close()
+DVOID MyDistToBSHandler::on_close()
 {
 
 }
@@ -4068,12 +4068,12 @@ MyDistToBSConnector::MyDistToBSConnector(CDispatchBase * _dispatcher, CConnectio
   m_tcp_addr = CCfgX::instance()->bs_addr;
 }
 
-const char * MyDistToBSConnector::name() const
+CONST text * MyDistToBSConnector::name() CONST
 {
   return "MyDistToBSConnector";
 }
 
-int MyDistToBSConnector::make_svc_handler(CHandlerBase *& sh)
+ni MyDistToBSConnector::make_svc_handler(CHandlerBase *& sh)
 {
   sh = new MyDistToBSHandler(m_connection_manager);
   if (!sh)
@@ -4101,7 +4101,7 @@ MyDistToMiddleProcessor::MyDistToMiddleProcessor(CHandlerBase * handler): CClien
   m_handler->msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
-int MyDistToMiddleProcessor::on_open()
+ni MyDistToMiddleProcessor::on_open()
 {
   if (super::on_open() < 0)
     return -1;
@@ -4119,7 +4119,7 @@ CProcBase::EVENT_RESULT MyDistToMiddleProcessor::on_recv_header()
   if (result != ER_CONTINUE)
     return ER_ERROR;
 
-  bool bVersionCheckReply = m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY; //m_version_check_reply_done
+  truefalse bVersionCheckReply = m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY; //m_version_check_reply_done
   if (bVersionCheckReply == m_version_check_reply_done)
   {
     C_ERROR(ACE_TEXT("unexpected packet header from dist server, version_check_reply_done = %d, "
@@ -4161,7 +4161,7 @@ CProcBase::EVENT_RESULT MyDistToMiddleProcessor::on_recv_header()
   return ER_ERROR;
 }
 
-CProcBase::EVENT_RESULT MyDistToMiddleProcessor::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyDistToMiddleProcessor::on_recv_packet_i(CMB * mb)
 {
   CFormatProcBase::on_recv_packet_i(mb);
 
@@ -4199,12 +4199,12 @@ CProcBase::EVENT_RESULT MyDistToMiddleProcessor::on_recv_packet_i(ACE_Message_Bl
   return ER_ERROR;
 }
 
-int MyDistToMiddleProcessor::send_server_load()
+ni MyDistToMiddleProcessor::send_server_load()
 {
   if (!m_version_check_reply_done)
     return 0;
 
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd_direct(sizeof(MyLoadBalanceRequest), MyDataPacketHeader::CMD_LOAD_BALANCE_REQ);
+  CMB * mb = CMemPoolX::instance()->get_mb_cmd_direct(sizeof(MyLoadBalanceRequest), MyDataPacketHeader::CMD_LOAD_BALANCE_REQ);
   MyLoadBalanceRequest * req = (MyLoadBalanceRequest *) mb->base();
   req->set_ip_addr(m_local_addr);
   req->clients_connected = MyServerAppX::instance()->heart_beat_module()->num_active_clients();
@@ -4212,12 +4212,12 @@ int MyDistToMiddleProcessor::send_server_load()
   return (m_handler->send_data(mb) < 0 ? -1: 0);
 }
 
-CProcBase::EVENT_RESULT MyDistToMiddleProcessor::do_version_check_reply(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyDistToMiddleProcessor::do_version_check_reply(CMB * mb)
 {
   CMBGuard guard(mb);
   m_version_check_reply_done = true;
 
-  const char * prefix_msg = "dist server version check reply:";
+  CONST text * prefix_msg = "dist server version check reply:";
   MyClientVersionCheckReply * vcr = (MyClientVersionCheckReply *) mb->base();
   switch (vcr->reply_code)
   {
@@ -4247,25 +4247,25 @@ CProcBase::EVENT_RESULT MyDistToMiddleProcessor::do_version_check_reply(ACE_Mess
 
 }
 
-CProcBase::EVENT_RESULT MyDistToMiddleProcessor::do_have_dist_task(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyDistToMiddleProcessor::do_have_dist_task(CMB * mb)
 {
   MyServerAppX::instance()->heart_beat_module()->service()->add_request(mb, false);
   return ER_OK;
 }
 
-CProcBase::EVENT_RESULT MyDistToMiddleProcessor::do_remote_cmd_task(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT MyDistToMiddleProcessor::do_remote_cmd_task(CMB * mb)
 {
   CMBGuard guard(mb);
   return ER_OK;
 }
 
-int MyDistToMiddleProcessor::send_version_check_req()
+ni MyDistToMiddleProcessor::send_version_check_req()
 {
-  ACE_Message_Block * mb = make_version_check_request_mb();
+  CMB * mb = make_version_check_request_mb();
   MyClientVersionCheckRequest * proc = (MyClientVersionCheckRequest *)mb->base();
   proc->client_version_major = 1;
   proc->client_version_minor = 0;
-  proc->client_id = CCfgX::instance()->middle_server_key.c_str();
+  proc->client_id = CCfgX::instance()->skey.c_str();
   proc->server_id = CCfgX::instance()->dist_server_id;
   C_INFO("sending handshake request to middle server...\n");
   return (m_handler->send_data(mb) < 0? -1: 0);
@@ -4280,26 +4280,26 @@ MyDistToMiddleHandler::MyDistToMiddleHandler(CConnectionManagerBase * xptr): CHa
   m_load_balance_req_timer_id = -1;
 }
 
-void MyDistToMiddleHandler::setup_timer()
+DVOID MyDistToMiddleHandler::setup_timer()
 {
   ACE_Time_Value tv_start(ACE_Time_Value::zero);
   ACE_Time_Value interval(LOAD_BALANCE_REQ_INTERVAL * 60);
   m_load_balance_req_timer_id = reactor()->schedule_timer(this, (void*)LOAD_BALANCE_REQ_TIMER, tv_start, interval);
   if (m_load_balance_req_timer_id < 0)
-    C_ERROR(ACE_TEXT("MyDistToMiddleHandler setup load balance req timer failed, %s"), (const char*)CErrno());
+    C_ERROR(ACE_TEXT("MyDistToMiddleHandler setup load balance req timer failed, %s"), (CONST char*)CErrno());
 }
 
-MyDistToMiddleModule * MyDistToMiddleHandler::module_x() const
+MyDistToMiddleModule * MyDistToMiddleHandler::module_x() CONST
 {
   return (MyDistToMiddleModule *)connector()->module_x();
 }
 
-int MyDistToMiddleHandler::on_open()
+ni MyDistToMiddleHandler::on_open()
 {
   return 0;
 }
 
-int MyDistToMiddleHandler::handle_timeout(const ACE_Time_Value &current_time, const void *act)
+ni MyDistToMiddleHandler::handle_timeout(CONST ACE_Time_Value &current_time, CONST DVOID *act)
 {
   ACE_UNUSED_ARG(current_time);
   if (long(act) == LOAD_BALANCE_REQ_TIMER)
@@ -4313,7 +4313,7 @@ int MyDistToMiddleHandler::handle_timeout(const ACE_Time_Value &current_time, co
   }
 }
 
-void MyDistToMiddleHandler::on_close()
+DVOID MyDistToMiddleHandler::on_close()
 {
   if (m_load_balance_req_timer_id >= 0)
     reactor()->cancel_timer(m_load_balance_req_timer_id);
@@ -4333,12 +4333,12 @@ MyDistToMiddleConnector::MyDistToMiddleConnector(CDispatchBase * _dispatcher, CC
   m_tcp_addr = CCfgX::instance()->middle_addr;
 }
 
-const char * MyDistToMiddleConnector::name() const
+CONST text * MyDistToMiddleConnector::name() CONST
 {
   return "MyDistToMiddleConnector";
 }
 
-int MyDistToMiddleConnector::make_svc_handler(CHandlerBase *& sh)
+ni MyDistToMiddleConnector::make_svc_handler(CHandlerBase *& sh)
 {
   sh = new MyDistToMiddleHandler(m_connection_manager);
   if (!sh)
@@ -4355,7 +4355,7 @@ int MyDistToMiddleConnector::make_svc_handler(CHandlerBase *& sh)
 
 //MyDistToMiddleDispatcher//
 
-MyDistToMiddleDispatcher::MyDistToMiddleDispatcher(CMod * pModule, int numThreads):
+MyDistToMiddleDispatcher::MyDistToMiddleDispatcher(CMod * pModule, ni numThreads):
     CDispatchBase(pModule, numThreads)
 {
   m_connector = NULL;
@@ -4369,17 +4369,17 @@ MyDistToMiddleDispatcher::~MyDistToMiddleDispatcher()
 
 }
 
-void MyDistToMiddleDispatcher::on_stop_stage_1()
+DVOID MyDistToMiddleDispatcher::on_stop_stage_1()
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);
-  ACE_Message_Block * mb;
+  CMB * mb;
   while (m_to_bs_queue.dequeue(mb, &tv) != -1)
     mb->release();
   while (this->msg_queue()->dequeue(mb, &tv) != -1)
     mb->release();
 }
 
-bool MyDistToMiddleDispatcher::on_start()
+truefalse MyDistToMiddleDispatcher::on_start()
 {
   if (!m_connector)
     m_connector = new MyDistToMiddleConnector(this, new CConnectionManagerBase());
@@ -4390,41 +4390,41 @@ bool MyDistToMiddleDispatcher::on_start()
   return true;
 }
 
-bool MyDistToMiddleDispatcher::on_event_loop()
+truefalse MyDistToMiddleDispatcher::on_event_loop()
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);
-  ACE_Message_Block * mb;
-  const int const_max_count = 10;
-  int i = 0;
-  while (++i < const_max_count && this->getq(mb, &tv) != -1)
+  CMB * mb;
+  CONST ni CONST_max_count = 10;
+  ni i = 0;
+  while (++i < CONST_max_count && this->getq(mb, &tv) != -1)
     m_connector->connection_manager()->broadcast(mb);
 
   tv = ACE_Time_Value::zero;
   i = 0;
-  while (++i < const_max_count && m_to_bs_queue.dequeue(mb, &tv) != -1)
+  while (++i < CONST_max_count && m_to_bs_queue.dequeue(mb, &tv) != -1)
     m_bs_connector->connection_manager()->broadcast(mb);
 
   return true;
 }
 
-const char * MyDistToMiddleDispatcher::name() const
+CONST text * MyDistToMiddleDispatcher::name() CONST
 {
   return "MyDistToMiddleDispatcher";
 }
 
-void MyDistToMiddleDispatcher::send_to_bs(ACE_Message_Block * mb)
+DVOID MyDistToMiddleDispatcher::send_to_bs(CMB * mb)
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);
   if (m_to_bs_queue.enqueue(mb, &tv) < 0)
     mb->release();
 }
 
-void MyDistToMiddleDispatcher::send_to_middle(ACE_Message_Block * mb)
+DVOID MyDistToMiddleDispatcher::send_to_middle(CMB * mb)
 {
   c_util_mb_putq(this, mb, "@ MyDistToMiddleDispatcher::send_to_middle");
 }
 
-void MyDistToMiddleDispatcher::on_stop()
+DVOID MyDistToMiddleDispatcher::on_stop()
 {
   m_connector = NULL;
   m_bs_connector = NULL;
@@ -4443,28 +4443,28 @@ MyDistToMiddleModule::~MyDistToMiddleModule()
 
 }
 
-const char * MyDistToMiddleModule::name() const
+CONST text * MyDistToMiddleModule::name() CONST
 {
   return "MyDistToMiddleModule";
 }
 
-void MyDistToMiddleModule::send_to_bs(ACE_Message_Block * mb)
+DVOID MyDistToMiddleModule::send_to_bs(CMB * mb)
 {
   m_dispatcher->send_to_bs(mb);
 }
 
-void MyDistToMiddleModule::send_to_middle(ACE_Message_Block * mb)
+DVOID MyDistToMiddleModule::send_to_middle(CMB * mb)
 {
   m_dispatcher->send_to_middle(mb);
 }
 
-bool MyDistToMiddleModule::on_start()
+truefalse MyDistToMiddleModule::on_start()
 {
   add_dispatch(m_dispatcher = new MyDistToMiddleDispatcher(this));
   return true;
 }
 
-void MyDistToMiddleModule::on_stop()
+DVOID MyDistToMiddleModule::on_stop()
 {
   m_dispatcher = NULL;
 }
@@ -4472,7 +4472,7 @@ void MyDistToMiddleModule::on_stop()
 
 //!//database
 
-const char * CONST_db_name = "acedb";
+CONST text * CONST_db_name = "acedb";
 
 //this class is internal for implementation only. invisible outside of dbmodule
 class MyPGResultGuard
@@ -4486,8 +4486,8 @@ public:
   }
 
 private:
-  MyPGResultGuard(const MyPGResultGuard &);
-  MyPGResultGuard & operator = (const MyPGResultGuard &);
+  MyPGResultGuard(CONST MyPGResultGuard &);
+  MyPGResultGuard & operator = (CONST MyPGResultGuard &);
 
   PGresult * m_result;
 };
@@ -4505,15 +4505,15 @@ MyDB::~MyDB()
   disconnect();
 }
 
-time_t MyDB::get_time_from_string(const char * s)
+time_t MyDB::get_time_from_string(CONST text * s)
 {
-  static time_t _current = time(NULL);
-  const time_t const_longevity = const_one_year * 10;
+  SF time_t _current = time(NULL);
+  CONST time_t CONST_longevity = CONST_one_year * 10;
 
   if (unlikely(!s || !*s))
     return 0;
   struct tm _tm;
-  int ret = sscanf(s, "%04d-%02d-%02d %02d:%02d:%02d", &_tm.tm_year, &_tm.tm_mon, &_tm.tm_mday,
+  ni ret = sscanf(s, "%04d-%02d-%02d %02d:%02d:%02d", &_tm.tm_year, &_tm.tm_mon, &_tm.tm_mday,
       &_tm.tm_hour, &_tm.tm_min, &_tm.tm_sec);
   _tm.tm_year -= 1900;
   _tm.tm_mon -= 1;
@@ -4522,26 +4522,26 @@ time_t MyDB::get_time_from_string(const char * s)
     return 0;
 
   time_t result = mktime(&_tm);
-  if (result + const_longevity < _current || _current + const_longevity < result)
+  if (result + CONST_longevity < _current || _current + CONST_longevity < result)
     return 0;
 
   return result;
 }
 
-bool MyDB::connect()
+truefalse MyDB::connect()
 {
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   if (connected())
     return true;
   CCfg * cfg = CCfgX::instance();
-  const char * connect_str_template = "hostaddr=%s port=%d user='%s' password='%s' dbname=acedb";
-  const int STRING_LEN = 1024;
-  char connect_str[STRING_LEN];
-  ACE_OS::snprintf(connect_str, STRING_LEN - 1, connect_str_template,
+  CONST text * connect_str_template = "hostaddr=%s port=%d user='%s' password='%s' dbname=acedb";
+  CONST ni STRING_LEN = 1024;
+  text connect_str[STRING_LEN];
+  snprintf(connect_str, STRING_LEN - 1, connect_str_template,
       cfg->db_addr.c_str(), cfg->db_port, cfg->db_name.c_str(), cfg->db_password.c_str());
   m_connection = PQconnectdb(connect_str);
   C_INFO("start connecting to database\n");
-  bool result = (PQstatus(m_connection) == CONNECTION_OK);
+  truefalse result = (PQstatus(m_connection) == CONNECTION_OK);
   if (!result)
   {
     C_ERROR("connect to database failed, msg = %s\n", PQerrorMessage(m_connection));
@@ -4553,15 +4553,15 @@ bool MyDB::connect()
   return result;
 }
 
-bool MyDB::ping_db_server()
+truefalse MyDB::ping_db_server()
 {
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  const char * select_sql = "select ('now'::text)::timestamp(0) without time zone";
+  CONST text * select_sql = "select ('now'::text)::timestamp(0) without time zone";
   exec_command(select_sql);
   return check_db_connection();
 }
 
-bool MyDB::check_db_connection()
+truefalse MyDB::check_db_connection()
 {
   if (unlikely(!connected()))
     return false;
@@ -4581,7 +4581,7 @@ bool MyDB::check_db_connection()
   return true;
 }
 
-void MyDB::disconnect()
+DVOID MyDB::disconnect()
 {
   if (connected())
   {
@@ -4590,27 +4590,27 @@ void MyDB::disconnect()
   }
 }
 
-bool MyDB::connected() const
+truefalse MyDB::connected() CONST
 {
   return m_connection != NULL;
 }
 
-bool MyDB::begin_transaction()
+truefalse MyDB::begin_transaction()
 {
   return exec_command("BEGIN");
 }
 
-bool MyDB::commit()
+truefalse MyDB::commit()
 {
   return exec_command("COMMIT");
 }
 
-bool MyDB::rollback()
+truefalse MyDB::rollback()
 {
   return exec_command("ROLLBACK");
 }
 
-void MyDB::wrap_str(const char * s, CMemGuard & wrapped) const
+DVOID MyDB::wrap_str(CONST text * s, CMemGuard & wrapped) CONST
 {
   if (!s || !*s)
     wrapped.from_string("null");
@@ -4620,7 +4620,7 @@ void MyDB::wrap_str(const char * s, CMemGuard & wrapped) const
 
 time_t MyDB::get_db_time_i()
 {
-  const char * CONST_select_sql = "select ('now'::text)::timestamp(0) without time zone";
+  CONST text * CONST_select_sql = "select ('now'::text)::timestamp(0) without time zone";
   PGresult * pres = PQexec(m_connection, CONST_select_sql);
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
@@ -4633,7 +4633,7 @@ time_t MyDB::get_db_time_i()
   return get_time_from_string(PQgetvalue(pres, 0, 0));
 }
 
-bool MyDB::exec_command(const char * sql_command, int * affected)
+truefalse MyDB::exec_command(CONST text * sql_command, ni * affected)
 {
   if (unlikely(!sql_command || !*sql_command))
     return false;
@@ -4647,7 +4647,7 @@ bool MyDB::exec_command(const char * sql_command, int * affected)
   {
     if (affected)
     {
-      const char * s = PQcmdTuples(pres);
+      CONST text * s = PQcmdTuples(pres);
       if (!s || !*s)
         *affected = 0;
       else
@@ -4657,14 +4657,14 @@ bool MyDB::exec_command(const char * sql_command, int * affected)
   }
 }
 
-bool MyDB::get_client_ids(CClientIDS * id_table)
+truefalse MyDB::get_client_ids(CClientIDS * id_table)
 {
   C_ASSERT_RETURN(id_table != NULL, "null id_table @MyDB::get_client_ids\n", false);
 
-  const char * CONST_select_sql_template = "select client_id, client_password, client_expired, auto_seq "
+  CONST text * CONST_select_sql_template = "select client_id, client_password, client_expired, auto_seq "
                                            "from tb_clients where auto_seq > %d order by auto_seq";
-  char select_sql[1024];
-  ACE_OS::snprintf(select_sql, 1024 - 1, CONST_select_sql_template, id_table->last_sequence());
+  text select_sql[1024];
+  snprintf(select_sql, 1024 - 1, CONST_select_sql_template, id_table->last_sequence());
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   PGresult * pres = PQexec(m_connection, select_sql);
@@ -4674,19 +4674,19 @@ bool MyDB::get_client_ids(CClientIDS * id_table)
     C_ERROR("MyDB::sql (%s) failed: %s\n", select_sql, PQerrorMessage(m_connection));
     return false;
   }
-  int count = PQntuples(pres);
+  ni count = PQntuples(pres);
   if (count > 0)
   {
     id_table->prepare_space(count);
-    bool expired;
-    const char * p;
-    for (int i = 0; i < count; ++i)
+    truefalse expired;
+    CONST text * p;
+    for (ni i = 0; i < count; ++i)
     {
       p = PQgetvalue(pres, i, 2);
       expired = p && (*p == 't' || *p == 'T');
       id_table->add(PQgetvalue(pres, i, 0), PQgetvalue(pres, i, 1), expired);
     }
-    int last_seq = atoi(PQgetvalue(pres, count - 1, 1));
+    ni last_seq = atoi(PQgetvalue(pres, count - 1, 1));
     id_table->last_sequence(last_seq);
   }
 
@@ -4694,35 +4694,35 @@ bool MyDB::get_client_ids(CClientIDS * id_table)
   return true;
 }
 
-bool MyDB::save_client_id(const char * s)
+truefalse MyDB::save_client_id(CONST text * s)
 {
   MyClientID id = s;
   id.trim_tail_space();
   if (id.as_string()[0] == 0)
     return false;
 
-  const char * insert_sql_template = "insert into tb_clients(client_id) values('%s')";
-  char insert_sql[1024];
-  ACE_OS::snprintf(insert_sql, 1024, insert_sql_template, id.as_string());
+  CONST text * insert_sql_template = "insert into tb_clients(client_id) values('%s')";
+  text insert_sql[1024];
+  snprintf(insert_sql, 1024, insert_sql_template, id.as_string());
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(insert_sql);
 }
 
-bool MyDB::save_dist(MyHttpDistRequest & http_dist_request, const char * md5, const char * mbz_md5)
+truefalse MyDB::save_dist(MyHttpDistRequest & http_dist_request, CONST text * md5, CONST text * mbz_md5)
 {
-  const char * insert_sql_template = "insert into tb_dist_info("
+  CONST text * insert_sql_template = "insert into tb_dist_info("
                "dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
                "dist_ftype, dist_password, dist_md5, dist_mbz_md5) "
                "values('%s', '%s', %s, '%s', '%s', '%s', '%s', '%s', '%s')";
-  const char * _md5 = md5 ? md5 : "";
-  const char * _mbz_md5 = mbz_md5 ? mbz_md5 : "";
-  int len = ACE_OS::strlen(insert_sql_template) + ACE_OS::strlen(_md5) + ACE_OS::strlen(_mbz_md5) + 2000;
+  CONST text * _md5 = md5 ? md5 : "";
+  CONST text * _mbz_md5 = mbz_md5 ? mbz_md5 : "";
+  ni len = strlen(insert_sql_template) + strlen(_md5) + strlen(_mbz_md5) + 2000;
   CMemGuard sql;
   CMemPoolX::instance()->alloc_mem(len, &sql);
   CMemGuard aindex;
   wrap_str(http_dist_request.aindex, aindex);
-  ACE_OS::snprintf(sql.data(), len - 1, insert_sql_template,
+  snprintf(sql.data(), len - 1, insert_sql_template,
       http_dist_request.ver, http_dist_request.type, aindex.data(),
       http_dist_request.findex, http_dist_request.fdir,
       http_dist_request.ftype, http_dist_request.password, _md5, _mbz_md5);
@@ -4731,22 +4731,22 @@ bool MyDB::save_dist(MyHttpDistRequest & http_dist_request, const char * md5, co
   return exec_command(sql.data());
 }
 
-bool MyDB::save_sr(char * dids, const char * cmd, char * idlist)
+truefalse MyDB::save_sr(text * dids, CONST text * cmd, text * idlist)
 {
-  const char * sql_tpl = "update tb_dist_clients set dc_status = %d where dc_dist_id = '%s' and dc_client_id = '%s'";
-  int status = *cmd == '1'? 5: 7;
+  CONST text * sql_tpl = "update tb_dist_clients set dc_status = %d where dc_dist_id = '%s' and dc_client_id = '%s'";
+  ni status = *cmd == '1'? 5: 7;
 
-  char sql[1024];
+  text sql[1024];
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
 
-  char separator[2] = {';', 0};
-  const int BATCH_COUNT = 20;
-  int i = 0, total = 0, ok = 0;
+  text separator[2] = {';', 0};
+  CONST ni BATCH_COUNT = 20;
+  ni i = 0, total = 0, ok = 0;
   CStringTokenizer client_ids(idlist, separator);
   CStringTokenizer dist_ids(dids, separator);
   std::list<char *> l_client_ids, l_dist_ids;
-  char * client_id, *dist_id;
+  text * client_id, *dist_id;
   while ((client_id = client_ids.get()) != NULL)
     l_client_ids.push_back(client_id);
   while((dist_id = dist_ids.get()) != NULL)
@@ -4767,7 +4767,7 @@ bool MyDB::save_sr(char * dids, const char * cmd, char * idlist)
           return false;
         }
       }
-      ACE_OS::snprintf(sql, 1024, sql_tpl, status, dist_id, client_id);
+      snprintf(sql, 1024, sql_tpl, status, dist_id, client_id);
       exec_command(sql);
       ++i;
       if (i == BATCH_COUNT)
@@ -4797,31 +4797,31 @@ bool MyDB::save_sr(char * dids, const char * cmd, char * idlist)
   return true;
 }
 
-bool MyDB::save_prio(const char * prio)
+truefalse MyDB::save_prio(CONST text * prio)
 {
   if (!prio || !*prio)
     return false;
-  char sql[2048];
-  const char * sql_template = "update tb_config set cfg_value = '%s' where cfg_id = 2";
-  ACE_OS::snprintf(sql, 2048, sql_template, prio);
+  text sql[2048];
+  CONST text * sql_template = "update tb_config set cfg_value = '%s' where cfg_id = 2";
+  snprintf(sql, 2048, sql_template, prio);
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql);
 }
 
-bool MyDB::save_dist_clients(char * idlist, char * adirlist, const char * dist_id)
+truefalse MyDB::save_dist_clients(text * idlist, text * adirlist, CONST text * dist_id)
 {
-  const char * insert_sql_template1 = "insert into tb_dist_clients(dc_dist_id, dc_client_id, dc_adir) values('%s', '%s', '%s')";
-  const char * insert_sql_template2 = "insert into tb_dist_clients(dc_dist_id, dc_client_id) values('%s', '%s')";
-  char insert_sql[2048];
+  CONST text * insert_sql_template1 = "insert into tb_dist_clients(dc_dist_id, dc_client_id, dc_adir) values('%s', '%s', '%s')";
+  CONST text * insert_sql_template2 = "insert into tb_dist_clients(dc_dist_id, dc_client_id) values('%s', '%s')";
+  text insert_sql[2048];
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
 
-  char separator[2] = {';', 0};
-  const int BATCH_COUNT = 20;
-  int i = 0, total = 0, ok = 0;
+  text separator[2] = {';', 0};
+  CONST ni BATCH_COUNT = 20;
+  ni i = 0, total = 0, ok = 0;
   CStringTokenizer client_ids(idlist, separator);
   CStringTokenizer adirs(adirlist, separator);
-  char * client_id, * adir;
+  text * client_id, * adir;
   while ((client_id = client_ids.get()) != NULL)
   {
     adir = adirs.get();
@@ -4835,9 +4835,9 @@ bool MyDB::save_dist_clients(char * idlist, char * adirlist, const char * dist_i
       }
     }
     if (adir)
-      ACE_OS::snprintf(insert_sql, 2048, insert_sql_template1, dist_id, client_id, adir);
+      snprintf(insert_sql, 2048, insert_sql_template1, dist_id, client_id, adir);
     else
-      ACE_OS::snprintf(insert_sql, 2048, insert_sql_template2, dist_id, client_id);
+      snprintf(insert_sql, 2048, insert_sql_template2, dist_id, client_id);
     exec_command(insert_sql);
     ++i;
     if (i == BATCH_COUNT)
@@ -4867,22 +4867,22 @@ bool MyDB::save_dist_clients(char * idlist, char * adirlist, const char * dist_i
   return true;
 }
 
-bool MyDB::save_dist_cmp_done(const char *dist_id)
+truefalse MyDB::save_dist_cmp_done(CONST text *dist_id)
 {
   if (unlikely(!dist_id || !*dist_id))
     return false;
 
-  const char * update_sql_template = "update tb_dist_info set dist_cmp_done = 1 where dist_id='%s'";
-  char insert_sql[1024];
-  ACE_OS::snprintf(insert_sql, 1024, update_sql_template, dist_id);
+  CONST text * update_sql_template = "update tb_dist_info set dist_cmp_done = 1 where dist_id='%s'";
+  text insert_sql[1024];
+  snprintf(insert_sql, 1024, update_sql_template, dist_id);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(insert_sql);
 }
 
-int MyDB::load_dist_infos(MyHttpDistInfos & infos)
+ni MyDB::load_dist_infos(MyHttpDistInfos & infos)
 {
-  const char * CONST_select_sql = "select dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
+  CONST text * CONST_select_sql = "select dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
                                   " dist_ftype, dist_time, dist_password, dist_mbz_md5, dist_md5"
                                    " from tb_dist_info order by dist_time";
 //      "select *, ((('now'::text)::timestamp(0) without time zone - dist_cmp_time > interval '00:10:10') "
@@ -4901,8 +4901,8 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
     return -1;
   }
 
-  int count = PQntuples(pres);
-  int field_count = PQnfields(pres);
+  ni count = PQntuples(pres);
+  ni field_count = PQnfields(pres);
   if (unlikely(field_count != 10))
   {
     C_ERROR("incorrect column count(%d) @MyDB::load_dist_infos\n", field_count);
@@ -4910,13 +4910,13 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
   }
 
   infos.prepare_update(count);
-  for (int i = 0; i < count; ++ i)
+  for (ni i = 0; i < count; ++ i)
   {
     MyHttpDistInfo * info = infos.create_http_dist_info(PQgetvalue(pres, i, 0));
 
-    for (int j = 0; j < field_count; ++j)
+    for (ni j = 0; j < field_count; ++j)
     {
-      const char * fvalue = PQgetvalue(pres, i, j);
+      CONST text * fvalue = PQgetvalue(pres, i, j);
       if (!fvalue || !*fvalue)
         continue;
 
@@ -4927,19 +4927,19 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
       else if (j == 3)
       {
         info->findex.from_string(fvalue);
-        info->findex_len = ACE_OS::strlen(fvalue);
+        info->findex_len = strlen(fvalue);
       }
       else if (j == 9)
       {
         info->md5.from_string(fvalue);
-        info->md5_len = ACE_OS::strlen(fvalue);
+        info->md5_len = strlen(fvalue);
       }
       else if (j == 1)
         info->type[0] = *fvalue;
       else if (j == 7)
       {
         info->password.from_string(fvalue);
-        info->password_len = ACE_OS::strlen(fvalue);
+        info->password_len = strlen(fvalue);
       }
       else if (j == 6)
       {
@@ -4948,7 +4948,7 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
       else if (j == 2)
       {
         info->aindex.from_string(fvalue);
-        info->aindex_len = ACE_OS::strlen(fvalue);
+        info->aindex_len = strlen(fvalue);
       }
       else if (j == 8)
         info->mbz_md5.from_string(fvalue);
@@ -4961,50 +4961,50 @@ int MyDB::load_dist_infos(MyHttpDistInfos & infos)
   return count;
 }
 
-//bool MyDB::dist_take_cmp_ownership(MyHttpDistInfo * info)
+//truefalse MyDB::dist_take_cmp_ownership(MyHttpDistInfo * info)
 //{
 //  if (unlikely(!info))
 //    return false;
 //
-//  char where[128];
-//  ACE_OS::snprintf(where, 128, "where dist_id = '%s'", info->ver.data());
+//  text where[128];
+//  snprintf(where, 128, "where dist_id = '%s'", info->ver.data());
 //  return take_owner_ship("tb_dist_info", "dist_cmp_time", info->cmp_time, where);
 //}
 //
-//bool MyDB::dist_take_md5_ownership(MyHttpDistInfo * info)
+//truefalse MyDB::dist_take_md5_ownership(MyHttpDistInfo * info)
 //{
 //  if (unlikely(!info))
 //    return false;
 //
-//  char where[128];
-//  ACE_OS::snprintf(where, 128, "where dist_id = '%s'", info->ver.data());
+//  text where[128];
+//  snprintf(where, 128, "where dist_id = '%s'", info->ver.data());
 //  return take_owner_ship("tb_dist_info", "dist_md5_time", info->md5_time, where);
 //}
 
-bool MyDB::take_owner_ship(const char * table, const char * field, CMemGuard & old_time, const char * where_clause)
+truefalse MyDB::take_owner_ship(CONST text * table, CONST text * field, CMemGuard & old_time, CONST text * where_clause)
 {
-  const char * update_sql_template = "update %s set "
+  CONST text * update_sql_template = "update %s set "
                                      "%s = ('now'::text)::timestamp(0) without time zone "
                                      "%s and %s %s %s";
-  char sql[1024];
+  text sql[1024];
   if (old_time.data() && old_time.data()[0])
   {
     CMemGuard wrapped_time;
     wrap_str(old_time.data(), wrapped_time);
-    ACE_OS::snprintf(sql, 1024, update_sql_template, table, field, where_clause, field, "=", wrapped_time.data());
+    snprintf(sql, 1024, update_sql_template, table, field, where_clause, field, "=", wrapped_time.data());
   }
   else
-    ACE_OS::snprintf(sql, 1024, update_sql_template, table, field, where_clause, field, "is", "null");
+    snprintf(sql, 1024, update_sql_template, table, field, where_clause, field, "is", "null");
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  int m = 0;
+  ni m = 0;
   if (!exec_command(sql, &m))
     return false;
 
-  bool result = (m == 1);
+  truefalse result = (m == 1);
 
-  const char * select_sql_template = "select %s from %s %s";
-  ACE_OS::snprintf(sql, 1024, select_sql_template, field, table, where_clause);
+  CONST text * select_sql_template = "select %s from %s %s";
+  snprintf(sql, 1024, select_sql_template, field, table, where_clause);
   PGresult * pres = PQexec(m_connection, sql);
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
@@ -5012,89 +5012,89 @@ bool MyDB::take_owner_ship(const char * table, const char * field, CMemGuard & o
     C_ERROR("MyDB::sql (%s) failed: %s\n", sql, PQerrorMessage(m_connection));
     return result;
   }
-  int count = PQntuples(pres);
+  ni count = PQntuples(pres);
   if (count > 0)
     old_time.from_string(PQgetvalue(pres, 0, 0));
   return result;
 }
 
-bool MyDB::dist_mark_cmp_done(const char * dist_id)
+truefalse MyDB::dist_mark_cmp_done(CONST text * dist_id)
 {
   if (unlikely(!dist_id || !*dist_id))
     return false;
 
-  const char * update_sql_template = "update tb_dist_info set dist_cmp_done = 1 "
+  CONST text * update_sql_template = "update tb_dist_info set dist_cmp_done = 1 "
                                      "where dist_id = '%s'";
-  char sql[1024];
-  ACE_OS::snprintf(sql, 1024, update_sql_template, dist_id);
+  text sql[1024];
+  snprintf(sql, 1024, update_sql_template, dist_id);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql);
 }
 
-bool MyDB::dist_mark_md5_done(const char * dist_id)
+truefalse MyDB::dist_mark_md5_done(CONST text * dist_id)
 {
   if (unlikely(!dist_id || !*dist_id))
     return false;
 
-  const char * update_sql_template = "update tb_dist_info set dist_md5_done = 1 "
+  CONST text * update_sql_template = "update tb_dist_info set dist_md5_done = 1 "
                                      "where dist_id = '%s'";
-  char sql[1024];
-  ACE_OS::snprintf(sql, 1024, update_sql_template, dist_id);
+  text sql[1024];
+  snprintf(sql, 1024, update_sql_template, dist_id);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql);
 }
 
-bool MyDB::save_dist_md5(const char * dist_id, const char * md5, int md5_len)
+truefalse MyDB::save_dist_md5(CONST text * dist_id, CONST text * md5, ni md5_len)
 {
   if (unlikely(!dist_id || !*dist_id || !md5))
     return false;
 
-  const char * update_sql_template = "update tb_dist_info set dist_md5 = '%s' "
+  CONST text * update_sql_template = "update tb_dist_info set dist_md5 = '%s' "
                                      "where dist_id = '%s'";
-  int len = md5_len + ACE_OS::strlen(update_sql_template) + ACE_OS::strlen(dist_id) + 20;
+  ni len = md5_len + strlen(update_sql_template) + strlen(dist_id) + 20;
   CMemGuard sql;
   CMemPoolX::instance()->alloc_mem(len, &sql);
-  ACE_OS::snprintf(sql.data(), len, update_sql_template, md5, dist_id);
+  snprintf(sql.data(), len, update_sql_template, md5, dist_id);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql.data());
 }
 
-bool MyDB::save_dist_ftp_md5(const char * dist_id, const char * md5)
+truefalse MyDB::save_dist_ftp_md5(CONST text * dist_id, CONST text * md5)
 {
   if (unlikely(!dist_id || !*dist_id || !md5 || !*md5))
     return false;
 
-  const char * update_sql_template = "update tb_dist_info set dist_mbz_md5 = '%s' "
+  CONST text * update_sql_template = "update tb_dist_info set dist_mbz_md5 = '%s' "
                                      "where dist_id = '%s'";
-  char sql[1024];
-  ACE_OS::snprintf(sql, 1024, update_sql_template, md5, dist_id);
+  text sql[1024];
+  snprintf(sql, 1024, update_sql_template, md5, dist_id);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql);
 }
 
-bool MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne * _dc_one)
+truefalse MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne * _dc_one)
 {
   C_ASSERT_RETURN(dist_clients != NULL, "null dist_clients @MyDB::load_dist_clients\n", false);
 
-  const char * CONST_select_sql_1 = "select dc_dist_id, dc_client_id, dc_status, dc_adir, dc_last_update,"
+  CONST text * CONST_select_sql_1 = "select dc_dist_id, dc_client_id, dc_status, dc_adir, dc_last_update,"
       " dc_mbz_file, dc_mbz_md5, dc_md5"
       " from tb_dist_clients order by dc_client_id";
-  const char * CONST_select_sql_2 = "select dc_dist_id, dc_client_id, dc_status, dc_adir, dc_last_update,"
+  CONST text * CONST_select_sql_2 = "select dc_dist_id, dc_client_id, dc_status, dc_adir, dc_last_update,"
       " dc_mbz_file, dc_mbz_md5, dc_md5"
       " from tb_dist_clients where dc_client_id = '%s'";
-  const char * const_select_sql;
+  CONST text * CONST_select_sql;
 
-  char sql[512];
+  text sql[512];
   if (!_dc_one)
-    const_select_sql = CONST_select_sql_1;
+    CONST_select_sql = CONST_select_sql_1;
   else
   {
-    ACE_OS::snprintf(sql, 512, CONST_select_sql_2, _dc_one->client_id());
-    const_select_sql = sql;
+    snprintf(sql, 512, CONST_select_sql_2, _dc_one->client_id());
+    CONST_select_sql = sql;
   }
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
@@ -5106,16 +5106,16 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne * _dc
 //    return false;
 //  }
 
-  PGresult * pres = PQexec(m_connection, const_select_sql);
+  PGresult * pres = PQexec(m_connection, CONST_select_sql);
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
   {
-    C_ERROR("MyDB::sql (%s) failed: %s\n", const_select_sql, PQerrorMessage(m_connection));
+    C_ERROR("MyDB::sql (%s) failed: %s\n", CONST_select_sql, PQerrorMessage(m_connection));
     return -1;
   }
-  int count = PQntuples(pres);
-  int field_count = PQnfields(pres);
-  int count_added = 0;
+  ni count = PQntuples(pres);
+  ni field_count = PQnfields(pres);
+  ni count_added = 0;
   MyDistClientOne * dc_one;
 
   if (count == 0)
@@ -5131,7 +5131,7 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne * _dc
     dc_one = dist_clients->create_client_one(PQgetvalue(pres, 0, 1));
   else
     dc_one = _dc_one;
-  for (int i = 0; i < count; ++ i)
+  for (ni i = 0; i < count; ++ i)
   {
     info = dist_clients->find_dist_info(PQgetvalue(pres, i, 0));
     if (unlikely(!info))
@@ -5139,17 +5139,17 @@ bool MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne * _dc
 
     if (!_dc_one)
     {
-      const char * client_id = PQgetvalue(pres, i, 1);
+      CONST text * client_id = PQgetvalue(pres, i, 1);
       if (unlikely(!dc_one->is_client_id(client_id)))
         dc_one = dist_clients->create_client_one(client_id);
     }
 
     MyDistClient * dc = dc_one->create_dist_client(info);
 
-    const char * md5 = NULL;
-    for (int j = 0; j < field_count; ++j)
+    CONST text * md5 = NULL;
+    for (ni j = 0; j < field_count; ++j)
     {
-      const char * fvalue = PQgetvalue(pres, i, j);
+      CONST text * fvalue = PQgetvalue(pres, i, j);
       if (!fvalue || !*fvalue)
         continue;
 
@@ -5179,63 +5179,63 @@ __exit__:
   return count;
 }
 
-bool MyDB::set_dist_client_status(MyDistClient & dist_client, int new_status)
+truefalse MyDB::set_dist_client_status(MyDistClient & dist_client, ni new_status)
 {
   return set_dist_client_status(dist_client.client_id(), dist_client.dist_info->ver.data(), new_status);
 }
 
-bool MyDB::set_dist_client_status(const char * client_id, const char * dist_id, int new_status)
+truefalse MyDB::set_dist_client_status(CONST text * client_id, CONST text * dist_id, ni new_status)
 {
-  const char * update_sql_template = "update tb_dist_clients set dc_status = %d "
+  CONST text * update_sql_template = "update tb_dist_clients set dc_status = %d "
                                      "where dc_dist_id = '%s' and dc_client_id='%s' and dc_status < %d";
-  char sql[1024];
-  ACE_OS::snprintf(sql, 1024, update_sql_template, new_status, dist_id, client_id, new_status);
+  text sql[1024];
+  snprintf(sql, 1024, update_sql_template, new_status, dist_id, client_id, new_status);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql);
 }
 
-bool MyDB::set_dist_client_md5(const char * client_id, const char * dist_id, const char * md5, int new_status)
+truefalse MyDB::set_dist_client_md5(CONST text * client_id, CONST text * dist_id, CONST text * md5, ni new_status)
 {
-  const char * update_sql_template = "update tb_dist_clients set dc_status = %d, dc_md5 = '%s' "
+  CONST text * update_sql_template = "update tb_dist_clients set dc_status = %d, dc_md5 = '%s' "
                                      "where dc_dist_id = '%s' and dc_client_id='%s' and dc_status < %d";
-  int len = ACE_OS::strlen(update_sql_template) + ACE_OS::strlen(md5) + ACE_OS::strlen(client_id)
-    + ACE_OS::strlen(dist_id) + 40;
+  ni len = strlen(update_sql_template) + strlen(md5) + strlen(client_id)
+    + strlen(dist_id) + 40;
   CMemGuard sql;
   CMemPoolX::instance()->alloc_mem(len, &sql);
-  ACE_OS::snprintf(sql.data(), len, update_sql_template, new_status, md5, dist_id, client_id, new_status);
+  snprintf(sql.data(), len, update_sql_template, new_status, md5, dist_id, client_id, new_status);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  int num = 0;
+  ni num = 0;
   return exec_command(sql.data(), &num) && num == 1;
 }
 
-bool MyDB::set_dist_client_mbz(const char * client_id, const char * dist_id, const char * mbz, const char * mbz_md5)
+truefalse MyDB::set_dist_client_mbz(CONST text * client_id, CONST text * dist_id, CONST text * mbz, CONST text * mbz_md5)
 {
-  const char * update_sql_template = "update tb_dist_clients set dc_mbz_file = '%s', dc_mbz_md5 = '%s' "
+  CONST text * update_sql_template = "update tb_dist_clients set dc_mbz_file = '%s', dc_mbz_md5 = '%s' "
                                      "where dc_dist_id = '%s' and dc_client_id='%s' and dc_status < 3";
-  int len = ACE_OS::strlen(update_sql_template) + ACE_OS::strlen(mbz) + ACE_OS::strlen(client_id)
-          + ACE_OS::strlen(dist_id) + 40 + ACE_OS::strlen(mbz_md5);
+  ni len = strlen(update_sql_template) + strlen(mbz) + strlen(client_id)
+          + strlen(dist_id) + 40 + strlen(mbz_md5);
   CMemGuard sql;
   CMemPoolX::instance()->alloc_mem(len, &sql);
-  ACE_OS::snprintf(sql.data(), len, update_sql_template, mbz, mbz_md5, dist_id, client_id);
+  snprintf(sql.data(), len, update_sql_template, mbz, mbz_md5, dist_id, client_id);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  int num = 0;
+  ni num = 0;
   return exec_command(sql.data(), &num) && num == 1;
 }
 
-bool MyDB::delete_dist_client(const char * client_id, const char * dist_id)
+truefalse MyDB::delete_dist_client(CONST text * client_id, CONST text * dist_id)
 {
-  const char * delete_sql_template = "delete from tb_dist_clients where dc_dist_id = '%s' and dc_client_id='%s'";
-  char sql[1024];
-  ACE_OS::snprintf(sql, 1024, delete_sql_template, dist_id, client_id);
+  CONST text * delete_sql_template = "delete from tb_dist_clients where dc_dist_id = '%s' and dc_client_id='%s'";
+  text sql[1024];
+  snprintf(sql, 1024, delete_sql_template, dist_id, client_id);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql);
 }
 
-bool MyDB::dist_info_is_update(MyHttpDistInfos & infos)
+truefalse MyDB::dist_info_is_update(MyHttpDistInfos & infos)
 {
   {
     ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
@@ -5245,37 +5245,37 @@ bool MyDB::dist_info_is_update(MyHttpDistInfos & infos)
   CMemGuard value;
   if (!load_cfg_value(1, value))
     return true;
-  bool result = ACE_OS::strcmp(infos.last_load_time.data(), value.data()) == 0;
+  truefalse result = strcmp(infos.last_load_time.data(), value.data()) == 0;
   if (!result)
     infos.last_load_time.from_string(value.data());
   return result;
 }
 
-bool MyDB::load_pl(CMemGuard & value)
+truefalse MyDB::load_pl(CMemGuard & value)
 {
   return load_cfg_value(2, value);
 }
 
-bool MyDB::dist_info_update_status()
+truefalse MyDB::dist_info_update_status()
 {
-  int now = (int)time(NULL);
-  int x = random() % 0xFFFFFF;
-  char buff[64];
-  ACE_OS::snprintf(buff, 64, "%d-%d", now, x);
+  ni now = (ni)time(NULL);
+  ni x = random() % 0xFFFFFF;
+  text buff[64];
+  snprintf(buff, 64, "%d-%d", now, x);
   return set_cfg_value(1, buff);
 }
 
-bool MyDB::remove_orphan_dist_info()
+truefalse MyDB::remove_orphan_dist_info()
 {
-  const char * sql = "select post_process()";
+  CONST text * sql = "select post_process()";
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql);
 }
 
-bool MyDB::get_dist_ids(MyUnusedPathRemover & path_remover)
+truefalse MyDB::get_dist_ids(MyUnusedPathRemover & path_remover)
 {
-  const char * sql = "select dist_id from tb_dist_info";
+  CONST text * sql = "select dist_id from tb_dist_info";
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   PGresult * pres = PQexec(m_connection, sql);
@@ -5285,53 +5285,53 @@ bool MyDB::get_dist_ids(MyUnusedPathRemover & path_remover)
     C_ERROR("MyDB::sql (%s) failed: %s\n", sql, PQerrorMessage(m_connection));
     return false;
   }
-  int count = PQntuples(pres);
+  ni count = PQntuples(pres);
   if (count > 0)
   {
-    for (int i = 0; i < count; ++i)
+    for (ni i = 0; i < count; ++i)
       path_remover.add_dist_id(PQgetvalue(pres, i, 0));
   }
   return true;
 }
 
-bool MyDB::mark_client_valid(const char * client_id, bool valid)
+truefalse MyDB::mark_client_valid(CONST text * client_id, truefalse valid)
 {
-  char sql[1024];
+  text sql[1024];
   if (!valid)
   {
-    const char * sql_template = "delete from tb_clients where client_id = '%s'";
-    ACE_OS::snprintf(sql, 1024, sql_template, client_id);
+    CONST text * sql_template = "delete from tb_clients where client_id = '%s'";
+    snprintf(sql, 1024, sql_template, client_id);
   } else
   {
-    const char * sql_template = "insert into tb_clients(client_id, client_password) values('%s', '%s')";
-    ACE_OS::snprintf(sql, 1024, sql_template, client_id, client_id);
+    CONST text * sql_template = "insert into tb_clients(client_id, client_password) values('%s', '%s')";
+    snprintf(sql, 1024, sql_template, client_id, client_id);
   }
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql);
 }
 
-bool MyDB::set_cfg_value(const int id, const char * value)
+truefalse MyDB::set_cfg_value(CONST ni id, CONST text * value)
 {
-  const char * sql_template = "update tb_config set cfg_value = '%s' where cfg_id = %d";
-  char sql[1024];
-  ACE_OS::snprintf(sql, 1024, sql_template, value, id);
+  CONST text * sql_template = "update tb_config set cfg_value = '%s' where cfg_id = %d";
+  text sql[1024];
+  snprintf(sql, 1024, sql_template, value, id);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return exec_command(sql);
 }
 
-bool MyDB::load_cfg_value(const int id, CMemGuard & value)
+truefalse MyDB::load_cfg_value(CONST ni id, CMemGuard & value)
 {
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return load_cfg_value_i(id, value);
 }
 
-bool MyDB::load_cfg_value_i(const int id, CMemGuard & value)
+truefalse MyDB::load_cfg_value_i(CONST ni id, CMemGuard & value)
 {
-  const char * CONST_select_sql_template = "select cfg_value from tb_config where cfg_id = %d";
-  char select_sql[1024];
-  ACE_OS::snprintf(select_sql, 1024, CONST_select_sql_template, id);
+  CONST text * CONST_select_sql_template = "select cfg_value from tb_config where cfg_id = %d";
+  text select_sql[1024];
+  snprintf(select_sql, 1024, CONST_select_sql_template, id);
 
   PGresult * pres = PQexec(m_connection, select_sql);
   MyPGResultGuard guard(pres);
@@ -5340,7 +5340,7 @@ bool MyDB::load_cfg_value_i(const int id, CMemGuard & value)
     C_ERROR("MyDB::sql (%s) failed: %s\n", select_sql, PQerrorMessage(m_connection));
     return false;
   }
-  int count = PQntuples(pres);
+  ni count = PQntuples(pres);
   if (count > 0)
   {
     value.from_string(PQgetvalue(pres, 0, 0));
@@ -5350,9 +5350,9 @@ bool MyDB::load_cfg_value_i(const int id, CMemGuard & value)
 }
 
 
-bool MyDB::load_db_server_time_i(time_t &t)
+truefalse MyDB::load_db_server_time_i(time_t &t)
 {
-  const char * select_sql = "select ('now'::text)::timestamp(0) without time zone";
+  CONST text * select_sql = "select ('now'::text)::timestamp(0) without time zone";
   PGresult * pres = PQexec(m_connection, select_sql);
   MyPGResultGuard guard(pres);
   if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)

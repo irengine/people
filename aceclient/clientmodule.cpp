@@ -1387,7 +1387,7 @@ bool MyDistInfoFtp::validate()
   }
 
   time_t t = time(NULL);
-  if (unlikely(!(recv_time < t + const_one_year && recv_time > t - const_one_year)))
+  if (unlikely(!(recv_time < t + CONST_one_year && recv_time > t - CONST_one_year)))
   {
     C_WARNING("obsolete MyDistInfoFtp object, recv_time = %d\n", recv_time);
     return false;
@@ -2318,7 +2318,7 @@ void MyIpVerReply::init(char * data)
 
   ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
   do_init(m_pc, data, t);
-  do_init(m_pc_x, cp.data(), t + const_one_day);
+  do_init(m_pc_x, cp.data(), t + CONST_one_day);
   if (ACE_OS::strlen(m_pc.data()) >= 10 && ACE_OS::strlen(m_pc_x.data()) >= 10)
   {
     if (m_pc.data()[9] == '1')
@@ -2410,7 +2410,7 @@ void MyIpVerReply::do_init(CMemGuard & g, char * data, time_t t)
 
 void MyIpVerReply::get_filename(CMemGuard & fn)
 {
-  fn.from_string(CCfgX::instance()->app_data_path.c_str(), "/pc_time.dat");
+  fn.from_string(CCfgX::instance()->data_path.c_str(), "/pc_time.dat");
 }
 
 void MyIpVerReply::save_to_file(const char * s)
@@ -3321,8 +3321,8 @@ void MyVlcHistory::items(MyVlcItems * _items)
 
 void MyVlcHistory::process()
 {
-  std::string vlc2 = CCfgX::instance()->app_data_path + "/vlc-history2.txt";
-  std::string vlc1 = CCfgX::instance()->app_data_path + "/vlc-history.txt";
+  std::string vlc2 = CCfgX::instance()->data_path + "/vlc-history2.txt";
+  std::string vlc1 = CCfgX::instance()->data_path + "/vlc-history.txt";
   CSysFS::remove(vlc1.c_str(), true);
   CSysFS::remove(vlc2.c_str(), true);
   return;

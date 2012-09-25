@@ -16,36 +16,36 @@ class MyHttpDistRequest
 {
 public:
   MyHttpDistRequest();
-  MyHttpDistRequest(const MyHttpDistInfo & info);
+  MyHttpDistRequest(CONST MyHttpDistInfo & info);
 
-  bool check_valid(const bool check_acode) const;
-  bool need_md5() const;
-  bool need_mbz_md5() const;
+  truefalse check_valid(CONST truefalse check_acode) CONST;
+  truefalse need_md5() CONST;
+  truefalse need_mbz_md5() CONST;
 
-  char * acode;
-  char * ftype;
-  char * fdir;
-  char * findex;
-  char * adir;
-  char * aindex;
-  char * ver;
-  char * type;
-  char * password;
+  text * acode;
+  text * ftype;
+  text * fdir;
+  text * findex;
+  text * adir;
+  text * aindex;
+  text * ver;
+  text * type;
+  text * password;
 
 private:
-  bool check_value(const char * value, const char * value_name) const;
+  truefalse check_value(CONST text * value, CONST text * value_name) CONST;
 };
 
 class MyHttpDistInfo
 {
 public:
-  MyHttpDistInfo(const char * dist_id);
-  bool need_md5() const;
-  bool need_mbz_md5() const;
-  void calc_md5_opt_len();
+  MyHttpDistInfo(CONST text * dist_id);
+  truefalse need_md5() CONST;
+  truefalse need_mbz_md5() CONST;
+  DVOID calc_md5_opt_len();
 
-  char ftype[2];
-  char type[2];
+  text ftype[2];
+  text type[2];
   CMemGuard fdir;
   CMemGuard findex;
   CMemGuard aindex;
@@ -57,15 +57,15 @@ public:
 
   CMemGuard mbz_md5;
 
-  bool exist;
+  truefalse exist;
 
-  int  md5_len;
-  int  ver_len;
-  int  findex_len;
-  int  aindex_len;
-  int  password_len;
+  ni  md5_len;
+  ni  ver_len;
+  ni  findex_len;
+  ni  aindex_len;
+  ni  password_len;
 
-  int  md5_opt_len;
+  ni  md5_opt_len;
 };
 
 class MyHttpDistInfos
@@ -76,21 +76,21 @@ public:
   MyHttpDistInfos();
   ~MyHttpDistInfos();
 
-  int count() const;
-  MyHttpDistInfo * create_http_dist_info(const char * dist_id);
-  bool need_reload();
-  void prepare_update(const int capacity);
-  void clear();
-  MyHttpDistInfo * find(const char * dist_id);
+  ni count() CONST;
+  MyHttpDistInfo * create_http_dist_info(CONST text * dist_id);
+  truefalse need_reload();
+  DVOID prepare_update(CONST ni capacity);
+  DVOID clear();
+  MyHttpDistInfo * find(CONST text * dist_id);
 
   CMemGuard last_load_time;
 
 private:
-  typedef std::tr1::unordered_map<const char *,
+  typedef std::tr1::unordered_map<const text *,
                                   MyHttpDistInfo *,
                                   CStrHasher,
                                   CStrEqual,
-                                  CCppAllocator <std::pair<const char *, MyHttpDistInfo *> >
+                                  CCppAllocator <std::pair<const text *, MyHttpDistInfo *> >
                                 > MyHttpDistInfoMap;
 
   MyHttpDistInfoList dist_infos;
@@ -100,13 +100,13 @@ private:
 class MyDistCompressor
 {
 public:
-  bool compress(MyHttpDistRequest & http_dist_request);
-  static void get_all_in_one_mbz_file_name(const char * dist_id, CMemGuard & filename);
-  static const char * composite_path();
-  static const char * all_in_one_mbz();
+  truefalse compress(MyHttpDistRequest & http_dist_request);
+  SF DVOID get_all_in_one_mbz_file_name(CONST text * dist_id, CMemGuard & filename);
+  SF CONST text * composite_path();
+  SF CONST text * all_in_one_mbz();
 
 private:
-  bool do_generate_compressed_files(const char * src_path, const char * dest_path, int prefix_len, const char * passwrod);
+  truefalse do_generate_compressed_files(CONST text * src_path, CONST text * dest_path, ni prefix_len, CONST text * passwrod);
 
   CCompCombiner m_compositor;
   CDataComp m_compressor;
@@ -115,20 +115,20 @@ private:
 class MyDistMd5Calculator
 {
 public:
-  bool calculate(MyHttpDistRequest & http_dist_request, CMemGuard &md5_result, int & md5_len);
-  static bool calculate_all_in_one_ftp_md5(const char * dist_id, CMemGuard & md5_result);
+  truefalse calculate(MyHttpDistRequest & http_dist_request, CMemGuard &md5_result, ni & md5_len);
+  SF truefalse calculate_all_in_one_ftp_md5(CONST text * dist_id, CMemGuard & md5_result);
 };
 
-ACE_Message_Block * my_get_hb_mb();
+CMB * my_get_hb_mb();
 
 class MyActChecker
 {
 public:
-  void update()
+  DVOID update()
   {
     m_tm = time(NULL);
   }
-  bool expired() const
+  truefalse expired() CONST
   {
     return time(NULL) - m_tm >= 85;
   }
@@ -151,14 +151,14 @@ public:
     m_last_access = g_clock_counter;
   }
 
-  MyDistLoad(const char * _addr, int m)
+  MyDistLoad(CONST text * _addr, ni m)
   {
     ip_addr(_addr);
     clients_connected(m);
     m_last_access = g_clock_counter;
   }
 
-  void ip_addr(const char * _addr)
+  DVOID ip_addr(CONST text * _addr)
   {
     if (_addr)
       ACE_OS::strsncpy(m_ip_addr, _addr, IP_ADDR_LEN);
@@ -166,7 +166,7 @@ public:
       m_ip_addr[0] = 0;
   }
 
-  void clients_connected(int m)
+  DVOID clients_connected(ni m)
   {
     if (m >= 0)
       m_clients_connected = m;
@@ -174,7 +174,7 @@ public:
       m_clients_connected = 0;
   }
 
-  bool operator < (const MyDistLoad & rhs) const
+  truefalse operator < (CONST MyDistLoad & rhs) CONST
   {
     return m_clients_connected < rhs.m_clients_connected;
   }
@@ -184,7 +184,7 @@ public:
     IP_ADDR_LEN = 40
   };
 
-  char    m_ip_addr[IP_ADDR_LEN];
+  text    m_ip_addr[IP_ADDR_LEN];
   int32_t m_clients_connected;
   long    m_last_access;
 };
@@ -200,18 +200,18 @@ public:
 
   MyDistLoads();
 
-  void update(const MyDistLoad & load);
-  void remove(const char * addr);
-  int  get_server_list(char * buffer, int buffer_len);
-  void scan_for_dead();
+  DVOID update(CONST MyDistLoad & load);
+  DVOID remove(CONST text * addr);
+  ni  get_server_list(text * buffer, ni buffer_len);
+  DVOID scan_for_dead();
 
 private:
-  void calc_server_list();
-  MyDistLoads::MyDistLoadVecIt find_i(const char * addr);
+  DVOID calc_server_list();
+  MyDistLoads::MyDistLoadVecIt find_i(CONST text * addr);
 
   MyDistLoadVec m_loads;
-  char m_server_list[SERVER_LIST_LENGTH];
-  int  m_server_list_length;
+  text m_server_list[SERVER_LIST_LENGTH];
+  ni  m_server_list_length;
   ACE_Thread_Mutex m_mutex;
 };
 
@@ -220,14 +220,14 @@ class MyUnusedPathRemover
 public:
   ~MyUnusedPathRemover();
 
-  void add_dist_id(const char * dist_id);
-  void check_path(const char * path);
+  DVOID add_dist_id(CONST text * dist_id);
+  DVOID check_path(CONST text * path);
 
 private:
-  typedef std::tr1::unordered_set<const char *, CStrHasher, CStrEqual, CCppAllocator<const char *> > MyPathSet;
+  typedef std::tr1::unordered_set<const text *, CStrHasher, CStrEqual, CCppAllocator<const text *> > MyPathSet;
   typedef std::list<CMemGuard *, CCppAllocator<CMemGuard *> > MyPathList;
 
-  bool path_ok(const char * _path);
+  truefalse path_ok(CONST text * _path);
 
   MyPathSet  m_path_set;
   MyPathList m_path_list;
@@ -238,17 +238,17 @@ class MyLocationProcessor: public CServerProcBase
 public:
   MyLocationProcessor(CHandlerBase * handler);
   virtual CProcBase::EVENT_RESULT on_recv_header();
-  virtual const char * name() const;
+  virtual CONST text * name() CONST;
 
-  static MyDistLoads * m_dist_loads;
+  SF MyDistLoads * m_dist_loads;
 
   DECLARE_MEMORY_POOL__NOTHROW(MyLocationProcessor, ACE_Thread_Mutex);
 
 protected:
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb);
 
 private:
-  CProcBase::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_version_check(CMB * mb);
 };
 
 
@@ -262,19 +262,19 @@ public:
 class MyLocationService: public CTaskBase
 {
 public:
-  MyLocationService(CMod * module, int numThreads = 1);
-  virtual int svc();
+  MyLocationService(CMod * module, ni numThreads = 1);
+  virtual ni svc();
 };
 
 class MyLocationDispatcher: public CDispatchBase
 {
 public:
-  MyLocationDispatcher(CMod * _module, int numThreads = 1);
+  MyLocationDispatcher(CMod * _module, ni numThreads = 1);
 
 protected:
-  virtual bool on_start();
-  virtual void on_stop();
-  virtual const char * name() const;
+  virtual truefalse on_start();
+  virtual DVOID on_stop();
+  virtual CONST text * name() CONST;
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
@@ -288,8 +288,8 @@ public:
   enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
   MyLocationAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * manager);
 
-  virtual int make_svc_handler(CHandlerBase *& sh);
-  virtual const char * name() const;
+  virtual ni make_svc_handler(CHandlerBase *& sh);
+  virtual CONST text * name() CONST;
 };
 
 
@@ -301,9 +301,9 @@ public:
   MyDistLoads * dist_loads();
 
 protected:
-  virtual bool on_start();
-  virtual void on_stop();
-  virtual const char * name() const;
+  virtual truefalse on_start();
+  virtual DVOID on_stop();
+  virtual CONST text * name() CONST;
 
 private:
   MyDistLoads m_dist_loads;
@@ -318,24 +318,24 @@ private:
 class MyHttpModule;
 class MyHttpAcceptor;
 
-class MyHttpProcessor: public CFormattedProcBase<int>
+class MyHttpProcessor: public CFormattedProcBase<ni>
 {
 public:
-  typedef CFormattedProcBase<int> super;
+  typedef CFormattedProcBase<ni> super;
 
   MyHttpProcessor(CHandlerBase * handler);
   virtual ~MyHttpProcessor();
-  virtual const char * name() const;
+  virtual CONST text * name() CONST;
   DECLARE_MEMORY_POOL__NOTHROW(MyHttpProcessor, ACE_Thread_Mutex);
 
 protected:
-  virtual int packet_length();
+  virtual ni packet_length();
   virtual CProcBase::EVENT_RESULT on_recv_header();
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb);
 
 private:
-  bool do_process_input_data();
-  bool do_prio(ACE_Message_Block * mb);
+  truefalse do_process_input_data();
+  truefalse do_prio(CMB * mb);
 };
 
 
@@ -350,32 +350,32 @@ public:
 class MyHttpService: public CTaskBase
 {
 public:
-  MyHttpService(CMod * module, int numThreads = 1);
+  MyHttpService(CMod * module, ni numThreads = 1);
 
-  virtual int svc();
-  virtual const char * name() const;
+  virtual ni svc();
+  virtual CONST text * name() CONST;
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
 
-  bool handle_packet(ACE_Message_Block * mb);
-  bool do_handle_packet(ACE_Message_Block * mb, MyHttpDistRequest & http_dist_request);
-  bool do_handle_packet2(ACE_Message_Block * mb);
-  bool parse_request(ACE_Message_Block * mb, MyHttpDistRequest & http_dist_request);
-  bool do_compress(MyHttpDistRequest & http_dist_request);
-  bool do_calc_md5(MyHttpDistRequest & http_dist_request);
-  bool notify_dist_servers();
+  truefalse handle_packet(CMB * mb);
+  truefalse do_handle_packet(CMB * mb, MyHttpDistRequest & http_dist_request);
+  truefalse do_handle_packet2(CMB * mb);
+  truefalse parse_request(CMB * mb, MyHttpDistRequest & http_dist_request);
+  truefalse do_compress(MyHttpDistRequest & http_dist_request);
+  truefalse do_calc_md5(MyHttpDistRequest & http_dist_request);
+  truefalse notify_dist_servers();
 };
 
 class MyHttpDispatcher: public CDispatchBase
 {
 public:
-  MyHttpDispatcher(CMod * pModule, int numThreads = 1);
-  virtual const char * name() const;
+  MyHttpDispatcher(CMod * pModule, ni numThreads = 1);
+  virtual CONST text * name() CONST;
 
 protected:
-  virtual void on_stop();
-  virtual bool on_start();
+  virtual DVOID on_stop();
+  virtual truefalse on_start();
 
 private:
   MyHttpAcceptor * m_acceptor;
@@ -387,8 +387,8 @@ public:
   enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
 
   MyHttpAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * manager);
-  virtual int make_svc_handler(CHandlerBase *& sh);
-  virtual const char * name() const;
+  virtual ni make_svc_handler(CHandlerBase *& sh);
+  virtual CONST text * name() CONST;
 };
 
 
@@ -397,12 +397,12 @@ class MyHttpModule: public CMod
 public:
   MyHttpModule(CApp * app);
   virtual ~MyHttpModule();
-  virtual const char * name() const;
+  virtual CONST text * name() CONST;
   MyHttpService * http_service();
 
 protected:
-  virtual bool on_start();
-  virtual void on_stop();
+  virtual truefalse on_start();
+  virtual DVOID on_stop();
 
 private:
   MyHttpService *m_service;
@@ -425,21 +425,21 @@ public:
 
   MyDistLoadProcessor(CHandlerBase * handler);
   virtual ~MyDistLoadProcessor();
-  virtual const char * name() const;
-  virtual bool client_id_verified() const;
+  virtual CONST text * name() CONST;
+  virtual truefalse client_id_verified() CONST;
   virtual CProcBase::EVENT_RESULT on_recv_header();
-  void dist_loads(MyDistLoads * dist_loads);
+  DVOID dist_loads(MyDistLoads * dist_loads);
 
 protected:
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb);
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 1024 * 1024 };
 
-  CProcBase::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_load_balance(ACE_Message_Block * mb);
+  CProcBase::EVENT_RESULT do_version_check(CMB * mb);
+  CProcBase::EVENT_RESULT do_load_balance(CMB * mb);
 
-  bool m_client_id_verified;
+  truefalse m_client_id_verified;
   MyDistLoads * m_dist_loads;
 };
 
@@ -448,7 +448,7 @@ class MyDistLoadHandler: public CHandlerBase
 {
 public:
   MyDistLoadHandler(CConnectionManagerBase * xptr = NULL);
-  void dist_loads(MyDistLoads * dist_loads);
+  DVOID dist_loads(MyDistLoads * dist_loads);
 
   DECLARE_MEMORY_POOL__NOTHROW(MyDistLoadHandler, ACE_Thread_Mutex);
 };
@@ -456,16 +456,16 @@ public:
 class MyDistLoadDispatcher: public CDispatchBase
 {
 public:
-  MyDistLoadDispatcher(CMod * pModule, int numThreads = 1);
+  MyDistLoadDispatcher(CMod * pModule, ni numThreads = 1);
   ~MyDistLoadDispatcher();
-  virtual const char * name() const;
-  virtual int handle_timeout(const ACE_Time_Value &current_time, const void *act = 0);
-  void send_to_bs(ACE_Message_Block * mb);
+  virtual CONST text * name() CONST;
+  virtual ni handle_timeout(CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
+  DVOID send_to_bs(CMB * mb);
 
 protected:
-  virtual void on_stop();
-  virtual bool on_start();
-  virtual bool on_event_loop();
+  virtual DVOID on_stop();
+  virtual truefalse on_start();
+  virtual truefalse on_event_loop();
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 1024 * 1024 };
@@ -481,8 +481,8 @@ public:
   enum { IDLE_TIME_AS_DEAD = 15 }; //in minutes
   MyDistLoadAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * manager);
 
-  virtual int make_svc_handler(CHandlerBase *& sh);
-  virtual const char * name() const;
+  virtual ni make_svc_handler(CHandlerBase *& sh);
+  virtual CONST text * name() CONST;
 };
 
 
@@ -491,12 +491,12 @@ class MyDistLoadModule: public CMod
 public:
   MyDistLoadModule(CApp * app);
   virtual ~MyDistLoadModule();
-  virtual const char * name() const;
-  MyDistLoadDispatcher * dispatcher() const;
+  virtual CONST text * name() CONST;
+  MyDistLoadDispatcher * dispatcher() CONST;
 
 protected:
-  virtual bool on_start();
-  virtual void on_stop();
+  virtual truefalse on_start();
+  virtual DVOID on_stop();
 
 private:
   MyDistLoadDispatcher * m_dispatcher;
@@ -514,26 +514,26 @@ public:
   typedef CBSProceBase super;
 
   MyMiddleToBSProcessor(CHandlerBase * handler);
-  virtual const char * name() const;
+  virtual CONST text * name() CONST;
 
   DECLARE_MEMORY_POOL__NOTHROW(MyMiddleToBSProcessor, ACE_Thread_Mutex);
 
 protected:
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb);
 };
 
 class MyMiddleToBSHandler: public CHandlerBase
 {
 public:
   MyMiddleToBSHandler(CConnectionManagerBase * xptr = NULL);
-  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
-  void checker_update();
-  MyDistLoadModule * module_x() const;
+  virtual ni handle_timeout (CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
+  DVOID checker_update();
+  MyDistLoadModule * module_x() CONST;
   DECLARE_MEMORY_POOL__NOTHROW(MyMiddleToBSHandler, ACE_Thread_Mutex);
 
 protected:
-  virtual void on_close();
-  virtual int  on_open();
+  virtual DVOID on_close();
+  virtual ni  on_open();
 
 private:
   MyActChecker m_checker;
@@ -543,8 +543,8 @@ class MyMiddleToBSConnector: public CConnectorBase
 {
 public:
   MyMiddleToBSConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager);
-  virtual int make_svc_handler(CHandlerBase *& sh);
-  virtual const char * name() const;
+  virtual ni make_svc_handler(CHandlerBase *& sh);
+  virtual CONST text * name() CONST;
 
 protected:
   enum { RECONNECT_INTERVAL = 1 }; //time in minutes
@@ -569,21 +569,21 @@ class MyDistClient
 {
 public:
   MyDistClient(MyHttpDistInfo * _dist_info, MyDistClientOne * dist_one);
-  bool check_valid() const;
-  bool dist_file();
-  void delete_self();
-  bool active();
-  void update_status(int _status);
-  void update_md5_list(const char * _md5);
-  void dist_ftp_md5_reply(const char * md5list);
-  const char * client_id() const;
-  int client_id_index() const;
-  void send_fb_detail(bool ok);
-  void psp(const char c);
+  truefalse check_valid() CONST;
+  truefalse dist_file();
+  DVOID delete_self();
+  truefalse active();
+  DVOID update_status(ni _status);
+  DVOID update_md5_list(CONST text * _md5);
+  DVOID dist_ftp_md5_reply(CONST text * md5list);
+  CONST text * client_id() CONST;
+  ni client_id_index() CONST;
+  DVOID send_fb_detail(truefalse ok);
+  DVOID psp(CONST text c);
 
   MyHttpDistInfo * dist_info;
   MyDistClientOne * dist_one;
-  int status;
+  ni status;
   CMemGuard adir;
   CMemGuard md5;
   CMemGuard mbz_file;
@@ -593,22 +593,22 @@ public:
 private:
   enum { MD5_REPLY_TIME_OUT = 15, FTP_REPLY_TIME_OUT = 5 }; //in minutes
 
-  bool do_stage_0();
-  bool do_stage_1();
-  bool do_stage_2();
-  bool do_stage_3();
-  bool do_stage_4();
-  bool do_stage_5();
-  bool do_stage_6();
-  bool do_stage_7();
-  bool do_stage_8();
-  bool send_md5();
-  bool send_ftp();
-  bool send_psp(const char c);
-  bool generate_diff_mbz();
-  int  dist_out_leading_length();
-  void dist_out_leading_data(char * data);
-  ACE_Message_Block * make_ftp_fb_detail_mb(bool bok);
+  truefalse do_stage_0();
+  truefalse do_stage_1();
+  truefalse do_stage_2();
+  truefalse do_stage_3();
+  truefalse do_stage_4();
+  truefalse do_stage_5();
+  truefalse do_stage_6();
+  truefalse do_stage_7();
+  truefalse do_stage_8();
+  truefalse send_md5();
+  truefalse send_ftp();
+  truefalse send_psp(CONST text c);
+  truefalse generate_diff_mbz();
+  ni  dist_out_leading_length();
+  DVOID dist_out_leading_data(text * data);
+  CMB * make_ftp_fb_detail_mb(truefalse bok);
 };
 
 class MyDistClientOne
@@ -616,39 +616,39 @@ class MyDistClientOne
 public:
   typedef std::list<MyDistClient *, CCppAllocator<MyDistClient *> > MyDistClientOneList;
 
-  MyDistClientOne(MyDistClients * dist_clients, const char * client_id);
+  MyDistClientOne(MyDistClients * dist_clients, CONST text * client_id);
   ~MyDistClientOne();
 
   MyDistClient * create_dist_client(MyHttpDistInfo * _dist_info);
-  void delete_dist_client(MyDistClient * dc);
-  bool active();
-  bool is_client_id(const char * _client_id) const;
-  void clear();
-  bool dist_files();
-  const char * client_id() const;
-  int client_id_index() const;
+  DVOID delete_dist_client(MyDistClient * dc);
+  truefalse active();
+  truefalse is_client_id(CONST text * _client_id) CONST;
+  DVOID clear();
+  truefalse dist_files();
+  CONST text * client_id() CONST;
+  ni client_id_index() CONST;
 
 private:
   MyDistClientOneList m_client_ones;
   MyDistClients * m_dist_clients;
   MyClientID m_client_id;
-  int m_client_id_index;
+  ni m_client_id_index;
 };
 
 class MyClientMapKey
 {
 public:
-  MyClientMapKey(const char * _dist_id, const char * _client_id);
-  bool operator == (const MyClientMapKey & rhs) const;
+  MyClientMapKey(CONST text * _dist_id, CONST text * _client_id);
+  truefalse operator == (CONST MyClientMapKey & rhs) CONST;
 
-  const char * dist_id;
-  const char * client_id;
+  CONST text * dist_id;
+  CONST text * client_id;
 };
 
 class MyClientMapHash
 {
 public:
-  size_t operator()(const MyClientMapKey & x) const
+  size_t operator()(CONST MyClientMapKey & x) CONST
   {
     return c_util_string_hash(x.client_id) ^ c_util_string_hash(x.dist_id);
   }
@@ -664,26 +664,26 @@ public:
                                   std::equal_to<MyClientMapKey>,
                                   CCppAllocator <std::pair<const MyClientMapKey, MyDistClient *>>
                                 > MyDistClientMap;
-  typedef std::tr1::unordered_map<const char *,
+  typedef std::tr1::unordered_map<const text *,
                                   MyDistClientOne *,
                                   CStrHasher,
                                   CStrEqual,
-                                  CCppAllocator <std::pair<const char *, MyDistClientOne *>>
+                                  CCppAllocator <std::pair<const text *, MyDistClientOne *>>
                                 > MyDistClientOneMap;
 
 
   MyDistClients(MyHttpDistInfos * dist_infos);
   ~MyDistClients();
 
-  MyHttpDistInfo * find_dist_info(const char * dist_id);
-  void clear();
-  void dist_files();
-  void on_create_dist_client(MyDistClient * dc);
-  void on_remove_dist_client(MyDistClient * dc, bool finished);
-  MyDistClient * find_dist_client(const char * client_id, const char * dist_id);
-  MyDistClientOne * find_client_one(const char * client_id);
-  MyDistClientOne * create_client_one(const char * client_id);
-  void delete_client_one(MyDistClientOne * dco);
+  MyHttpDistInfo * find_dist_info(CONST text * dist_id);
+  DVOID clear();
+  DVOID dist_files();
+  DVOID on_create_dist_client(MyDistClient * dc);
+  DVOID on_remove_dist_client(MyDistClient * dc, truefalse finished);
+  MyDistClient * find_dist_client(CONST text * client_id, CONST text * dist_id);
+  MyDistClientOne * find_client_one(CONST text * client_id);
+  MyDistClientOne * create_client_one(CONST text * client_id);
+  DVOID delete_client_one(MyDistClientOne * dco);
 
   MyDistClientOneList dist_clients;
   time_t db_time;
@@ -693,7 +693,7 @@ private:
   MyHttpDistInfos * m_dist_infos;
   MyDistClientMap m_dist_clients_map;
   MyDistClientOneMap m_dist_client_ones_map;
-  int m_dist_client_finished;
+  ni m_dist_client_finished;
 };
 
 class MyClientFileDistributor
@@ -701,16 +701,16 @@ class MyClientFileDistributor
 public:
   MyClientFileDistributor();
 
-  bool distribute(bool check_reload);
-  void dist_ftp_file_reply(const char * client_id, const char * dist_id, int _status, bool ok);
-  void dist_ftp_md5_reply(const char * client_id, const char * dist_id, const char * md5list);
-  void psp(const char * client_id, const char * dist_id, char c);
+  truefalse distribute(truefalse check_reload);
+  DVOID dist_ftp_file_reply(CONST text * client_id, CONST text * dist_id, ni _status, truefalse ok);
+  DVOID dist_ftp_md5_reply(CONST text * client_id, CONST text * dist_id, CONST text * md5list);
+  DVOID psp(CONST text * client_id, CONST text * dist_id, text c);
 
 private:
   enum { IDLE_TIME = 5 }; //in minutes
 
-  bool check_dist_info(bool reload);
-  bool check_dist_clients(bool reload);
+  truefalse check_dist_info(truefalse reload);
+  truefalse check_dist_clients(truefalse reload);
 
   MyHttpDistInfos m_dist_infos;
   MyDistClients m_dist_clients;
@@ -725,40 +725,40 @@ public:
 
   MyHeartBeatProcessor(CHandlerBase * handler);
   virtual CProcBase::EVENT_RESULT on_recv_header();
-  virtual const char * name() const;
+  virtual CONST text * name() CONST;
 
-  static MyPingSubmitter * m_heart_beat_submitter;
-  static MyIPVerSubmitter * m_ip_ver_submitter;
-  static MyFtpFeedbackSubmitter * m_ftp_feedback_submitter;
-  static MyAdvClickSubmitter * m_adv_click_submitter;
-  static MyPcOnOffSubmitter * m_pc_on_off_submitter;
-  static MyHWAlarmSubmitter * m_hardware_alarm_submitter;
-  static MyVLCSubmitter * m_vlc_submitter;
-  static MyVLCEmptySubmitter * m_vlc_empty_submitter;
+  SF MyPingSubmitter * m_heart_beat_submitter;
+  SF MyIPVerSubmitter * m_ip_ver_submitter;
+  SF MyFtpFeedbackSubmitter * m_ftp_feedback_submitter;
+  SF MyAdvClickSubmitter * m_adv_click_submitter;
+  SF MyPcOnOffSubmitter * m_pc_on_off_submitter;
+  SF MyHWAlarmSubmitter * m_hardware_alarm_submitter;
+  SF MyVLCSubmitter * m_vlc_submitter;
+  SF MyVLCEmptySubmitter * m_vlc_empty_submitter;
 
   DECLARE_MEMORY_POOL__NOTHROW(MyHeartBeatProcessor, ACE_Thread_Mutex);
 
 protected:
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb);
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 2 * 1024 * 1024 };
 
-  void do_ping();
-  CProcBase::EVENT_RESULT do_version_check(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_md5_file_list(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_ftp_reply(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_ip_ver_req(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_adv_click_req(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_pc_on_off_req(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_hardware_alarm_req(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_vlc_req(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_test(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_psp(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_vlc_empty_req(ACE_Message_Block * mb);
+  DVOID do_ping();
+  CProcBase::EVENT_RESULT do_version_check(CMB * mb);
+  CProcBase::EVENT_RESULT do_md5_file_list(CMB * mb);
+  CProcBase::EVENT_RESULT do_ftp_reply(CMB * mb);
+  CProcBase::EVENT_RESULT do_ip_ver_req(CMB * mb);
+  CProcBase::EVENT_RESULT do_adv_click_req(CMB * mb);
+  CProcBase::EVENT_RESULT do_pc_on_off_req(CMB * mb);
+  CProcBase::EVENT_RESULT do_hardware_alarm_req(CMB * mb);
+  CProcBase::EVENT_RESULT do_vlc_req(CMB * mb);
+  CProcBase::EVENT_RESULT do_test(CMB * mb);
+  CProcBase::EVENT_RESULT do_psp(CMB * mb);
+  CProcBase::EVENT_RESULT do_vlc_empty_req(CMB * mb);
   CProcBase::EVENT_RESULT do_send_pq();
 
-  char m_hw_ver[12];
+  text m_hw_ver[12];
 };
 
 class MyBaseSubmitter;
@@ -766,24 +766,24 @@ class MyBaseSubmitter;
 class MyAccumulatorBlock
 {
 public:
-  MyAccumulatorBlock(int block_size, int max_item_length, MyBaseSubmitter * submitter, bool auto_submit = false);
+  MyAccumulatorBlock(ni block_size, ni max_item_length, MyBaseSubmitter * submitter, truefalse auto_submit = false);
   ~MyAccumulatorBlock();
 
-  void reset();
-  bool add(const char * item, int len = 0);
-  bool add(char c);
-  const char * data();
-  int data_len() const;
+  DVOID reset();
+  truefalse add(CONST text * item, ni len = 0);
+  truefalse add(text c);
+  CONST text * data();
+  ni data_len() CONST;
 
 private:
   enum {ITEM_SEPARATOR = ';' };
 
-  ACE_Message_Block * m_current_block;
-  char * m_current_ptr;
-  int m_max_item_length;
-  int m_block_size;
+  CMB * m_current_block;
+  text * m_current_ptr;
+  ni m_max_item_length;
+  ni m_block_size;
   MyBaseSubmitter * m_submitter;
-  bool m_auto_submit;
+  truefalse m_auto_submit;
 };
 
 class MyBaseSubmitter
@@ -791,16 +791,16 @@ class MyBaseSubmitter
 public:
   virtual ~MyBaseSubmitter();
 
-  void submit();
-  void add_block(MyAccumulatorBlock * block);
-  void check_time_out();
+  DVOID submit();
+  DVOID add_block(MyAccumulatorBlock * block);
+  DVOID check_time_out();
 
 protected:
   typedef std::list<MyAccumulatorBlock * > MyBlockList;
 
-  void reset();
-  void do_submit(const char * cmd);
-  virtual const char * get_command() const = 0;
+  DVOID reset();
+  DVOID do_submit(CONST text * cmd);
+  virtual CONST text * get_command() CONST = 0;
 
   MyBlockList m_blocks;
 };
@@ -811,10 +811,10 @@ public:
   MyFtpFeedbackSubmitter();
   virtual ~MyFtpFeedbackSubmitter();
 
-  void add(const char * dist_id, char ftype, const char *client_id, char step, char ok_flag, const char * date);
+  DVOID add(CONST text * dist_id, text ftype, CONST text *client_id, text step, text ok_flag, CONST text * date);
 
 protected:
-  virtual const char * get_command() const;
+  virtual CONST text * get_command() CONST;
 
 private:
   enum { BLOCK_SIZE = 1024 };
@@ -833,10 +833,10 @@ public:
   enum {ID_SEPARATOR = ';' };
   MyPingSubmitter();
   ~MyPingSubmitter();
-  void add_ping(const char * client_id, const int len);
+  DVOID add_ping(CONST text * client_id, CONST ni len);
 
 protected:
-  virtual const char * get_command() const;
+  virtual CONST text * get_command() CONST;
 
 private:
   enum { BLOCK_SIZE = 4096 };
@@ -848,10 +848,10 @@ class MyIPVerSubmitter: public MyBaseSubmitter
 public:
   enum {ID_SEPARATOR = ';' };
   MyIPVerSubmitter();
-  void add_data(const char * client_id, int id_len, const char * ip, const char * ver, const char * hwver);
+  DVOID add_data(CONST text * client_id, ni id_len, CONST text * ip, CONST text * ver, CONST text * hwver);
 
 protected:
-  virtual const char * get_command() const;
+  virtual CONST text * get_command() CONST;
 
 private:
   enum { BLOCK_SIZE = 2048 };
@@ -867,10 +867,10 @@ class MyPcOnOffSubmitter: public MyBaseSubmitter
 public:
   enum {ID_SEPARATOR = ';' };
   MyPcOnOffSubmitter();
-  void add_data(const char * client_id, int id_len, const char c_on, const char * datetime);
+  DVOID add_data(CONST text * client_id, ni id_len, CONST text c_on, CONST text * datetime);
 
 protected:
-  virtual const char * get_command() const;
+  virtual CONST text * get_command() CONST;
 
 private:
   enum { BLOCK_SIZE = 2048 };
@@ -885,10 +885,10 @@ class MyAdvClickSubmitter: public MyBaseSubmitter
 public:
   enum {ID_SEPARATOR = ';' };
   MyAdvClickSubmitter();
-  void add_data(const char * client_id, int id_len, const char * chn, const char * pcode, const char * number);
+  DVOID add_data(CONST text * client_id, ni id_len, CONST text * chn, CONST text * pcode, CONST text * number);
 
 protected:
-  virtual const char * get_command() const;
+  virtual CONST text * get_command() CONST;
 
 private:
   enum { BLOCK_SIZE = 2048 };
@@ -903,10 +903,10 @@ class MyHWAlarmSubmitter: public MyBaseSubmitter
 public:
   enum {ID_SEPARATOR = ';' };
   MyHWAlarmSubmitter();
-  void add_data(const char * client_id, int id_len, const char x, const char y, const char * datetime);
+  DVOID add_data(CONST text * client_id, ni id_len, CONST text x, CONST text y, CONST text * datetime);
 
 protected:
-  virtual const char * get_command() const;
+  virtual CONST text * get_command() CONST;
 
 private:
   enum { BLOCK_SIZE = 2048 };
@@ -921,10 +921,10 @@ class MyVLCSubmitter: public MyBaseSubmitter
 public:
   enum {ID_SEPARATOR = ';' };
   MyVLCSubmitter();
-  void add_data(const char * client_id, int id_len, const char * fn, const char * number);
+  DVOID add_data(CONST text * client_id, ni id_len, CONST text * fn, CONST text * number);
 
 protected:
-  virtual const char * get_command() const;
+  virtual CONST text * get_command() CONST;
 
 private:
   enum { BLOCK_SIZE = 4096 };
@@ -938,10 +938,10 @@ class MyVLCEmptySubmitter: public MyBaseSubmitter
 public:
   enum {ID_SEPARATOR = ';' };
   MyVLCEmptySubmitter();
-  void add_data(const char * client_id, int id_len, const char state);
+  DVOID add_data(CONST text * client_id, ni id_len, CONST text state);
 
 protected:
-  virtual const char * get_command() const;
+  virtual CONST text * get_command() CONST;
 
 private:
   enum { BLOCK_SIZE = 4096 };
@@ -955,7 +955,7 @@ class MyHeartBeatHandler: public CHandlerBase
 {
 public:
   MyHeartBeatHandler(CConnectionManagerBase * xptr = NULL);
-  virtual CClientIDS * client_id_table() const;
+  virtual CClientIDS * client_id_table() CONST;
 
   DECLARE_MEMORY_POOL__NOTHROW(MyHeartBeatHandler, ACE_Thread_Mutex);
 };
@@ -965,18 +965,18 @@ class MyHeartBeatService: public CTaskBase
 public:
   enum { TIMED_DIST_TASK = 1 };
 
-  MyHeartBeatService(CMod * module, int numThreads = 1);
-  virtual int svc();
-  bool add_request(ACE_Message_Block * mb, bool btail);
-  bool add_request_slow(ACE_Message_Block * mb);
+  MyHeartBeatService(CMod * module, ni numThreads = 1);
+  virtual ni svc();
+  truefalse add_request(CMB * mb, truefalse btail);
+  truefalse add_request_slow(CMB * mb);
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
 
-  void do_have_dist_task();
-  void do_ftp_file_reply(ACE_Message_Block * mb);
-  void do_file_md5_reply(ACE_Message_Block * mb);
-  void do_psp(ACE_Message_Block * mb);
+  DVOID do_have_dist_task();
+  DVOID do_ftp_file_reply(CMB * mb);
+  DVOID do_file_md5_reply(CMB * mb);
+  DVOID do_psp(CMB * mb);
 
   MyClientFileDistributor m_distributor;
   ACE_Message_Queue<ACE_MT_SYNCH> m_queue2;
@@ -985,15 +985,15 @@ private:
 class MyHeartBeatDispatcher: public CDispatchBase
 {
 public:
-  MyHeartBeatDispatcher(CMod * pModule, int numThreads = 1);
-  virtual const char * name() const;
-  virtual int handle_timeout (const ACE_Time_Value &tv, const void *act);
-  MyHeartBeatAcceptor * acceptor() const;
+  MyHeartBeatDispatcher(CMod * pModule, ni numThreads = 1);
+  virtual CONST text * name() CONST;
+  virtual ni handle_timeout (CONST ACE_Time_Value &tv, CONST DVOID *act);
+  MyHeartBeatAcceptor * acceptor() CONST;
 
 protected:
-  virtual void on_stop();
-  virtual void on_stop_stage_1();
-  virtual bool on_start();
+  virtual DVOID on_stop();
+  virtual DVOID on_stop_stage_1();
+  virtual truefalse on_start();
 
 private:
   enum { CLOCK_INTERVAL = 3 }; //seconds
@@ -1013,8 +1013,8 @@ class MyHeartBeatAcceptor: public CAcceptorBase
 public:
   enum { IDLE_TIME_AS_DEAD = 15 }; //in minutes
   MyHeartBeatAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * manager);
-  virtual int make_svc_handler(CHandlerBase *& sh);
-  virtual const char * name() const;
+  virtual ni make_svc_handler(CHandlerBase *& sh);
+  virtual CONST text * name() CONST;
 };
 
 
@@ -1023,17 +1023,17 @@ class MyHeartBeatModule: public CMod
 public:
   MyHeartBeatModule(CApp * app);
   virtual ~MyHeartBeatModule();
-  MyHeartBeatDispatcher * dispatcher() const;
-  virtual const char * name() const;
-  MyHeartBeatService * service() const;
-  int num_active_clients() const;
+  MyHeartBeatDispatcher * dispatcher() CONST;
+  virtual CONST text * name() CONST;
+  MyHeartBeatService * service() CONST;
+  ni num_active_clients() CONST;
   MyFtpFeedbackSubmitter & ftp_feedback_submitter();
-  void pl();
-  bool get_pl(CMemGuard & value);
+  DVOID pl();
+  truefalse get_pl(CMemGuard & value);
 
 protected:
-  virtual bool on_start();
-  virtual void on_stop();
+  virtual truefalse on_start();
+  virtual DVOID on_stop();
 
 private:
   MyPingSubmitter m_ping_sumbitter;
@@ -1062,30 +1062,30 @@ class MyDistToBSProcessor: public CBSProceBase
 public:
   typedef CBSProceBase super;
   MyDistToBSProcessor(CHandlerBase * handler);
-  virtual const char * name() const;
+  virtual CONST text * name() CONST;
 
 protected:
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb);
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 2 * 1024 * 1024 };
 
-  void process_ip_ver_reply(MyBSBasePacket * bspacket);
-  void process_ip_ver_reply_one(char * item);
+  DVOID process_ip_ver_reply(MyBSBasePacket * bspacket);
+  DVOID process_ip_ver_reply_one(text * item);
 };
 
 class MyDistToBSHandler: public CHandlerBase
 {
 public:
   MyDistToBSHandler(CConnectionManagerBase * xptr = NULL);
-  MyDistToMiddleModule * module_x() const;
-  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
-  void checker_update();
+  MyDistToMiddleModule * module_x() CONST;
+  virtual ni handle_timeout (CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
+  DVOID checker_update();
   DECLARE_MEMORY_POOL__NOTHROW(MyDistToBSHandler, ACE_Thread_Mutex);
 
 protected:
-  virtual void on_close();
-  virtual int  on_open();
+  virtual DVOID on_close();
+  virtual ni  on_open();
 
 private:
   MyActChecker m_checker;
@@ -1095,8 +1095,8 @@ class MyDistToBSConnector: public CConnectorBase
 {
 public:
   MyDistToBSConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager);
-  virtual int make_svc_handler(CHandlerBase *& sh);
-  virtual const char * name() const;
+  virtual ni make_svc_handler(CHandlerBase *& sh);
+  virtual CONST text * name() CONST;
 
 protected:
   enum { RECONNECT_INTERVAL = 1 }; //time in minutes
@@ -1117,37 +1117,37 @@ public:
 
   MyDistToMiddleProcessor(CHandlerBase * handler);
   virtual CProcBase::EVENT_RESULT on_recv_header();
-  virtual int on_open();
-  int send_server_load();
+  virtual ni on_open();
+  ni send_server_load();
 
 protected:
-  virtual CProcBase::EVENT_RESULT on_recv_packet_i(ACE_Message_Block * mb);
+  virtual CProcBase::EVENT_RESULT on_recv_packet_i(CMB * mb);
 
 private:
   enum { IP_ADDR_LENGTH = INET_ADDRSTRLEN };
   enum { MSG_QUEUE_MAX_SIZE = 512 * 1024 };
 
-  int send_version_check_req();
-  CProcBase::EVENT_RESULT do_version_check_reply(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_have_dist_task(ACE_Message_Block * mb);
-  CProcBase::EVENT_RESULT do_remote_cmd_task(ACE_Message_Block * mb);
+  ni send_version_check_req();
+  CProcBase::EVENT_RESULT do_version_check_reply(CMB * mb);
+  CProcBase::EVENT_RESULT do_have_dist_task(CMB * mb);
+  CProcBase::EVENT_RESULT do_remote_cmd_task(CMB * mb);
 
-  bool m_version_check_reply_done;
-  char m_local_addr[IP_ADDR_LENGTH];
+  truefalse m_version_check_reply_done;
+  text m_local_addr[IP_ADDR_LENGTH];
 };
 
 class MyDistToMiddleHandler: public CHandlerBase
 {
 public:
   MyDistToMiddleHandler(CConnectionManagerBase * xptr = NULL);
-  virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
-  void setup_timer();
-  MyDistToMiddleModule * module_x() const;
+  virtual ni handle_timeout (CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
+  DVOID setup_timer();
+  MyDistToMiddleModule * module_x() CONST;
   DECLARE_MEMORY_POOL__NOTHROW(MyDistToMiddleHandler, ACE_Thread_Mutex);
 
 protected:
-  virtual void on_close();
-  virtual int  on_open();
+  virtual DVOID on_close();
+  virtual ni  on_open();
 
 private:
   enum { LOAD_BALANCE_REQ_TIMER = 1 };
@@ -1158,18 +1158,18 @@ private:
 class MyDistToMiddleDispatcher: public CDispatchBase
 {
 public:
-  MyDistToMiddleDispatcher(CMod * pModule, int numThreads = 1);
+  MyDistToMiddleDispatcher(CMod * pModule, ni numThreads = 1);
   virtual ~MyDistToMiddleDispatcher();
 
-  virtual const char * name() const;
-  void send_to_bs(ACE_Message_Block * mb);
-  void send_to_middle(ACE_Message_Block * mb);
+  virtual CONST text * name() CONST;
+  DVOID send_to_bs(CMB * mb);
+  DVOID send_to_middle(CMB * mb);
 
 protected:
-  virtual void on_stop();
-  virtual bool on_start();
-  virtual bool on_event_loop();
-  virtual void on_stop_stage_1();
+  virtual DVOID on_stop();
+  virtual truefalse on_start();
+  virtual truefalse on_event_loop();
+  virtual DVOID on_stop_stage_1();
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
@@ -1184,8 +1184,8 @@ class MyDistToMiddleConnector: public CConnectorBase
 {
 public:
   MyDistToMiddleConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager);
-  virtual int make_svc_handler(CHandlerBase *& sh);
-  virtual const char * name() const;
+  virtual ni make_svc_handler(CHandlerBase *& sh);
+  virtual CONST text * name() CONST;
 
 protected:
   enum { RECONNECT_INTERVAL = 3 }; //time in minutes
@@ -1196,13 +1196,13 @@ class MyDistToMiddleModule: public CMod
 public:
   MyDistToMiddleModule(CApp * app);
   virtual ~MyDistToMiddleModule();
-  virtual const char * name() const;
-  void send_to_bs(ACE_Message_Block * mb);
-  void send_to_middle(ACE_Message_Block * mb);
+  virtual CONST text * name() CONST;
+  DVOID send_to_bs(CMB * mb);
+  DVOID send_to_middle(CMB * mb);
 
 protected:
-  virtual bool on_start();
-  virtual void on_stop();
+  virtual truefalse on_start();
+  virtual DVOID on_stop();
 
 private:
   MyDistToMiddleDispatcher *m_dispatcher;
@@ -1214,56 +1214,56 @@ class MyDB
 public:
   MyDB();
   ~MyDB();
-  static time_t get_time_from_string(const char * s);
+  SF time_t get_time_from_string(CONST text * s);
 
-  bool connect();
-  bool check_db_connection();
-  bool ping_db_server();
-  bool get_client_ids(CClientIDS * idtable);
-  bool save_client_id(const char * s);
-  bool save_dist(MyHttpDistRequest & http_dist_request, const char * md5, const char * mbz_md5);
-  bool save_sr(char * dist_id, const char * cmd, char * idlist);
-  bool save_prio(const char * prio);
-  bool save_dist_clients(char * idlist, char * adirlist, const char * dist_id);
-  bool save_dist_cmp_done(const char *dist_id);
-  int  load_dist_infos(MyHttpDistInfos & infos);
-  bool load_pl(CMemGuard & value);
-//  bool dist_take_cmp_ownership(MyHttpDistInfo * info);
-//  bool dist_take_md5_ownership(MyHttpDistInfo * info);
-  bool dist_mark_cmp_done(const char * dist_id);
-  bool dist_mark_md5_done(const char * dist_id);
-  bool save_dist_md5(const char * dist_id, const char * md5, int md5_len);
-  bool save_dist_ftp_md5(const char * dist_id, const char * md5);
-  bool load_dist_clients(MyDistClients * dist_clients, MyDistClientOne * _dc_one);
-  bool set_dist_client_status(MyDistClient & dist_client, int new_status);
-  bool set_dist_client_status(const char * client_id, const char * dist_id, int new_status);
-  bool set_dist_client_md5(const char * client_id, const char * dist_id, const char * md5, int new_status);
-  bool set_dist_client_mbz(const char * client_id, const char * dist_id, const char * mbz, const char * mbz_md5);
-  bool delete_dist_client(const char * client_id, const char * dist_id);
-  bool dist_info_is_update(MyHttpDistInfos & infos);
-  bool dist_info_update_status();
-  bool remove_orphan_dist_info();
-  bool get_dist_ids(MyUnusedPathRemover & path_remover);
-  bool mark_client_valid(const char * client_id, bool valid);
+  truefalse connect();
+  truefalse check_db_connection();
+  truefalse ping_db_server();
+  truefalse get_client_ids(CClientIDS * idtable);
+  truefalse save_client_id(CONST text * s);
+  truefalse save_dist(MyHttpDistRequest & http_dist_request, CONST text * md5, CONST text * mbz_md5);
+  truefalse save_sr(text * dist_id, CONST text * cmd, text * idlist);
+  truefalse save_prio(CONST text * prio);
+  truefalse save_dist_clients(text * idlist, text * adirlist, CONST text * dist_id);
+  truefalse save_dist_cmp_done(CONST text *dist_id);
+  ni  load_dist_infos(MyHttpDistInfos & infos);
+  truefalse load_pl(CMemGuard & value);
+//  truefalse dist_take_cmp_ownership(MyHttpDistInfo * info);
+//  truefalse dist_take_md5_ownership(MyHttpDistInfo * info);
+  truefalse dist_mark_cmp_done(CONST text * dist_id);
+  truefalse dist_mark_md5_done(CONST text * dist_id);
+  truefalse save_dist_md5(CONST text * dist_id, CONST text * md5, ni md5_len);
+  truefalse save_dist_ftp_md5(CONST text * dist_id, CONST text * md5);
+  truefalse load_dist_clients(MyDistClients * dist_clients, MyDistClientOne * _dc_one);
+  truefalse set_dist_client_status(MyDistClient & dist_client, ni new_status);
+  truefalse set_dist_client_status(CONST text * client_id, CONST text * dist_id, ni new_status);
+  truefalse set_dist_client_md5(CONST text * client_id, CONST text * dist_id, CONST text * md5, ni new_status);
+  truefalse set_dist_client_mbz(CONST text * client_id, CONST text * dist_id, CONST text * mbz, CONST text * mbz_md5);
+  truefalse delete_dist_client(CONST text * client_id, CONST text * dist_id);
+  truefalse dist_info_is_update(MyHttpDistInfos & infos);
+  truefalse dist_info_update_status();
+  truefalse remove_orphan_dist_info();
+  truefalse get_dist_ids(MyUnusedPathRemover & path_remover);
+  truefalse mark_client_valid(CONST text * client_id, truefalse valid);
 
 private:
-  void disconnect();
-  bool load_db_server_time_i(time_t &t);
-  bool connected() const;
-  bool begin_transaction();
-  bool commit();
-  bool rollback();
-  bool exec_command(const char * sql_command, int * affected = NULL);
-  void wrap_str(const char * s, CMemGuard & wrapped) const;
+  DVOID disconnect();
+  truefalse load_db_server_time_i(time_t &t);
+  truefalse connected() CONST;
+  truefalse begin_transaction();
+  truefalse commit();
+  truefalse rollback();
+  truefalse exec_command(CONST text * sql_command, ni * affected = NULL);
+  DVOID wrap_str(CONST text * s, CMemGuard & wrapped) CONST;
   time_t get_db_time_i();
-  bool take_owner_ship(const char * table, const char * field, CMemGuard & old_time, const char * where_clause);
-  bool set_cfg_value(const int id, const char * value);
-  bool load_cfg_value(const int id, CMemGuard & value);
-  bool load_cfg_value_i(const int id, CMemGuard & value);
+  truefalse take_owner_ship(CONST text * table, CONST text * field, CMemGuard & old_time, CONST text * where_clause);
+  truefalse set_cfg_value(CONST ni id, CONST text * value);
+  truefalse load_cfg_value(CONST ni id, CMemGuard & value);
+  truefalse load_cfg_value_i(CONST ni id, CMemGuard & value);
 
   PGconn * m_connection;
   CMemGuard m_server_addr;
-  int m_server_port;
+  ni m_server_port;
   CMemGuard m_user_name;
   CMemGuard m_password;
   ACE_Thread_Mutex m_mutex;

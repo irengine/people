@@ -11,94 +11,94 @@
 #include <cstdio>
 #include "app.h"
 
-const char * g_const_app_ver = "1.0";
+CONST text * g_CONST_app_ver = "1.0";
 long g_clock_counter = 0;
-bool g_is_test = false;
+truefalse g_is_test = false;
 
 //MyServerConfig//
 
-const int  DEFAULT_max_clients = 10000;
-const bool DEFAULT_use_mem_pool = true;
-const bool DEFAULT_run_as_demon = false;
-const int  DEFAULT_status_file_check_interval = 3; //in minutes
-const int  DEFAULT_mem_pool_dump_interval = 30; //in minutes
+CONST ni  DEFAULT_max_clients = 10000;
+CONST truefalse DEFAULT_use_mem_pool = true;
+CONST truefalse DEFAULT_run_as_demon = false;
+CONST ni  DEFAULT_status_file_check_interval = 3; //in minutes
+CONST ni  DEFAULT_mem_pool_dump_interval = 30; //in minutes
 
-const int  DEFAULT_log_file_number = 3;
-const int  DEFAULT_log_file_size_in_MB = 20;
-const bool DEFAULT_log_debug_enabled = true;
-const bool DEFAULT_log_to_stderr = true;
+CONST ni  DEFAULT_log_file_number = 3;
+CONST ni  DEFAULT_log_file_size_in_MB = 20;
+CONST truefalse DEFAULT_log_debug_enabled = true;
+CONST truefalse DEFAULT_log_to_stderr = true;
 
-const int  DEFAULT_dist_server_heart_beat_port = 2222;
-const int  DEFAULT_MODULE_HEART_BEAT_MPOOL_SIZE = DEFAULT_max_clients * 4;
+CONST ni  DEFAULT_dist_server_heart_beat_port = 2222;
+CONST ni  DEFAULT_MODULE_HEART_BEAT_MPOOL_SIZE = DEFAULT_max_clients * 4;
 
-const int  DEFAULT_middle_server_client_port = 2223;
-const int  DEFAULT_middle_server_dist_port = 2224;
-const int  DEFAULT_client_heart_beat_interval = 60; //in seconds
-const int  DEFAULT_test_client_ftp_thread_number = 50;
-const int  DEFAULT_db_server_port = 5432;
-const int  DEFAULT_http_port = 1922;
-const int  DEFAULT_bs_server_port = 1921;
-const int  DEFAULT_client_ftp_timeout = 120;
-const int  DEFAULT_client_ftp_retry_count = 30;
-const int  DEFAULT_client_ftp_retry_interval = 4;
-const int  DEFAULT_client_enable_root = 0;
+CONST ni  DEFAULT_middle_server_client_port = 2223;
+CONST ni  DEFAULT_middle_server_dist_port = 2224;
+CONST ni  DEFAULT_client_heart_beat_interval = 60; //in seconds
+CONST ni  DEFAULT_test_client_ftp_thread_number = 50;
+CONST ni  DEFAULT_db_server_port = 5432;
+CONST ni  DEFAULT_http_port = 1922;
+CONST ni  DEFAULT_bs_server_port = 1921;
+CONST ni  DEFAULT_client_ftp_timeout = 120;
+CONST ni  DEFAULT_client_ftp_retry_count = 30;
+CONST ni  DEFAULT_client_ftp_retry_interval = 4;
+CONST ni  DEFAULT_client_enable_root = 0;
 
 //common for all
-const char * CONFIG_Section_global = "global";
+CONST text * CONFIG_Section_global = "global";
 
-const char * CONFIG_test_mode = "test_mode";
+CONST text * CONFIG_test_mode = "test_mode";
 
-const char * CONFIG_running_mode = "running_mode";
-const char * CONFIG_use_mem_pool = "use_mem_pool";
-const char * CONFIG_mem_pool_dump_interval = "mem_pool_dump_interval";
-const char * CONFIG_run_as_demon = "run_as_demon";
-const char * CONFIG_status_file_check_interval = "status_file_check_interval";
+CONST text * CONFIG_running_mode = "running_mode";
+CONST text * CONFIG_use_mem_pool = "use_mem_pool";
+CONST text * CONFIG_mem_pool_dump_interval = "mem_pool_dump_interval";
+CONST text * CONFIG_run_as_demon = "run_as_demon";
+CONST text * CONFIG_status_file_check_interval = "status_file_check_interval";
 
-const char * CONFIG_log_debug_enabled = "log.debug_enabled";
-const char * CONFIG_log_to_stderr = "log.to_stderr";
-const char * CONFIG_log_file_number = "log.file_number";
-const char * CONFIG_log_file_size_in_MB = "log.file_size";
+CONST text * CONFIG_log_debug_enabled = "log.debug_enabled";
+CONST text * CONFIG_log_to_stderr = "log.to_stderr";
+CONST text * CONFIG_log_file_number = "log.file_number";
+CONST text * CONFIG_log_file_size_in_MB = "log.file_size";
 
-const char * CONFIG_test_client_ftp_thread_number = "module.test_client_ftp_thread_number";
+CONST text * CONFIG_test_client_ftp_thread_number = "module.test_client_ftp_thread_number";
 
 //dist and middle servers
-const char * CONFIG_max_clients = "max_clients";
-const char * CONFIG_middle_server_dist_port = "middle_server.dist_port";
-const char * CONFIG_middle_server_key = "middle_server.key";
-const char * CONFIG_db_server_addr = "db_server.addr";
-const char * CONFIG_db_server_port = "db_server.port";
-const char * CONFIG_db_user_name = "db_server.user_name";
-const char * CONFIG_db_password = "db_server.password";
-const char * CONFIG_compressed_store_path = "compressed_store_path";
-const char * CONFIG_bs_server_addr = "bs_server_addr";
-const char * CONFIG_bs_server_port = "bs_server_port";
+CONST text * CONFIG_max_clients = "max_clients";
+CONST text * CONFIG_middle_server_dist_port = "middle_server.dist_port";
+CONST text * CONFIG_middle_server_key = "middle_server.key";
+CONST text * CONFIG_db_server_addr = "db_server.addr";
+CONST text * CONFIG_db_server_port = "db_server.port";
+CONST text * CONFIG_db_user_name = "db_server.user_name";
+CONST text * CONFIG_db_password = "db_server.password";
+CONST text * CONFIG_compressed_store_path = "compressed_store_path";
+CONST text * CONFIG_bs_server_addr = "bs_server_addr";
+CONST text * CONFIG_bs_server_port = "bs_server_port";
 
 
 
 //client and dist
-const char *  CONFIG_middle_server_addr = "middle_server.addr";
-const char *  CONFIG_dist_server_heart_beat_port = "module.heart_beat.port";
+CONST text *  CONFIG_middle_server_addr = "middle_server.addr";
+CONST text *  CONFIG_dist_server_heart_beat_port = "module.heart_beat.port";
 
 //client and middle
-const char *  CONFIG_middle_server_client_port = "middle_server.client_port";
+CONST text *  CONFIG_middle_server_client_port = "middle_server.client_port";
 
 //middle specific
-const char *  CONFIG_http_port = "middle_server.http_port";
-const char *  CONFIG_ftp_addr_list = "ftp_addr_list";
+CONST text *  CONFIG_http_port = "middle_server.http_port";
+CONST text *  CONFIG_ftp_addr_list = "ftp_addr_list";
 
 //dist specific
-const char * CONFIG_module_heart_beat_mem_pool_size = "module.heart_beat.mempool_size";
-const char * CONFIG_client_version_minimum = "client_version_minimum";
-const char * CONFIG_client_version_current = "client_version_current";
-const char * CONFIG_server_id = "server_id";
+CONST text * CONFIG_module_heart_beat_mem_pool_size = "module.heart_beat.mempool_size";
+CONST text * CONFIG_client_version_minimum = "client_version_minimum";
+CONST text * CONFIG_client_version_current = "client_version_current";
+CONST text * CONFIG_server_id = "server_id";
 
 //client specific
-const char * CONFIG_client_heart_beat_interval = "module.client_heart_beat_interval";
-const char * CONFIG_adv_expire_days = "module.adv_expire_days";
-const char * CONFIG_client_ftp_timeout = "module.client_ftp_timeout";
-const char * CONFIG_client_ftp_retry_count = "module.client_ftp_retry_count";
-const char * CONFIG_client_ftp_retry_interval = "module.client_ftp_retry_interval";
-const char * CONFIG_client_enable_root = "module.client_enable_root";
+CONST text * CONFIG_client_heart_beat_interval = "module.client_heart_beat_interval";
+CONST text * CONFIG_adv_expire_days = "module.adv_expire_days";
+CONST text * CONFIG_client_ftp_timeout = "module.client_ftp_timeout";
+CONST text * CONFIG_client_ftp_retry_count = "module.client_ftp_retry_count";
+CONST text * CONFIG_client_ftp_retry_interval = "module.client_ftp_retry_interval";
+CONST text * CONFIG_client_enable_root = "module.client_enable_root";
 
 
 CCfg::CCfg()
@@ -113,7 +113,7 @@ CCfg::CCfg()
 
   log_debug = DEFAULT_log_debug_enabled;
   log_file_count = DEFAULT_log_file_number;
-  log_file_size_in_MB = DEFAULT_log_file_size_in_MB;
+  log_file_size = DEFAULT_log_file_size_in_MB;
   log_stderr = DEFAULT_log_to_stderr;
 
   //dist and middle server
@@ -143,10 +143,10 @@ CCfg::CCfg()
   http_port = DEFAULT_http_port;
 }
 
-void CCfg::do_init(const char * app_home_path)
+DVOID CCfg::do_init(CONST text * app_home_path)
 {
-  const size_t BUFF_SIZE = 4096;
-  char path[BUFF_SIZE];
+  CONST size_t BUFF_SIZE = 4096;
+  text path[BUFF_SIZE];
 
   if (!app_home_path)
   {
@@ -154,15 +154,15 @@ void CCfg::do_init(const char * app_home_path)
     if (ret > 0 && ret < ssize_t(BUFF_SIZE))
     {
       path[ret] = '\0';
-      app_exe_path = path;
-      size_t pos = app_exe_path.rfind('/');
-      if (pos == app_exe_path.npos || pos == 0)
+      exe_path = path;
+      size_t pos = exe_path.rfind('/');
+      if (pos == exe_path.npos || pos == 0)
       {
         std::printf("exe_path (= %s) error\n", path);
         exit(1);
       }
-      app_exe_path = app_exe_path.substr(0, pos);
-      app_path = app_exe_path;
+      exe_path = exe_path.substr(0, pos);
+      app_path = exe_path;
       pos = app_path.rfind('/', pos);
       if (pos == app_path.npos || pos == 0)
       {
@@ -178,42 +178,42 @@ void CCfg::do_init(const char * app_home_path)
   } else
   {
     app_path = app_home_path;
-    app_exe_path = app_path + "/bin";
+    exe_path = app_path + "/bin";
   }
 
-  app_status_file_name = app_path + "/running/app.pid";
-  app_log_file_name = app_path + "/log/app.log";
-  app_config_file_name = app_path + "/config/app.cfg";
-  app_data_path = app_path + "/data";
+  status_fn = app_path + "/running/app.pid";
+  log_fn = app_path + "/log/app.log";
+  cfg_fn = app_path + "/config/app.cfg";
+  data_path = app_path + "/data";
 }
 
-bool CCfg::is_server() const
+truefalse CCfg::is_server() CONST
 {
   return app_mode != AM_CLIENT;
 }
 
-bool CCfg::is_client() const
+truefalse CCfg::is_client() CONST
 {
   return app_mode == AM_CLIENT;
 }
 
-bool CCfg::is_dist() const
+truefalse CCfg::is_dist() CONST
 {
   return app_mode == AM_DIST_SERVER;
 }
 
-bool CCfg::is_middle() const
+truefalse CCfg::is_middle() CONST
 {
   return app_mode == AM_MIDDLE_SERVER;
 }
 
-bool CCfg::readall(const char * home_dir, CAppMode mode)
+truefalse CCfg::readall(CONST text * home_dir, CAppMode mode)
 {
   do_init(home_dir);
 
   app_mode = mode;
 
-  ACE_Configuration_Heap heap;
+  CCfgHeap heap;
   if (heap.open () == -1)
   {
     C_FATAL("config.open().\n");
@@ -221,17 +221,17 @@ bool CCfg::readall(const char * home_dir, CAppMode mode)
   }
 
   ACE_Registry_ImpExp bridge(heap);
-  if (bridge.import_config (app_config_file_name.c_str()) == -1)
+  if (bridge.import_config (cfg_fn.c_str()) == -1)
   {
-    C_FATAL("import_config() failed on %s\n", app_config_file_name.c_str());
+    C_FATAL("import_config() failed on %s\n", cfg_fn.c_str());
     return false;
   }
 
-  ACE_Configuration_Section_Key sect;
+  CCfgKey sect;
   if (heap.open_section (heap.root_section (), CONFIG_Section_global,
                            0, sect) == -1)
   {
-    C_FATAL("config.open_section failed, section = %s\n", CONFIG_Section_global);
+    C_FATAL("config.open_key failed, key = %s\n", CONFIG_Section_global);
     return false;
   }
 
@@ -265,12 +265,12 @@ bool CCfg::readall(const char * home_dir, CAppMode mode)
   return true;
 }
 
-bool CCfg::read_base(ACE_Configuration_Heap & heap, ACE_Configuration_Section_Key & section)
+truefalse CCfg::read_base(CCfgHeap & heap, CCfgKey & key)
 {
   u_int ival;
   if (app_mode == AM_UNKNOWN)
   {
-    if (heap.get_integer_value (section,  CONFIG_running_mode, ival) == 0)
+    if (heap.get_integer_value (key,  CONFIG_running_mode, ival) == 0)
     {
       if (ival != AM_DIST_SERVER && ival != AM_MIDDLE_SERVER)
       {
@@ -285,52 +285,52 @@ bool CCfg::read_base(ACE_Configuration_Heap & heap, ACE_Configuration_Section_Ke
     }
   }
 
-  if (heap.get_integer_value (section,  CONFIG_test_mode, ival) == 0)
+  if (heap.get_integer_value (key,  CONFIG_test_mode, ival) == 0)
     g_is_test = (ival != 0);
 
-  if (heap.get_integer_value (section,  CONFIG_use_mem_pool, ival) == 0)
+  if (heap.get_integer_value (key,  CONFIG_use_mem_pool, ival) == 0)
   {
     use_mem_pool = (ival != 0);
     g_use_mem_pool = use_mem_pool;
   }
 
-  if (heap.get_integer_value (section,  CONFIG_run_as_demon, ival) == 0)
+  if (heap.get_integer_value (key,  CONFIG_run_as_demon, ival) == 0)
     as_demon = (ival != 0);
 
-  if (heap.get_integer_value (section,  CONFIG_status_file_check_interval, ival) == 0)
+  if (heap.get_integer_value (key,  CONFIG_status_file_check_interval, ival) == 0)
     file_check_interval = ival;
 
-  if (heap.get_integer_value (section,  CONFIG_log_file_number, ival) == 0)
+  if (heap.get_integer_value (key,  CONFIG_log_file_number, ival) == 0)
   {
     if (ival > 0 && ival <= 1000)
       log_file_count = ival;
   }
 
-  if (heap.get_integer_value (section,  CONFIG_log_file_size_in_MB, ival) == 0)
+  if (heap.get_integer_value (key,  CONFIG_log_file_size_in_MB, ival) == 0)
   {
     if (ival > 0 && ival <= 10000)
-      log_file_size_in_MB = ival;
+      log_file_size = ival;
   }
 
-  if (heap.get_integer_value (section,  CONFIG_log_debug_enabled, ival) == 0)
+  if (heap.get_integer_value (key,  CONFIG_log_debug_enabled, ival) == 0)
     log_debug = (ival != 0);
 
-  if (heap.get_integer_value (section,  CONFIG_log_to_stderr, ival) == 0)
+  if (heap.get_integer_value (key,  CONFIG_log_to_stderr, ival) == 0)
     log_stderr = (ival != 0);
 
-  if (heap.get_integer_value (section,  CONFIG_mem_pool_dump_interval, ival) == 0)
+  if (heap.get_integer_value (key,  CONFIG_mem_pool_dump_interval, ival) == 0)
     mem_dump_interval = ival;
 
   return true;
 }
 
-bool CCfg::read_dist_middle(ACE_Configuration_Heap & heap, ACE_Configuration_Section_Key & section)
+truefalse CCfg::read_dist_middle(CCfgHeap & heap, CCfgKey & key)
 {
   if (!is_server())
     return true;
 
   u_int ival;
-  if (heap.get_integer_value (section,  CONFIG_max_clients, ival) == 0)
+  if (heap.get_integer_value (key,  CONFIG_max_clients, ival) == 0)
   {
     if (ival > 0 && ival <= 100000) //the upper limit of 100000 is more than enough?
     {
@@ -339,15 +339,15 @@ bool CCfg::read_dist_middle(ACE_Configuration_Heap & heap, ACE_Configuration_Sec
   }
 
   ACE_TString sval;
-  if (heap.get_string_value(section, CONFIG_middle_server_key, sval) == 0)
-    middle_server_key = sval.c_str();
+  if (heap.get_string_value(key, CONFIG_middle_server_key, sval) == 0)
+    skey = sval.c_str();
   else
   {
     C_ERROR("can not read config value %s\n", CONFIG_middle_server_key);
     return false;
   }
 
-  if (heap.get_integer_value (section,  CONFIG_middle_server_dist_port, ival) == 0)
+  if (heap.get_integer_value (key,  CONFIG_middle_server_dist_port, ival) == 0)
   {
     if (ival == 0 || ival >= 65535)
     {
@@ -357,7 +357,7 @@ bool CCfg::read_dist_middle(ACE_Configuration_Heap & heap, ACE_Configuration_Sec
     middle_server_dist_port = ival;
   }
 
-  if (heap.get_string_value(section, CONFIG_db_server_addr, sval) == 0)
+  if (heap.get_string_value(key, CONFIG_db_server_addr, sval) == 0)
     db_addr = sval.c_str();
   else
   {
@@ -365,7 +365,7 @@ bool CCfg::read_dist_middle(ACE_Configuration_Heap & heap, ACE_Configuration_Sec
     return false;
   }
 
-  if (heap.get_integer_value (section,  CONFIG_db_server_port, ival) == 0)
+  if (heap.get_integer_value (key,  CONFIG_db_server_port, ival) == 0)
   {
     if (ival == 0 || ival >= 65535)
     {
@@ -375,7 +375,7 @@ bool CCfg::read_dist_middle(ACE_Configuration_Heap & heap, ACE_Configuration_Sec
     db_port = ival;
   }
 
-  if (heap.get_string_value(section, CONFIG_db_user_name, sval) == 0)
+  if (heap.get_string_value(key, CONFIG_db_user_name, sval) == 0)
     db_name = sval.c_str();
   else
   {
@@ -383,7 +383,7 @@ bool CCfg::read_dist_middle(ACE_Configuration_Heap & heap, ACE_Configuration_Sec
     return false;
   }
 
-  if (heap.get_string_value(section, CONFIG_db_password, sval) == 0)
+  if (heap.get_string_value(key, CONFIG_db_password, sval) == 0)
     db_password = sval.c_str();
   else
   {
@@ -391,15 +391,15 @@ bool CCfg::read_dist_middle(ACE_Configuration_Heap & heap, ACE_Configuration_Sec
     return false;
   }
 
-  if (heap.get_string_value(section, CONFIG_compressed_store_path, sval) == 0)
-    compressed_store_path = sval.c_str();
+  if (heap.get_string_value(key, CONFIG_compressed_store_path, sval) == 0)
+    bz_files_path = sval.c_str();
   else
   {
     C_ERROR("can not read config value %s\n", CONFIG_compressed_store_path);
     return false;
   }
 
-  if (heap.get_string_value(section, CONFIG_bs_server_addr, sval) == 0)
+  if (heap.get_string_value(key, CONFIG_bs_server_addr, sval) == 0)
     bs_addr = sval.c_str();
   else
   {
@@ -407,7 +407,7 @@ bool CCfg::read_dist_middle(ACE_Configuration_Heap & heap, ACE_Configuration_Sec
     return false;
   }
 
-  if (heap.get_integer_value(section, CONFIG_bs_server_port, ival) == 0)
+  if (heap.get_integer_value(key, CONFIG_bs_server_port, ival) == 0)
   {
     if (ival == 0 || ival >= 65535)
     {
@@ -420,7 +420,7 @@ bool CCfg::read_dist_middle(ACE_Configuration_Heap & heap, ACE_Configuration_Sec
   return true;
 }
 
-bool CCfg::read_client(ACE_Configuration_Heap & heap, ACE_Configuration_Section_Key & section)
+truefalse CCfg::read_client(CCfgHeap & heap, CCfgKey & key)
 {
   if (is_server())
     return true;
@@ -429,7 +429,7 @@ bool CCfg::read_client(ACE_Configuration_Heap & heap, ACE_Configuration_Section_
 
   if (g_is_test)
   {
-    if (heap.get_integer_value(section, CONFIG_client_heart_beat_interval, ival) == 0)
+    if (heap.get_integer_value(key, CONFIG_client_heart_beat_interval, ival) == 0)
     {
       if (ival == 0 || ival > 0xFFFF)
       {
@@ -443,7 +443,7 @@ bool CCfg::read_client(ACE_Configuration_Heap & heap, ACE_Configuration_Section_
 
   if (g_is_test)
   {
-    if (heap.get_integer_value(section, CONFIG_test_client_ftp_thread_number, ival) == 0)
+    if (heap.get_integer_value(key, CONFIG_test_client_ftp_thread_number, ival) == 0)
     {
       if (ival == 0 || ival > 500)
       {
@@ -455,7 +455,7 @@ bool CCfg::read_client(ACE_Configuration_Heap & heap, ACE_Configuration_Section_
     }
   }
 
-  if (heap.get_integer_value(section, CONFIG_adv_expire_days, ival) == 0)
+  if (heap.get_integer_value(key, CONFIG_adv_expire_days, ival) == 0)
   {
     if (ival > 365)
     {
@@ -466,7 +466,7 @@ bool CCfg::read_client(ACE_Configuration_Heap & heap, ACE_Configuration_Section_
       client_adv_expire_days = ival;
   }
 
-  if (heap.get_integer_value(section, CONFIG_client_ftp_timeout, ival) == 0)
+  if (heap.get_integer_value(key, CONFIG_client_ftp_timeout, ival) == 0)
   {
     if (ival < 60)
     {
@@ -477,7 +477,7 @@ bool CCfg::read_client(ACE_Configuration_Heap & heap, ACE_Configuration_Section_
       client_download_timeout = ival;
   }
 
-  if (heap.get_integer_value(section, CONFIG_client_ftp_retry_count, ival) == 0)
+  if (heap.get_integer_value(key, CONFIG_client_ftp_retry_count, ival) == 0)
   {
     if (ival < 1 || ival > 100000)
     {
@@ -488,7 +488,7 @@ bool CCfg::read_client(ACE_Configuration_Heap & heap, ACE_Configuration_Section_
       client_download_retry_count = ival;
   }
 
-  if (heap.get_integer_value(section, CONFIG_client_ftp_retry_interval, ival) == 0)
+  if (heap.get_integer_value(key, CONFIG_client_ftp_retry_interval, ival) == 0)
   {
     if (ival < 1 || ival > 60)
     {
@@ -499,20 +499,20 @@ bool CCfg::read_client(ACE_Configuration_Heap & heap, ACE_Configuration_Section_
       client_download_retry_interval = ival;
   }
 
-  if (heap.get_integer_value(section, CONFIG_client_enable_root, ival) == 0)
+  if (heap.get_integer_value(key, CONFIG_client_enable_root, ival) == 0)
     client_can_root = ival;
 
   return true;
 }
 
-bool CCfg::read_dist(ACE_Configuration_Heap & heap, ACE_Configuration_Section_Key & section)
+truefalse CCfg::read_dist(CCfgHeap & heap, CCfgKey & key)
 {
   if (!is_dist())
     return true;
 
   u_int ival;
 
-  if (heap.get_integer_value(section, CONFIG_module_heart_beat_mem_pool_size, ival) == 0)
+  if (heap.get_integer_value(key, CONFIG_module_heart_beat_mem_pool_size, ival) == 0)
   {
     u_int itemp = std::max(2 * max_client_count, 1000);
     if (ival < itemp)
@@ -524,7 +524,7 @@ bool CCfg::read_dist(ACE_Configuration_Heap & heap, ACE_Configuration_Section_Ke
       module_heart_beat_mem_pool_size = ival;
   }
 
-  if (heap.get_integer_value(section, CONFIG_server_id, ival) == 0)
+  if (heap.get_integer_value(key, CONFIG_server_id, ival) == 0)
   {
     if (ival <= 1 || ival >= 256)
     {
@@ -540,7 +540,7 @@ bool CCfg::read_dist(ACE_Configuration_Heap & heap, ACE_Configuration_Section_Ke
   }
 
   ACE_TString sval;
-  if (heap.get_string_value(section, CONFIG_client_version_minimum, sval) == 0)
+  if (heap.get_string_value(key, CONFIG_client_version_minimum, sval) == 0)
   {
     if (!client_ver_min.from_string(sval.c_str()))
     {
@@ -554,7 +554,7 @@ bool CCfg::read_dist(ACE_Configuration_Heap & heap, ACE_Configuration_Section_Ke
     return false;
   }
 
-  if (heap.get_string_value(section, CONFIG_client_version_current, sval) == 0)
+  if (heap.get_string_value(key, CONFIG_client_version_current, sval) == 0)
   {
     if (!client_ver_now.from_string(sval.c_str()))
     {
@@ -579,13 +579,13 @@ bool CCfg::read_dist(ACE_Configuration_Heap & heap, ACE_Configuration_Section_Ke
   return true;
 }
 
-bool CCfg::read_middle(ACE_Configuration_Heap & heap, ACE_Configuration_Section_Key & section)
+truefalse CCfg::read_middle(CCfgHeap & heap, CCfgKey & key)
 {
   if (!is_middle())
     return true;
 
   u_int ival;
-  if (heap.get_integer_value (section,  CONFIG_http_port, ival) == 0)
+  if (heap.get_integer_value (key,  CONFIG_http_port, ival) == 0)
   {
     if (ival == 0 || ival >= 65535)
     {
@@ -596,7 +596,7 @@ bool CCfg::read_middle(ACE_Configuration_Heap & heap, ACE_Configuration_Section_
   }
 
   ACE_TString sval;
-  if (heap.get_string_value(section, CONFIG_ftp_addr_list, sval) == 0)
+  if (heap.get_string_value(key, CONFIG_ftp_addr_list, sval) == 0)
     ftp_addr_list = sval.c_str();
   else
   {
@@ -607,13 +607,13 @@ bool CCfg::read_middle(ACE_Configuration_Heap & heap, ACE_Configuration_Section_
   return true;
 }
 
-bool CCfg::read_client_middle(ACE_Configuration_Heap & heap, ACE_Configuration_Section_Key & section)
+truefalse CCfg::read_client_middle(CCfgHeap & heap, CCfgKey & key)
 {
   if (is_dist())
     return true;
 
   u_int ival;
-  if (heap.get_integer_value (section,  CONFIG_middle_server_client_port, ival) == 0)
+  if (heap.get_integer_value (key,  CONFIG_middle_server_client_port, ival) == 0)
   {
     if (ival == 0 || ival >= 65535)
     {
@@ -626,13 +626,13 @@ bool CCfg::read_client_middle(ACE_Configuration_Heap & heap, ACE_Configuration_S
   return true;
 }
 
-bool CCfg::read_client_dist(ACE_Configuration_Heap & heap, ACE_Configuration_Section_Key & section)
+truefalse CCfg::read_client_dist(CCfgHeap & heap, CCfgKey & key)
 {
   if (is_middle())
     return true;
 
   u_int ival;
-  if (heap.get_integer_value (section, CONFIG_dist_server_heart_beat_port, ival) == 0)
+  if (heap.get_integer_value (key, CONFIG_dist_server_heart_beat_port, ival) == 0)
   {
     if (ival == 0 || ival >= 65535)
     {
@@ -643,7 +643,7 @@ bool CCfg::read_client_dist(ACE_Configuration_Heap & heap, ACE_Configuration_Sec
   }
 
   ACE_TString sval;
-  if (heap.get_string_value(section, CONFIG_middle_server_addr, sval) == 0)
+  if (heap.get_string_value(key, CONFIG_middle_server_addr, sval) == 0)
     middle_addr = sval.c_str();
   else
   {
@@ -654,11 +654,11 @@ bool CCfg::read_client_dist(ACE_Configuration_Heap & heap, ACE_Configuration_Sec
   return true;
 }
 
-void CCfg::print_all()
+DVOID CCfg::print_all()
 {
   C_INFO(ACE_TEXT ("read cfg:\n"));
 
-  const char * smode;
+  CONST text * smode;
   switch (app_mode)
   {
   case AM_DIST_SERVER:
@@ -682,7 +682,7 @@ void CCfg::print_all()
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_status_file_check_interval, file_check_interval));
 
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_file_number, log_file_count));
-  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_file_size_in_MB, log_file_size_in_MB));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_file_size_in_MB, log_file_size));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_debug_enabled, log_debug));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_to_stderr, log_stderr));
 
@@ -696,8 +696,8 @@ void CCfg::print_all()
   {
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_max_clients, max_client_count));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_middle_server_dist_port, middle_server_dist_port));
-    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_middle_server_key, middle_server_key.c_str()));
-    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_compressed_store_path, compressed_store_path.c_str()));
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_middle_server_key, skey.c_str()));
+    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_compressed_store_path, bz_files_path.c_str()));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_bs_server_addr, bs_addr.c_str()));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_bs_server_port, bs_port));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %s\n"), CONFIG_db_server_addr, db_addr.c_str()));
@@ -744,23 +744,23 @@ void CCfg::print_all()
   }
 
   //common: file/path locations printout
-  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tstatus_file = %s\n"), app_status_file_name.c_str()));
-  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tlog_file = %s\n"), app_log_file_name.c_str()));
-  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tconfig_file = %s\n"), app_config_file_name.c_str()));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tstatus_file = %s\n"), status_fn.c_str()));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tlog_file = %s\n"), log_fn.c_str()));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tconfig_file = %s\n"), cfg_fn.c_str()));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\tapp_path = %s\n"), app_path.c_str()));
-  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\texe_path = %s\n"), app_exe_path.c_str()));
+  ACE_DEBUG ((LM_INFO, ACE_TEXT ("\texe_path = %s\n"), exe_path.c_str()));
 }
 
 
 //MySigHandler//
 CSignaller::CSignaller(CApp * app)
 {
-  m_app = app;
+  m_parent = app;
 }
 
-int CSignaller::handle_signal (int signum, siginfo_t*, ucontext_t*)
+ni CSignaller::handle_signal (ni signum, siginfo_t*, ucontext_t*)
 {
-  m_app->on_sig_event(signum);
+  m_parent->on_sig_event(signum);
   return 0;
 };
 
@@ -768,14 +768,14 @@ int CSignaller::handle_signal (int signum, siginfo_t*, ucontext_t*)
 //CNotificationFiler//
 CNotificationFiler::CNotificationFiler(CApp * app)
 {
-  m_app = app;
+  m_parent = app;
 }
 
-int CNotificationFiler::handle_timeout(const ACE_Time_Value &, const void *)
+ni CNotificationFiler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
 {
   struct stat st;
-  if (::stat(CCfgX::instance()->app_status_file_name.c_str(), &st) == -1 && errno == ENOENT)
-    m_app->on_status_file_missing();
+  if (::stat(CCfgX::instance()->status_fn.c_str(), &st) == -1 && errno == ENOENT)
+    m_parent->on_status_file_missing();
   return 0;
 }
 
@@ -783,19 +783,19 @@ int CNotificationFiler::handle_timeout(const ACE_Time_Value &, const void *)
 //CPrinter//
 CPrinter::CPrinter(CApp * app)
 {
-  m_app = app;
+  m_parent = app;
 }
 
-int CPrinter::handle_timeout (const ACE_Time_Value &, const void *)
+ni CPrinter::handle_timeout (CONST ACE_Time_Value &, CONST DVOID *)
 {
-  m_app->print_info();
+  m_parent->print_info();
   return 0;
 }
 
 
 //CClocker//
 
-int CClocker::handle_timeout (const ACE_Time_Value &, const void *)
+ni CClocker::handle_timeout (CONST ACE_Time_Value &, CONST DVOID *)
 {
   ++g_clock_counter;
   return 0;
@@ -803,10 +803,10 @@ int CClocker::handle_timeout (const ACE_Time_Value &, const void *)
 
 
 //CApp//
-CApp::CApp(): m_sig_handler(this), m_status_file_checker(this), m_info_dumper(this)
+CApp::CApp(): m_sig_handler(this), m_status_file_checker(this), m_printer(this)
 {
-  m_is_running = false;
-  //moved the initializations of modules to the static app_init() func
+  m_running = false;
+  //moved the initializations of modules to the SF app_init() func
   //Just can NOT do it in constructor simply because the singleton pattern
   //will make recursively calls to our constructor by the module constructor's ref
   //to MyServerApp's singleton.
@@ -815,16 +815,16 @@ CApp::CApp(): m_sig_handler(this), m_status_file_checker(this), m_info_dumper(th
   m_sigterm = false;
   m_sigchld = false;
   m_status_file_ok = true;
-  m_status_file_checking = false;
+  m_status_file_check = false;
   srandom(time(NULL));
 }
 
-bool CApp::on_construct()
+truefalse CApp::on_construct()
 {
   return true;
 }
 
-void CApp::add_module(CMod * module)
+DVOID CApp::add_module(CMod * module)
 {
   if (!module)
   {
@@ -834,7 +834,7 @@ void CApp::add_module(CMod * module)
   m_modules.push_back(module);
 }
 
-bool CApp::do_constructor()
+truefalse CApp::delayed_init()
 {
   CCfgX::instance()->print_all();
   C_INFO("loading modules...\n");
@@ -850,15 +850,15 @@ bool CApp::do_constructor()
 
   if (CCfgX::instance()->file_check_interval != 0)
   {
-    int fd = open(CCfgX::instance()->app_status_file_name.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+    ni fd = open(CCfgX::instance()->status_fn.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
     if (fd == -1)
     {
       C_WARNING("status_file_check_interval enabled, but can not create/open file %s\n",
-          CCfgX::instance()->app_status_file_name.c_str());
+          CCfgX::instance()->status_fn.c_str());
       return false;
     }
     close(fd);
-    m_status_file_checking = true;
+    m_status_file_check = true;
 
     ACE_Time_Value interval (CCfgX::instance()->file_check_interval * 60);
     if (ACE_Reactor::instance()->schedule_timer (&m_status_file_checker,
@@ -869,7 +869,7 @@ bool CApp::do_constructor()
   if (CCfgX::instance()->mem_dump_interval > 0)
   {
     ACE_Time_Value interval(60 * CCfgX::instance()->mem_dump_interval);
-    if (ACE_Reactor::instance()->schedule_timer (&m_info_dumper,
+    if (ACE_Reactor::instance()->schedule_timer (&m_printer,
                              0, interval, interval) == -1)
       C_WARNING("can not setup info dump timer\n");
   }
@@ -888,23 +888,23 @@ CApp::~CApp()
 {
   m_ace_sig_handler.remove_handler(SIGHUP);
   m_ace_sig_handler.remove_handler(SIGTERM);
-  if (m_status_file_checking)
+  if (m_status_file_check)
     ACE_Reactor::instance()->cancel_timer(&m_status_file_checker);
   if (CCfgX::instance()->mem_dump_interval > 0)
-    ACE_Reactor::instance()->cancel_timer(&m_info_dumper);
+    ACE_Reactor::instance()->cancel_timer(&m_printer);
   ACE_Reactor::instance()->cancel_timer(&m_clock);
   stop();
   std::for_each(m_modules.begin(), m_modules.end(), CObjDeletor());
 }
 
-bool CApp::running() const
+truefalse CApp::running() CONST
 {
-  return m_is_running;
+  return m_running;
 }
 
-void CApp::demon()
+DVOID CApp::demon()
 {
-  int i;
+  ni i;
   pid_t pid;
 
   if ((pid = fork()) != 0)
@@ -922,16 +922,16 @@ void CApp::demon()
     close(i);
 }
 
-void CApp::init_log()
+DVOID CApp::init_log()
 {
-  const char * cmd = "dynamic Logger Service_Object *ACE:_make_ACE_Logging_Strategy()"
+  CONST text * cmd = "dynamic Logger Service_Object *ACE:_make_ACE_Logging_Strategy()"
    "\"-o -s %s -N %d -m %d000 -i 1 -f STDERR|OSTREAM \"";
 
-  int m = strlen(cmd) + CCfgX::instance()->app_log_file_name.length() + 100;
-  char * buff = new char[m];
-  std::snprintf(buff, m, cmd, CCfgX::instance()->app_log_file_name.c_str(),
+  ni m = strlen(cmd) + CCfgX::instance()->log_fn.length() + 100;
+  text * buff = new text[m];
+  std::snprintf(buff, m, cmd, CCfgX::instance()->log_fn.c_str(),
       CCfgX::instance()->log_file_count,
-      CCfgX::instance()->log_file_size_in_MB);
+      CCfgX::instance()->log_file_size);
   if (ACE_Service_Config::process_directive (buff) == -1)
   {
     std::printf("ACE_Service_Config::process_directive failed, args = %s\n", buff);
@@ -951,12 +951,12 @@ void CApp::init_log()
     C_INFO("Starting client (Ver: %s)...\n", current_ver().c_str());
 }
 
-void CApp::do_dump_info()
+DVOID CApp::do_dump_info()
 {
 
 }
 
-void CApp::print_pool_one(const char * poolname, long nAlloc, long nFree, long nMaxUse, long nAllocFull, int block_size, int chunks)
+DVOID CApp::print_pool(CONST text * poolname, long nAlloc, long nFree, long nMaxUse, long nAllocFull, ni block_size, ni chunks)
 {
   long nInUse = nAlloc - nFree;
   ACE_DEBUG((LM_INFO, "    pool[%s], Use=%d, Alloc=%d, "
@@ -964,7 +964,7 @@ void CApp::print_pool_one(const char * poolname, long nAlloc, long nFree, long n
       poolname, nInUse, nAlloc, nFree, nMaxUse, nAllocFull, block_size, chunks));
 }
 
-void CApp::print_info()
+DVOID CApp::print_info()
 {
   C_INFO("##### Running Information Dump #####\n");
   std::for_each(m_modules.begin(), m_modules.end(), std::mem_fun(&CMod::dump_info));
@@ -972,42 +972,42 @@ void CApp::print_info()
   ACE_DEBUG((LM_INFO, "##### Dump End #####\n"));
 }
 
-bool CApp::on_start()
+truefalse CApp::on_start()
 {
   return true;
 }
 
-void CApp::start()
+DVOID CApp::start()
 {
-  if (m_is_running)
+  if (m_running)
     return;
-  C_INFO("starting modules...\n");
-  m_is_running = true;
+  C_INFO("loading components...\n");
+  m_running = true;
   on_start();
   std::for_each(m_modules.begin(), m_modules.end(), std::mem_fun(&CMod::start));
 
-  C_INFO("starting modules done!\n");
+  C_INFO("loading components finished!\n");
   do_sigchild(); //fast delivery
-  do_event_loop();
+  schedule_works();
 }
 
-void CApp::on_stop()
+DVOID CApp::on_stop()
 {
 
 }
 
-void CApp::stop()
+DVOID CApp::stop()
 {
-  if (!m_is_running)
+  if (!m_running)
     return;
   C_INFO("stopping modules...\n");
-  m_is_running = false;
+  m_running = false;
   std::for_each(m_modules.begin(), m_modules.end(), std::mem_fun(&CMod::stop));
   on_stop();
   C_INFO("stopping modules done!\n");
 }
 
-void CApp::on_sig_event(int signum)
+DVOID CApp::on_sig_event(ni signum)
 {
   switch (signum)
   {
@@ -1026,7 +1026,7 @@ void CApp::on_sig_event(int signum)
   }
 }
 
-void CApp::do_event_loop()
+DVOID CApp::schedule_works()
 {
   while(true)
   {
@@ -1057,39 +1057,39 @@ void CApp::do_event_loop()
   }
 }
 
-bool CApp::do_sighup()
+truefalse CApp::do_sighup()
 {
   m_sighup = false;
   print_info();
   return true;
 }
 
-bool CApp::do_sigchild()
+truefalse CApp::do_sigchild()
 {
-  int status;
-  pid_t pid;
+  ni st;
+  pid_t x;
   m_sigchld = false;
-  while ((pid = ::waitpid(-1, &status, WNOHANG)) > 0)
+  while ((x = ::waitpid(-1, &st, WNOHANG)) > 0)
   {
-    C_INFO("child process (%d) closes...\n", (int)pid);
-    if (!on_sigchild(pid))
+    C_INFO("child process (%d) closes...\n", (ni)x);
+    if (!on_sigchild(x))
       return false;
   }
   return true;
 }
 
-bool CApp::on_sigchild(pid_t pid)
+truefalse CApp::on_sigchild(pid_t pid)
 {
   ACE_UNUSED_ARG(pid);
   return true;
 }
 
-bool CApp::on_event_loop()
+truefalse CApp::on_event_loop()
 {
   return true;
 }
 
-void CApp::on_status_file_missing()
+DVOID CApp::on_status_file_missing()
 {
   m_status_file_ok = false;
 }

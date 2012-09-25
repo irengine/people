@@ -15,24 +15,24 @@ CClientVer::CClientVer(u_int8_t major, u_int8_t minor)
   init(major, minor);
 }
 
-void CClientVer::init(u_int8_t major, u_int8_t minor)
+DVOID CClientVer::init(u_int8_t major, u_int8_t minor)
 {
   m_major = major;
   m_minor = minor;
   prepare_buff();
 }
 
-void CClientVer::prepare_buff()
+DVOID CClientVer::prepare_buff()
 {
-  ACE_OS::snprintf(m_data, DATA_BUFF_SIZE, "%hhu.%hhu", m_major, m_minor);
+  snprintf(m_data, DATA_BUFF_SIZE, "%hhu.%hhu", m_major, m_minor);
 }
 
 
-bool CClientVer::from_string(const char * s)
+truefalse CClientVer::from_string(CONST text * s)
 {
   if (unlikely(!s || !*s))
     return false;
-  int major, minor;
+  ni major, minor;
   sscanf(s, "%d.%d", &major, &minor);
   if (major > 255 || major < 0 || minor > 255 || minor < 0)
     return false;
@@ -42,12 +42,12 @@ bool CClientVer::from_string(const char * s)
   return true;
 }
 
-const char * CClientVer::to_string() const
+CONST text * CClientVer::to_string() CONST
 {
   return m_data;
 }
 
-bool CClientVer::operator < (const CClientVer & rhs)
+truefalse CClientVer::operator < (CONST CClientVer & rhs)
 {
   if (m_major < rhs.m_major)
     return true;
@@ -65,13 +65,13 @@ CMfileSplit::CMfileSplit()
 
 }
 
-bool CMfileSplit::init(const char * mfile)
+truefalse CMfileSplit::init(CONST text * mfile)
 {
   if (!mfile || !*mfile)
     return true;
   m_mfile.from_string(mfile);
   m_path.from_string(mfile);
-  char * ptr = ACE_OS::strrchr(m_path.data(), '.');
+  text * ptr = strrchr(m_path.data(), '.');
   if (unlikely(!ptr))
   {
     C_ERROR("bad file name @MyMfileSplitter::init(%s)\n", mfile);
@@ -82,17 +82,17 @@ bool CMfileSplit::init(const char * mfile)
   return true;
 }
 
-const char * CMfileSplit::path() const
+CONST text * CMfileSplit::path() CONST
 {
   return m_path.data();
 }
 
-const char * CMfileSplit::mfile() const
+CONST text * CMfileSplit::mfile() CONST
 {
   return m_mfile.data();
 }
 
-const char * CMfileSplit::translate(const char * src)
+CONST text * CMfileSplit::translate(CONST text * src)
 {
   if (!m_path.data())
     return src;
@@ -100,7 +100,7 @@ const char * CMfileSplit::translate(const char * src)
   if (unlikely(!src))
     return NULL;
 
-  const char * ptr = ACE_OS::strchr(src, '/');
+  CONST text * ptr = strchr(src, '/');
   if (unlikely(!ptr))
     return m_mfile.data();
   else
@@ -121,7 +121,7 @@ CClientInfo::CClientInfo()
   set_password(NULL);
 }
 
-CClientInfo::CClientInfo(const MyClientID & id, const char * _ftp_password, bool _expired): client_id(id)
+CClientInfo::CClientInfo(CONST MyClientID & id, CONST text * _ftp_password, truefalse _expired): client_id(id)
 {
   active = false;
   expired = _expired;
@@ -129,7 +129,7 @@ CClientInfo::CClientInfo(const MyClientID & id, const char * _ftp_password, bool
   set_password(_ftp_password);
 }
 
-void CClientInfo::set_password(const char * _ftp_password)
+DVOID CClientInfo::set_password(CONST text * _ftp_password)
 {
   if (!_ftp_password || !*_ftp_password)
   {
@@ -139,7 +139,7 @@ void CClientInfo::set_password(const char * _ftp_password)
   }
 
   ACE_OS::strsncpy(ftp_password, _ftp_password, FTP_PASSWORD_LEN);
-  password_len  = ACE_OS::strlen(ftp_password);
+  password_len  = strlen(ftp_password);
 }
 
 
@@ -156,12 +156,12 @@ CClientIDS::~CClientIDS()
   m_map.clear();
 }
 
-bool CClientIDS::have(const MyClientID & id)
+truefalse CClientIDS::have(CONST MyClientID & id)
 {
   return (index_of(id) >= 0);
 }
 
-void CClientIDS::add_i(const MyClientID & id, const char *ftp_password, bool expired)
+DVOID CClientIDS::add_i(CONST MyClientID & id, CONST text *ftp_password, truefalse expired)
 {
   if (index_of_i(id) >= 0)
     return;
@@ -170,13 +170,13 @@ void CClientIDS::add_i(const MyClientID & id, const char *ftp_password, bool exp
   m_map[id] = m_table.size() - 1;
 }
 
-void CClientIDS::add(const MyClientID &id)
+DVOID CClientIDS::add(CONST MyClientID &id)
 {
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
   add_i(id, NULL, false);
 }
 
-void CClientIDS::add(const char * str_id, const char *ftp_password, bool expired)
+DVOID CClientIDS::add(CONST text * str_id, CONST text *ftp_password, truefalse expired)
 {
   if (unlikely(!str_id || !*str_id))
     return;
@@ -190,12 +190,12 @@ void CClientIDS::add(const char * str_id, const char *ftp_password, bool expired
   add_i(id, ftp_password, expired);
 }
 
-void CClientIDS::add_batch(char * idlist)
+DVOID CClientIDS::add_batch(text * idlist)
 {
   if (!idlist)
     return;
-  const char * CONST_seperator = ";\r\n\t ";
-  char *str, *token, *saveptr;
+  CONST text * CONST_seperator = ";\r\n\t ";
+  text *str, *token, *saveptr;
 
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
   for (str = idlist; ; str = NULL)
@@ -210,57 +210,57 @@ void CClientIDS::add_batch(char * idlist)
   }
 }
 
-int CClientIDS::index_of(const MyClientID & id)
+ni CClientIDS::index_of(CONST MyClientID & id)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, -1);
   return index_of_i(id);
 }
 
-int CClientIDS::index_of_i(const MyClientID & id, ClientIDTable_map::iterator * pIt)
+ni CClientIDS::index_of_i(CONST MyClientID & id, ClientIDTable_map::iterator * pIt)
 {
   ClientIDTable_map::iterator it = m_map.find(id);
   if (pIt)
     *pIt = it;
   if (it == m_map.end())
     return -1;
-  if (unlikely(it->second < 0 || it->second >= (int)m_table.size()))
+  if (unlikely(it->second < 0 || it->second >= (ni)m_table.size()))
   {
-    C_ERROR("Invalid MyClientInfos map index = %d, table size = %d\n", it->second, (int)m_table.size());
+    C_ERROR("Invalid MyClientInfos map index = %d, table size = %d\n", it->second, (ni)m_table.size());
     return -1;
   }
   return it->second;
 }
 
-int CClientIDS::count()
+ni CClientIDS::count()
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, -1);
   return m_table.size();
 }
 
-bool CClientIDS::value(int index, MyClientID * id)
+truefalse CClientIDS::value(ni index, MyClientID * id)
 {
   if (unlikely(index < 0) || !id)
     return false;
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
-  if (unlikely(index >= (int)m_table.size() || index < 0))
+  if (unlikely(index >= (ni)m_table.size() || index < 0))
     return false;
   *id = m_table[index].client_id;
   return true;
 }
 
-bool CClientIDS::value_all(int index, CClientInfo & client_info)
+truefalse CClientIDS::value_all(ni index, CClientInfo & client_info)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
-  if (unlikely(index >= (int)m_table.size() || index < 0))
+  if (unlikely(index >= (ni)m_table.size() || index < 0))
     return false;
   client_info = m_table[index];
   return true;
 }
 
-bool CClientIDS::active(const MyClientID & id, int & index, bool & switched)
+truefalse CClientIDS::active(CONST MyClientID & id, ni & index, truefalse & switched)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
-  if (index < 0 || index >= (int)m_table.size())
+  if (index < 0 || index >= (ni)m_table.size())
     index = index_of_i(id);
   if (unlikely(index < 0))
     return false;
@@ -268,52 +268,52 @@ bool CClientIDS::active(const MyClientID & id, int & index, bool & switched)
   return m_table[index].active;
 }
 
-//void MyClientIDTable::active(const MyClientID & id, bool _active)
+//void MyClientIDTable::active(CONST MyClientID & id, truefalse _active)
 //{
 //  ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
-//  int idx = index_of_i(id);
+//  ni idx = index_of_i(id);
 //  if (unlikely(idx < 0))
 //    return;
 //  m_table[idx].active = _active;
 //}
 
-bool CClientIDS::active(int index)
+truefalse CClientIDS::active(ni index)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
-  if (unlikely(index < 0 || index > (int)m_table.size()))
+  if (unlikely(index < 0 || index > (ni)m_table.size()))
     return false;
   return m_table[index].active;
 }
 
-void CClientIDS::active(int index, bool _active)
+DVOID CClientIDS::active(ni index, truefalse _active)
 {
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
-  if (unlikely(index < 0 || index > (int)m_table.size()))
+  if (unlikely(index < 0 || index > (ni)m_table.size()))
     return;
   m_table[index].active = _active;
 }
 
-void CClientIDS::switched(int index, bool _switched)
+DVOID CClientIDS::switched(ni index, truefalse _switched)
 {
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
-  if (unlikely(index < 0 || index > (int)m_table.size()))
+  if (unlikely(index < 0 || index > (ni)m_table.size()))
     return;
   m_table[index].switched = _switched;
 }
 
-void CClientIDS::expired(int index, bool _expired)
+DVOID CClientIDS::expired(ni index, truefalse _expired)
 {
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
-  if (unlikely(index < 0 || index > (int)m_table.size()))
+  if (unlikely(index < 0 || index > (ni)m_table.size()))
     return;
   m_table[index].expired = _expired;
 }
 
-bool CClientIDS::mark_valid(const MyClientID & id, bool valid, int & index)
+truefalse CClientIDS::mark_valid(CONST MyClientID & id, truefalse valid, ni & index)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, true);
   index = index_of_i(id);
-  bool i_valid = (index >= 0 && !m_table[index].expired);
+  truefalse i_valid = (index >= 0 && !m_table[index].expired);
   if (likely(i_valid == valid))
     return true;
   if (valid)
@@ -327,32 +327,32 @@ bool CClientIDS::mark_valid(const MyClientID & id, bool valid, int & index)
   return false;
 }
 
-int CClientIDS::last_sequence() const
+ni CClientIDS::last_sequence() CONST
 {
   return m_last_sequence;
 }
 
-void CClientIDS::last_sequence(int _seq)
+DVOID CClientIDS::last_sequence(ni _seq)
 {
   m_last_sequence = _seq;
 }
 
-void CClientIDS::prepare_space(int _count)
+DVOID CClientIDS::prepare_space(ni _count)
 {
-  m_table.reserve(std::max(int((m_table.size() + _count) * 1.4), 1000));
+  m_table.reserve(std::max(ni((m_table.size() + _count) * 1.4), 1000));
 }
 
 
 //MyFileMD5//
 
-CFileMD5::CFileMD5(const char * _filename, const char * md5, int prefix_len, const char * alias)
+CFileMD5::CFileMD5(CONST text * _filename, CONST text * md5, ni prefix_len, CONST text * alias)
 {
   m_md5[0] = 0;
   m_size = 0;
   if (unlikely(!_filename || ! *_filename))
     return;
 
-  int len = strlen(_filename);
+  ni len = strlen(_filename);
   if (unlikely(len <= prefix_len))
   {
     C_FATAL("invalid parameter in MyFileMD5::MyFileMD5(%s, %d)\n", _filename, prefix_len);
@@ -364,7 +364,7 @@ CFileMD5::CFileMD5(const char * _filename, const char * md5, int prefix_len, con
     m_file_name.from_string(_filename + prefix_len);
   } else
   {
-    m_size = ACE_OS::strlen(alias) + 1;
+    m_size = strlen(alias) + 1;
     m_file_name.from_string(alias);
   }
 
@@ -384,26 +384,26 @@ CFileMD5::CFileMD5(const char * _filename, const char * md5, int prefix_len, con
 
 CFileMD5s::CFileMD5s()
 {
-//  C_DEBUG("creating md5s: %X\n", (int)(long)this);
+//  C_DEBUG("creating md5s: %X\n", (ni)(long)this);
   m_base_dir_len = 0;
   m_md5_map = NULL;
 }
 
 CFileMD5s::~CFileMD5s()
 {
-//  C_DEBUG("destroying md5s: %X\n", (int)(long)this);
+//  C_DEBUG("destroying md5s: %X\n", (ni)(long)this);
   std::for_each(m_file_md5_list.begin(), m_file_md5_list.end(), CPoolObjectDeletor());
   if (m_md5_map)
     delete m_md5_map;
 }
 
-void CFileMD5s::enable_map()
+DVOID CFileMD5s::enable_map()
 {
   if (m_md5_map == NULL)
     m_md5_map = new MyMD5map();
 }
 
-bool CFileMD5s::base_dir(const char * dir)
+truefalse CFileMD5s::base_dir(CONST text * dir)
 {
   if (unlikely(!dir || !*dir))
   {
@@ -416,12 +416,12 @@ bool CFileMD5s::base_dir(const char * dir)
   return true;
 }
 
-bool CFileMD5s::has_file(const char * fn)
+truefalse CFileMD5s::has_file(CONST text * fn)
 {
   return find(fn) != NULL;
 }
 
-CFileMD5 * CFileMD5s::find(const char * fn)
+CFileMD5 * CFileMD5s::find(CONST text * fn)
 {
   if (unlikely(!fn || !*fn))
     return NULL;
@@ -435,14 +435,14 @@ CFileMD5 * CFileMD5s::find(const char * fn)
     return it->second;
 }
 
-void CFileMD5s::minus(CFileMD5s & target, CMfileSplit * spl, bool do_delete)
+DVOID CFileMD5s::minus(CFileMD5s & target, CMfileSplit * spl, truefalse do_delete)
 {
   MyFileMD5List::iterator it1 = m_file_md5_list.begin(), it2 = target.m_file_md5_list.begin(), it;
   //the below algorithm is based on STL's set_difference() function
-  char fn[PATH_MAX];
+  text fn[PATH_MAX];
   while (it1 != m_file_md5_list.end() && it2 != target.m_file_md5_list.end())
   {
-    const char * new_name = spl? spl->translate((**it1).filename()): (**it1).filename();
+    CONST text * new_name = spl? spl->translate((**it1).filename()): (**it1).filename();
     CFileMD5 md5_copy(new_name, (**it1).md5(), 0);
 
     if (md5_copy < **it2)
@@ -451,7 +451,7 @@ void CFileMD5s::minus(CFileMD5s & target, CMfileSplit * spl, bool do_delete)
     {
       if (do_delete)
       {
-        ACE_OS::snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
+        snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
         //C_INFO("deleting file %s\n", fn);
         remove(fn);
       }
@@ -474,7 +474,7 @@ void CFileMD5s::minus(CFileMD5s & target, CMfileSplit * spl, bool do_delete)
   {
     while (it2 != target.m_file_md5_list.end())
     {
-      ACE_OS::snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
+      snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
       //C_INFO("deleting file %s\n", fn);
       remove(fn);
       ++it2;
@@ -482,25 +482,25 @@ void CFileMD5s::minus(CFileMD5s & target, CMfileSplit * spl, bool do_delete)
   }
 }
 
-void CFileMD5s::trim_garbage(const char * pathname)
+DVOID CFileMD5s::trim_garbage(CONST text * pathname)
 {
   if (unlikely(!pathname || !*pathname))
     return;
 
-  do_trim_garbage(pathname, ACE_OS::strlen(pathname) + 1);
+  do_trim_garbage(pathname, strlen(pathname) + 1);
 }
 
-void CFileMD5s::sort()
+DVOID CFileMD5s::sort()
 {
   std::sort(m_file_md5_list.begin(), m_file_md5_list.end(), CPtrLess());
 }
 
-bool CFileMD5s::add_file(const char * filename, const char * md5, int prefix_len)
+truefalse CFileMD5s::add_file(CONST text * filename, CONST text * md5, ni prefix_len)
 {
   if (unlikely(!filename || !*filename || prefix_len < 0))
     return false;
 
-  void * p = CMemPoolX::instance()->alloc_mem_x(sizeof(CFileMD5));
+  DVOID * p = CMemPoolX::instance()->alloc_mem_x(sizeof(CFileMD5));
   CFileMD5 * fm = new (p) CFileMD5(filename, md5, prefix_len);
   if (fm->ok())
   {
@@ -515,23 +515,23 @@ bool CFileMD5s::add_file(const char * filename, const char * md5, int prefix_len
   }
 }
 
-bool CFileMD5s::add_file(const char * pathname, const char * filename, int prefix_len, const char * alias)
+truefalse CFileMD5s::add_file(CONST text * pathname, CONST text * filename, ni prefix_len, CONST text * alias)
 {
   if (unlikely(!pathname || !filename))
     return false;
-  int len = ACE_OS::strlen(pathname);
+  ni len = strlen(pathname);
   if (unlikely(len + 1 < prefix_len || len  + strlen(filename) + 2 > PATH_MAX))
   {
     C_FATAL("invalid parameter @ MyFileMD5s::add_file(%s, %s, %d)\n", pathname, filename, prefix_len);
     return false;
   }
   CFileMD5 * fm;
-  char buff[PATH_MAX];
-  ACE_OS::snprintf(buff, PATH_MAX, "%s/%s", pathname, filename);
-  void * p = CMemPoolX::instance()->alloc_mem_x(sizeof(CFileMD5));
+  text buff[PATH_MAX];
+  snprintf(buff, PATH_MAX, "%s/%s", pathname, filename);
+  DVOID * p = CMemPoolX::instance()->alloc_mem_x(sizeof(CFileMD5));
   fm = new(p) CFileMD5(buff, NULL, prefix_len, alias);
 
-  bool ret = fm->ok();
+  truefalse ret = fm->ok();
   if (likely(ret))
     m_file_md5_list.push_back(fm);
   else
@@ -539,9 +539,9 @@ bool CFileMD5s::add_file(const char * pathname, const char * filename, int prefi
   return ret;
 }
 
-int CFileMD5s::total_size(bool include_md5_value)
+ni CFileMD5s::total_size(truefalse include_md5_value)
 {
-  int result = 0;
+  ni result = 0;
   MyFileMD5List::iterator it;
   for (it = m_file_md5_list.begin(); it != m_file_md5_list.end(); ++it)
   {
@@ -553,7 +553,7 @@ int CFileMD5s::total_size(bool include_md5_value)
   return result + 1;
 }
 
-bool CFileMD5s::to_buffer(char * buff, int buff_len, bool include_md5_value)
+truefalse CFileMD5s::to_buffer(text * buff, ni buff_len, truefalse include_md5_value)
 {
   MyFileMD5List::iterator it;
   if (unlikely(!buff || buff_len <= 0))
@@ -561,7 +561,7 @@ bool CFileMD5s::to_buffer(char * buff, int buff_len, bool include_md5_value)
     C_ERROR("invalid parameter MyFileMD5s::to_buffer(%s, %d)\n", buff, buff_len);
     return false;
   }
-  int len = 0;
+  ni len = 0;
   for (it = m_file_md5_list.begin(); it != m_file_md5_list.end(); ++it)
   {
     CFileMD5 & fm = **it;
@@ -573,13 +573,13 @@ bool CFileMD5s::to_buffer(char * buff, int buff_len, bool include_md5_value)
           buff_len, len + fm.size(include_md5_value) + 1);
       return false;
     }
-    int fm_file_length = fm.size(false);
-    ACE_OS::memcpy(buff + len, fm.filename(), fm_file_length);
+    ni fm_file_length = fm.size(false);
+    memcpy(buff + len, fm.filename(), fm_file_length);
     buff[len + fm_file_length - 1] = include_md5_value? MyDataPacketHeader::MIDDLE_SEPARATOR: MyDataPacketHeader::ITEM_SEPARATOR;
     len += fm_file_length;
     if (include_md5_value)
     {
-      ACE_OS::memcpy(buff + len, fm.md5(), CFileMD5::MD5_STRING_LENGTH);
+      memcpy(buff + len, fm.md5(), CFileMD5::MD5_STRING_LENGTH);
       len += CFileMD5::MD5_STRING_LENGTH;
       buff[len++] = MyDataPacketHeader::ITEM_SEPARATOR;
     }
@@ -588,13 +588,13 @@ bool CFileMD5s::to_buffer(char * buff, int buff_len, bool include_md5_value)
   return true;
 }
 
-bool CFileMD5s::from_buffer(char * buff, CMfileSplit * spl)
+truefalse CFileMD5s::from_buffer(text * buff, CMfileSplit * spl)
 {
   if (!buff || !*buff)
     return true;
 
-  char seperator[2] = {MyDataPacketHeader::ITEM_SEPARATOR, 0};
-  char *str, *token, *saveptr, *md5;
+  text seperator[2] = {MyDataPacketHeader::ITEM_SEPARATOR, 0};
+  text *str, *token, *saveptr, *md5;
 
 //  ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
   for (str = buff; ; str = NULL)
@@ -604,38 +604,38 @@ bool CFileMD5s::from_buffer(char * buff, CMfileSplit * spl)
       break;
     if (unlikely(!*token))
       continue;
-    md5 = ACE_OS::strchr(token, MyDataPacketHeader::MIDDLE_SEPARATOR);
+    md5 = strchr(token, MyDataPacketHeader::MIDDLE_SEPARATOR);
     if (unlikely(md5 == token || !md5))
     {
       C_ERROR("bad file/md5 list item @MyFileMD5s::from_buffer: %s\n", token);
       return false;
     }
     *md5++ = 0;
-    if (unlikely(ACE_OS::strlen(md5) != CFileMD5::MD5_STRING_LENGTH))
+    if (unlikely(strlen(md5) != CFileMD5::MD5_STRING_LENGTH))
     {
       C_ERROR("empty md5 in file/md5 list @MyFileMD5s::from_buffer: %s\n", token);
       return false;
     }
-    void * p = CMemPoolX::instance()->alloc_mem_x(sizeof(CFileMD5));
-    const char * filename = spl? spl->translate(token): token;
+    DVOID * p = CMemPoolX::instance()->alloc_mem_x(sizeof(CFileMD5));
+    CONST text * filename = spl? spl->translate(token): token;
     CFileMD5 * fm = new(p) CFileMD5(filename, md5, 0);
     if (m_md5_map != NULL)
-      m_md5_map->insert(std::pair<const char *, CFileMD5 *>(fm->filename(), fm));
+      m_md5_map->insert(std::pair<const text *, CFileMD5 *>(fm->filename(), fm));
     m_file_md5_list.push_back(fm);
   }
 
   return true;
 }
 
-bool CFileMD5s::calculate_diff(const char * dirname, CMfileSplit * spl)
+truefalse CFileMD5s::calculate_diff(CONST text * dirname, CMfileSplit * spl)
 {
   C_ASSERT_RETURN(dirname && *dirname, "NULL dirname @MyFileMD5s::calculate_diff()\n", false);
   CMemGuard fn;
-  int n = ACE_OS::strlen(dirname);
+  ni n = strlen(dirname);
   MyFileMD5List::iterator it;
   for (it = m_file_md5_list.begin(); it != m_file_md5_list.end(); )
   {
-    const char * new_name = spl? spl->translate((**it).filename()): (**it).filename();
+    CONST text * new_name = spl? spl->translate((**it).filename()): (**it).filename();
     fn.from_string(dirname, "/", new_name);
     CFileMD5 md5(fn.data(), NULL, n + 1);
     if (!md5.ok() || !md5.same_md5(**it))
@@ -653,7 +653,7 @@ bool CFileMD5s::calculate_diff(const char * dirname, CMfileSplit * spl)
   return true;
 }
 
-bool CFileMD5s::calculate(const char * dirname, const char * mfile, bool single)
+truefalse CFileMD5s::calculate(CONST text * dirname, CONST text * mfile, truefalse single)
 {
   C_ASSERT_RETURN(dirname && *dirname, "NULL dirname @MyFileMD5s::calculate()\n", false);
   base_dir(dirname);
@@ -661,7 +661,7 @@ bool CFileMD5s::calculate(const char * dirname, const char * mfile, bool single)
   if (mfile && *mfile)
   {
     CMemGuard mfile_name;
-    int n = CSysFS::cat_path(dirname, mfile, mfile_name);
+    ni n = CSysFS::cat_path(dirname, mfile, mfile_name);
 //  if (unlikely(!add_file(mfile_name.data(), NULL, n)))
 //    return true;
     add_file(mfile_name.data(), NULL, n);
@@ -677,25 +677,25 @@ bool CFileMD5s::calculate(const char * dirname, const char * mfile, bool single)
       C_ERROR("unsupported operation @MyFileMD5s::calculate\n");
       return false;
     }
-    return do_scan_directory(dirname, ACE_OS::strlen(dirname) + 1);
+    return do_scan_directory(dirname, strlen(dirname) + 1);
   }
 }
 
-bool CFileMD5s::do_scan_directory(const char * dirname, int start_len)
+truefalse CFileMD5s::do_scan_directory(CONST text * dirname, ni start_len)
 {
   DIR * dir = opendir(dirname);
   if (!dir)
   {
     if (ACE_OS::last_error() != ENOENT)
     {
-      C_ERROR("can not open directory: %s %s\n", dirname, (const char*)CErrno());
+      C_ERROR("can not open directory: %s %s\n", dirname, (CONST char*)CErrno());
       return false;
     } else
       return true;
   }
 
   struct dirent *entry;
-  char buff[PATH_MAX];
+  text buff[PATH_MAX];
   while ((entry = readdir(dir)) != NULL)
   {
     if (!entry->d_name)
@@ -713,7 +713,7 @@ bool CFileMD5s::do_scan_directory(const char * dirname, int start_len)
     }
     else if(entry->d_type == DT_DIR)
     {
-      ACE_OS::snprintf(buff, PATH_MAX - 1, "%s/%s", dirname, entry->d_name);
+      snprintf(buff, PATH_MAX - 1, "%s/%s", dirname, entry->d_name);
       if (!do_scan_directory(buff, start_len))
       {
         closedir(dir);
@@ -728,18 +728,18 @@ bool CFileMD5s::do_scan_directory(const char * dirname, int start_len)
   return true;
 }
 
-void CFileMD5s::do_trim_garbage(const char * dirname, int start_len)
+DVOID CFileMD5s::do_trim_garbage(CONST text * dirname, ni start_len)
 {
   DIR * dir = opendir(dirname);
   if (!dir)
   {
     if (ACE_OS::last_error() != ENOENT)
-      C_ERROR("can not open directory: %s %s\n", dirname, (const char*)CErrno());
+      C_ERROR("can not open directory: %s %s\n", dirname, (CONST char*)CErrno());
     return;
   }
 
   struct dirent *entry;
-  char buff[PATH_MAX];
+  text buff[PATH_MAX];
   CMemGuard fn;
   while ((entry = readdir(dir)) != NULL)
   {
@@ -756,7 +756,7 @@ void CFileMD5s::do_trim_garbage(const char * dirname, int start_len)
     }
     else if(entry->d_type == DT_DIR)
     {
-      ACE_OS::snprintf(buff, PATH_MAX - 1, "%s/%s", dirname, entry->d_name);
+      snprintf(buff, PATH_MAX - 1, "%s/%s", dirname, entry->d_name);
       do_trim_garbage(buff, start_len);
     } else
       C_WARNING("unknown file type (= %d) for file @MyFileMD5s::do_trim_garbage file = %s/%s\n",
@@ -776,7 +776,7 @@ CArchiveloaderBase::CArchiveloaderBase()
   m_file_length = 0;
 }
 
-bool CArchiveloaderBase::open(const char * filename)
+truefalse CArchiveloaderBase::open(CONST text * filename)
 {
   if (unlikely(!filename || !*filename))
   {
@@ -790,27 +790,27 @@ bool CArchiveloaderBase::open(const char * filename)
   struct stat sbuf;
   if (::fstat(m_file.handle(), &sbuf) == -1)
   {
-    C_ERROR("can not get file info @MyBaseArchiveReader::open(), name = %s %s\n", filename, (const char*)CErrno());
+    C_ERROR("can not get file info @MyBaseArchiveReader::open(), name = %s %s\n", filename, (CONST char*)CErrno());
     return false;
   }
   m_file_length = sbuf.st_size;
   return true;
 }
 
-int CArchiveloaderBase::read(char * buff, int buff_len)
+ni CArchiveloaderBase::read(text * buff, ni buff_len)
 {
   return do_read(buff, buff_len);
 }
 
-int CArchiveloaderBase::do_read(char * buff, int buff_len)
+ni CArchiveloaderBase::do_read(text * buff, ni buff_len)
 {
-  int n = ::read(m_file.handle(), buff, buff_len);
+  ni n = ::read(m_file.handle(), buff, buff_len);
   if (unlikely(n < 0))
-    C_ERROR("read file %s %s\n", m_file_name.data(), (const char*)CErrno());
+    C_ERROR("read file %s %s\n", m_file_name.data(), (CONST char*)CErrno());
   return n;
 }
 
-void CArchiveloaderBase::close()
+DVOID CArchiveloaderBase::close()
 {
   m_file.attach(CUnixFileGuard::INVALID_HANDLE);
   m_file_name.free();
@@ -819,26 +819,26 @@ void CArchiveloaderBase::close()
 
 //MyWrappedArchiveReader//
 
-bool CArchiveLoader::open(const char * filename)
+truefalse CArchiveLoader::open(CONST text * filename)
 {
   if (!super::open(filename))
     return false;
   return read_header();
 }
 
-int CArchiveLoader::read(char * buff, int buff_len)
+ni CArchiveLoader::read(text * buff, ni buff_len)
 {
-  int n = std::min(buff_len, m_remain_length);
+  ni n = std::min(buff_len, m_remain_length);
   if (n <= 0)
     return 0;
-  int n2 = do_read(buff, n);
+  ni n2 = do_read(buff, n);
   m_remain_length -= n2;
 
   if (m_remain_encrypted_length > 0)
   {
-    int buff_remain_len = buff_len;
+    ni buff_remain_len = buff_len;
     u_int8_t output[16];
-    char * ptr = buff;
+    text * ptr = buff;
     while (m_remain_encrypted_length > 0 && buff_remain_len >= 16)
     {
       aes_decrypt(&m_aes_context, (u_int8_t*)ptr, output);
@@ -854,13 +854,13 @@ int CArchiveLoader::read(char * buff, int buff_len)
   return n2;
 }
 
-const char * CArchiveLoader::file_name() const
+CONST text * CArchiveLoader::file_name() CONST
 {
   return ((CPackHead*)m_wrapped_header.data())->file_name;
 }
 
 
-bool CArchiveLoader::read_header()
+truefalse CArchiveLoader::read_header()
 {
   CPackHead header;
   if (do_read((char*)&header, sizeof(header)) != sizeof(header))
@@ -871,7 +871,7 @@ bool CArchiveLoader::read_header()
     return false;
   }
 
-  int name_length = header.header_length - sizeof(header);
+  ni name_length = header.header_length - sizeof(header);
   if (name_length <= 1 || name_length > PATH_MAX)
   {
     C_ERROR("invalid compressed header file name length: %s\n", m_file_name.data());
@@ -885,8 +885,8 @@ bool CArchiveLoader::read_header()
   }
 
   CMemPoolX::instance()->alloc_mem(header.header_length, &m_wrapped_header);
-  ACE_OS::memcpy((void*)m_wrapped_header.data(), &header, sizeof(header));
-  char * name_ptr = m_wrapped_header.data() + sizeof(header);
+  memcpy((void*)m_wrapped_header.data(), &header, sizeof(header));
+  text * name_ptr = m_wrapped_header.data() + sizeof(header);
   if (!do_read(name_ptr, name_length))
     return false;
   name_ptr[name_length - 1] = 0;
@@ -896,17 +896,17 @@ bool CArchiveLoader::read_header()
   return true;
 };
 
-bool CArchiveLoader::next()
+truefalse CArchiveLoader::next()
 {
   return read_header();
 }
 
-bool CArchiveLoader::eof() const
+truefalse CArchiveLoader::eof() CONST
 {
-  return (m_file_length <= (int)::lseek(m_file.handle(), 0, SEEK_CUR));
+  return (m_file_length <= (ni)::lseek(m_file.handle(), 0, SEEK_CUR));
 }
 
-void CArchiveLoader::set_key(const char * skey)
+DVOID CArchiveLoader::set_key(CONST text * skey)
 {
   u_int8_t aes_key[32];
   memset((void*)aes_key, 0, sizeof(aes_key));
@@ -918,7 +918,7 @@ void CArchiveLoader::set_key(const char * skey)
 
 //MyBaseArchiveWriter//
 
-bool CArchiveSaverBase::open(const char * filename)
+truefalse CArchiveSaverBase::open(CONST text * filename)
 {
   if (unlikely(!filename || !*filename))
   {
@@ -929,7 +929,7 @@ bool CArchiveSaverBase::open(const char * filename)
   return do_open();
 }
 
-bool CArchiveSaverBase::open(const char * dir, const char * filename)
+truefalse CArchiveSaverBase::open(CONST text * dir, CONST text * filename)
 {
   if (unlikely(!filename || !*filename || !filename || !*filename))
   {
@@ -940,31 +940,31 @@ bool CArchiveSaverBase::open(const char * dir, const char * filename)
   return do_open();
 }
 
-bool CArchiveSaverBase::do_open()
+truefalse CArchiveSaverBase::do_open()
 {
   return m_file.open_write(m_file_name.data(), true, true, false, false);
 }
 
-bool CArchiveSaverBase::write(char * buff, int buff_len)
+truefalse CArchiveSaverBase::write(text * buff, ni buff_len)
 {
   return do_write(buff, buff_len);
 }
 
-bool CArchiveSaverBase::do_write(char * buff, int buff_len)
+truefalse CArchiveSaverBase::do_write(text * buff, ni buff_len)
 {
   if (unlikely(!buff || buff_len <= 0))
     return true;
 
-  int n = ::write(m_file.handle(), buff, buff_len);
+  ni n = ::write(m_file.handle(), buff, buff_len);
   if (unlikely(n != buff_len))
   {
-    C_ERROR("write file %s %s\n", m_file_name.data(), (const char*)CErrno());
+    C_ERROR("write file %s %s\n", m_file_name.data(), (CONST char*)CErrno());
     return false;
   }
   return true;
 }
 
-void CArchiveSaverBase::close()
+DVOID CArchiveSaverBase::close()
 {
   m_file.attach(CUnixFileGuard::INVALID_HANDLE);
   m_file_name.free();
@@ -973,7 +973,7 @@ void CArchiveSaverBase::close()
 
 //MyWrappedArchiveWriter//
 
-bool CArchiveSaver::write(char * buff, int buff_len)
+truefalse CArchiveSaver::write(text * buff, ni buff_len)
 {
   if (unlikely(buff_len < 0))
     return false;
@@ -984,8 +984,8 @@ bool CArchiveSaver::write(char * buff, int buff_len)
 
   if (m_remain_encrypted_length > 0)
   {
-    int to_buffer_len = std::min(buff_len, m_remain_encrypted_length);
-    ACE_OS::memcpy(m_encrypt_buffer.data(), buff, to_buffer_len);
+    ni to_buffer_len = std::min(buff_len, m_remain_encrypted_length);
+    memcpy(m_encrypt_buffer.data(), buff, to_buffer_len);
     m_remain_encrypted_length -= to_buffer_len;
     if (m_remain_encrypted_length > 0)
       return true;
@@ -1001,9 +1001,9 @@ bool CArchiveSaver::write(char * buff, int buff_len)
   return do_write(buff, buff_len);
 }
 
-bool CArchiveSaver::start(const char * filename, int prefix_len)
+truefalse CArchiveSaver::start(CONST text * filename, ni prefix_len)
 {
-  if (unlikely(prefix_len < 0 || prefix_len >= (int)ACE_OS::strlen(filename)))
+  if (unlikely(prefix_len < 0 || prefix_len >= (ni)strlen(filename)))
   {
     C_ERROR("invalid prefix_len @MyWrappedArchiveWriter::start(%s, %d)\n", filename, prefix_len);
     return false;
@@ -1021,7 +1021,7 @@ bool CArchiveSaver::start(const char * filename, int prefix_len)
   return write_header(filename + prefix_len + 1);
 }
 
-bool CArchiveSaver::finish()
+truefalse CArchiveSaver::finish()
 {
   if (m_remain_encrypted_length > 0)
   {
@@ -1033,14 +1033,14 @@ bool CArchiveSaver::finish()
 
   if (::lseek(m_file.handle(), 0, SEEK_SET) == -1)
   {
-    C_ERROR("fseek on file %s failed %s\n", m_file_name.data(), (const char*)CErrno());
+    C_ERROR("fseek on file %s failed %s\n", m_file_name.data(), (CONST char*)CErrno());
     return false;
   }
 
   return do_write((char*)&m_pack_header, sizeof(m_pack_header));
 }
 
-void CArchiveSaver::set_key(const char * skey)
+DVOID CArchiveSaver::set_key(CONST text * skey)
 {
   u_int8_t aes_key[32];
   memset((void*)aes_key, 0, sizeof(aes_key));
@@ -1049,11 +1049,11 @@ void CArchiveSaver::set_key(const char * skey)
   aes_set_key(&m_aes_context, aes_key, 256);
 }
 
-bool CArchiveSaver::write_header(const char * filename)
+truefalse CArchiveSaver::write_header(CONST text * filename)
 {
   if (unlikely(!filename || !*filename))
     return false;
-  int filename_len = ACE_OS::strlen(filename) + 1;
+  ni filename_len = strlen(filename) + 1;
   m_pack_header.magic = CPackHead::HEADER_MAGIC;
   m_pack_header.header_length = sizeof(m_pack_header) + filename_len;
   m_pack_header.data_length = -1;
@@ -1065,14 +1065,14 @@ bool CArchiveSaver::write_header(const char * filename)
   return true;
 }
 
-bool CArchiveSaver::encrypt_and_write()
+truefalse CArchiveSaver::encrypt_and_write()
 {
-  int bytes = ENCRYPT_DATA_LENGTH - m_remain_encrypted_length;
+  ni bytes = ENCRYPT_DATA_LENGTH - m_remain_encrypted_length;
   m_pack_header.encrypted_data_length = bytes;
   if (bytes == 0)
     return true;
 
-  int stuff_bytes = (16 - bytes % 16) % 16;
+  ni stuff_bytes = (16 - bytes % 16) % 16;
   if (stuff_bytes > 0)
   {
     m_data_length += stuff_bytes;
@@ -1080,8 +1080,8 @@ bool CArchiveSaver::encrypt_and_write()
   }
   bytes += stuff_bytes;
   u_int8_t output[16];
-  char * ptr = m_encrypt_buffer.data();
-  int count = bytes;
+  text * ptr = m_encrypt_buffer.data();
+  ni count = bytes;
   while (count >= 16)
   {
     aes_encrypt(&m_aes_context, (u_int8_t*)ptr, output);
@@ -1094,12 +1094,12 @@ bool CArchiveSaver::encrypt_and_write()
 
 //CBZMemBridge//
 
-void * CBZMemBridge::intf_alloc(void *, int n, int m)
+DVOID * CBZMemBridge::intf_alloc(DVOID *, ni n, ni m)
 {
   return CMemPoolX::instance()->alloc_mem_x(n * m);
 }
 
-void CBZMemBridge::intf_free(void *, void * ptr)
+DVOID CBZMemBridge::intf_free(DVOID *, DVOID * ptr)
 {
   CMemPoolX::instance()->release_mem_x(ptr);
 }
@@ -1114,15 +1114,15 @@ CDataComp::CDataComp()
   m_bz_stream.opaque = 0;
 }
 
-bool CDataComp::prepare_buffers()
+truefalse CDataComp::prepare_buffers()
 {
   return (m_buff_in.data() || CMemPoolX::instance()->alloc_mem(BUFFER_LEN, &m_buff_in)) &&
          (m_buff_out.data() || CMemPoolX::instance()->alloc_mem(BUFFER_LEN, &m_buff_out));
 }
 
-bool CDataComp::do_compress(CArchiveloaderBase * _reader, CArchiveSaverBase * _writer)
+truefalse CDataComp::do_compress(CArchiveloaderBase * _reader, CArchiveSaverBase * _writer)
 {
-  int ret, n, n2;
+  ni ret, n, n2;
 
   while (true)
   {
@@ -1185,7 +1185,7 @@ bool CDataComp::do_compress(CArchiveloaderBase * _reader, CArchiveSaverBase * _w
   ACE_NOTREACHED(return true);
 }
 
-bool CDataComp::compress(const char * srcfn, int prefix_len, const char * destfn, const char * key)
+truefalse CDataComp::compress(CONST text * srcfn, ni prefix_len, CONST text * destfn, CONST text * key)
 {
   CArchiveloaderBase reader;
   if (!reader.open(srcfn))
@@ -1198,14 +1198,14 @@ bool CDataComp::compress(const char * srcfn, int prefix_len, const char * destfn
     return false;
 //  C_DEBUG("MyBZCompressor::compress, srcfn=%s, destfn=%d, save_as=%s\n", srcfn, destfn, srcfn + prefix_len);
   prepare_buffers();
-  int ret = BZ2_bzCompressInit(&m_bz_stream, COMPRESS_100k, 0, 30);
+  ni ret = BZ2_bzCompressInit(&m_bz_stream, COMPRESS_100k, 0, 30);
   if (ret != BZ_OK)
   {
     C_ERROR("BZ2_bzCompressInit() return value = %d\n", ret);
     return false;
   }
 
-  bool result = do_compress(&reader, &writer);
+  truefalse result = do_compress(&reader, &writer);
   if (!result)
     C_ERROR("failed to compress file: %s to %s\n", srcfn, destfn);
   BZ2_bzCompressEnd(&m_bz_stream);
@@ -1215,9 +1215,9 @@ bool CDataComp::compress(const char * srcfn, int prefix_len, const char * destfn
   return result;
 }
 
-bool CDataComp::do_decompress(CArchiveloaderBase * _reader, CArchiveSaverBase * _writer)
+truefalse CDataComp::do_decompress(CArchiveloaderBase * _reader, CArchiveSaverBase * _writer)
 {
-  int n, n2, ret;
+  ni n, n2, ret;
 
   m_bz_stream.avail_out = BUFFER_LEN;
   m_bz_stream.next_out = m_buff_out.data();
@@ -1263,7 +1263,7 @@ bool CDataComp::do_decompress(CArchiveloaderBase * _reader, CArchiveSaverBase * 
   ACE_NOTREACHED(return true);
 }
 
-bool CDataComp::decompress(const char * srcfn, const char * destdir, const char * key, const char * _rename)
+truefalse CDataComp::decompress(CONST text * srcfn, CONST text * destdir, CONST text * key, CONST text * _rename)
 {
   CArchiveLoader reader;
   if (!reader.open(srcfn))
@@ -1276,16 +1276,16 @@ bool CDataComp::decompress(const char * srcfn, const char * destdir, const char 
   if (!spl.init(_rename))
     return false;
 
-  int ret;
+  ni ret;
   while (true)
   {
-    const char * _file_name = spl.translate(reader.file_name());
+    CONST text * _file_name = spl.translate(reader.file_name());
     if (unlikely(!_file_name))
       return false;
 
     if (!CSysFS::make_path(destdir, _file_name, true, true))
     {
-      C_ERROR("can not mkdir %s/%s %s\n", destdir, _file_name, (const char*)CErrno());
+      C_ERROR("can not mkdir %s/%s %s\n", destdir, _file_name, (CONST char*)CErrno());
       return false;
     }
     CMemGuard dest_file_name;
@@ -1301,7 +1301,7 @@ bool CDataComp::decompress(const char * srcfn, const char * destdir, const char 
       return false;
     }
 
-    bool result = do_decompress(&reader, &writer);
+    truefalse result = do_decompress(&reader, &writer);
     BZ2_bzDecompressEnd(&m_bz_stream);
     if (!result)
     {
@@ -1321,35 +1321,35 @@ bool CDataComp::decompress(const char * srcfn, const char * destdir, const char 
 
 //MyBZCompositor//
 
-bool CCompCombiner::open(const char * filename)
+truefalse CCompCombiner::open(CONST text * filename)
 {
   return m_file.open_write(filename, true, true, true, false);
 }
 
-void CCompCombiner::close()
+DVOID CCompCombiner::close()
 {
   m_file.attach(CUnixFileGuard::INVALID_HANDLE);
 }
 
-bool CCompCombiner::add(const char * filename)
+truefalse CCompCombiner::add(CONST text * filename)
 {
   if (!m_file.valid())
     return true;
   CUnixFileGuard src;
   if (!src.open_read(filename))
     return false;
-  bool result = CSysFS::copy_file_by_fd(src.handle(), m_file.handle());
+  truefalse result = CSysFS::copy_file_by_fd(src.handle(), m_file.handle());
   if (!result)
     C_ERROR("MyBZCompositor::add(%s) failed\n", filename);
   return result;
 }
 
-bool CCompCombiner::add_multi(char * filenames, const char * path, const char separator, const char * ext)
+truefalse CCompCombiner::add_multi(text * filenames, CONST text * path, CONST text separator, CONST text * ext)
 {
-  char _seperators[2];
+  text _seperators[2];
   _seperators[0] = separator;
   _seperators[1] = 0;
-  char *str, *token, *saveptr;
+  text *str, *token, *saveptr;
 
   for (str = filenames; ; str = NULL)
   {
@@ -1392,53 +1392,53 @@ CProcBase::~CProcBase()
 
 }
 
-void CProcBase::info_string(CMemGuard & info) const
+DVOID CProcBase::info_string(CMemGuard & info) CONST
 {
   ACE_UNUSED_ARG(info);
 }
 
-int CProcBase::on_open()
+ni CProcBase::on_open()
 {
   return 0;
 }
 
-void CProcBase::on_close()
+DVOID CProcBase::on_close()
 {
 
 }
 
-bool CProcBase::wait_for_close() const
+truefalse CProcBase::wait_for_close() CONST
 {
   return m_wait_for_close;
 }
 
-void CProcBase::prepare_to_close()
+DVOID CProcBase::prepare_to_close()
 {
   m_wait_for_close = true;
 }
 
-int CProcBase::handle_input()
+ni CProcBase::handle_input()
 {
   return 0;
 }
 
-bool CProcBase::can_send_data(ACE_Message_Block * mb) const
+truefalse CProcBase::can_send_data(CMB * mb) CONST
 {
   ACE_UNUSED_ARG(mb);
   return true;
 }
 
-const char * CProcBase::name() const
+CONST text * CProcBase::name() CONST
 {
   return "MyBaseProcessor";
 }
 
-int CProcBase::handle_input_wait_for_close()
+ni CProcBase::handle_input_wait_for_close()
 {
-  char buffer[4096];
+  text buffer[4096];
   ssize_t recv_cnt = m_handler->peer().recv (buffer, 4096);
   //TEMP_FAILURE_RETRY(m_handler->peer().recv (buffer, 4096));
-  int ret = c_util_translate_tcp_result(recv_cnt);
+  ni ret = c_util_translate_tcp_result(recv_cnt);
   if (ret < 0)
     return -1;
   if (ret > 0)
@@ -1447,37 +1447,37 @@ int CProcBase::handle_input_wait_for_close()
 }
 
 
-bool CProcBase::dead() const
+truefalse CProcBase::dead() CONST
 {
   return m_last_activity + 100 < g_clock_counter;
 }
 
-void CProcBase::update_last_activity()
+DVOID CProcBase::update_last_activity()
 {
   m_last_activity = g_clock_counter;
 }
 
-long CProcBase::last_activity() const
+long CProcBase::last_activity() CONST
 {
   return m_last_activity;
 }
 
-const MyClientID & CProcBase::client_id() const
+CONST MyClientID & CProcBase::client_id() CONST
 {
   return m_client_id;
 }
 
-void CProcBase::client_id(const char *id)
+DVOID CProcBase::client_id(CONST text *id)
 {
   m_client_id = id;
 }
 
-bool CProcBase::client_id_verified() const
+truefalse CProcBase::client_id_verified() CONST
 {
   return false;
 }
 
-int32_t CProcBase::client_id_index() const
+int32_t CProcBase::client_id_index() CONST
 {
   return m_client_id_index;
 }
@@ -1497,14 +1497,14 @@ CProcRemoteAccessBase::~CProcRemoteAccessBase()
     m_mb->release();
 }
 
-int CProcRemoteAccessBase::handle_input()
+ni CProcRemoteAccessBase::handle_input()
 {
   if (m_mb == NULL)
     m_mb = CMemPoolX::instance()->get_mb(MAX_COMMAND_LINE_LENGTH);
   if (c_util_recv_message_block(m_handler, m_mb) < 0)
     return -1;
-  int i, len = m_mb->length();
-  char * ptr = m_mb->base();
+  ni i, len = m_mb->length();
+  text * ptr = m_mb->base();
   m_handler->connection_manager()->on_data_received(len);
   for (i = 0; i < len; ++ i)
     if (ptr[i] == '\r' || ptr[i] == '\n')
@@ -1513,15 +1513,15 @@ int CProcRemoteAccessBase::handle_input()
   {
     if (len == MAX_COMMAND_LINE_LENGTH)
     {
-      char buff[100];
-      ACE_OS::snprintf(buff, 100 - 1, "Error: command line too long, max line length = %d\n", MAX_COMMAND_LINE_LENGTH);
+      text buff[100];
+      snprintf(buff, 100 - 1, "Error: command line too long, max line length = %d\n", MAX_COMMAND_LINE_LENGTH);
       send_string(buff);
       return 0;
     }
     return 0;
   }
 
-  char last_cr_lf = ptr[i];
+  text last_cr_lf = ptr[i];
 
   ptr[i] = 0;
   if (process_command_line(m_mb->base()) < 0)
@@ -1531,34 +1531,34 @@ int CProcRemoteAccessBase::handle_input()
   while (i < len && (ptr[i] == '\r' || ptr[i] == '\n') && (ptr[i] != last_cr_lf))
     ++i;
   if (i < len)
-    ACE_OS::memmove(ptr, ptr + i, len - i);
+    memmove(ptr, ptr + i, len - i);
   m_mb->wr_ptr(m_mb->base() + len - i);
   m_mb->rd_ptr(m_mb->base());
   return 0;
 }
 
-int CProcRemoteAccessBase::on_open()
+ni CProcRemoteAccessBase::on_open()
 {
   return say_hello();
 }
 
-int CProcRemoteAccessBase::send_string(const char * s)
+ni CProcRemoteAccessBase::send_string(CONST text * s)
 {
   if (!s || !*s)
     return 0;
-  int len = ACE_OS::strlen(s);
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb(len + 1);
-  ACE_OS::memcpy(mb->base(), s, len + 1);
+  ni len = strlen(s);
+  CMB * mb = CMemPoolX::instance()->get_mb(len + 1);
+  memcpy(mb->base(), s, len + 1);
   mb->wr_ptr(mb->capacity());
   return (m_handler->send_data(mb) < 0 ? -1:0);
 }
 
-int CProcRemoteAccessBase::process_command_line(char * cmd)
+ni CProcRemoteAccessBase::process_command_line(text * cmd)
 {
   if (!cmd || !*cmd)
     return send_string(">");
 
-  char * ptr_start = cmd, * ptr_end;
+  text * ptr_start = cmd, * ptr_end;
   while (*ptr_start == ' ' || *ptr_start == '\t')
     ++ptr_start;
   ptr_end = ptr_start;
@@ -1569,41 +1569,41 @@ int CProcRemoteAccessBase::process_command_line(char * cmd)
   return do_command(ptr_start, ptr_end);
 }
 
-int CProcRemoteAccessBase::do_command(const char * cmd, char * parameter)
+ni CProcRemoteAccessBase::do_command(CONST text * cmd, text * parameter)
 {
-  if (!ACE_OS::strcmp(cmd, "help"))
+  if (!strcmp(cmd, "help"))
     return on_command_help();
-  if (!ACE_OS::strcmp(cmd, "quit") || !ACE_OS::strcmp(cmd, "exit"))
+  if (!strcmp(cmd, "quit") || !strcmp(cmd, "exit"))
     return on_command_quit();
   return on_command(cmd, parameter);
 }
 
-int CProcRemoteAccessBase::on_command(const char * cmd, char * parameter)
+ni CProcRemoteAccessBase::on_command(CONST text * cmd, text * parameter)
 {
   ACE_UNUSED_ARG(cmd);
   ACE_UNUSED_ARG(parameter);
   return 0;
 }
 
-int CProcRemoteAccessBase::on_unsupported_command(const char * cmd)
+ni CProcRemoteAccessBase::on_unsupported_command(CONST text * cmd)
 {
-  char buff[4096];
-  ACE_OS::snprintf(buff, 4096 - 1, "Error: unknown command '%s', to see a list of supported commands, type 'help'\n>", cmd);
+  text buff[4096];
+  snprintf(buff, 4096 - 1, "Error: unknown command '%s', to see a list of supported commands, type 'help'\n>", cmd);
   return send_string(buff);
 }
 
-int CProcRemoteAccessBase::on_command_help()
+ni CProcRemoteAccessBase::on_command_help()
 {
   return 0;
 }
 
-int CProcRemoteAccessBase::on_command_quit()
+ni CProcRemoteAccessBase::on_command_quit()
 {
   send_string("Bye!\n");
   return -1;
 }
 
-int CProcRemoteAccessBase::say_hello()
+ni CProcRemoteAccessBase::say_hello()
 {
   return send_string("Welcome\n>");
 }
@@ -1617,17 +1617,17 @@ CFormatProcBase::CFormatProcBase(CHandlerBase * handler): super(handler)
   m_peer_addr[0] = 0;
 }
 
-const char * CFormatProcBase::name() const
+CONST text * CFormatProcBase::name() CONST
 {
   return "MyBasePacketProcessor";
 }
 
-void CFormatProcBase::info_string(CMemGuard & info) const
+DVOID CFormatProcBase::info_string(CMemGuard & info) CONST
 {
-  const char * str_id = m_client_id.as_string();
+  CONST text * str_id = m_client_id.as_string();
   if (!*str_id)
     str_id = "NULL";
-  const char * ss[5];
+  CONST text * ss[5];
   ss[0] = "(remote addr=";
   ss[1] = m_peer_addr;
   ss[2] = ", client_id=";
@@ -1636,7 +1636,7 @@ void CFormatProcBase::info_string(CMemGuard & info) const
   info.from_strings(ss, 5);
 }
 
-int CFormatProcBase::on_open()
+ni CFormatProcBase::on_open()
 {
   ACE_INET_Addr peer_addr;
   if (m_handler->peer().get_remote_addr(peer_addr) == 0)
@@ -1646,7 +1646,7 @@ int CFormatProcBase::on_open()
   return 0;
 }
 
-int CFormatProcBase::packet_length()
+ni CFormatProcBase::packet_length()
 {
   return m_packet_header.length;
 }
@@ -1656,16 +1656,16 @@ CProcBase::EVENT_RESULT CFormatProcBase::on_recv_header()
   return ER_CONTINUE;
 }
 
-CProcBase::EVENT_RESULT CFormatProcBase::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT CFormatProcBase::on_recv_packet_i(CMB * mb)
 {
   MyDataPacketHeader * header = (MyDataPacketHeader *)mb->base();
   header->magic = m_client_id_index;
   return ER_OK;
 }
 
-ACE_Message_Block * CFormatProcBase::make_version_check_request_mb(const int extra)
+CMB * CFormatProcBase::make_version_check_request_mb(CONST ni extra)
 {
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd_direct(sizeof(MyClientVersionCheckRequest) + extra, MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
+  CMB * mb = CMemPoolX::instance()->get_mb_cmd_direct(sizeof(MyClientVersionCheckRequest) + extra, MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
   return mb;
 }
 
@@ -1682,7 +1682,7 @@ CProcBase::EVENT_RESULT CBSProceBase::on_recv_header()
   return (m_packet_header.check_header()? ER_OK : ER_ERROR);
 }
 
-CProcBase::EVENT_RESULT CBSProceBase::on_recv_packet_i(ACE_Message_Block * mb)
+CProcBase::EVENT_RESULT CBSProceBase::on_recv_packet_i(CMB * mb)
 {
   MyBSBasePacket * bspacket = (MyBSBasePacket *) mb->base();
   if (!bspacket->guard())
@@ -1693,7 +1693,7 @@ CProcBase::EVENT_RESULT CBSProceBase::on_recv_packet_i(ACE_Message_Block * mb)
   return ER_OK;
 }
 
-int CBSProceBase::packet_length()
+ni CBSProceBase::packet_length()
 {
   return m_packet_header.packet_len();
 }
@@ -1711,17 +1711,17 @@ CServerProcBase::~CServerProcBase()
 
 }
 
-const char * CServerProcBase::name() const
+CONST text * CServerProcBase::name() CONST
 {
   return "MyBaseServerProcessor";
 }
 
-bool CServerProcBase::client_id_verified() const
+truefalse CServerProcBase::client_id_verified() CONST
 {
   return !m_client_id.is_null();
 }
 
-bool CServerProcBase::can_send_data(ACE_Message_Block * mb) const
+truefalse CServerProcBase::can_send_data(CMB * mb) CONST
 {
   ACE_UNUSED_ARG(mb);
   return client_id_verified();
@@ -1733,8 +1733,8 @@ CProcBase::EVENT_RESULT CServerProcBase::on_recv_header()
   if (result != ER_CONTINUE)
     return result;
 
-  bool bVerified = client_id_verified();
-  bool bVersionCheck = (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
+  truefalse bVerified = client_id_verified();
+  truefalse bVersionCheck = (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ);
   if (bVerified == bVersionCheck)
   {
     CMemGuard info;
@@ -1747,14 +1747,14 @@ CProcBase::EVENT_RESULT CServerProcBase::on_recv_header()
   return ER_CONTINUE;
 }
 
-CProcBase::EVENT_RESULT CServerProcBase::do_version_check_common(ACE_Message_Block * mb, CClientIDS & client_id_table)
+CProcBase::EVENT_RESULT CServerProcBase::do_version_check_common(CMB * mb, CClientIDS & client_id_table)
 {
   MyClientVersionCheckRequest * vcr = (MyClientVersionCheckRequest *) mb->base();
   vcr->validate_data();
-  ACE_Message_Block * reply_mb = NULL;
+  CMB * reply_mb = NULL;
   m_client_version.init(vcr->client_version_major, vcr->client_version_minor);
-  int client_id_index = client_id_table.index_of(vcr->client_id);
-  bool valid = false;
+  ni client_id_index = client_id_table.index_of(vcr->client_id);
+  truefalse valid = false;
 
   m_client_id_index = client_id_index;
   m_client_id = vcr->client_id;
@@ -1785,11 +1785,11 @@ CProcBase::EVENT_RESULT CServerProcBase::do_version_check_common(ACE_Message_Blo
   return ER_CONTINUE;
 }
 
-ACE_Message_Block * CServerProcBase::make_version_check_reply_mb
-   (MyClientVersionCheckReply::REPLY_CODE code, int extra_len)
+CMB * CServerProcBase::make_version_check_reply_mb
+   (MyClientVersionCheckReply::REPLY_CODE code, ni extra_len)
 {
-  int total_len = sizeof(MyClientVersionCheckReply) + extra_len;
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb_cmd_direct(total_len, MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY);
+  ni total_len = sizeof(MyClientVersionCheckReply) + extra_len;
+  CMB * mb = CMemPoolX::instance()->get_mb_cmd_direct(total_len, MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY);
   MyClientVersionCheckReply * vcr = (MyClientVersionCheckReply *) mb->base();
   vcr->reply_code = code;
   return mb;
@@ -1808,31 +1808,31 @@ CClientProcBase::~CClientProcBase()
 
 }
 
-const char * CClientProcBase::name() const
+CONST text * CClientProcBase::name() CONST
 {
   return "MyBaseClientProcessor";
 }
 
-bool CClientProcBase::client_id_verified() const
+truefalse CClientProcBase::client_id_verified() CONST
 {
   return m_client_verified;
 }
 
-void CClientProcBase::client_verified(bool _verified)
+DVOID CClientProcBase::client_verified(truefalse _verified)
 {
   m_client_verified = _verified;
 }
 
-bool CClientProcBase::can_send_data(ACE_Message_Block * mb) const
+truefalse CClientProcBase::can_send_data(CMB * mb) CONST
 {
   MyDataPacketHeader * dph = (MyDataPacketHeader*) mb->base();
-  bool is_request = dph->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ;
-  bool client_verified = client_id_verified();
+  truefalse is_request = dph->command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REQ;
+  truefalse client_verified = client_id_verified();
   return is_request != client_verified;
 }
 
 
-int CClientProcBase::on_open()
+ni CClientProcBase::on_open()
 {
 
   if (super::on_open() < 0)
@@ -1840,18 +1840,18 @@ int CClientProcBase::on_open()
 
   if (g_is_test)
   {
-    int pending_count = m_handler->connection_manager()->pending_count();
+    ni pending_count = m_handler->connection_manager()->pending_count();
     if (pending_count > 0 &&  pending_count <= CConnectorBase::BATCH_CONNECT_NUM / 2)
       m_handler->connector()->connect_ready();
   }
   return 0;
 }
 
-void CClientProcBase::on_close()
+DVOID CClientProcBase::on_close()
 {
   if (g_is_test)
   {
-    int pending_count = m_handler->connection_manager()->pending_count();
+    ni pending_count = m_handler->connection_manager()->pending_count();
     if (pending_count > 0 &&  pending_count <= CConnectorBase::BATCH_CONNECT_NUM / 2)
       m_handler->connector()->connect_ready();
   }
@@ -1863,8 +1863,8 @@ CProcBase::EVENT_RESULT CClientProcBase::on_recv_header()
   if (result != ER_CONTINUE)
     return result;
 
-  bool bVerified = client_id_verified();
-  bool bVersionCheck = (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY);
+  truefalse bVerified = client_id_verified();
+  truefalse bVersionCheck = (m_packet_header.command == MyDataPacketHeader::CMD_CLIENT_VERSION_CHECK_REPLY);
   if (bVerified == bVersionCheck)
   {
     CMemGuard info;
@@ -1904,77 +1904,77 @@ CConnectionManagerBase::~CConnectionManagerBase()
   }
 }
 
-int CConnectionManagerBase::active_count() const
+ni CConnectionManagerBase::active_count() CONST
 {
   return m_num_connections;
 }
 
-int CConnectionManagerBase::total_count() const
+ni CConnectionManagerBase::total_count() CONST
 {
   return m_total_connections;
 }
 
-int CConnectionManagerBase::reaped_count() const
+ni CConnectionManagerBase::reaped_count() CONST
 {
   return m_reaped_connections;
 }
 
-int CConnectionManagerBase::pending_count() const
+ni CConnectionManagerBase::pending_count() CONST
 {
   return m_pending;
 }
 
-long long int CConnectionManagerBase::bytes_received() const
+i64 CConnectionManagerBase::bytes_received() CONST
 {
   return m_bytes_received;
 }
 
-long long int CConnectionManagerBase::bytes_sent() const
+i64 CConnectionManagerBase::bytes_sent() CONST
 {
   return m_bytes_sent;
 }
 
-void CConnectionManagerBase::on_data_received(int data_size)
+DVOID CConnectionManagerBase::on_data_received(ni data_size)
 {
   m_bytes_received += data_size;
 }
 
-void CConnectionManagerBase::on_data_send(int data_size)
+DVOID CConnectionManagerBase::on_data_send(ni data_size)
 {
   m_bytes_sent += data_size;
 }
 
-void CConnectionManagerBase::lock()
+DVOID CConnectionManagerBase::lock()
 {
   m_locked = true;
 }
 
-void CConnectionManagerBase::unlock()
+DVOID CConnectionManagerBase::unlock()
 {
   m_locked = false;
 }
 
-bool CConnectionManagerBase::locked() const
+truefalse CConnectionManagerBase::locked() CONST
 {
   return m_locked;
 }
 
-void CConnectionManagerBase::dump_info()
+DVOID CConnectionManagerBase::dump_info()
 {
   do_dump_info();
 }
 
-void CConnectionManagerBase::broadcast(ACE_Message_Block * mb)
+DVOID CConnectionManagerBase::broadcast(CMB * mb)
 {
   do_send(mb, true);
 }
 
-void CConnectionManagerBase::send_single(ACE_Message_Block * mb)
+DVOID CConnectionManagerBase::send_single(CMB * mb)
 {
   do_send(mb, false);
 }
 
-void CConnectionManagerBase::do_send(ACE_Message_Block * mb, bool broadcast)
+DVOID CConnectionManagerBase::do_send(CMB * mb, truefalse broadcast)
 {
   if (unlikely(!mb))
     return;
@@ -1991,7 +1991,7 @@ void CConnectionManagerBase::do_send(ACE_Message_Block * mb, bool broadcast)
     if (!broadcast)
     {
       CHandlerBase * handler = it->first;
-      C_DEBUG("do_send: handler=%X, socket=%d, length=%d\n", (int)(long)handler, handler->get_handle(), mb->length());
+      C_DEBUG("do_send: handler=%X, socket=%d, length=%d\n", (ni)(long)handler, handler->get_handle(), mb->length());
     }
     if (it->first->send_data(mb->duplicate()) < 0)
       ptrs.push_back(it->first);
@@ -2004,25 +2004,25 @@ void CConnectionManagerBase::do_send(ACE_Message_Block * mb, bool broadcast)
     (*it2)->handle_close();
 }
 
-void CConnectionManagerBase::do_dump_info()
+DVOID CConnectionManagerBase::do_dump_info()
 {
-  const int BUFF_LEN = 1024;
-  char buff[BUFF_LEN];
+  CONST ni BUFF_LEN = 1024;
+  text buff[BUFF_LEN];
   //it seems that ACE's logging system can not handle 64bit formatting, let's do it ourself
-  ACE_OS::snprintf(buff, BUFF_LEN, "        active connections = %d\n", active_count());
+  snprintf(buff, BUFF_LEN, "        active connections = %d\n", active_count());
   ACE_DEBUG((LM_INFO, buff));
-  ACE_OS::snprintf(buff, BUFF_LEN, "        total connections = %d\n", total_count());
+  snprintf(buff, BUFF_LEN, "        total connections = %d\n", total_count());
   ACE_DEBUG((LM_INFO, buff));
-  ACE_OS::snprintf(buff, BUFF_LEN, "        dead connections closed = %d\n", reaped_count());
+  snprintf(buff, BUFF_LEN, "        dead connections closed = %d\n", reaped_count());
   ACE_DEBUG((LM_INFO, buff));
-  ACE_OS::snprintf(buff, BUFF_LEN, "        bytes_received = %lld\n", (long long int) bytes_received());
+  snprintf(buff, BUFF_LEN, "        bytes_received = %lld\n", (long long ni) bytes_received());
   ACE_DEBUG((LM_INFO, buff));
-  ACE_OS::snprintf(buff, BUFF_LEN, "        bytes_sent = %lld\n", (long long int) bytes_sent());
+  snprintf(buff, BUFF_LEN, "        bytes_sent = %lld\n", (long long ni) bytes_sent());
   ACE_DEBUG((LM_INFO, buff));
 }
 
 
-void CConnectionManagerBase::detect_dead_connections(int timeout)
+DVOID CConnectionManagerBase::detect_dead_connections(ni timeout)
 {
   MyConnectionsPtr it;
   CHandlerBase * handler;
@@ -2055,7 +2055,7 @@ void CConnectionManagerBase::detect_dead_connections(int timeout)
   }
 }
 
-void CConnectionManagerBase::set_connection_client_id_index(CHandlerBase * handler, int index, CClientIDS * id_table)
+DVOID CConnectionManagerBase::set_connection_client_id_index(CHandlerBase * handler, ni index, CClientIDS * id_table)
 {
   if (unlikely(!handler || m_locked || index < 0))
     return;
@@ -2079,7 +2079,7 @@ void CConnectionManagerBase::set_connection_client_id_index(CHandlerBase * handl
     m_index_handler_map.insert(it, MyIndexHandlerMap::value_type(index, handler));
 }
 
-CHandlerBase * CConnectionManagerBase::find_handler_by_index(int index)
+CHandlerBase * CConnectionManagerBase::find_handler_by_index(ni index)
 {
   MyIndexHandlerMapPtr it = find_handler_by_index_i(index);
   if (it == m_index_handler_map.end())
@@ -2088,7 +2088,7 @@ CHandlerBase * CConnectionManagerBase::find_handler_by_index(int index)
     return it->second;
 }
 
-void CConnectionManagerBase::add_connection(CHandlerBase * handler, CState state)
+DVOID CConnectionManagerBase::add_connection(CHandlerBase * handler, CState state)
 {
   if (!handler || m_locked)
     return;
@@ -2108,12 +2108,12 @@ void CConnectionManagerBase::add_connection(CHandlerBase * handler, CState state
   }
 }
 
-void CConnectionManagerBase::set_connection_state(CHandlerBase * handler, CState state)
+DVOID CConnectionManagerBase::set_connection_state(CHandlerBase * handler, CState state)
 {
   add_connection(handler, state);
 }
 
-void CConnectionManagerBase::remove_connection(CHandlerBase * handler, CClientIDS * id_table)
+DVOID CConnectionManagerBase::remove_connection(CHandlerBase * handler, CClientIDS * id_table)
 {
   if (unlikely(m_locked))
     return;
@@ -2122,7 +2122,7 @@ void CConnectionManagerBase::remove_connection(CHandlerBase * handler, CClientID
   remove_from_handler_map(handler, id_table);
 }
 
-void CConnectionManagerBase::remove_from_active_table(CHandlerBase * handler)
+DVOID CConnectionManagerBase::remove_from_active_table(CHandlerBase * handler)
 {
   MyConnectionsPtr ptr = find(handler);
   if (ptr != m_active_connections.end())
@@ -2134,9 +2134,9 @@ void CConnectionManagerBase::remove_from_active_table(CHandlerBase * handler)
   }
 }
 
-void CConnectionManagerBase::remove_from_handler_map(CHandlerBase * handler, CClientIDS * id_table)
+DVOID CConnectionManagerBase::remove_from_handler_map(CHandlerBase * handler, CClientIDS * id_table)
 {
-  int index = handler->processor()->client_id_index();
+  ni index = handler->processor()->client_id_index();
   if (index < 0)
     return;
 
@@ -2154,7 +2154,7 @@ CConnectionManagerBase::MyConnectionsPtr CConnectionManagerBase::find(CHandlerBa
   return m_active_connections.find(handler);
 }
 
-CConnectionManagerBase::MyIndexHandlerMapPtr CConnectionManagerBase::find_handler_by_index_i(int index)
+CConnectionManagerBase::MyIndexHandlerMapPtr CConnectionManagerBase::find_handler_by_index_i(ni index)
 {
   return m_index_handler_map.find(index);
 }
@@ -2175,19 +2175,19 @@ CConnectionManagerBase * CHandlerBase::connection_manager()
   return m_connection_manager;
 }
 
-CProcBase * CHandlerBase::processor() const
+CProcBase * CHandlerBase::processor() CONST
 {
   return m_processor;
 }
 
-int CHandlerBase::on_open()
+ni CHandlerBase::on_open()
 {
   return 0;
 }
 
-int CHandlerBase::open(void * p)
+ni CHandlerBase::open(DVOID * p)
 {
-//  C_DEBUG("MyBaseHandler::open(void * p = %X), this = %X\n", long(p), long(this));
+//  C_DEBUG("MyBaseHandler::open(DVOID * p = %X), this = %X\n", long(p), long(this));
   if (super::open(p) == -1)
     return -1;
   if (on_open() < 0)
@@ -2199,7 +2199,7 @@ int CHandlerBase::open(void * p)
   return 0;
 }
 
-int CHandlerBase::send_data(ACE_Message_Block * mb)
+ni CHandlerBase::send_data(CMB * mb)
 {
   if (unlikely(!m_processor->can_send_data(mb)))
   {
@@ -2207,8 +2207,8 @@ int CHandlerBase::send_data(ACE_Message_Block * mb)
     return 0;
   }
   m_processor->update_last_activity();
-  int sent_len = mb->length();
-  int ret = c_util_send_message_block_queue(this, mb, true);
+  ni sent_len = mb->length();
+  ni ret = c_util_send_message_block_queue(this, mb, true);
   if (ret >= 0)
   {
     if (m_connection_manager)
@@ -2217,29 +2217,29 @@ int CHandlerBase::send_data(ACE_Message_Block * mb)
   return ret;
 }
 
-void CHandlerBase::mark_as_reap()
+DVOID CHandlerBase::mark_as_reap()
 {
   m_reaped = true;
 }
 
-int CHandlerBase::handle_input(ACE_HANDLE h)
+ni CHandlerBase::handle_input(ACE_HANDLE h)
 {
   ACE_UNUSED_ARG(h);
 //  C_DEBUG("handle_input (handle = %d)\n", h);
   return m_processor->handle_input();
 }
 
-CClientIDS * CHandlerBase::client_id_table() const
+CClientIDS * CHandlerBase::client_id_table() CONST
 {
   return NULL;
 }
 
-void CHandlerBase::on_close()
+DVOID CHandlerBase::on_close()
 {
 
 }
 
-int CHandlerBase::handle_close (ACE_HANDLE handle,
+ni CHandlerBase::handle_close (ACE_HANDLE handle,
                           ACE_Reactor_Mask close_mask)
 {
   ACE_UNUSED_ARG(handle);
@@ -2256,7 +2256,7 @@ int CHandlerBase::handle_close (ACE_HANDLE handle,
 //    //m_processor->handle_input();
 //  }
 
-  ACE_Message_Block *mb;
+  CMB *mb;
   ACE_Time_Value nowait(ACE_Time_Value::zero);
   while (-1 != this->getq(mb, &nowait))
     mb->release();
@@ -2278,10 +2278,10 @@ int CHandlerBase::handle_close (ACE_HANDLE handle,
   //return super::handle_close (handle, close_mask); //do NOT use
 }
 
-int CHandlerBase::handle_output (ACE_HANDLE fd)
+ni CHandlerBase::handle_output (ACE_HANDLE fd)
 {
   ACE_UNUSED_ARG(fd);
-  ACE_Message_Block *mb;
+  CMB *mb;
   ACE_Time_Value nowait (ACE_Time_Value::zero);
   while (-1 != this->getq(mb, &nowait))
   {
@@ -2330,39 +2330,39 @@ CAcceptorBase::~CAcceptorBase()
     delete m_connection_manager;
 }
 
-CMod * CAcceptorBase::module_x() const
+CMod * CAcceptorBase::module_x() CONST
 {
   return m_module;
 }
 
-CDispatchBase * CAcceptorBase::dispatcher() const
+CDispatchBase * CAcceptorBase::dispatcher() CONST
 {
   return m_dispatcher;
 }
 
-CConnectionManagerBase * CAcceptorBase::connection_manager() const
+CConnectionManagerBase * CAcceptorBase::connection_manager() CONST
 {
   return m_connection_manager;
 }
 
-bool CAcceptorBase::on_start()
+truefalse CAcceptorBase::on_start()
 {
   return true;
 }
 
-void CAcceptorBase::on_stop()
+DVOID CAcceptorBase::on_stop()
 {
 
 }
 
-int CAcceptorBase::handle_timeout(const ACE_Time_Value &, const void *act)
+ni CAcceptorBase::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *act)
 {
   if (long(act) == TIMER_ID_check_dead_connection)
     m_connection_manager->detect_dead_connections(m_idle_time_as_dead);
   return 0;
 }
 
-int CAcceptorBase::start()
+ni CAcceptorBase::start()
 {
   if (m_tcp_port <= 0)
   {
@@ -2372,7 +2372,7 @@ int CAcceptorBase::start()
   ACE_INET_Addr port_to_listen (m_tcp_port);
   m_connection_manager->unlock();
 
-  int ret = super::open (port_to_listen, m_dispatcher->reactor(), ACE_NONBLOCK);
+  ni ret = super::open (port_to_listen, m_dispatcher->reactor(), ACE_NONBLOCK);
   if (ret == 0)
     C_INFO(ACE_TEXT ("%s listening on port %d... OK\n"), module_x()->name(), m_tcp_port);
   else if (ret < 0)
@@ -2398,7 +2398,7 @@ int CAcceptorBase::start()
   return 0;
 }
 
-int CAcceptorBase::stop()
+ni CAcceptorBase::stop()
 {
   on_stop();
   m_connection_manager->lock();
@@ -2408,19 +2408,19 @@ int CAcceptorBase::stop()
   return 0;
 }
 
-void CAcceptorBase::do_dump_info()
+DVOID CAcceptorBase::do_dump_info()
 {
   m_connection_manager->dump_info();
 }
 
-void CAcceptorBase::print_info()
+DVOID CAcceptorBase::print_info()
 {
   ACE_DEBUG((LM_INFO, "      +++ acceptor dump: %s start\n", name()));
   do_dump_info();
   ACE_DEBUG((LM_INFO, "      +++ acceptor dump: %s end\n", name()));
 }
 
-const char * CAcceptorBase::name() const
+CONST text * CAcceptorBase::name() CONST
 {
   return "MyBaseAcceptor";
 }
@@ -2447,32 +2447,32 @@ CConnectorBase::~CConnectorBase()
     delete m_connection_manager;
 }
 
-CMod * CConnectorBase::module_x() const
+CMod * CConnectorBase::module_x() CONST
 {
   return m_module;
 }
 
-CConnectionManagerBase * CConnectorBase::connection_manager() const
+CConnectionManagerBase * CConnectorBase::connection_manager() CONST
 {
   return m_connection_manager;
 }
 
-CDispatchBase * CConnectorBase::dispatcher() const
+CDispatchBase * CConnectorBase::dispatcher() CONST
 {
   return m_dispatcher;
 }
 
-void CConnectorBase::tcp_addr(const char * addr)
+DVOID CConnectorBase::tcp_addr(CONST text * addr)
 {
   m_tcp_addr = (addr? addr:"");
 }
 
-bool CConnectorBase::before_reconnect()
+truefalse CConnectorBase::before_reconnect()
 {
   return true;
 }
 
-int CConnectorBase::handle_timeout(const ACE_Time_Value &current_time, const void *act)
+ni CConnectorBase::handle_timeout(CONST ACE_Time_Value &current_time, CONST DVOID *act)
 {
   ACE_UNUSED_ARG(current_time);
   if (long(act) == TIMER_ID_reconnect && m_reconnect_interval > 0)
@@ -2496,17 +2496,17 @@ int CConnectorBase::handle_timeout(const ACE_Time_Value &current_time, const voi
   return 0;
 }
 
-bool CConnectorBase::on_start()
+truefalse CConnectorBase::on_start()
 {
   return true;
 }
 
-void CConnectorBase::on_stop()
+DVOID CConnectorBase::on_stop()
 {
 
 }
 
-int CConnectorBase::start()
+ni CConnectorBase::start()
 {
   m_connection_manager->unlock();
   if (g_is_test)
@@ -2538,7 +2538,7 @@ int CConnectorBase::start()
     ACE_Time_Value interval (m_reconnect_interval * 60);
     m_reconnect_timer_id = reactor()->schedule_timer (this, (void*)TIMER_ID_reconnect, interval, interval);
     if (m_reconnect_timer_id < 0)
-      C_ERROR(ACE_TEXT("%s setup reconnect timer failed, %s\n"), name(), (const char*)CErrno());
+      C_ERROR(ACE_TEXT("%s setup reconnect timer failed, %s\n"), name(), (CONST char*)CErrno());
   }
 
   if (m_idle_time_as_dead > 0)
@@ -2558,24 +2558,24 @@ int CConnectorBase::start()
   return 0; //
 }
 
-void CConnectorBase::do_dump_info()
+DVOID CConnectorBase::do_dump_info()
 {
   m_connection_manager->dump_info();
 }
 
-void CConnectorBase::dump_info()
+DVOID CConnectorBase::dump_info()
 {
   ACE_DEBUG((LM_INFO, "      +++ connector dump: %s start\n", name()));
   do_dump_info();
   ACE_DEBUG((LM_INFO, "      +++ connector dump: %s end\n", name()));
 }
 
-const char * CConnectorBase::name() const
+CONST text * CConnectorBase::name() CONST
 {
   return "MyBaseConnector";
 }
 
-int CConnectorBase::stop()
+ni CConnectorBase::stop()
 {
   on_stop();
   if (m_reconnect_timer_id >= 0)
@@ -2587,7 +2587,7 @@ int CConnectorBase::stop()
   return 0;
 }
 
-int CConnectorBase::connect_ready()
+ni CConnectorBase::connect_ready()
 {
   if (g_is_test)
     return do_connect(0, false);
@@ -2595,12 +2595,12 @@ int CConnectorBase::connect_ready()
     return 0;
 }
 
-void CConnectorBase::reset_retry_count()
+DVOID CConnectorBase::reset_retry_count()
 {
   m_reconnect_retry_count = 0;
 }
 
-int CConnectorBase::do_connect(int count, bool bNew)
+ni CConnectorBase::do_connect(ni count, truefalse bNew)
 {
   if (g_is_test)
   {
@@ -2616,29 +2616,29 @@ int CConnectorBase::do_connect(int count, bool bNew)
     if (m_connection_manager->pending_count() >= BATCH_CONNECT_NUM / 2)
       return 0;
 
-    bool b_remain_connect = m_remain_to_connect > 0;
+    truefalse b_remain_connect = m_remain_to_connect > 0;
     if (b_remain_connect && bNew)
       return 0;
-    int true_count;
+    ni true_count;
     if (b_remain_connect)
       true_count = std::min(m_remain_to_connect, (BATCH_CONNECT_NUM - m_connection_manager->pending_count()));
     else
-      true_count = std::min(count, (int)BATCH_CONNECT_NUM);
+      true_count = std::min(count, (ni)BATCH_CONNECT_NUM);
 
     if (true_count <= 0)
       return 0;
 
     ACE_INET_Addr port_to_connect(m_tcp_port, m_tcp_addr.c_str());
     CHandlerBase * handler = NULL;
-    int ok_count = 0, pending_count = 0;
+    ni ok_count = 0, pending_count = 0;
 
     ACE_Time_Value timeout(60);
     ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
 
-    for (int i = 1; i <= true_count; ++i)
+    for (ni i = 1; i <= true_count; ++i)
     {
       handler = NULL;
-      int ret_i = connect(handler, port_to_connect, synch_options);
+      ni ret_i = connect(handler, port_to_connect, synch_options);
   //    C_DEBUG("connect result = %d, handler = %X\n", ret_i, handler);
       if (ret_i == 0)
       {
@@ -2682,18 +2682,18 @@ int CConnectorBase::do_connect(int count, bool bNew)
 
 //MyBaseService//
 
-CTaskBase::CTaskBase(CMod * module, int numThreads):
+CTaskBase::CTaskBase(CMod * module, ni numThreads):
     m_mod(module), m_threads_count(numThreads)
 {
 
 }
 
-CMod * CTaskBase::module_x() const
+CMod * CTaskBase::module_x() CONST
 {
   return m_mod;
 }
 
-int CTaskBase::start()
+ni CTaskBase::start()
 {
   if (open(NULL) == -1)
     return -1;
@@ -2703,7 +2703,7 @@ int CTaskBase::start()
   return activate (THR_NEW_LWP, m_threads_count);
 }
 
-int CTaskBase::stop()
+ni CTaskBase::stop()
 {
   msg_queue()->deactivate();
   msg_queue()->flush();
@@ -2711,41 +2711,41 @@ int CTaskBase::stop()
   return 0;
 }
 
-void CTaskBase::dump_info()
+DVOID CTaskBase::dump_info()
 {
 
 }
 
-void CTaskBase::do_dump_info()
+DVOID CTaskBase::do_dump_info()
 {
 
 }
 
-bool CTaskBase::do_add_task(void * p, int task_type)
+truefalse CTaskBase::do_add_task(DVOID * p, ni task_type)
 {
   if (unlikely(!p))
     return true;
 
-  ACE_Message_Block * mb = CMemPoolX::instance()->get_mb(sizeof(int) + sizeof(void *));
-  *((int*)mb->base()) = task_type;
-  *(char **)(mb->base() + sizeof(int)) = (char*)p;
+  CMB * mb = CMemPoolX::instance()->get_mb(sizeof(ni) + sizeof(DVOID *));
+  *((ni*)mb->base()) = task_type;
+  *(text **)(mb->base() + sizeof(ni)) = (char*)p;
 
-  char buff[100];
-  ACE_OS::snprintf(buff, 100, "command packet (%d) to %s", task_type, name());
+  text buff[100];
+  snprintf(buff, 100, "command packet (%d) to %s", task_type, name());
   return c_util_mb_putq(this, mb, buff);
 }
 
-void * CTaskBase::get_task(ACE_Message_Block * mb, int & task_type) const
+DVOID * CTaskBase::get_task(CMB * mb, ni & task_type) CONST
 {
-  if (unlikely(mb->capacity() != sizeof(void *) + sizeof(int)))
+  if (unlikely(mb->capacity() != sizeof(DVOID *) + sizeof(ni)))
     return NULL;
 
-  task_type = *(int*)mb->base();
-  return *((char **)(mb->base() + sizeof(int)));
+  task_type = *(ni*)mb->base();
+  return *((text **)(mb->base() + sizeof(ni)));
 }
 
 
-const char * CTaskBase::name() const
+CONST text * CTaskBase::name() CONST
 {
   return "MyBaseService";
 }
@@ -2753,7 +2753,7 @@ const char * CTaskBase::name() const
 
 //MyBaseDispatcher//
 
-CDispatchBase::CDispatchBase(CMod * pModule, int numThreads):
+CDispatchBase::CDispatchBase(CMod * pModule, ni numThreads):
     m_mod(pModule), m_numThreads(numThreads), m_numBatchSend(50)
 {
   m_reactor = NULL;
@@ -2767,7 +2767,7 @@ CDispatchBase::~CDispatchBase()
     delete m_reactor;
 }
 
-int CDispatchBase::open (void *)
+ni CDispatchBase::open (DVOID *)
 {
   m_reactor = new ACE_Reactor(new ACE_Dev_Poll_Reactor(ACE::max_handles()), true);
   reactor(m_reactor);
@@ -2775,9 +2775,9 @@ int CDispatchBase::open (void *)
   if (m_clock_interval > 0)
   {
     ACE_Time_Value interval(m_clock_interval);
-    if (m_reactor->schedule_timer(this, (const void*)TIMER_ID_BASE, interval, interval) < 0)
+    if (m_reactor->schedule_timer(this, (CONST void*)TIMER_ID_BASE, interval, interval) < 0)
     {
-      C_ERROR("setup timer failed %s %s\n", name(), (const char*)CErrno());
+      C_ERROR("setup timer failed %s %s\n", name(), (CONST char*)CErrno());
       return -1;
     }
   }
@@ -2785,7 +2785,7 @@ int CDispatchBase::open (void *)
   return 0;
 }
 
-void CDispatchBase::add_connector(CConnectorBase * _connector)
+DVOID CDispatchBase::add_connector(CConnectorBase * _connector)
 {
   if (!_connector)
   {
@@ -2795,7 +2795,7 @@ void CDispatchBase::add_connector(CConnectorBase * _connector)
   m_connectors.push_back(_connector);
 }
 
-void CDispatchBase::add_acceptor(CAcceptorBase * _acceptor)
+DVOID CDispatchBase::add_acceptor(CAcceptorBase * _acceptor)
 {
   if (!_acceptor)
   {
@@ -2805,43 +2805,43 @@ void CDispatchBase::add_acceptor(CAcceptorBase * _acceptor)
   m_acceptors.push_back(_acceptor);
 }
 
-bool CDispatchBase::on_start()
+truefalse CDispatchBase::on_start()
 {
   return true;
 }
 
-int CDispatchBase::start()
+ni CDispatchBase::start()
 {
   return activate (THR_NEW_LWP, m_numThreads);
 }
 
-bool CDispatchBase::on_event_loop()
+truefalse CDispatchBase::on_event_loop()
 {
   return true;
 }
 
-void CDispatchBase::on_stop()
+DVOID CDispatchBase::on_stop()
 {
 
 }
 
-void CDispatchBase::on_stop_stage_1()
+DVOID CDispatchBase::on_stop_stage_1()
 {
 
 }
 
-int CDispatchBase::stop()
+ni CDispatchBase::stop()
 {
   wait();
   return 0;
 }
 
-const char * CDispatchBase::name() const
+CONST text * CDispatchBase::name() CONST
 {
   return "MyBaseDispatcher";
 }
 
-void CDispatchBase::dump_info()
+DVOID CDispatchBase::dump_info()
 {
   ACE_DEBUG((LM_INFO, "    --- dispatcher dump: %s start\n", name()));
   do_dump_info();
@@ -2850,17 +2850,17 @@ void CDispatchBase::dump_info()
   ACE_DEBUG((LM_INFO, "    --- dispatcher dump: %s end\n", name()));
 }
 
-void CDispatchBase::do_dump_info()
+DVOID CDispatchBase::do_dump_info()
 {
 
 }
 
-CMod * CDispatchBase::module_x() const
+CMod * CDispatchBase::module_x() CONST
 {
   return m_mod;
 }
 
-bool CDispatchBase::do_start_i()
+truefalse CDispatchBase::do_start_i()
 {
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, 0);
   if (!m_init_done)
@@ -2877,7 +2877,7 @@ bool CDispatchBase::do_start_i()
   return true;
 }
 
-void CDispatchBase::do_stop_i()
+DVOID CDispatchBase::do_stop_i()
 {
   ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
   if (!m_reactor) //reuse m_reactor as cleanup flag
@@ -2899,7 +2899,7 @@ void CDispatchBase::do_stop_i()
   m_reactor = NULL;
 }
 
-int CDispatchBase::svc()
+ni CDispatchBase::svc()
 {
   C_INFO(ACE_TEXT ("running %s::svc()\n"), name());
 
@@ -2909,12 +2909,12 @@ int CDispatchBase::svc()
   while (m_mod->running_with_app())
   {
     ACE_Time_Value timeout(2);
-    int ret = reactor()->handle_events(&timeout);
+    ni ret = reactor()->handle_events(&timeout);
     if (ret == -1)
     {
       if (errno == EINTR)
         continue;
-      C_INFO(ACE_TEXT ("exiting %s::svc() due to %s\n"), name(), (const char*)CErrno());
+      C_INFO(ACE_TEXT ("exiting %s::svc() due to %s\n"), name(), (CONST char*)CErrno());
       break;
     }
     if (!on_event_loop())
@@ -2940,33 +2940,33 @@ CMod::~CMod()
   stop();
 }
 
-bool CMod::running() const
+truefalse CMod::running() CONST
 {
   return m_running;
 }
 
-CApp * CMod::app() const
+CApp * CMod::app() CONST
 {
   return m_app;
 }
 
-bool CMod::running_with_app() const
+truefalse CMod::running_with_app() CONST
 {
   return (m_running && m_app->running());
 }
 
-bool CMod::on_start()
+truefalse CMod::on_start()
 {
   return true;
 }
 
-void CMod::on_stop()
+DVOID CMod::on_stop()
 {
 
 }
 
 
-int CMod::start()
+ni CMod::start()
 {
   if (m_running)
     return 0;
@@ -2979,7 +2979,7 @@ int CMod::start()
   return 0;
 }
 
-int CMod::stop()
+ni CMod::stop()
 {
   if (!m_running)
     return 0;
@@ -2994,12 +2994,12 @@ int CMod::stop()
   return 0;
 }
 
-const char * CMod::name() const
+CONST text * CMod::name() CONST
 {
   return "MyBaseModule";
 }
 
-void CMod::dump_info()
+DVOID CMod::dump_info()
 {
   ACE_DEBUG((LM_INFO, "  *** module dump: %s start\n", name()));
   do_dump_info();
@@ -3008,12 +3008,12 @@ void CMod::dump_info()
   ACE_DEBUG((LM_INFO, "  *** module dump: %s end\n", name()));
 }
 
-void CMod::do_dump_info()
+DVOID CMod::do_dump_info()
 {
 
 }
 
-void CMod::add_task(CTaskBase * _service)
+DVOID CMod::add_task(CTaskBase * _service)
 {
   if (!_service)
   {
@@ -3023,7 +3023,7 @@ void CMod::add_task(CTaskBase * _service)
   m_tasks.push_back(_service);
 }
 
-void CMod::add_dispatch(CDispatchBase * _dispatcher)
+DVOID CMod::add_dispatch(CDispatchBase * _dispatcher)
 {
   if (!_dispatcher)
   {

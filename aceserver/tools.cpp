@@ -2,7 +2,7 @@
 #include "tools.h"
 #include "app.h"
 
-bool g_use_mem_pool = true;
+truefalse g_use_mem_pool = true;
 
 //MyCached_Message_Block//
 
@@ -11,11 +11,11 @@ CCachedMB::CCachedMB(size_t size,
                 ACE_Allocator * data_block_allocator,
                 ACE_Allocator * message_block_allocator,
                 ACE_Message_Type type)
-     :ACE_Message_Block(
+     :CMB(
         size,
         type,
         0, //ACE_Message_Block * cont
-        0, //const char * data
+        0, //const text * data
         allocator_strategy,
         0, //ACE_Lock * locking_strategy
         ACE_DEFAULT_MESSAGE_BLOCK_PRIORITY, //unsigned long priority
@@ -30,17 +30,17 @@ CCachedMB::CCachedMB(size_t size,
 
 //MyPooledMemGuard//
 
-void CMemGuard::from_string(const char * src)
+DVOID CMemGuard::from_string(CONST text * src)
 {
-  int len = src? ACE_OS::strlen(src) + 1: 1;
+  ni len = src? strlen(src) + 1: 1;
   CMemPoolX::instance()->alloc_mem(len, this);
   if (len == 1)
     data()[0] = 0;
   else
-    ACE_OS::memcpy(data(), src, len);
+    memcpy(data(), src, len);
 }
 
-void CMemGuard::from_string(const char * src1, const char * src2)
+DVOID CMemGuard::from_string(CONST text * src1, CONST text * src2)
 {
   if (!src1 || !*src1)
   {
@@ -52,14 +52,14 @@ void CMemGuard::from_string(const char * src1, const char * src2)
     from_string(src1);
     return;
   }
-  int len1 = ACE_OS::strlen(src1);
-  int len2 = ACE_OS::strlen(src2) + 1;
+  ni len1 = strlen(src1);
+  ni len2 = strlen(src2) + 1;
   CMemPoolX::instance()->alloc_mem(len1 + len2, this);
-  ACE_OS::memcpy(data(), src1, len1);
-  ACE_OS::memcpy(data() + len1, src2, len2);
+  memcpy(data(), src1, len1);
+  memcpy(data() + len1, src2, len2);
 }
 
-void CMemGuard::from_string(const char * src1, const char * src2, const char * src3)
+DVOID CMemGuard::from_string(CONST text * src1, CONST text * src2, CONST text * src3)
 {
   if (!src1 || !*src1)
   {
@@ -77,16 +77,16 @@ void CMemGuard::from_string(const char * src1, const char * src2, const char * s
     return;
   }
 
-  int len1 = ACE_OS::strlen(src1);
-  int len2 = ACE_OS::strlen(src2);
-  int len3 = ACE_OS::strlen(src3) + 1;
+  ni len1 = strlen(src1);
+  ni len2 = strlen(src2);
+  ni len3 = strlen(src3) + 1;
   CMemPoolX::instance()->alloc_mem(len1 + len2 + len3, this);
-  ACE_OS::memcpy(data(), src1, len1);
-  ACE_OS::memcpy(data() + len1, src2, len2);
-  ACE_OS::memcpy(data() + len1 + len2, src3, len3);
+  memcpy(data(), src1, len1);
+  memcpy(data() + len1, src2, len2);
+  memcpy(data() + len1 + len2, src3, len3);
 }
 
-void CMemGuard::from_string(const char * src1, const char * src2, const char * src3, const char * src4)
+DVOID CMemGuard::from_string(CONST text * src1, CONST text * src2, CONST text * src3, CONST text * src4)
 {
   if (!src1 || !*src1)
   {
@@ -109,27 +109,27 @@ void CMemGuard::from_string(const char * src1, const char * src2, const char * s
     return;
   }
 
-  int len1 = ACE_OS::strlen(src1);
-  int len2 = ACE_OS::strlen(src2);
-  int len3 = ACE_OS::strlen(src3);
-  int len4 = ACE_OS::strlen(src4) + 1;
+  ni len1 = strlen(src1);
+  ni len2 = strlen(src2);
+  ni len3 = strlen(src3);
+  ni len4 = strlen(src4) + 1;
   CMemPoolX::instance()->alloc_mem(len1 + len2 + len3 + len4, this);
-  ACE_OS::memcpy(data(), src1, len1);
-  ACE_OS::memcpy(data() + len1, src2, len2);
-  ACE_OS::memcpy(data() + len1 + len2, src3, len3);
-  ACE_OS::memcpy(data() + len1 + len2 + len3, src4, len4);
+  memcpy(data(), src1, len1);
+  memcpy(data() + len1, src2, len2);
+  memcpy(data() + len1 + len2, src3, len3);
+  memcpy(data() + len1 + len2 + len3, src4, len4);
 }
 
-void CMemGuard::from_strings(const char * arr[], int len)
+DVOID CMemGuard::from_strings(CONST text * arr[], ni len)
 {
   if (unlikely(!arr || len <= 0))
     return;
-  int total_len = 0;
-  int i;
+  ni total_len = 0;
+  ni i;
   for (i = 0; i < len; ++i)
   {
     if (likely(arr[i] != NULL))
-      total_len += ACE_OS::strlen(arr[i]);
+      total_len += strlen(arr[i]);
   }
   total_len += 1;
 
@@ -139,16 +139,16 @@ void CMemGuard::from_strings(const char * arr[], int len)
   for (i = 0; i < len; ++i)
   {
     if (likely(arr[i] != NULL))
-      ACE_OS::strcat(m_buff, arr[i]);
+      strcat(m_buff, arr[i]);
   }
 }
 
-void c_util_hex_dump(void * ptr, int len, char * result_buff, int buff_len)
+DVOID c_util_hex_dump(DVOID * ptr, ni len, text * result_buff, ni buff_len)
 {
   if (unlikely(!ptr || len <= 0 || buff_len < 2 * len))
     return;
-  unsigned char v;
-  for (int i = 0; i < len; ++i)
+  utext v;
+  for (ni i = 0; i < len; ++i)
   {
     v = ((unsigned char*)ptr)[i] >> 4;
     if (v < 10)
@@ -164,16 +164,16 @@ void c_util_hex_dump(void * ptr, int len, char * result_buff, int buff_len)
   }
 }
 
-void c_util_generate_random_password(char * buff, const int password_len)
+DVOID c_util_gen_random_password(text * buff, CONST ni password_len)
 {
   if (unlikely(!buff || password_len <= 1))
     return;
 
-  int i = password_len - 1;
+  ni i = password_len - 1;
   buff[i] = 0;
-  const char schar[] = "~!@#$^&_-+=/\\";
+  CONST text schar[] = "~!@#$^&_-+=/\\";
   //0-9 a-Z A-Z schar
-  const long total = 10 + 26 + 26 + sizeof(schar) / sizeof(char) - 1;
+  CONST long total = 10 + 26 + 26 + sizeof(schar) / sizeof(text) - 1;
   while ((--i) >= 0)
   {
     long val = random() % total;
@@ -189,43 +189,43 @@ void c_util_generate_random_password(char * buff, const int password_len)
 }
 
 
-bool c_util_find_tag_value(char * & ptr, const char * tag, char * & value, char terminator)
+truefalse c_util_find_tag_value(text * & ptr, CONST text * tag, text * & value, text terminator)
 {
   if (unlikely(!ptr || !*ptr || !tag))
     return false;
-  int key_len = ACE_OS::strlen(tag);
-  if (ACE_OS::memcmp(ptr, tag, key_len) != 0)
+  ni key_len = strlen(tag);
+  if (memcmp(ptr, tag, key_len) != 0)
     return false;
   ptr += key_len;
   value = ptr;
   if (terminator)
   {
-    ptr = ACE_OS::strchr(ptr, terminator);
+    ptr = strchr(ptr, terminator);
     if (ptr)
     {
       *ptr ++ = 0;
     }
   } else
-    ptr += ACE_OS::strlen(ptr);
+    ptr += strlen(ptr);
   return true;
 }
 
 typedef struct {
   u_int32_t i[2];
   u_int32_t buf[4];
-  unsigned char in[64];
-  unsigned char digest[16];
+  utext in[64];
+  utext digest[16];
 } MD5_CTX;
 
-void MD5Init(MD5_CTX *mdContext, u_int32_t pseudoRandomNumber = 0);
-void MD5Update(MD5_CTX *mdContext, unsigned char *inBuf, unsigned int inLen);
-void MD5Final(MD5_CTX *mdContext);
+DVOID MD5Init(MD5_CTX *mdContext, u32 pseudoRandomNumber = 0);
+DVOID MD5Update(MD5_CTX *mdContext, utext *inBuf, ui inLen);
+DVOID MD5Final(MD5_CTX *mdContext);
 
-bool md5file (const char *fn , u_int32_t seed, MD5_CTX *mdContext, char * result_buff, int result_buff_len);
+truefalse md5file (CONST text *fn , u32 seed, MD5_CTX *mdContext, text * result_buff, ni result_buff_len);
 
-static void MD5_Transform (u_int32_t *buf, u_int32_t *in);
+SF DVOID MD5_Transform (u32 *buf, u32 *in);
 
-static unsigned char MD5_PADDING[64] =
+SF utext MD5_PADDING[64] =
 {
   0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -269,9 +269,9 @@ static unsigned char MD5_PADDING[64] =
 #define MD5_S43 15
 #define MD5_S44 21
 
-static void MD5_Transform (u_int32_t *buf, u_int32_t *in)
+SF DVOID MD5_Transform (u32 *buf, u32 *in)
 {
-  u_int32_t a = buf[0], b = buf[1], c = buf[2], d = buf[3];
+  u32 a = buf[0], b = buf[1], c = buf[2], d = buf[3];
 
   MD5_FF ( a, b, c, d, in[ 0], MD5_S11, (u_int32_t) 3614090360u); /* 1 */
   MD5_FF ( d, a, b, c, in[ 1], MD5_S12, (u_int32_t) 3905402710u); /* 2 */
@@ -348,7 +348,7 @@ static void MD5_Transform (u_int32_t *buf, u_int32_t *in)
 }
 
 
-void MD5Init (MD5_CTX *mdContext, u_int32_t pseudoRandomNumber)
+DVOID MD5Init (MD5_CTX *mdContext, u_int32_t pseudoRandomNumber)
 {
   mdContext->i[0] = mdContext->i[1] = (u_int32_t)0;
 
@@ -358,13 +358,13 @@ void MD5Init (MD5_CTX *mdContext, u_int32_t pseudoRandomNumber)
   mdContext->buf[3] = (u_int32_t)0x10325476 + (pseudoRandomNumber * 97);
 }
 
-void MD5Update (MD5_CTX *mdContext, unsigned char *inBuf, unsigned int inLen)
+DVOID MD5Update (MD5_CTX *mdContext, utext *inBuf, ui inLen)
 {
   u_int32_t in[16];
-  int mdi = 0;
-  unsigned int i = 0, ii = 0;
+  ni mdi = 0;
+  ui i = 0, ii = 0;
 
-  mdi = (int)((mdContext->i[0] >> 3) & 0x3F);
+  mdi = (ni)((mdContext->i[0] >> 3) & 0x3F);
 
   if ((mdContext->i[0] + ((u_int32_t)inLen << 3)) < mdContext->i[0])
     mdContext->i[1]++;
@@ -391,16 +391,16 @@ void MD5Update (MD5_CTX *mdContext, unsigned char *inBuf, unsigned int inLen)
   }
 }
 
-void MD5Final (MD5_CTX *mdContext)
+DVOID MD5Final (MD5_CTX *mdContext)
 {
-  u_int32_t in[16];
-  int mdi = 0;
-  unsigned int i = 0, ii = 0, padLen = 0;
+  u32 in[16];
+  ni mdi = 0;
+  ui i = 0, ii = 0, padLen = 0;
 
   in[14] = mdContext->i[0];
   in[15] = mdContext->i[1];
 
-  mdi = (int)((mdContext->i[0] >> 3) & 0x3F);
+  mdi = (ni)((mdContext->i[0] >> 3) & 0x3F);
 
   padLen = (mdi < 56) ? (56 - mdi) : (120 - mdi);
   MD5Update (mdContext, MD5_PADDING, padLen);
@@ -414,34 +414,34 @@ void MD5Final (MD5_CTX *mdContext)
 
   for (i = 0; i < 4; i++)
   {
-    mdContext->digest[i * 4]     = (unsigned char)( mdContext->buf[i]        & 0xFF);
-    mdContext->digest[i * 4 + 1] = (unsigned char)((mdContext->buf[i] >>  8) & 0xFF);
-    mdContext->digest[i * 4 + 2] = (unsigned char)((mdContext->buf[i] >> 16) & 0xFF);
-    mdContext->digest[i * 4 + 3] = (unsigned char)((mdContext->buf[i] >> 24) & 0xFF);
+    mdContext->digest[i * 4]     = (utext)( mdContext->buf[i]        & 0xFF);
+    mdContext->digest[i * 4 + 1] = (utext)((mdContext->buf[i] >>  8) & 0xFF);
+    mdContext->digest[i * 4 + 2] = (utext)((mdContext->buf[i] >> 16) & 0xFF);
+    mdContext->digest[i * 4 + 3] = (utext)((mdContext->buf[i] >> 24) & 0xFF);
   }
 }
 
 //
 // md5file
 //
-bool md5file (const char *fn , u_int32_t seed, MD5_CTX *mdContext, char * result_buff, int result_buff_len)
+truefalse md5file (CONST text *fn , u32 seed, MD5_CTX *mdContext, text * result_buff, ni result_buff_len)
 {
   if (!fn || !*fn || !result_buff || result_buff_len < 32)
   {
     C_ERROR("invalid parameter @md5file()\n");
     return false;
   }
-  int fd = open (fn, O_RDONLY);
+  ni fd = open (fn, O_RDONLY);
   if (fd < 0)
   {
     if (ACE_OS::last_error() != ENOENT)
-      C_ERROR("can not open file %s for read %s\n", fn, (const char*)CErrno());
+      C_ERROR("can not open file %s for read %s\n", fn, (CONST char*)CErrno());
     return false;
   }
   MD5Init (mdContext, seed);
 
-  char buf[4096] ;
-  int rb;
+  text buf[4096] ;
+  ni rb;
   for (;;)
   {
     rb = read(fd, buf, 4096);
@@ -449,10 +449,10 @@ bool md5file (const char *fn , u_int32_t seed, MD5_CTX *mdContext, char * result
       break;
     else if (rb < 0)
     {
-      C_ERROR("error while reading file %s %s\n", fn, (const char*)CErrno());
+      C_ERROR("error while reading file %s %s\n", fn, (CONST char*)CErrno());
       return -1;
     }
-    MD5Update (mdContext, (unsigned char *) buf, rb);
+    MD5Update (mdContext, (utext *) buf, rb);
     if (rb < 4096)
       break;
   }
@@ -463,9 +463,9 @@ bool md5file (const char *fn , u_int32_t seed, MD5_CTX *mdContext, char * result
 }
 
 
-bool c_util_calculate_file_md5(const char * _file, CMemGuard & md5_result)
+truefalse c_util_calculate_file_md5(CONST text * _file, CMemGuard & md5_result)
 {
-  char buff[32 + 1];
+  text buff[32 + 1];
   MD5_CTX mdContext;
   if (!md5file(_file, 0, &mdContext, buff, 32))
     return false;
@@ -474,19 +474,19 @@ bool c_util_calculate_file_md5(const char * _file, CMemGuard & md5_result)
   return true;
 }
 
-bool c_util_generate_time_string(char * result_buff, int buff_len, bool full, time_t t)
+truefalse c_util_generate_time_string(text * result_buff, ni buff_len, truefalse full, time_t t)
 {
   C_ASSERT_RETURN(full? buff_len > 19: buff_len > 15, "buffer len too small @mycomutil_generate_time_string\n", false);
   struct tm _tm;
   if (unlikely(localtime_r(&t, &_tm) == NULL))
     return false;
-  const char * fmt_str = full? "%04d-%02d-%02d %02d:%02d:%02d" : "%04d%02d%02d %02d%02d%02d";
-  ACE_OS::snprintf(result_buff, buff_len, fmt_str, _tm.tm_year + 1900, _tm.tm_mon + 1,
+  CONST text * fmt_str = full? "%04d-%02d-%02d %02d:%02d:%02d" : "%04d%02d%02d %02d%02d%02d";
+  snprintf(result_buff, buff_len, fmt_str, _tm.tm_year + 1900, _tm.tm_mon + 1,
       _tm.tm_mday, _tm.tm_hour, _tm.tm_min, _tm.tm_sec);
   return true;
 }
 
-size_t c_util_string_hash(const char * str)
+size_t c_util_string_hash(CONST text * str)
 {
   unsigned long __h = 0;
   while (*str != 0)
@@ -494,31 +494,31 @@ size_t c_util_string_hash(const char * str)
   return size_t(__h);
 }
 
-bool c_util_string_end_with(const char * src, const char * key)
+truefalse c_util_string_end_with(CONST text * src, CONST text * key)
 {
-  int len1 = ACE_OS::strlen(src);
-  int len2 = ACE_OS::strlen(key);
+  ni len1 = strlen(src);
+  ni len2 = strlen(key);
   if (len1 < len2)
     return false;
-  return ACE_OS::memcmp(src + len1 - len2, key, len2) == 0;
+  return memcmp(src + len1 - len2, key, len2) == 0;
 }
 
-void c_util_string_replace_char(char * s, const char src, const char dest)
+DVOID c_util_string_replace_text(text * s, CONST text src, CONST text dest)
 {
   if (unlikely(!s))
     return;
-  char * ptr = s;
+  text * ptr = s;
   while ((ptr = strchr(ptr, src)) != NULL)
     *ptr ++ = dest;
 }
 
-bool c_util_mb_putq(ACE_Task<ACE_MT_SYNCH> * target, ACE_Message_Block * mb, const char * err_msg)
+truefalse c_util_mb_putq(ACE_Task<ACE_MT_SYNCH> * target, CMB * mb, CONST text * err_msg)
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);
   if (unlikely(target->putq(mb, &tv) < 0))
   {
     if (err_msg)
-      C_ERROR("can not put message %s: %s\n", err_msg, (const char *)CErrno());
+      C_ERROR("can not put message %s: %s\n", err_msg, (CONST text *)CErrno());
     mb->release();
     return false;
   }
@@ -526,13 +526,13 @@ bool c_util_mb_putq(ACE_Task<ACE_MT_SYNCH> * target, ACE_Message_Block * mb, con
 }
 
 
-int c_util_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb);
+ni c_util_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, CMB *mb);
 
-int c_util_translate_tcp_result(ssize_t transfer_return_value)
+ni c_util_translate_tcp_result(ssize_t transfer_return_value)
 {
   if (transfer_return_value == 0)
     return -1;
-  int err = ACE_OS::last_error();
+  ni err = ACE_OS::last_error();
   if (transfer_return_value < 0)
   {
     if (err == EWOULDBLOCK || err == EAGAIN || err == ENOBUFS) //see POSIX.1-2001
@@ -542,15 +542,15 @@ int c_util_translate_tcp_result(ssize_t transfer_return_value)
   return 1;
 }
 
-int c_util_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler,
-    ACE_Message_Block *mb)
+ni c_util_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler,
+    CMB *mb)
 {
   if (!handler || !mb)
     return -1;
   if (mb->length() == 0)
     return 0;
   ssize_t send_cnt = handler->peer().send(mb->rd_ptr(), mb->length());//TEMP_FAILURE_RETRY(handler->peer().send(mb->rd_ptr(), mb->length()));
-  int ret = c_util_translate_tcp_result(send_cnt);
+  ni ret = c_util_translate_tcp_result(send_cnt);
   if (ret < 0)
     return ret;
   if (send_cnt > 0)
@@ -558,13 +558,13 @@ int c_util_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> *
   return (mb->length() == 0 ? 0:1);
 }
 
-int c_util_send_message_block_queue(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler,
-    ACE_Message_Block *mb, bool discard)
+ni c_util_send_message_block_queue(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler,
+    CMB *mb, truefalse discard)
 {
 /*************
   if (!mb)
     return -1;
-  int ret;
+  ni ret;
   if (!handler)
   {
     C_FATAL("null handler @mycomutil_send_message_block_queue.\n");
@@ -652,7 +652,7 @@ _exit_:
   }
 }
 
-int c_util_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, ACE_Message_Block *mb)
+ni c_util_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, CMB *mb)
 {
 //  C_DEBUG("on enter: mb->space()=%d\n", mb->space());
   if (!mb || !handler)
@@ -660,8 +660,8 @@ int c_util_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> *
   if (mb->space() == 0)
     return 0;
   ssize_t recv_cnt = handler->peer().recv(mb->wr_ptr(), mb->space());//TEMP_FAILURE_RETRY(handler->peer().recv(mb->wr_ptr(), mb->space()));
-//  C_DEBUG("handler->recv() returns %d\n", (int)recv_cnt);
-  int ret = c_util_translate_tcp_result(recv_cnt);
+//  C_DEBUG("handler->recv() returns %d\n", (ni)recv_cnt);
+  ni ret = c_util_translate_tcp_result(recv_cnt);
 //  C_DEBUG("tcp result = %d\n", ret);
   if (ret < 0)
     return -1;
@@ -674,27 +674,27 @@ int c_util_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> *
 
 //MyFilePaths//
 
-bool CSysFS::exist(const char * path)
+truefalse CSysFS::exist(CONST text * path)
 {
   struct stat buf;
   return stat(path, &buf);
 }
 
-bool CSysFS::make_path(const char* path, bool self_only)
+truefalse CSysFS::make_path(CONST char* path, truefalse self_only)
 {
   return (mkdir(path, self_only? DIR_FLAG_SELF : DIR_FLAG_ALL) == 0 || ACE_OS::last_error() == EEXIST);
 }
 
-bool CSysFS::make_path(char * path, int prefix_len, bool is_file, bool self_only)
+truefalse CSysFS::make_path(text * path, ni prefix_len, truefalse is_file, truefalse self_only)
 {
   if (!path || !*path)
     return false;
-  if (prefix_len > (int)strlen(path))
+  if (prefix_len > (ni)strlen(path))
     return false;
-  char * ptr = path + prefix_len;
+  text * ptr = path + prefix_len;
   while (*ptr == '/')
     ++ptr;
-  char * end_ptr;
+  text * end_ptr;
   while ((end_ptr = strchr(ptr, '/')) != NULL)
   {
     *end_ptr = 0;
@@ -711,14 +711,14 @@ bool CSysFS::make_path(char * path, int prefix_len, bool is_file, bool self_only
   return true;
 }
 
-bool CSysFS::make_path_const(const char* path, int prefix_len, bool is_file, bool self_only)
+truefalse CSysFS::make_path_const(CONST char* path, ni prefix_len, truefalse is_file, truefalse self_only)
 {
   CMemGuard path_copy;
   path_copy.from_string(path);
   return CSysFS::make_path(path_copy.data(), prefix_len, is_file, self_only);
 }
 
-bool CSysFS::make_path(const char * path, const char * subpath, bool is_file, bool self_only)
+truefalse CSysFS::make_path(CONST text * path, CONST text * subpath, truefalse is_file, truefalse self_only)
 {
   if (unlikely(!path || !subpath))
     return false;
@@ -727,25 +727,25 @@ bool CSysFS::make_path(const char * path, const char * subpath, bool is_file, bo
   return make_path(path_x.data(), strlen(path) + 1, is_file, self_only);
 }
 
-bool CSysFS::copy_path(const char * srcdir, const char * destdir, bool self_only, bool syn)
+truefalse CSysFS::copy_path(CONST text * srcdir, CONST text * destdir, truefalse self_only, truefalse syn)
 {
   if (unlikely(!srcdir || !*srcdir || !destdir || !*destdir))
     return false;
   if (!make_path(destdir, self_only))
   {
-    C_ERROR("can not create directory %s, %s\n", destdir, (const char *)CErrno());
+    C_ERROR("can not create directory %s, %s\n", destdir, (CONST text *)CErrno());
     return false;
   }
 
   DIR * dir = opendir(srcdir);
   if (!dir)
   {
-    C_ERROR("can not open directory: %s %s\n", srcdir, (const char*)CErrno());
+    C_ERROR("can not open directory: %s %s\n", srcdir, (CONST char*)CErrno());
     return false;
   }
 
-  int len1 = ACE_OS::strlen(srcdir);
-  int len2 = ACE_OS::strlen(destdir);
+  ni len1 = strlen(srcdir);
+  ni len2 = strlen(destdir);
 
   struct dirent *entry;
   while ((entry = readdir(dir)) != NULL)
@@ -756,17 +756,17 @@ bool CSysFS::copy_path(const char * srcdir, const char * destdir, bool self_only
       continue;
 
     CMemGuard msrc, mdest;
-    int len = ACE_OS::strlen(entry->d_name);
+    ni len = strlen(entry->d_name);
     CMemPoolX::instance()->alloc_mem(len1 + len + 2, &msrc);
-    ACE_OS::sprintf(msrc.data(), "%s/%s", srcdir, entry->d_name);
+    sprintf(msrc.data(), "%s/%s", srcdir, entry->d_name);
     CMemPoolX::instance()->alloc_mem(len2 + len + 2, &mdest);
-    ACE_OS::sprintf(mdest.data(), "%s/%s", destdir, entry->d_name);
+    sprintf(mdest.data(), "%s/%s", destdir, entry->d_name);
 
     if (entry->d_type == DT_REG)
     {
       if (!copy_file(msrc.data(), mdest.data(), self_only, syn))
       {
-        C_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (const char *)CErrno());
+        C_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (CONST text *)CErrno());
         closedir(dir);
         return false;
       }
@@ -787,7 +787,7 @@ bool CSysFS::copy_path(const char * srcdir, const char * destdir, bool self_only
   return true;
 }
 
-bool CSysFS::copy_path_zap(const char * srcdir, const char * destdir, bool self_only, bool zap, bool syn)
+truefalse CSysFS::copy_path_zap(CONST text * srcdir, CONST text * destdir, truefalse self_only, truefalse zap, truefalse syn)
 {
   if (unlikely(!srcdir || !*srcdir || !destdir || !*destdir))
     return false;
@@ -797,19 +797,19 @@ bool CSysFS::copy_path_zap(const char * srcdir, const char * destdir, bool self_
 
   if (!make_path_const(destdir, 1, false, self_only))
   {
-    C_ERROR("can not create directory %s, %s\n", destdir, (const char *)CErrno());
+    C_ERROR("can not create directory %s, %s\n", destdir, (CONST text *)CErrno());
     return false;
   }
 
   DIR * dir = opendir(srcdir);
   if (!dir)
   {
-    C_ERROR("can not open directory: %s %s\n", srcdir, (const char*)CErrno());
+    C_ERROR("can not open directory: %s %s\n", srcdir, (CONST char*)CErrno());
     return false;
   }
 
-  int len1 = ACE_OS::strlen(srcdir);
-  int len2 = ACE_OS::strlen(destdir);
+  ni len1 = strlen(srcdir);
+  ni len2 = strlen(destdir);
 
   struct dirent *entry;
   while ((entry = readdir(dir)) != NULL)
@@ -820,17 +820,17 @@ bool CSysFS::copy_path_zap(const char * srcdir, const char * destdir, bool self_
       continue;
 
     CMemGuard msrc, mdest;
-    int len = ACE_OS::strlen(entry->d_name);
+    ni len = strlen(entry->d_name);
     CMemPoolX::instance()->alloc_mem(len1 + len + 2, &msrc);
-    ACE_OS::sprintf(msrc.data(), "%s/%s", srcdir, entry->d_name);
+    sprintf(msrc.data(), "%s/%s", srcdir, entry->d_name);
     CMemPoolX::instance()->alloc_mem(len2 + len + 2, &mdest);
-    ACE_OS::sprintf(mdest.data(), "%s/%s", destdir, entry->d_name);
+    sprintf(mdest.data(), "%s/%s", destdir, entry->d_name);
 
     if (entry->d_type == DT_REG)
     {
       if (!copy_file(msrc.data(), mdest.data(), self_only, syn))
       {
-        C_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (const char *)CErrno());
+        C_ERROR("copy_file(%s) to (%s) failed %s\n", msrc.data(), mdest.data(), (CONST text *)CErrno());
         closedir(dir);
         return false;
       }
@@ -851,7 +851,7 @@ bool CSysFS::copy_path_zap(const char * srcdir, const char * destdir, bool self_
   return true;
 }
 
-bool CSysFS::remove_path(const char * path, bool ignore_eror)
+truefalse CSysFS::remove_path(CONST text * path, truefalse ignore_eror)
 {
   if (unlikely(!path || !*path))
     return false;
@@ -860,12 +860,12 @@ bool CSysFS::remove_path(const char * path, bool ignore_eror)
   if (!dir)
   {
     if (!ignore_eror)
-      C_ERROR("can not open directory: %s %s\n", path, (const char*)CErrno());
+      C_ERROR("can not open directory: %s %s\n", path, (CONST char*)CErrno());
     return false;
   }
 
-  bool ret = true;
-  int len1 = ACE_OS::strlen(path);
+  truefalse ret = true;
+  ni len1 = strlen(path);
 
   struct dirent *entry;
   while ((entry = readdir(dir)) != NULL)
@@ -876,9 +876,9 @@ bool CSysFS::remove_path(const char * path, bool ignore_eror)
       continue;
 
     CMemGuard msrc;
-    int len = ACE_OS::strlen(entry->d_name);
+    ni len = strlen(entry->d_name);
     CMemPoolX::instance()->alloc_mem(len1 + len + 2, &msrc);
-    ACE_OS::sprintf(msrc.data(), "%s/%s", path, entry->d_name);
+    sprintf(msrc.data(), "%s/%s", path, entry->d_name);
 
     if(entry->d_type == DT_DIR)
     {
@@ -892,7 +892,7 @@ bool CSysFS::remove_path(const char * path, bool ignore_eror)
       if (unlink(msrc.data()) != 0)
       {
         if (!ignore_eror)
-          C_ERROR("can not remove file %s %s\n", msrc.data(), (const char*)CErrno());
+          C_ERROR("can not remove file %s %s\n", msrc.data(), (CONST char*)CErrno());
         ret = false;
       }
     }
@@ -903,7 +903,7 @@ bool CSysFS::remove_path(const char * path, bool ignore_eror)
   return ret;
 }
 
-bool CSysFS::remove_old_files(const char * path, time_t deadline)
+truefalse CSysFS::remove_old_files(CONST text * path, time_t deadline)
 {
   if (unlikely(!path || !*path))
     return false;
@@ -922,12 +922,12 @@ bool CSysFS::remove_old_files(const char * path, time_t deadline)
     DIR * dir = opendir(path);
     if (!dir)
     {
-      C_ERROR("can not open directory: %s %s\n", path, (const char*)CErrno());
+      C_ERROR("can not open directory: %s %s\n", path, (CONST char*)CErrno());
       return false;
     }
 
-    bool ret = true;
-    int len1 = ACE_OS::strlen(path);
+    truefalse ret = true;
+    ni len1 = strlen(path);
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL)
@@ -938,9 +938,9 @@ bool CSysFS::remove_old_files(const char * path, time_t deadline)
         continue;
 
       CMemGuard msrc;
-      int len = ACE_OS::strlen(entry->d_name);
+      ni len = strlen(entry->d_name);
       CMemPoolX::instance()->alloc_mem(len1 + len + 2, &msrc);
-      ACE_OS::sprintf(msrc.data(), "%s/%s", path, entry->d_name);
+      sprintf(msrc.data(), "%s/%s", path, entry->d_name);
 
       if (!remove_old_files(msrc.data(), deadline))
         ret = false;
@@ -956,11 +956,11 @@ bool CSysFS::remove_old_files(const char * path, time_t deadline)
   return true;
 }
 
-bool CSysFS::copy_file_by_fd(int src_fd, int dest_fd)
+truefalse CSysFS::copy_file_by_fd(ni src_fd, ni dest_fd)
 {
-  const int BLOCK_SIZE = 4096;
-  char buff[BLOCK_SIZE];
-  int n_read, n_write;
+  CONST ni BLOCK_SIZE = 4096;
+  text buff[BLOCK_SIZE];
+  ni n_read, n_write;
   while (true)
   {
     n_read = ::read(src_fd, buff, BLOCK_SIZE);
@@ -968,14 +968,14 @@ bool CSysFS::copy_file_by_fd(int src_fd, int dest_fd)
       return true;
     else if (n_read < 0)
     {
-      C_ERROR("can not read from file %s\n", (const char*)CErrno());
+      C_ERROR("can not read from file %s\n", (CONST char*)CErrno());
       return false;
     }
 
     n_write = ::write(dest_fd, buff, n_read);
     if (n_write != n_read)
     {
-      C_ERROR("can not write to file %s\n", (const char*)CErrno());
+      C_ERROR("can not write to file %s\n", (CONST char*)CErrno());
       return false;
     }
 
@@ -986,33 +986,33 @@ bool CSysFS::copy_file_by_fd(int src_fd, int dest_fd)
   ACE_NOTREACHED(return true);
 }
 
-bool CSysFS::copy_file(const char * src, const char * dest, bool self_only, bool syn)
+truefalse CSysFS::copy_file(CONST text * src, CONST text * dest, truefalse self_only, truefalse syn)
 {
   CUnixFileGuard hsrc, hdest;
   if (!hsrc.open_read(src))
     return false;
   if (!hdest.open_write(dest, true, true, false, self_only))
     return false;
-  bool ret = copy_file_by_fd(hsrc.handle(), hdest.handle());
+  truefalse ret = copy_file_by_fd(hsrc.handle(), hdest.handle());
   if (ret && syn)
     fsync(hdest.handle());
   return ret;
 }
 
-int CSysFS::cat_path(const char * path, const char * subpath, CMemGuard & result)
+ni CSysFS::cat_path(CONST text * path, CONST text * subpath, CMemGuard & result)
 {
   if (unlikely(!path || !*path || !subpath || !*subpath))
     return -1;
-  int dir_len = ACE_OS::strlen(path);
-  bool separator_trailing = (path[dir_len -1] == '/');
+  ni dir_len = strlen(path);
+  truefalse separator_trailing = (path[dir_len -1] == '/');
   result.from_string(path, (separator_trailing? NULL: "/"), subpath);
   return (separator_trailing? dir_len: (dir_len + 1));
 }
 
-bool CSysFS::get_correlate_path(CMemGuard & pathfile, int skip)
+truefalse CSysFS::get_correlate_path(CMemGuard & pathfile, ni skip)
 {
-  char * ptr = pathfile.data() + skip + 1;
-  char * ptr2 = ACE_OS::strrchr(ptr, '.');
+  text * ptr = pathfile.data() + skip + 1;
+  text * ptr2 = strrchr(ptr, '.');
   if (unlikely(!ptr2 || ptr2 <= ptr))
     return false;
   *ptr2 = 0;
@@ -1021,23 +1021,23 @@ bool CSysFS::get_correlate_path(CMemGuard & pathfile, int skip)
   return true;
 }
 
-bool CSysFS::rename(const char *old_path, const char * new_path, bool ignore_eror)
+truefalse CSysFS::rename(CONST text *old_path, CONST text * new_path, truefalse ignore_eror)
 {
-  bool result = (::rename(old_path, new_path) == 0);
+  truefalse result = (::rename(old_path, new_path) == 0);
   if (!result && !ignore_eror)
-    C_ERROR("rename %s to %s failed %s\n", old_path, new_path, (const char*)CErrno());
+    C_ERROR("rename %s to %s failed %s\n", old_path, new_path, (CONST char*)CErrno());
   return result;
 }
 
-bool CSysFS::remove(const char *pathfile, bool ignore_error)
+truefalse CSysFS::remove(CONST text *pathfile, truefalse ignore_error)
 {
-  bool result = (::remove(pathfile) == 0 || ACE_OS::last_error() == ENOENT);
+  truefalse result = (::remove(pathfile) == 0 || ACE_OS::last_error() == ENOENT);
   if (!result && !ignore_error)
-    C_ERROR("remove %s failed %s\n", pathfile, (const char*)CErrno());
+    C_ERROR("remove %s failed %s\n", pathfile, (CONST char*)CErrno());
   return result;
 }
 
-bool CSysFS::zap(const char *pathfile, bool ignore_error)
+truefalse CSysFS::zap(CONST text *pathfile, truefalse ignore_error)
 {
   struct stat _stat;
   if (!stat(pathfile, &_stat))
@@ -1047,7 +1047,7 @@ bool CSysFS::zap(const char *pathfile, bool ignore_error)
     else
     {
       if (!ignore_error)
-        C_ERROR("stat(%s) failed %s\n", (const char *)CErrno());
+        C_ERROR("stat(%s) failed %s\n", (CONST text *)CErrno());
       return false;
     }
   }
@@ -1058,24 +1058,24 @@ bool CSysFS::zap(const char *pathfile, bool ignore_error)
     return remove(pathfile, ignore_error);
 }
 
-bool CSysFS::stat(const char *pathfile, struct stat * _stat)
+truefalse CSysFS::stat(CONST text *pathfile, struct stat * _stat)
 {
   return (::stat(pathfile, _stat) == 0);
 }
 
-int CSysFS::filesize(const char *pathfile)
+ni CSysFS::filesize(CONST text *pathfile)
 {
   struct stat _stat;
   if (!stat(pathfile, &_stat))
     return 0;
-  return (int)_stat.st_size;
+  return (ni)_stat.st_size;
 }
 
-bool CSysFS::zap_path_except_mfile(const CMemGuard & path, const CMemGuard & mfile, bool ignore_error)
+truefalse CSysFS::zap_path_except_mfile(CONST CMemGuard & path, CONST CMemGuard & mfile, truefalse ignore_error)
 {
   CMemGuard mfile_path;
   mfile_path.from_string(mfile.data());
-  char * ptr = ACE_OS::strrchr(mfile_path.data(), '.');
+  text * ptr = strrchr(mfile_path.data(), '.');
   if (ptr)
     *ptr = 0;
 
@@ -1083,12 +1083,12 @@ bool CSysFS::zap_path_except_mfile(const CMemGuard & path, const CMemGuard & mfi
   if (!dir)
   {
     if (!ignore_error)
-      C_ERROR("can not open directory: %s %s\n", path.data(), (const char*)CErrno());
+      C_ERROR("can not open directory: %s %s\n", path.data(), (CONST char*)CErrno());
     return false;
   }
 
   struct dirent *entry;
-  bool ret = true;
+  truefalse ret = true;
   while ((entry = readdir(dir)) != NULL)
   {
     if (!entry->d_name)
@@ -1112,7 +1112,7 @@ bool CSysFS::zap_path_except_mfile(const CMemGuard & path, const CMemGuard & mfi
   return ret;
 }
 
-void CSysFS::zap_empty_paths(const CMemGuard & path)
+DVOID CSysFS::zap_empty_paths(CONST CMemGuard & path)
 {
   DIR * dir = opendir(path.data());
   if (!dir)
@@ -1139,35 +1139,35 @@ void CSysFS::zap_empty_paths(const CMemGuard & path)
 
 //MyTestClientPathGenerator//
 
-void CClientPathGenerator::make_paths(const char * app_data_path, int64_t _start, int _count)
+DVOID CClientPathGenerator::make_paths(CONST text * app_data_path, int64_t _start, ni _count)
 {
   if (!app_data_path || !*app_data_path)
     return;
-  char buff[PATH_MAX], str_client_id[64];
-  ACE_OS::snprintf(buff, PATH_MAX - 1, "%s/", app_data_path);
-  int prefix_len = strlen(buff);
+  text buff[PATH_MAX], str_client_id[64];
+  snprintf(buff, PATH_MAX - 1, "%s/", app_data_path);
+  ni prefix_len = strlen(buff);
   for (long long id = _start; id < _start + _count; ++ id)
   {
-    ACE_OS::snprintf(str_client_id, 64 - 1, "%lld", (long long)id);
+    snprintf(str_client_id, 64 - 1, "%lld", (long long)id);
     client_id_to_path(str_client_id, buff + prefix_len, PATH_MAX - prefix_len - 1);
     CSysFS::make_path(buff, prefix_len + 1, false, true);
   }
 }
 
-void CClientPathGenerator::make_paths_from_id_table(const char * app_data_path, CClientIDS * id_table)
+DVOID CClientPathGenerator::make_paths_from_id_table(CONST text * app_data_path, CClientIDS * id_table)
 {
   if (!app_data_path || !*app_data_path || !id_table)
     return;
-  char buff[PATH_MAX], str_client_id[64];
-  ACE_OS::snprintf(buff, PATH_MAX - 1, "%s/", app_data_path);
-  int prefix_len = strlen(buff);
-  int count = id_table->count();
+  text buff[PATH_MAX], str_client_id[64];
+  snprintf(buff, PATH_MAX - 1, "%s/", app_data_path);
+  ni prefix_len = strlen(buff);
+  ni count = id_table->count();
   MyClientID id;
   CMemGuard path_x;
-  for (int i = 0; i < count; ++ i)
+  for (ni i = 0; i < count; ++ i)
   {
     id_table->value(i, &id);
-    ACE_OS::snprintf(str_client_id, 64, "%s", id.as_string());
+    snprintf(str_client_id, 64, "%s", id.as_string());
     client_id_to_path(str_client_id, buff + prefix_len, PATH_MAX - prefix_len - 1);
     CSysFS::make_path(buff, prefix_len + 1, false, true);
     path_x.from_string(buff, "/download");
@@ -1182,39 +1182,39 @@ void CClientPathGenerator::make_paths_from_id_table(const char * app_data_path, 
   }
 }
 
-bool CClientPathGenerator::client_id_to_path(const char * id, char * result, int result_len)
+truefalse CClientPathGenerator::client_id_to_path(CONST text * id, text * result, ni result_len)
 {
   if (!id || !*id || !result)
     return false;
-  int len = ACE_OS::strlen(id);
+  ni len = strlen(id);
   if (result_len < len + 4)
   {
     C_ERROR("not enough result_len\n");
     return false;
   }
 
-  char prefix[3];
+  text prefix[3];
   len = (len >= 2 ? len - 2: 0);
   prefix[0] = id[len];
   prefix[1] = id[len + 1];
   prefix[2] = 0;
-  ACE_OS::sprintf(result, "%s/%s", prefix, id);
+  sprintf(result, "%s/%s", prefix, id);
   return true;
 }
 
 
 //MyUnixHandleGuard//
 
-bool CUnixFileGuard::do_open(const char * filename, bool readonly, bool create, bool truncate, bool append, bool self_only)
+truefalse CUnixFileGuard::do_open(CONST text * filename, truefalse readonly, truefalse create, truefalse truncate, truefalse append, truefalse self_only)
 {
-  int fd;
+  ni fd;
   if (unlikely(!filename || !*filename))
     return false;
   if (readonly)
     fd = ::open(filename, O_RDONLY);//O_CREAT | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
   else
   {
-    int flag = O_RDWR;
+    ni flag = O_RDWR;
     if (create)
       flag |= O_CREAT;
     if (truncate)
@@ -1226,7 +1226,7 @@ bool CUnixFileGuard::do_open(const char * filename, bool readonly, bool create, 
   if (fd < 0)
   {
     if (m_error_report)
-      C_ERROR("can not open file %s, %s\n", filename, (const char *)CErrno());
+      C_ERROR("can not open file %s, %s\n", filename, (CONST text *)CErrno());
     return false;
   }
   attach(fd);
@@ -1253,24 +1253,24 @@ CMemPool::~CMemPool()
     delete m_pools[i];
 }
 
-void CMemPool::init(CCfg * config)
+DVOID CMemPool::init(CCfg * config)
 {
   if(!g_use_mem_pool)
       return;
 
-  const int KB = 1024;
-  const int MB = 1024 * 1024;
-  const int pool_size[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8 * KB, 16 * KB, 32 * KB,
+  CONST ni KB = 1024;
+  CONST ni MB = 1024 * 1024;
+  CONST ni pool_size[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8 * KB, 16 * KB, 32 * KB,
                            64 * KB, 128 * KB, 256 * KB, 512 * KB, 2 * MB};
-  int count = sizeof (pool_size) / sizeof (int);
+  ni count = sizeof (pool_size) / sizeof (ni);
   m_pools.reserve(count);
   m_pool_sizes.reserve(count);
 
   if (config->is_client())
   {
-    for(size_t i = 0;i < sizeof (pool_size) / sizeof (int);++i)
+    for(size_t i = 0;i < sizeof (pool_size) / sizeof (ni);++i)
     {
-      int m;
+      ni m;
       if (pool_size[i] <= 512)
         m = 1000;
       else if (pool_size[i] < 8 * KB)
@@ -1286,14 +1286,14 @@ void CMemPool::init(CCfg * config)
   }
   else if (CCfgX::instance()->is_dist())
   {
-    int m;
+    ni m;
 
-    for(size_t i = 0;i < sizeof (pool_size) / sizeof (int);++i)
+    for(size_t i = 0;i < sizeof (pool_size) / sizeof (ni);++i)
     {
       if (pool_size[i] == 32 || pool_size[i] == 128)
-        m = std::max((int)((config->max_client_count * 20)), 10000);
+        m = std::max((ni)((config->max_client_count * 20)), 10000);
       else if (pool_size[i] <= 1 * KB)
-        m = std::max((int)((config->max_client_count * 2)), 3000);
+        m = std::max((ni)((config->max_client_count * 2)), 3000);
       else if (pool_size[i] < 512 * KB)
         m = 2 * MB / pool_size[i];
       else
@@ -1305,9 +1305,9 @@ void CMemPool::init(CCfg * config)
   }
   else if (config->is_middle())
   {
-    for(size_t i = 0;i < sizeof (pool_size) / sizeof (int);++i)
+    for(size_t i = 0;i < sizeof (pool_size) / sizeof (ni);++i)
     {
-      int m;
+      ni m;
       if (pool_size[i] <= 8 * KB)
         m = 2000;
       else if (pool_size[i] < 512 * KB)
@@ -1320,21 +1320,21 @@ void CMemPool::init(CCfg * config)
     }
   }
 
-  int mb_number;
+  ni mb_number;
   if (config->is_client())
     mb_number = 200;
   else if (config->is_dist())
-    mb_number = std::max((int)((config->max_client_count * 4)), 4000);
+    mb_number = std::max((ni)((config->max_client_count * 4)), 4000);
   else
-    mb_number = std::max((int)((config->max_client_count * 2)), 2000);
-  m_mb_pool = new CCachedAllocator<ACE_Thread_Mutex>(mb_number, sizeof (ACE_Message_Block));
+    mb_number = std::max((ni)((config->max_client_count * 2)), 2000);
+  m_mb_pool = new CCachedAllocator<ACE_Thread_Mutex>(mb_number, sizeof (CMB));
   m_data_block_pool = new CCachedAllocator<ACE_Thread_Mutex>(mb_number, sizeof (ACE_Data_Block));
 }
 
-int CMemPool::get_first_index(int capacity)
+ni CMemPool::get_first_index(ni capacity)
 {
-  int count = m_pool_sizes.size();
-  for (int i = 0; i < count; ++i)
+  ni count = m_pool_sizes.size();
+  for (ni i = 0; i < count; ++i)
   {
     if (capacity <= m_pool_sizes[i])
       return i;
@@ -1342,10 +1342,10 @@ int CMemPool::get_first_index(int capacity)
   return INVALID_INDEX;
 }
 
-int CMemPool::get_pool(void * ptr)
+ni CMemPool::get_pool(DVOID * ptr)
 {
-  int count = m_pools.size();
-  for (int i = 0; i < count; ++i)
+  ni count = m_pools.size();
+  for (ni i = 0; i < count; ++i)
   {
     if (m_pools[i]->in_range(ptr))
       return i;
@@ -1353,7 +1353,7 @@ int CMemPool::get_pool(void * ptr)
   return INVALID_INDEX;
 }
 
-ACE_Message_Block * CMemPool::get_mb(int capacity)
+CMB * CMemPool::get_mb(ni capacity)
 {
   if (unlikely(capacity <= 0))
   {
@@ -1363,20 +1363,20 @@ ACE_Message_Block * CMemPool::get_mb(int capacity)
   if (!g_use_mem_pool)
   {
     ++ m_g_alloc_number;
-    return new ACE_Message_Block(capacity);
+    return new CMB(capacity);
   }
-  int count = m_pools.size();
-  ACE_Message_Block * result;
-  bool bRetried = false;
-  void * p;
-  int idx = get_first_index(capacity);
-  for (int i = idx; i < count; ++i)
+  ni count = m_pools.size();
+  CMB * result;
+  truefalse bRetried = false;
+  DVOID * p;
+  ni idx = get_first_index(capacity);
+  for (ni i = idx; i < count; ++i)
   {
     p = m_mb_pool->malloc();
     if (!p) //no way to go on
     {
       ++ m_g_alloc_number;
-      return new ACE_Message_Block(capacity);
+      return new CMB(capacity);
     }
     result = new (p) CCachedMB(capacity, m_pools[i], m_data_block_pool, m_mb_pool);
     if (!result->data_block())
@@ -1390,32 +1390,32 @@ ACE_Message_Block * CMemPool::get_mb(int capacity)
       {
         ++ m_g_alloc_number;
         //C_DEBUG("global alloc of size(%d)\n", capacity);
-        return new ACE_Message_Block(capacity);
+        return new CMB(capacity);
       }
     } else
       return result;
   }
   ++ m_g_alloc_number;
-  return new ACE_Message_Block(capacity);
+  return new CMB(capacity);
 }
 
-ACE_Message_Block * CMemPool::get_mb_cmd_direct(int capacity, int command, bool b_no_uuid)
+CMB * CMemPool::get_mb_cmd_direct(ni capacity, ni command, truefalse b_no_uuid)
 {
   return get_mb_cmd(capacity - sizeof(MyDataPacketHeader), command, b_no_uuid);
 }
 
-ACE_Message_Block * CMemPool::get_mb_cmd(int capacity, int command, bool b_no_uuid)
+CMB * CMemPool::get_mb_cmd(ni capacity, ni command, truefalse b_no_uuid)
 {
   if (unlikely(capacity < 0))
   {
     C_FATAL("too samll capacity value (=%d) @MyMemPoolFactory::get_message_block(command)\n", capacity);
     return NULL;
   }
-  ACE_Message_Block * mb = get_mb(capacity + (int)sizeof(MyDataPacketHeader));
+  CMB * mb = get_mb(capacity + (ni)sizeof(MyDataPacketHeader));
   mb->wr_ptr(mb->capacity());
   MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
   dph->command = command;
-  dph->length = capacity + (int)sizeof(MyDataPacketHeader);
+  dph->length = capacity + (ni)sizeof(MyDataPacketHeader);
   dph->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
   if (likely(b_no_uuid))
     ::uuid_clear(dph->uuid);
@@ -1425,20 +1425,20 @@ ACE_Message_Block * CMemPool::get_mb_cmd(int capacity, int command, bool b_no_uu
   return mb;
 }
 
-ACE_Message_Block * CMemPool::get_mb_ack(ACE_Message_Block * src)
+CMB * CMemPool::get_mb_ack(CMB * src)
 {
-  if (unlikely(!src) || src->capacity() < (int)sizeof(MyDataPacketHeader))
+  if (unlikely(!src) || src->capacity() < (ni)sizeof(MyDataPacketHeader))
   {
     C_WARNING("invalid src for ack message packet\n");
     return NULL;
   }
 
-  ACE_Message_Block * mb = get_mb((int)sizeof(MyDataPacketHeader));
+  CMB * mb = get_mb((ni)sizeof(MyDataPacketHeader));
   mb->wr_ptr(mb->capacity());
   MyDataPacketHeader * dph = (MyDataPacketHeader *) mb->base();
   MyDataPacketHeader * dph_src = (MyDataPacketHeader *) src->base();
   dph->command = MyDataPacketHeader::CMD_ACK;
-  dph->length = (int)sizeof(MyDataPacketHeader);
+  dph->length = (ni)sizeof(MyDataPacketHeader);
   dph->magic = MyDataPacketHeader::DATAPACKET_MAGIC;
   //ACE_OS::memcpy(&(dph->uuid), &(dph_src->uuid), sizeof(uuid_t));
   uuid_copy(dph->uuid, dph_src->uuid);
@@ -1446,25 +1446,25 @@ ACE_Message_Block * CMemPool::get_mb_ack(ACE_Message_Block * src)
 
 }
 
-ACE_Message_Block * CMemPool::get_mb_bs(int data_len, const char * cmd)
+CMB * CMemPool::get_mb_bs(ni data_len, CONST text * cmd)
 {
   if (unlikely(data_len < 0 || data_len > 10 * 1024 * 1024))
   {
     C_FATAL("unexpected data_len (=%d) @MyMemPoolFactory::get_message_block_bs\n", data_len);
     return NULL;
   }
-  int total_len = data_len + 8 + 4 + 2 + 1;
-  ACE_Message_Block * mb = get_mb(total_len);
+  ni total_len = data_len + 8 + 4 + 2 + 1;
+  CMB * mb = get_mb(total_len);
   mb->wr_ptr(mb->capacity());
-  char * ptr = mb->base();
+  text * ptr = mb->base();
   ptr[total_len - 1] = MyBSBasePacket::BS_PACKET_END_MARK;
-  ACE_OS::snprintf(ptr, 9, "%08d", total_len);
-  ACE_OS::memcpy(ptr + 8, "vc5X", 4);
-  ACE_OS::memcpy(ptr + 12, cmd, 2);
+  snprintf(ptr, 9, "%08d", total_len);
+  memcpy(ptr + 8, "vc5X", 4);
+  memcpy(ptr + 12, cmd, 2);
   return mb;
 }
 
-bool CMemPool::alloc_mem(int size, CMemGuard * guard)
+truefalse CMemPool::alloc_mem(ni size, CMemGuard * guard)
 {
   if (unlikely(!guard))
     return false;
@@ -1476,14 +1476,14 @@ bool CMemPool::alloc_mem(int size, CMemGuard * guard)
       release_mem(guard);
   }
 
-  char * p;
-  int idx = g_use_mem_pool? get_first_index(size): INVALID_INDEX;
+  text * p;
+  ni idx = g_use_mem_pool? get_first_index(size): INVALID_INDEX;
   if (idx == INVALID_INDEX || (p = (char*)m_pools[idx]->malloc()) == NULL)
   {
 //    if (g_use_mem_pool)
 //      C_DEBUG("global alloc of size(%d)\n", size);
     ++ m_g_alloc_number;
-    p = new char[size];
+    p = new text[size];
     guard->data(p, INVALID_INDEX, size);
     return true;
   }
@@ -1491,21 +1491,21 @@ bool CMemPool::alloc_mem(int size, CMemGuard * guard)
   return true;
 }
 
-void * CMemPool::alloc_mem_x(int size)
+DVOID * CMemPool::alloc_mem_x(ni size)
 {
-  void * p;
-  int idx = g_use_mem_pool? get_first_index(size): INVALID_INDEX;
+  DVOID * p;
+  ni idx = g_use_mem_pool? get_first_index(size): INVALID_INDEX;
   if (idx == INVALID_INDEX || (p = m_pools[idx]->malloc()) == NULL)
   {
 //    if (g_use_mem_pool)
 //      C_DEBUG("global alloc of size(%d)\n", size);
     ++ m_g_alloc_number;
-    p = (void*)new char[size];
+    p = (void*)new text[size];
   }
   return p;
 }
 
-void CMemPool::release_mem_x(void * ptr)
+DVOID CMemPool::release_mem_x(DVOID * ptr)
 {
   if (ptr == NULL)
   {
@@ -1513,71 +1513,71 @@ void CMemPool::release_mem_x(void * ptr)
     return;
   }
 
-  int idx = g_use_mem_pool? get_pool(ptr): INVALID_INDEX;
+  ni idx = g_use_mem_pool? get_pool(ptr): INVALID_INDEX;
   if (idx != INVALID_INDEX)
     m_pools[idx]->free(ptr);
   else
     ::delete [](char*)ptr;
 }
 
-void CMemPool::release_mem(CMemGuard * guard)
+DVOID CMemPool::release_mem(CMemGuard * guard)
 {
   if (!guard || !guard->data())
     return;
-  int idx = guard->index();
+  ni idx = guard->index();
   if (idx == INVALID_INDEX)
     delete [] (char*)guard->data();
-  else if (unlikely(idx < 0 || idx >= (int)m_pools.size()))
+  else if (unlikely(idx < 0 || idx >= (ni)m_pools.size()))
     C_FATAL("attempt to release bad mem_pool data: index = %d, pool.size() = %d\n",
-        idx, (int)m_pools.size());
+        idx, (ni)m_pools.size());
   else
     m_pools[idx]->free(guard->data());
   guard->m_buff = NULL;
   guard->m_size = 0;
 }
 
-void CMemPool::print_info()
+DVOID CMemPool::print_info()
 {
   ACE_DEBUG((LM_INFO, ACE_TEXT("    Global mem pool: alloc outside of mem pool=%d\n"), m_g_alloc_number.value()));
   if (!g_use_mem_pool)
     return;
 
   long nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
-  int chunks;
+  ni chunks;
   m_mb_pool->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
   chunks = m_mb_pool->chunks();
-  CApp::print_pool_one("MessageBlockCtrlPool", nAlloc, nFree, nMaxUse, nAllocFull, m_mb_pool->chunk_size(), chunks);
+  CApp::print_pool("MessageBlockCtrlPool", nAlloc, nFree, nMaxUse, nAllocFull, m_mb_pool->chunk_size(), chunks);
 
   nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
   m_data_block_pool->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
   chunks = m_data_block_pool->chunks();
-  CApp::print_pool_one("DataBlockCtrlPool", nAlloc, nFree, nMaxUse, nAllocFull, m_data_block_pool->chunk_size(), chunks);
+  CApp::print_pool("DataBlockCtrlPool", nAlloc, nFree, nMaxUse, nAllocFull, m_data_block_pool->chunk_size(), chunks);
 
-  const int BUFF_LEN = 64;
-  char buff[BUFF_LEN];
-  for(int i = 0; i < (int)m_pools.size(); ++i)
+  CONST ni BUFF_LEN = 64;
+  text buff[BUFF_LEN];
+  for(ni i = 0; i < (ni)m_pools.size(); ++i)
   {
     nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
     m_pools[i]->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
     chunks = m_pools[i]->chunks();
-    ACE_OS::snprintf(buff, BUFF_LEN, "DataPool.%02d", i + 1);
-    CApp::print_pool_one(buff, nAlloc, nFree, nMaxUse, nAllocFull, m_pools[i]->chunk_size(), chunks);
+    snprintf(buff, BUFF_LEN, "DataPool.%02d", i + 1);
+    CApp::print_pool(buff, nAlloc, nFree, nMaxUse, nAllocFull, m_pools[i]->chunk_size(), chunks);
   }
 }
 
 
 //MyStringTokenizer//
 
-CStringTokenizer::CStringTokenizer(char * str, const char * separator)
+CStringTokenizer::CStringTokenizer(text * str, CONST text * separator)
 {
   m_str = str;
   m_separator = separator;
   m_savedptr = NULL;
 }
 
-char * CStringTokenizer::get()
+text * CStringTokenizer::get()
 {
-  char * token;
+  text * token;
   while (true)
   {
     token = strtok_r(m_str, m_separator, &m_savedptr);
@@ -1628,7 +1628,7 @@ u_int32_t RCON[10];
 
 /* tables generation flag */
 
-int do_init = 1;
+ni do_init = 1;
 
 /* tables generation routine */
 
@@ -1638,9 +1638,9 @@ int do_init = 1;
 #define XTIME(x) ( ( x <<  1 ) ^ ( ( x & 0x80 ) ? 0x1B : 0x00 ) )
 #define MUL(x,y) ( ( x &&  y ) ? pow[(log[x] + log[y]) % 255] : 0 )
 
-void aes_gen_tables( void )
+DVOID aes_gen_tables( DVOID )
 {
-    int i;
+    ni i;
     u_int8_t x, y;
     u_int8_t pow[256];
     u_int8_t log[256];
@@ -1683,7 +1683,7 @@ void aes_gen_tables( void )
 
     for( i = 0; i < 256; i++ )
     {
-        x = (unsigned char) FSb[i]; y = XTIME( x );
+        x = (utext) FSb[i]; y = XTIME( x );
 
         FT0[i] =   (u_int32_t) ( x ^ y ) ^
                  ( (u_int32_t) x <<  8 ) ^
@@ -1696,7 +1696,7 @@ void aes_gen_tables( void )
         FT2[i] = ROTR8( FT1[i] );
         FT3[i] = ROTR8( FT2[i] );
 
-        y = (unsigned char) RSb[i];
+        y = (utext) RSb[i];
 
         RT0[i] = ( (u_int32_t) MUL( 0x0B, y )       ) ^
                  ( (u_int32_t) MUL( 0x0D, y ) <<  8 ) ^
@@ -1715,7 +1715,7 @@ void aes_gen_tables( void )
 
 /* forward S-box */
 
-static const u_int32_t FSb[256] =
+SF CONST u_int32_t FSb[256] =
 {
     0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5,
     0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
@@ -1821,26 +1821,26 @@ static const u_int32_t FSb[256] =
     V(7B,B0,B0,CB), V(A8,54,54,FC), V(6D,BB,BB,D6), V(2C,16,16,3A)
 
 #define V(a,b,c,d) 0x##a##b##c##d
-static const u_int32_t FT0[256] = { FT };
+SF CONST u_int32_t FT0[256] = { FT };
 #undef V
 
 #define V(a,b,c,d) 0x##d##a##b##c
-static const u_int32_t FT1[256] = { FT };
+SF CONST u_int32_t FT1[256] = { FT };
 #undef V
 
 #define V(a,b,c,d) 0x##c##d##a##b
-static const u_int32_t FT2[256] = { FT };
+SF CONST u_int32_t FT2[256] = { FT };
 #undef V
 
 #define V(a,b,c,d) 0x##b##c##d##a
-static const u_int32_t FT3[256] = { FT };
+SF CONST u_int32_t FT3[256] = { FT };
 #undef V
 
 #undef FT
 
 /* reverse S-box */
 
-static const u_int32_t RSb[256] =
+SF CONST u_int32_t RSb[256] =
 {
     0x52, 0x09, 0x6A, 0xD5, 0x30, 0x36, 0xA5, 0x38,
     0xBF, 0x40, 0xA3, 0x9E, 0x81, 0xF3, 0xD7, 0xFB,
@@ -1946,33 +1946,33 @@ static const u_int32_t RSb[256] =
     V(7B,CB,84,61), V(D5,32,B6,70), V(48,6C,5C,74), V(D0,B8,57,42)
 
 #define V(a,b,c,d) 0x##a##b##c##d
-static const u_int32_t RT0[256] = { RT };
+SF CONST u_int32_t RT0[256] = { RT };
 #undef V
 
 #define V(a,b,c,d) 0x##d##a##b##c
-static const u_int32_t RT1[256] = { RT };
+SF CONST u_int32_t RT1[256] = { RT };
 #undef V
 
 #define V(a,b,c,d) 0x##c##d##a##b
-static const u_int32_t RT2[256] = { RT };
+SF CONST u_int32_t RT2[256] = { RT };
 #undef V
 
 #define V(a,b,c,d) 0x##b##c##d##a
-static const u_int32_t RT3[256] = { RT };
+SF CONST u_int32_t RT3[256] = { RT };
 #undef V
 
 #undef RT
 
-static const u_int32_t RCON[10] =
+SF CONST u_int32_t RCON[10] =
 {
     0x01000000, 0x02000000, 0x04000000, 0x08000000,
     0x10000000, 0x20000000, 0x40000000, 0x80000000,
     0x1B000000, 0x36000000
 };
 
-int do_init = 0;
+ni do_init = 0;
 
-void aes_gen_tables( void )
+DVOID aes_gen_tables( DVOID )
 {
 }
 
@@ -1994,16 +1994,16 @@ void aes_gen_tables( void )
     (b)[(i) + 3] = (u_int8_t) ( (n)       );       \
 }
 
-int KT_init = 1;
+ni KT_init = 1;
 
 u_int32_t KT0[256];
 u_int32_t KT1[256];
 u_int32_t KT2[256];
 u_int32_t KT3[256];
 
-int aes_set_key( aes_context *ctx, u_int8_t *key, int nbits )
+ni aes_set_key( aes_context *ctx, u_int8_t *key, ni nbits )
 {
-    int i;
+    ni i;
     u_int32_t *RK, *SK;
 
     if( do_init )
@@ -2146,7 +2146,7 @@ int aes_set_key( aes_context *ctx, u_int8_t *key, int nbits )
     return( 0 );
 }
 
-void aes_encrypt( aes_context *ctx, u_int8_t input[16], u_int8_t output[16] )
+DVOID aes_encrypt( aes_context *ctx, u_int8_t input[16], u_int8_t output[16] )
 {
     u_int32_t *RK, X0, X1, X2, X3, Y0, Y1, Y2, Y3;
 
@@ -2234,7 +2234,7 @@ void aes_encrypt( aes_context *ctx, u_int8_t input[16], u_int8_t output[16] )
     PUT_u_int32_t( X3, output, 12 );
 }
 
-void aes_decrypt( aes_context *ctx, u_int8_t input[16], u_int8_t output[16] )
+DVOID aes_decrypt( aes_context *ctx, u_int8_t input[16], u_int8_t output[16] )
 {
     u_int32_t *RK, X0, X1, X2, X3, Y0, Y1, Y2, Y3;
 
@@ -2332,7 +2332,7 @@ void aes_decrypt( aes_context *ctx, u_int8_t input[16], u_int8_t output[16] )
  * source: NIST - rijndael-vals.zip
  */
 
-static unsigned char AES_enc_test[3][16] =
+SF utext AES_enc_test[3][16] =
 {
     { 0xA0, 0x43, 0x77, 0xAB, 0xE2, 0x59, 0xB0, 0xD0,
       0xB5, 0xBA, 0x2D, 0x40, 0xA5, 0x01, 0x97, 0x1B },
@@ -2342,7 +2342,7 @@ static unsigned char AES_enc_test[3][16] =
       0x96, 0x0D, 0x4C, 0xD3, 0x11, 0x8E, 0x60, 0x1A }
 };
 
-static unsigned char AES_dec_test[3][16] =
+SF utext AES_dec_test[3][16] =
 {
     { 0xF5, 0xBF, 0x8B, 0x37, 0x13, 0x6F, 0x2E, 0x1F,
       0x6B, 0xEC, 0x6F, 0x57, 0x20, 0x21, 0xE3, 0xBA },
@@ -2352,12 +2352,12 @@ static unsigned char AES_dec_test[3][16] =
       0x84, 0x60, 0x4D, 0x60, 0x27, 0x1B, 0xC5, 0x9A }
 };
 
-int main( void )
+ni main( DVOID )
 {
-    int m, n, i, j;
+    ni m, n, i, j;
     aes_context ctx;
-    unsigned char buf[16];
-    unsigned char key[32];
+    utext buf[16];
+    utext key[32];
 
     for( m = 0; m < 2; m++ )
     {
@@ -2422,46 +2422,46 @@ int main( void )
 #endif
 
 
-bool my_dph_validate_file_md5_list(const MyDataPacketHeader * header)
+truefalse my_dph_validate_file_md5_list(CONST MyDataPacketHeader * header)
 {
   return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
          header->length > (int32_t)sizeof(MyDataPacketHeader) &&
          header->length < 2 * 1024 * 1024;
 }
 
-bool my_dph_validate_ftp_file(const MyDataPacketHeader * header)
+truefalse my_dph_validate_ftp_file(CONST MyDataPacketHeader * header)
 {
   return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
          header->length > (int32_t)sizeof(MyDataPacketHeader) &&
          header->length < 4096;
 }
 
-bool my_dph_validate_base(const MyDataPacketHeader * header)
+truefalse my_dph_validate_base(CONST MyDataPacketHeader * header)
 {
   return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
          header->length == (int32_t)sizeof(MyDataPacketHeader);
 }
 
-bool my_dph_validate_plc_alarm(const MyDataPacketHeader * header)
+truefalse my_dph_validate_plc_alarm(CONST MyDataPacketHeader * header)
 {
   return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
          header->length == (int32_t)sizeof(MyPLCAlarm);
 }
 
-bool my_dph_validate_load_balance_req(const MyDataPacketHeader * header)
+truefalse my_dph_validate_load_balance_req(CONST MyDataPacketHeader * header)
 {
   return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
          header->length == (int32_t)sizeof(MyLoadBalanceRequest);
 }
 
-bool my_dph_validate_client_version_check_reply(const MyDataPacketHeader * header)
+truefalse my_dph_validate_client_version_check_reply(CONST MyDataPacketHeader * header)
 {
   return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
          header->length >= (int32_t)sizeof(MyClientVersionCheckReply) &&
          header->length <= (int32_t)sizeof(MyClientVersionCheckReply) + MyClientVersionCheckReply::MAX_REPLY_DATA_LENGTH;
 }
 
-bool my_dph_validate_client_version_check_req(const MyDataPacketHeader * header, const int extra)
+truefalse my_dph_validate_client_version_check_req(CONST MyDataPacketHeader * header, CONST ni extra)
 {
   if (extra > 0)
     return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
@@ -2472,7 +2472,7 @@ bool my_dph_validate_client_version_check_req(const MyDataPacketHeader * header,
            header->length == (int32_t)sizeof(MyClientVersionCheckRequest);
 }
 
-bool my_dph_validate_vlc_empty(const MyDataPacketHeader * header)
+truefalse my_dph_validate_vlc_empty(CONST MyDataPacketHeader * header)
 {
   return header->magic == MyDataPacketHeader::DATAPACKET_MAGIC &&
          header->length == (int32_t)sizeof(MyDataPacketHeader) + 1;
@@ -2481,9 +2481,9 @@ bool my_dph_validate_vlc_empty(const MyDataPacketHeader * header)
 
 //MyDataPacketExt//
 
-bool MyDataPacketExt::guard()
+truefalse MyDataPacketExt::guard()
 {
-  if (unlikely(length <= (int)sizeof(MyDataPacketHeader)))
+  if (unlikely(length <= (ni)sizeof(MyDataPacketHeader)))
     return false;
   return data[length - sizeof(MyDataPacketHeader) - 1] == 0;
 }
@@ -2491,31 +2491,31 @@ bool MyDataPacketExt::guard()
 
 //MyBSBasePacket//
 
-const char * const_bs_packet_magic = "vc5X";
+CONST text * CONST_bs_packet_magic = "vc5X";
 
-void MyBSBasePacket::packet_magic()
+DVOID MyBSBasePacket::packet_magic()
 {
-  ACE_OS::memcpy(magic, const_bs_packet_magic, MAGIC_SIZE);
+  memcpy(magic, CONST_bs_packet_magic, MAGIC_SIZE);
 }
 
-bool MyBSBasePacket::check_header() const
+truefalse MyBSBasePacket::check_header() CONST
 {
-  if (ACE_OS::memcmp(magic, const_bs_packet_magic, MAGIC_SIZE) != 0)
+  if (memcmp(magic, CONST_bs_packet_magic, MAGIC_SIZE) != 0)
   {
     C_ERROR("bad magic from bs packet\n");
     return false;
   }
 
-  for (int i = 0; i < LEN_SIZE; ++i)
+  for (ni i = 0; i < LEN_SIZE; ++i)
   {
     if (unlikely(len[i] < '0' || len[i] > '9'))
     {
-      C_ERROR("bad len char code from bs packet\n");
+      C_ERROR("bad len text code from bs packet\n");
       return false;
     }
   }
 
-  int l = packet_len();
+  ni l = packet_len();
   if (unlikely(l <= 15 || l > 10 * 1024 * 1024))
   {
     C_ERROR("invalid len (= %d) bs packet\n", l);
@@ -2525,39 +2525,39 @@ bool MyBSBasePacket::check_header() const
   return true;
 }
 
-void MyBSBasePacket::packet_len(int _len)
+DVOID MyBSBasePacket::packet_len(ni _len)
 {
-  char tmp[LEN_SIZE + 1];
+  text tmp[LEN_SIZE + 1];
   snprintf(tmp, LEN_SIZE + 1, "%08d", _len);
-  ACE_OS::memcpy(len, tmp, LEN_SIZE);
+  memcpy(len, tmp, LEN_SIZE);
 }
 
 
-int MyBSBasePacket::packet_len() const
+ni MyBSBasePacket::packet_len() CONST
 {
-  char tmp[LEN_SIZE + 1];
-  ACE_OS::memcpy(tmp, len, LEN_SIZE);
+  text tmp[LEN_SIZE + 1];
+  memcpy(tmp, len, LEN_SIZE);
   tmp[LEN_SIZE] = 0;
   return atoll(tmp);
 }
 
-void MyBSBasePacket::packet_cmd(const char * _cmd)
+DVOID MyBSBasePacket::packet_cmd(CONST text * _cmd)
 {
   if (unlikely(!_cmd || !*cmd))
     return;
-  ACE_OS::memcpy(len, _cmd, 2);
+  memcpy(len, _cmd, 2);
 }
 
-bool MyBSBasePacket::is_cmd(const char * _cmd)
+truefalse MyBSBasePacket::is_cmd(CONST text * _cmd)
 {
   if (unlikely(!_cmd || !*cmd))
     return false;
-  return ACE_OS::memcmp(len, _cmd, 2) == 0;
+  return memcmp(len, _cmd, 2) == 0;
 }
 
-bool MyBSBasePacket::guard()
+truefalse MyBSBasePacket::guard()
 {
-  int len = packet_len();
+  ni len = packet_len();
   if (data[len - 14 - 1] != '$')
     return false;
   data[len - 14 - 1] = 0;
