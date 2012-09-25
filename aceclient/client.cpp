@@ -974,7 +974,7 @@ const char * MyClientApp::index_frame_file()
   return "indexfile";
 }
 
-bool MyClientApp::app_init(const char * app_home_path, CCfg::RUNNING_MODE mode)
+bool MyClientApp::app_init(const char * app_home_path, CCfg::CAppMode mode)
 {
   MyClientApp * app = MyClientAppX::instance();
   CCfg * cfg = CCfgX::instance();
@@ -983,12 +983,12 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::RUNNING_MODE mode)
     std::printf("error loading config file, quitting\n");
     exit(5);
   }
-  if (geteuid() == 0 && cfg->client_enable_root == 0)
+  if (geteuid() == 0 && cfg->client_can_root == 0)
   {
     std::printf("error run as root, quitting\n");
     exit(6);
   }
-  if (cfg->run_as_demon)
+  if (cfg->as_demon)
     CApp::demon();
 
   MyClientToMiddleHandler::init_mem_pool(20);
@@ -1126,9 +1126,9 @@ int main(int argc, const char * argv[])
   no_sigpipe.register_action (SIGPIPE, &original_action);
   bool ret;
   if (argc == 3 && strcmp(argv[1], "-home") == 0 && argv[2][0] == '/')
-    ret = MyClientApp::app_init(argv[2], CCfg::RM_CLIENT);
+    ret = MyClientApp::app_init(argv[2], CCfg::AM_CLIENT);
   else
-    ret = MyClientApp::app_init(NULL, CCfg::RM_CLIENT);
+    ret = MyClientApp::app_init(NULL, CCfg::AM_CLIENT);
 
   if (ret)
     MyClientAppX::instance()->start();

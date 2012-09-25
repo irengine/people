@@ -1,5 +1,5 @@
-#ifndef SERVERAPP_H_
-#define SERVERAPP_H_
+#ifndef APP_H_
+#define APP_H_
 
 #include <ace/Singleton.h>
 #include <string>
@@ -7,9 +7,10 @@
 #include "basemodule.h"
 
 
-extern const char * g_const_app_ver;
-extern long g_clock_counter;
 extern bool g_is_test;
+extern long g_clock_counter;
+extern const char * g_const_app_ver;
+
 std::string current_ver();
 
 class CApp;
@@ -17,94 +18,92 @@ class CApp;
 class CCfg
 {
 public:
-  enum RUNNING_MODE
+  enum CAppMode
   {
-    RM_UNKNOWN = 0,
-    RM_DIST_SERVER = 1,
-    RM_MIDDLE_SERVER = 2,
-    RM_CLIENT = 3
+    AM_UNKNOWN = 0,
+    AM_DIST_SERVER = 1,
+    AM_MIDDLE_SERVER = 2,
+    AM_CLIENT = 3
   };
 
   CCfg();
-  bool readall(const char * home_dir, RUNNING_MODE mode);
+  bool readall(const char * home_dir, CAppMode mode);
   void print_all();
+  bool is_dist() const;
+  bool is_middle() const;
   bool is_server() const;
   bool is_client() const;
-  bool is_dist_server() const;
-  bool is_middle_server() const;
 
-
-  //common configuration
-  RUNNING_MODE  running_mode;
+  //common
+  CAppMode  app_mode;
 
   bool use_mem_pool;
-  bool run_as_demon;
-  int  mem_pool_dump_interval;
-  int  status_file_check_interval;
-  int  message_control_block_mem_pool_size;
+  bool as_demon;
+  int  mem_dump_interval;
+  int  file_check_interval;
 
-  int  log_file_number;
+  int  log_file_count;
   int  log_file_size_in_MB;
-  bool log_debug_enabled;
-  bool log_to_stderr;
+  bool log_debug;
+  bool log_stderr;
 
-  int remote_access_port;
+  int remote_port;
 
-  //dist and middle server
-  int  max_clients;
+  //server
+  int  max_client_count;
   int  middle_server_dist_port;
   std::string middle_server_key;
-  std::string db_server_addr;
-  int db_server_port;
-  std::string db_user_name;
+  std::string db_addr;
+  int db_port;
+  std::string db_name;
   std::string db_password;
   std::string compressed_store_path;
-  std::string bs_server_addr;
-  int bs_server_port;
+  std::string bs_addr;
+  int bs_port;
 
-  //client an dist
-  int dist_server_heart_beat_port;
-  std::string middle_server_addr;
+  //client dist
+  int ping_port;
+  std::string middle_addr;
 
-  //client and middle
+  //client middle
   int middle_server_client_port;
 
-  //client only
-  int client_heart_beat_interval;
-  int test_client_ftp_thread_number;
-  int adv_expire_days;
-  int client_ftp_timeout;
-  int client_ftp_retry_count;
-  int client_ftp_retry_interval;
-  int client_enable_root;
+  //client
+  int client_ping_interval;
+  int test_client_download_thread_count;
+  int client_adv_expire_days;
+  int client_download_timeout;
+  int client_download_retry_count;
+  int client_download_retry_interval;
+  int client_can_root;
 
-  //dist only
+  //dist
   int module_heart_beat_mem_pool_size;
-  CClientVer client_version_minimum;
-  CClientVer client_version_current;
-  u_int8_t server_id;
+  CClientVer client_ver_min;
+  CClientVer client_ver_now;
+  u_int8_t dist_server_id;
 
-  //middle only
+  //middle
   int http_port;
   std::string ftp_addr_list;
 
-  //common paths
-  std::string exe_path;
-  std::string status_file_name;
-  std::string log_file_name;
-  std::string config_file_name;
-  std::string app_path;
+  //all paths
   std::string app_data_path;
+  std::string app_exe_path;
+  std::string app_status_file_name;
+  std::string app_path;
+  std::string app_log_file_name;
+  std::string app_config_file_name;
 
 private:
-  void init_path(const char * app_home_path);
-  bool read_base(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
-  bool read_client(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
   bool read_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
   bool read_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
+  void do_init(const char * app_home_path);
   bool read_dist_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
   bool read_client_middle(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
   bool read_client_dist(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
+  bool read_base(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
+  bool read_client(ACE_Configuration_Heap & cfgHeap, ACE_Configuration_Section_Key & section);
 };
 
 typedef ACE_Unmanaged_Singleton<CCfg, ACE_Null_Mutex> CCfgX;

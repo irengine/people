@@ -75,7 +75,7 @@ bool MyDB::connect()
   const int STRING_LEN = 1024;
   char connect_str[STRING_LEN];
   ACE_OS::snprintf(connect_str, STRING_LEN - 1, connect_str_template,
-      cfg->db_server_addr.c_str(), cfg->db_server_port, cfg->db_user_name.c_str(), cfg->db_password.c_str());
+      cfg->db_addr.c_str(), cfg->db_port, cfg->db_name.c_str(), cfg->db_password.c_str());
   m_connection = PQconnectdb(connect_str);
   C_INFO("start connecting to database\n");
   bool result = (PQstatus(m_connection) == CONNECTION_OK);

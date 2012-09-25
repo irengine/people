@@ -1319,9 +1319,9 @@ PREPARE_MEMORY_POOL(MyMiddleToBSHandler);
 MyMiddleToBSConnector::MyMiddleToBSConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager):
     CConnectorBase(_dispatcher, _manager)
 {
-  m_tcp_port = CCfgX::instance()->bs_server_port;
+  m_tcp_port = CCfgX::instance()->bs_port;
   m_reconnect_interval = RECONNECT_INTERVAL;
-  m_tcp_addr = CCfgX::instance()->bs_server_addr;
+  m_tcp_addr = CCfgX::instance()->bs_addr;
 }
 
 const char * MyMiddleToBSConnector::name() const

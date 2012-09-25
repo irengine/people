@@ -194,7 +194,7 @@ bool MyClientDB::init_db()
   do_exec(const_sql_tb_ftp_info, false);
   do_exec(const_sql_tb_adv, false);
   bool result = do_exec(const_sql_tb_click, false);
-  if (CCfgX::instance()->adv_expire_days > 0)
+  if (CCfgX::instance()->client_adv_expire_days > 0)
   {
     char sql[200];
     ACE_OS::snprintf(sql, 200, const_sql_fist_record_tpl, (int)time(NULL));
@@ -885,7 +885,7 @@ bool MyFTPClient::is_response(const char * res_code)
 
 int MyFTPClient::get_timeout_seconds() const
 {
-  return CCfgX::instance()->client_ftp_timeout;
+  return CCfgX::instance()->client_download_timeout;
 }
 
 bool MyFTPClient::send(const char * command)
@@ -1189,25 +1189,25 @@ bool MyDistInfoHeader::validate()
 {
   if (!ftype_is_valid(ftype))
   {
-    C_ERROR("invalid MyDistInfoHeader, ftype = %c\n", ftype);
+    C_ERROR("bad MyDistInfoHeader, ftype = %c\n", ftype);
     return false;
   }
 
   if (!type_is_valid(type))
   {
-    C_ERROR("invalid MyDistInfoHeader, type = %c\n", type);
+    C_ERROR("bad MyDistInfoHeader, type = %c\n", type);
     return false;
   }
 
   if (/*aindex.data() && aindex.data()[0] &&*/ !(findex.data() && findex.data()[0]))
   {
-    C_ERROR("invalid MyDistInfoHeader, findex is null\n");
+    C_ERROR("bad MyDistInfoHeader, findex is null\n");
     return false;
   }
 
   if (!(dist_id.data() && dist_id.data()[0]))
   {
-    C_ERROR("invalid MyDistInfoHeader, dist_id is null\n");
+    C_ERROR("bad MyDistInfoHeader, dist_id is null\n");
     return false;
   }
 
@@ -1215,7 +1215,7 @@ bool MyDistInfoHeader::validate()
   {
     if (ftype_is_chn(ftype))
     {
-      C_ERROR("invalid MyDistInfoHeader, dist_id=%s, ftype=%c, adir is null\n", dist_id.data(), ftype);
+      C_ERROR("bad MyDistInfoHeader, dist_id=%s, ftype=%c, adir is null\n", dist_id.data(), ftype);
       return false;
     }
   }
@@ -1452,7 +1452,7 @@ bool MyDistInfoFtp::load_from_string(char * src)
 time_t MyDistInfoFtp::get_delay_penalty() const
 {
   //return (time_t)(std::min(m_failed_count + 1, (int)MAX_FAILED_COUNT) * 60 * FAILED_PENALTY);
-  return (time_t)(60 * CCfgX::instance()->client_ftp_retry_interval);
+  return (time_t)(60 * CCfgX::instance()->client_download_retry_interval);
 }
 
 bool MyDistInfoFtp::should_ftp(time_t now) const
@@ -1473,7 +1473,7 @@ void MyDistInfoFtp::touch()
 void MyDistInfoFtp::inc_failed(int steps)
 {
   m_failed_count += steps;
-  if (m_failed_count >= CCfgX::instance()->client_ftp_retry_count)
+  if (m_failed_count >= CCfgX::instance()->client_download_retry_count)
   {
     if (status <= 3)
     {
@@ -3879,7 +3879,7 @@ MyDistInfoFtp * MyClientFtpService::get_dist_info_ftp(ACE_Message_Block * mb) co
 MyClientToDistConnector::MyClientToDistConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager):
     CConnectorBase(_dispatcher, _manager)
 {
-  m_tcp_port = CCfgX::instance()->dist_server_heart_beat_port;
+  m_tcp_port = CCfgX::instance()->ping_port;
   m_reconnect_interval = RECONNECT_INTERVAL;
   if (g_is_test)
     m_num_connection = MyClientAppX::instance()->client_id_table().count();
@@ -3932,7 +3932,7 @@ bool MyClientToDistConnector::before_reconnect()
   if (new_addr && *new_addr)
   {
     if (ACE_OS::strcmp("127.0.0.1", new_addr) == 0)
-      new_addr = CCfgX::instance()->middle_server_addr.c_str();
+      new_addr = CCfgX::instance()->middle_addr.c_str();
     C_INFO("maximum connect to %s:%d retry count reached , now trying next addr %s:%d...\n",
         m_tcp_addr.c_str(), m_tcp_port, new_addr, m_tcp_port);
     m_tcp_addr = new_addr;
@@ -4124,7 +4124,7 @@ void MyClientToDistDispatcher::ask_for_server_addr_list_done(bool success)
 
   const char * addr = addr_list.begin();
   if (ACE_OS::strcmp("127.0.0.1", addr) == 0)
-    addr = CCfgX::instance()->middle_server_addr.c_str();
+    addr = CCfgX::instance()->middle_addr.c_str();
   m_connector->dist_server_addr(addr);
   m_connector->start();
 }
@@ -4350,7 +4350,7 @@ void MyClientToDistModule::ask_for_server_addr_list_done(bool success)
   if (m_client_ftp_service)
     return;
   if (g_is_test)
-    add_task(m_client_ftp_service = new MyClientFtpService(this, CCfgX::instance()->test_client_ftp_thread_number));
+    add_task(m_client_ftp_service = new MyClientFtpService(this, CCfgX::instance()->test_client_download_thread_count));
   else
     add_task(m_client_ftp_service = new MyClientFtpService(this, 1));
   m_client_ftp_service->start();
@@ -4648,7 +4648,7 @@ MyClientToMiddleConnector::MyClientToMiddleConnector(CDispatchBase * _dispatcher
     CConnectorBase(_dispatcher, _manager)
 {
   m_tcp_port = CCfgX::instance()->middle_server_client_port;
-  m_tcp_addr = CCfgX::instance()->middle_server_addr;
+  m_tcp_addr = CCfgX::instance()->middle_addr;
   m_reconnect_interval = RECONNECT_INTERVAL;
   m_retried_count = 0;
 }

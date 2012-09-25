@@ -25,7 +25,7 @@ public:
   MyDistToMiddleModule * dist_to_middle_module() const;
   MyDB & db();
 
-  static bool app_init(const char * app_home_path = NULL, CCfg::RUNNING_MODE mode = CCfg::RM_UNKNOWN);
+  static bool app_init(const char * app_home_path = NULL, CCfg::CAppMode mode = CCfg::AM_UNKNOWN);
   static void app_fini();
   static void dump_mem_pool_info();
   bool dist_put_to_service(ACE_Message_Block * mb);
@@ -42,7 +42,7 @@ private:
   MyDistLoadModule * m_dist_load_module;
   MyHttpModule     * m_http_module;
   MyDistToMiddleModule * m_dist_to_middle_module;
-  CClientIDS m_client_id_table;
+  CClientIDS m_client_ids;
   MyDB  m_db;
 };
 

@@ -1,10 +1,3 @@
-/*
- * servercommon.h
- *
- *  Created on: Feb 2, 2012
- *      Author: root
- */
-
 #ifndef SERVERCOMMON_H_
 #define SERVERCOMMON_H_
 

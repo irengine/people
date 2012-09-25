@@ -36,7 +36,7 @@ MyServerApp::~MyServerApp()
 
 CClientIDS & MyServerApp::client_id_table()
 {
-  return m_client_id_table;
+  return m_client_ids;
 }
 
 MyHeartBeatModule * MyServerApp::heart_beat_module() const
@@ -189,25 +189,25 @@ void MyServerApp::do_dump_info()
 bool MyServerApp::on_construct()
 {
   CCfg * cfg = CCfgX::instance();
-  g_client_ids = &m_client_id_table;
+  g_client_ids = &m_client_ids;
 
   if (!m_db.connect())
   {
     C_FATAL("can not connect to database. quitting...\n");
     return false;
   }
-  if (!m_db.get_client_ids(&m_client_id_table))
+  if (!m_db.get_client_ids(&m_client_ids))
   {
     C_FATAL("can not get client_ids database. quitting...\n");
     return false;
   }
 
-  if (cfg->is_dist_server())
+  if (cfg->is_dist())
   {
     add_module(m_heart_beat_module = new MyHeartBeatModule(this));
     add_module(m_dist_to_middle_module = new MyDistToMiddleModule(this));
   }
-  if (cfg->is_middle_server())
+  if (cfg->is_middle())
   {
     add_module(m_location_module = new MyLocationModule(this));
     add_module(m_dist_load_module = new MyDistLoadModule(this));
@@ -216,7 +216,7 @@ bool MyServerApp::on_construct()
   return true;
 }
 
-bool MyServerApp::app_init(const char * app_home_path, CCfg::RUNNING_MODE mode)
+bool MyServerApp::app_init(const char * app_home_path, CCfg::CAppMode mode)
 {
   MyServerApp * app = MyServerAppX::instance();
   CCfg* cfg = CCfgX::instance();
@@ -225,16 +225,16 @@ bool MyServerApp::app_init(const char * app_home_path, CCfg::RUNNING_MODE mode)
     std::printf("error loading config file, quitting\n");
     exit(5);
   }
-  if (cfg->run_as_demon)
+  if (cfg->as_demon)
     CApp::demon();
-  if (cfg->is_dist_server())
+  if (cfg->is_dist())
   {
-    MyHeartBeatProcessor::init_mem_pool(cfg->max_clients);
-    MyHeartBeatHandler::init_mem_pool(cfg->max_clients);
+    MyHeartBeatProcessor::init_mem_pool(cfg->max_client_count);
+    MyHeartBeatHandler::init_mem_pool(cfg->max_client_count);
     MyDistToMiddleHandler::init_mem_pool(20);
     MyDistToBSHandler::init_mem_pool(20);
   }
-  if (cfg->is_middle_server())
+  if (cfg->is_middle())
   {
     MyDistLoadHandler::init_mem_pool(50);
     MyLocationHandler::init_mem_pool(1000);
@@ -279,9 +279,9 @@ int main(int argc, const char * argv[])
   bool ret;
 
   if (argc == 3 && strcmp(argv[1], "-home") == 0 && argv[2][0] == '/')
-    ret = MyServerApp::app_init(argv[2], CCfg::RM_UNKNOWN);
+    ret = MyServerApp::app_init(argv[2], CCfg::AM_UNKNOWN);
   else
-    ret = MyServerApp::app_init(NULL, CCfg::RM_UNKNOWN);
+    ret = MyServerApp::app_init(NULL, CCfg::AM_UNKNOWN);
 
   if (ret)
     MyServerAppX::instance()->start();

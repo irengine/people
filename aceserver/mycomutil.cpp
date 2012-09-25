@@ -1284,16 +1284,16 @@ void CMemPool::init(CCfg * config)
       m_pools[i]->setup();
     }
   }
-  else if (CCfgX::instance()->is_dist_server())
+  else if (CCfgX::instance()->is_dist())
   {
     int m;
 
     for(size_t i = 0;i < sizeof (pool_size) / sizeof (int);++i)
     {
       if (pool_size[i] == 32 || pool_size[i] == 128)
-        m = std::max((int)((config->max_clients * 20)), 10000);
+        m = std::max((int)((config->max_client_count * 20)), 10000);
       else if (pool_size[i] <= 1 * KB)
-        m = std::max((int)((config->max_clients * 2)), 3000);
+        m = std::max((int)((config->max_client_count * 2)), 3000);
       else if (pool_size[i] < 512 * KB)
         m = 2 * MB / pool_size[i];
       else
@@ -1303,7 +1303,7 @@ void CMemPool::init(CCfg * config)
       m_pools[i]->setup();
     }
   }
-  else if (config->is_middle_server())
+  else if (config->is_middle())
   {
     for(size_t i = 0;i < sizeof (pool_size) / sizeof (int);++i)
     {
@@ -1323,10 +1323,10 @@ void CMemPool::init(CCfg * config)
   int mb_number;
   if (config->is_client())
     mb_number = 200;
-  else if (config->is_dist_server())
-    mb_number = std::max((int)((config->max_clients * 4)), 4000);
+  else if (config->is_dist())
+    mb_number = std::max((int)((config->max_client_count * 4)), 4000);
   else
-    mb_number = std::max((int)((config->max_clients * 2)), 2000);
+    mb_number = std::max((int)((config->max_client_count * 2)), 2000);
   m_mb_pool = new CCachedAllocator<ACE_Thread_Mutex>(mb_number, sizeof (ACE_Message_Block));
   m_data_block_pool = new CCachedAllocator<ACE_Thread_Mutex>(mb_number, sizeof (ACE_Data_Block));
 }

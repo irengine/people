@@ -1020,12 +1020,12 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message_Block
   client_id_table.value_all(m_client_id_index, client_info);
 
   ACE_Message_Block * reply_mb;
-  if (m_client_version < CCfgX::instance()->client_version_minimum)
+  if (m_client_version < CCfgX::instance()->client_ver_min)
   {
     reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_MISMATCH, client_info.password_len + 2);
     m_wait_for_close = true;
   }
-  else if (m_client_version < CCfgX::instance()->client_version_current)
+  else if (m_client_version < CCfgX::instance()->client_ver_now)
     reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK_CAN_UPGRADE, client_info.password_len + 2);
   else
     reply_mb = make_version_check_reply_mb(MyClientVersionCheckReply::VER_OK, client_info.password_len + 2);
@@ -1033,7 +1033,7 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message_Block
   if (!m_wait_for_close)
   {
     MyClientVersionCheckRequest * vc = (MyClientVersionCheckRequest *)mb->base();
-    if (vc->server_id != CCfgX::instance()->server_id)
+    if (vc->server_id != CCfgX::instance()->dist_server_id)
       client_id_table.switched(m_client_id_index, true);
 
     CMemGuard info;
@@ -1042,7 +1042,7 @@ CProcBase::EVENT_RESULT MyHeartBeatProcessor::do_version_check(ACE_Message_Block
   }
 
   MyClientVersionCheckReply * vcr = (MyClientVersionCheckReply *) reply_mb->base();
-  *((u_int8_t*)vcr->data) = CCfgX::instance()->server_id;
+  *((u_int8_t*)vcr->data) = CCfgX::instance()->dist_server_id;
   ACE_OS::memcpy(vcr->data + 1, client_info.ftp_password, client_info.password_len + 1);
   if (m_handler->send_data(reply_mb) < 0)
     return ER_ERROR;
@@ -1912,7 +1912,7 @@ void MyHeartBeatService::do_file_md5_reply(ACE_Message_Block * mb)
 MyHeartBeatAcceptor::MyHeartBeatAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager):
     CAcceptorBase(_dispatcher, _manager)
 {
-  m_tcp_port = CCfgX::instance()->dist_server_heart_beat_port;
+  m_tcp_port = CCfgX::instance()->ping_port;
   m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
 }
 
@@ -2311,9 +2311,9 @@ PREPARE_MEMORY_POOL(MyDistToBSHandler);
 MyDistToBSConnector::MyDistToBSConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager):
     CConnectorBase(_dispatcher, _manager)
 {
-  m_tcp_port = CCfgX::instance()->bs_server_port;
+  m_tcp_port = CCfgX::instance()->bs_port;
   m_reconnect_interval = RECONNECT_INTERVAL;
-  m_tcp_addr = CCfgX::instance()->bs_server_addr;
+  m_tcp_addr = CCfgX::instance()->bs_addr;
 }
 
 const char * MyDistToBSConnector::name() const
@@ -2514,7 +2514,7 @@ int MyDistToMiddleProcessor::send_version_check_req()
   proc->client_version_major = 1;
   proc->client_version_minor = 0;
   proc->client_id = CCfgX::instance()->middle_server_key.c_str();
-  proc->server_id = CCfgX::instance()->server_id;
+  proc->server_id = CCfgX::instance()->dist_server_id;
   C_INFO("sending handshake request to middle server...\n");
   return (m_handler->send_data(mb) < 0? -1: 0);
 }
@@ -2578,7 +2578,7 @@ MyDistToMiddleConnector::MyDistToMiddleConnector(CDispatchBase * _dispatcher, CC
 {
   m_tcp_port = CCfgX::instance()->middle_server_dist_port;
   m_reconnect_interval = RECONNECT_INTERVAL;
-  m_tcp_addr = CCfgX::instance()->middle_server_addr;
+  m_tcp_addr = CCfgX::instance()->middle_addr;
 }
 
 const char * MyDistToMiddleConnector::name() const
