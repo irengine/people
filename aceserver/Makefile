@@ -1,5 +1,5 @@
 BIN=sapp
-FILES=component distmodule app datapacket tools middlemodule sapp sall dbmodule 
+FILES=component distmodule app datapacket tools sapp sall  
 SRC=$(addsuffix .cpp,$(FILES))
 OBJ=$(addsuffix .o,$(FILES))
 BUILD=$(VBIN)

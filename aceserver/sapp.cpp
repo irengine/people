@@ -1,15 +1,7 @@
-/*
- * main.cpp
- *
- *  Created on: Dec 26, 2011
- *      Author: root
- */
-
 #include <cstdio>
 #include "component.h"
 #include "sapp.h"
 #include "distmodule.h"
-#include "middlemodule.h"
 
 std::string current_ver()
 {

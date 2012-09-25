@@ -1,10 +1,3 @@
-/*
- * heartbeatmodule.h
- *
- *  Created on: Dec 26, 2011
- *      Author: root
- */
-
 #ifndef HEARTBEATMODULE_H_
 #define HEARTBEATMODULE_H_
 

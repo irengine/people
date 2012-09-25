@@ -3,13 +3,11 @@
 
 #include "tools.h"
 #include "app.h"
-#include "dbmodule.h"
-#include "middlemodule.h"
+#include "sall.h"
 #include "distmodule.h"
 
 class MyHeartBeatModule;
 class MyLocationModule;
-
 
 class MyServerApp: public CApp
 {
