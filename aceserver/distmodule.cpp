@@ -1,13 +1,5 @@
-/*
- * heartbeatmodule.cpp
- *
- *  Created on: Dec 26, 2011
- *      Author: root
- */
-
 #include "distmodule.h"
-#include "baseapp.h"
-#include "server.h"
+#include "sapp.h"
 
 //MyDistClient//
 

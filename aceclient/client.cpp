@@ -7,7 +7,7 @@
 
 #include <cstdio>
 #include <fstream>
-#include "basemodule.h"
+#include "component.h"
 #include "client.h"
 #include "clientmodule.h"
 

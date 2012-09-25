@@ -6,7 +6,7 @@
  */
 
 #include "middlemodule.h"
-#include "server.h"
+#include "sapp.h"
 
 
 //MyFindDistLoad//

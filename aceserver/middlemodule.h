@@ -5,9 +5,10 @@
 #include <new>
 #include <tr1/unordered_set>
 
-#include "baseapp.h"
-#include "basemodule.h"
-#include "servercommon.h"
+#include "tools.h"
+#include "app.h"
+#include "component.h"
+#include "sall.h"
 
 class MyLocationAcceptor;
 class MyLocationModule;

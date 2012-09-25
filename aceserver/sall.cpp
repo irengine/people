@@ -1,13 +1,6 @@
-/*
- * servercommon.cpp
- *
- *  Created on: Feb 2, 2012
- *      Author: root
- */
-
-#include "servercommon.h"
-#include "baseapp.h"
-#include "server.h"
+#include "sall.h"
+#include "app.h"
+#include "sapp.h"
 
 //MyHttpDistInfo//
 

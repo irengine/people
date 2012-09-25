@@ -6,8 +6,8 @@
  */
 
 #include <cstdio>
-#include "basemodule.h"
-#include "server.h"
+#include "component.h"
+#include "sapp.h"
 #include "distmodule.h"
 #include "middlemodule.h"
 

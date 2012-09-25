@@ -3,8 +3,8 @@
 
 #include <libpq-fe.h>
 
-#include "mycomutil.h"
-#include "servercommon.h"
+#include "tools.h"
+#include "sall.h"
 #include "distmodule.h"
 #include "middlemodule.h"
 

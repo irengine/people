@@ -1,5 +1,5 @@
-#include "basemodule.h"
-#include "baseapp.h"
+#include "component.h"
+#include "app.h"
 
 CClientIDS * g_client_ids = NULL;
 
@@ -2413,7 +2413,7 @@ void CAcceptorBase::do_dump_info()
   m_connection_manager->dump_info();
 }
 
-void CAcceptorBase::dump_info()
+void CAcceptorBase::print_info()
 {
   ACE_DEBUG((LM_INFO, "      +++ acceptor dump: %s start\n", name()));
   do_dump_info();
@@ -2846,7 +2846,7 @@ void CDispatchBase::dump_info()
   ACE_DEBUG((LM_INFO, "    --- dispatcher dump: %s start\n", name()));
   do_dump_info();
   std::for_each(m_connectors.begin(), m_connectors.end(), std::mem_fun(&CConnectorBase::dump_info));
-  std::for_each(m_acceptors.begin(), m_acceptors.end(), std::mem_fun(&CAcceptorBase::dump_info));
+  std::for_each(m_acceptors.begin(), m_acceptors.end(), std::mem_fun(&CAcceptorBase::print_info));
   ACE_DEBUG((LM_INFO, "    --- dispatcher dump: %s end\n", name()));
 }
 
@@ -2974,8 +2974,8 @@ int CMod::start()
   if (!on_start())
     return -1;
   m_running = true;
-  std::for_each(m_services.begin(), m_services.end(), std::mem_fun(&CTaskBase::start));
-  std::for_each(m_dispatchers.begin(), m_dispatchers.end(), std::mem_fun(&CDispatchBase::start));
+  std::for_each(m_tasks.begin(), m_tasks.end(), std::mem_fun(&CTaskBase::start));
+  std::for_each(m_dispatchs.begin(), m_dispatchs.end(), std::mem_fun(&CDispatchBase::start));
   return 0;
 }
 
@@ -2984,12 +2984,12 @@ int CMod::stop()
   if (!m_running)
     return 0;
   m_running = false;
-  std::for_each(m_services.begin(), m_services.end(), std::mem_fun(&CTaskBase::stop));
-  std::for_each(m_dispatchers.begin(), m_dispatchers.end(), std::mem_fun(&CDispatchBase::stop));
-  std::for_each(m_services.begin(), m_services.end(), CObjDeletor());
-  std::for_each(m_dispatchers.begin(), m_dispatchers.end(), CObjDeletor());
-  m_services.clear();
-  m_dispatchers.clear();
+  std::for_each(m_tasks.begin(), m_tasks.end(), std::mem_fun(&CTaskBase::stop));
+  std::for_each(m_dispatchs.begin(), m_dispatchs.end(), std::mem_fun(&CDispatchBase::stop));
+  std::for_each(m_tasks.begin(), m_tasks.end(), CObjDeletor());
+  std::for_each(m_dispatchs.begin(), m_dispatchs.end(), CObjDeletor());
+  m_tasks.clear();
+  m_dispatchs.clear();
   on_stop();
   return 0;
 }
@@ -3003,8 +3003,8 @@ void CMod::dump_info()
 {
   ACE_DEBUG((LM_INFO, "  *** module dump: %s start\n", name()));
   do_dump_info();
-  std::for_each(m_dispatchers.begin(), m_dispatchers.end(), std::mem_fun(&CDispatchBase::dump_info));
-  std::for_each(m_services.begin(), m_services.end(), std::mem_fun(&CTaskBase::dump_info));
+  std::for_each(m_dispatchs.begin(), m_dispatchs.end(), std::mem_fun(&CDispatchBase::dump_info));
+  std::for_each(m_tasks.begin(), m_tasks.end(), std::mem_fun(&CTaskBase::dump_info));
   ACE_DEBUG((LM_INFO, "  *** module dump: %s end\n", name()));
 }
 
@@ -3020,7 +3020,7 @@ void CMod::add_task(CTaskBase * _service)
     C_FATAL("MyBaseModule::add_service() NULL _service\n");
     return;
   }
-  m_services.push_back(_service);
+  m_tasks.push_back(_service);
 }
 
 void CMod::add_dispatch(CDispatchBase * _dispatcher)
@@ -3030,5 +3030,5 @@ void CMod::add_dispatch(CDispatchBase * _dispatcher)
     C_FATAL("MyBaseModule::add_dispatcher() NULL _dispatcher\n");
     return;
   }
-  m_dispatchers.push_back(_dispatcher);
+  m_dispatchs.push_back(_dispatcher);
 }

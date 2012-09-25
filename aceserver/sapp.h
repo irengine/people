@@ -1,8 +1,8 @@
 #ifndef SERVER_H_
 #define SERVER_H_
 
-#include "mycomutil.h"
-#include "baseapp.h"
+#include "tools.h"
+#include "app.h"
 #include "dbmodule.h"
 #include "middlemodule.h"
 #include "distmodule.h"

@@ -1,5 +1,5 @@
-BIN=server
-FILES=basemodule distmodule baseapp datapacket mycomutil middlemodule server dbmodule servercommon
+BIN=sapp
+FILES=component distmodule app datapacket tools middlemodule sapp sall dbmodule 
 SRC=$(addsuffix .cpp,$(FILES))
 OBJ=$(addsuffix .o,$(FILES))
 BUILD=$(VBIN)

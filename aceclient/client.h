@@ -8,8 +8,8 @@
 #ifndef CLIENT_H_
 #define CLIENT_H_
 
-#include "mycomutil.h"
-#include "baseapp.h"
+#include "tools.h"
+#include "app.h"
 #include <ace/Process.h>
 
 class MyClientToDistModule;

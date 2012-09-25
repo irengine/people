@@ -1,8 +1,8 @@
 #ifndef SERVERCOMMON_H_
 #define SERVERCOMMON_H_
 
-#include "mycomutil.h"
-#include "basemodule.h"
+#include "tools.h"
+#include "component.h"
 #include <tr1/unordered_map>
 
 class MyHttpDistInfo;

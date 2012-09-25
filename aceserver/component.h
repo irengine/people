@@ -24,7 +24,7 @@
 #include <algorithm>
 #include <tr1/unordered_map>
 
-#include "mycomutil.h"
+#include "tools.h"
 #include "datapacket.h"
 
 class CMod;
@@ -795,7 +795,7 @@ public:
 
   int start();
   int stop();
-  void dump_info();
+  void print_info();
   virtual const char * name() const;
 
 protected:
@@ -965,8 +965,8 @@ protected:
   CApp * m_app;
   bool m_running;
 
-  CTasks m_services;
-  CDispatchBases m_dispatchers;
+  CTasks m_tasks;
+  CDispatchBases m_dispatchs;
 };
 
 

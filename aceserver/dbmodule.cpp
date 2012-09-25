@@ -1,13 +1,6 @@
-/*
- * dbmodule.cpp
- *
- *  Created on: Jan 20, 2012
- *      Author: root
- */
-
 #include "dbmodule.h"
-#include "basemodule.h"
-#include "baseapp.h"
+#include "component.h"
+#include "app.h"
 
 const char * CONST_db_name = "acedb";
 

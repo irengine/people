@@ -4,7 +4,7 @@
 #include <ace/Singleton.h>
 #include <string>
 #include <ace/Configuration_Import_Export.h>
-#include "basemodule.h"
+#include "component.h"
 
 
 extern bool g_is_test;

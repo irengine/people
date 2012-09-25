@@ -12,9 +12,9 @@
 #include <new>
 #include <ace/Process.h>
 
-#include "mycomutil.h"
-#include "baseapp.h"
-#include "basemodule.h"
+#include "tools.h"
+#include "app.h"
+#include "component.h"
 
 #include <sqlite3.h>
 

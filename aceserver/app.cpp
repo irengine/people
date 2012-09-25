@@ -9,7 +9,7 @@
 #include <ace/Service_Config.h>
 #include <ace/Logging_Strategy.h>
 #include <cstdio>
-#include "baseapp.h"
+#include "app.h"
 
 const char * g_const_app_ver = "1.0";
 long g_clock_counter = 0;

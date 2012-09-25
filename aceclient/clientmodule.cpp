@@ -11,7 +11,6 @@
 #include <fstream>
 
 #include "clientmodule.h"
-#include "baseapp.h"
 #include "client.h"
 
 
