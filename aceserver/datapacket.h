@@ -13,8 +13,7 @@
 #include <ace/OS_NS_string.h>
 #include <ace/INET_Addr.h>
 #include <uuid/uuid.h>
-
-#include "common.h"
+#include "mycomutil.h"
 
 #pragma pack(push, 1)
 

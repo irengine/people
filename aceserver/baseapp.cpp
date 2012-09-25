@@ -11,9 +11,9 @@
 #include <cstdio>
 #include "baseapp.h"
 
-const char * const_app_version = "1.0";
-long g_clock_tick = 0;
-bool g_test_mode = false;
+const char * g_const_app_ver = "1.0";
+long g_clock_counter = 0;
+bool g_is_test = false;
 
 //MyServerConfig//
 
@@ -289,7 +289,7 @@ bool CCfg::read_base(ACE_Configuration_Heap & heap, ACE_Configuration_Section_Ke
   }
 
   if (heap.get_integer_value (section,  CONFIG_test_mode, ival) == 0)
-    g_test_mode = (ival != 0);
+    g_is_test = (ival != 0);
 
   if (heap.get_integer_value (section,  CONFIG_use_mem_pool, ival) == 0)
   {
@@ -430,7 +430,7 @@ bool CCfg::read_client(ACE_Configuration_Heap & heap, ACE_Configuration_Section_
 
   u_int ival;
 
-  if (g_test_mode)
+  if (g_is_test)
   {
     if (heap.get_integer_value(section, CONFIG_client_heart_beat_interval, ival) == 0)
     {
@@ -444,7 +444,7 @@ bool CCfg::read_client(ACE_Configuration_Heap & heap, ACE_Configuration_Section_
     }
   }
 
-  if (g_test_mode)
+  if (g_is_test)
   {
     if (heap.get_integer_value(section, CONFIG_test_client_ftp_thread_number, ival) == 0)
     {
@@ -689,7 +689,7 @@ void CCfg::print_all()
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_debug_enabled, log_debug_enabled));
   ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_log_to_stderr, log_to_stderr));
 
-  if (g_test_mode)
+  if (g_is_test)
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_mode = 1\n")));
   else
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\ttest_mode = 0\n")));
@@ -724,7 +724,7 @@ void CCfg::print_all()
   //client only
   if (is_client())
   {
-    if (g_test_mode)
+    if (g_is_test)
       ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_heart_beat_interval, client_heart_beat_interval));
 //    ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_adv_expire_days, adv_expire_days));
     ACE_DEBUG ((LM_INFO, ACE_TEXT ("\t%s = %d\n"), CONFIG_client_ftp_timeout, client_ftp_timeout));
@@ -800,7 +800,7 @@ int CPrinter::handle_timeout (const ACE_Time_Value &, const void *)
 
 int CClocker::handle_timeout (const ACE_Time_Value &, const void *)
 {
-  ++g_clock_tick;
+  ++g_clock_counter;
   return 0;
 }
 

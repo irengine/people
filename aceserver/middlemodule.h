@@ -19,14 +19,14 @@ public:
   {
     m_ip_addr[0] = 0;
     m_clients_connected = 0;
-    m_last_access = g_clock_tick;
+    m_last_access = g_clock_counter;
   }
 
   MyDistLoad(const char * _addr, int m)
   {
     ip_addr(_addr);
     clients_connected(m);
-    m_last_access = g_clock_tick;
+    m_last_access = g_clock_counter;
   }
 
   void ip_addr(const char * _addr)

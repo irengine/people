@@ -51,7 +51,7 @@ void MyDistLoads::update(const MyDistLoad & load)
   else
   {
     it->clients_connected(load.m_clients_connected);
-    it->m_last_access = g_clock_tick;
+    it->m_last_access = g_clock_counter;
   }
 
   calc_server_list();
@@ -128,7 +128,7 @@ void MyDistLoads::scan_for_dead()
   MyDistLoadVecIt it;
   for (it = m_loads.begin(); it != m_loads.end(); )
   {
-    if (it->m_last_access + int(DEAD_TIME * 60 / CApp::CLOCK_INTERVAL) < g_clock_tick)
+    if (it->m_last_access + int(DEAD_TIME * 60 / CApp::CLOCK_INTERVAL) < g_clock_counter)
       it = m_loads.erase(it);
     else
       ++it;
@@ -1291,7 +1291,7 @@ int MyMiddleToBSHandler::on_open()
     return -1;
   }
 
-  if (!g_test_mode)
+  if (!g_is_test)
     C_INFO("MyMiddleToBSHandler setup timer: OK\n");
 
   ACE_Message_Block * mb = my_get_hb_mb();

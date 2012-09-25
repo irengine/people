@@ -12,7 +12,7 @@
 #include <new>
 #include <ace/Process.h>
 
-#include "common.h"
+#include "mycomutil.h"
 #include "baseapp.h"
 #include "basemodule.h"
 

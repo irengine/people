@@ -8,7 +8,7 @@
 #ifndef CLIENT_H_
 #define CLIENT_H_
 
-#include "common.h"
+#include "mycomutil.h"
 #include "baseapp.h"
 #include <ace/Process.h>
 

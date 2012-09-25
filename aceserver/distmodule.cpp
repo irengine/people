@@ -2283,7 +2283,7 @@ int MyDistToBSHandler::on_open()
     return -1;
   }
 
-  if (!g_test_mode)
+  if (!g_is_test)
     C_INFO("MyDistToBSHandler setup timer: OK\n");
 
   ACE_Message_Block * mb = my_get_hb_mb();

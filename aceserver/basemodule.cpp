@@ -370,10 +370,11 @@ MyFileMD5::MyFileMD5(const char * _filename, const char * md5, int prefix_len, c
 
   if (!md5)
   {
-    MD5_CTX mdContext;
-    md5file(_filename, 0, &mdContext, m_md5, MD5_STRING_LENGTH);
-//    if (!md5file(_filename, 0, &mdContext, m_md5, MD5_STRING_LENGTH))
-//      C_ERROR("failed to calculate md5 value of file %s\n", _filename);
+    CMemGuard md5_result;
+    if (mycomutil_calculate_file_md5(_filename, md5_result))
+      memcpy(m_md5, md5_result.data(), MD5_STRING_LENGTH);
+    //MD5_CTX mdContext;
+    //md5file(_filename, 0, &mdContext, m_md5, MD5_STRING_LENGTH);
   } else
     memcpy((void*)m_md5, (void*)md5, MD5_STRING_LENGTH);
 }
@@ -1380,7 +1381,7 @@ MyBaseProcessor::MyBaseProcessor(MyBaseHandler * handler)
 {
   m_handler = handler;
   m_wait_for_close = false;
-  m_last_activity = g_clock_tick;
+  m_last_activity = g_clock_counter;
   m_client_id_index = -1;
   m_client_id_length = 0;
 }
@@ -1447,12 +1448,12 @@ int MyBaseProcessor::handle_input_wait_for_close()
 
 bool MyBaseProcessor::dead() const
 {
-  return m_last_activity + 100 < g_clock_tick;
+  return m_last_activity + 100 < g_clock_counter;
 }
 
 void MyBaseProcessor::update_last_activity()
 {
-  m_last_activity = g_clock_tick;
+  m_last_activity = g_clock_counter;
 }
 
 long MyBaseProcessor::last_activity() const
@@ -1836,7 +1837,7 @@ int MyBaseClientProcessor::on_open()
   if (super::on_open() < 0)
     return -1;
 
-  if (g_test_mode)
+  if (g_is_test)
   {
     int pending_count = m_handler->connection_manager()->pending_count();
     if (pending_count > 0 &&  pending_count <= MyBaseConnector::BATCH_CONNECT_NUM / 2)
@@ -1847,7 +1848,7 @@ int MyBaseClientProcessor::on_open()
 
 void MyBaseClientProcessor::on_close()
 {
-  if (g_test_mode)
+  if (g_is_test)
   {
     int pending_count = m_handler->connection_manager()->pending_count();
     if (pending_count > 0 &&  pending_count <= MyBaseConnector::BATCH_CONNECT_NUM / 2)
@@ -2025,7 +2026,7 @@ void MyBaseConnectionManager::detect_dead_connections(int timeout)
   MyConnectionsPtr it;
   MyBaseHandler * handler;
   MyConnectionManagerLockGuard guard(this);
-  long deadline = g_clock_tick - long(timeout * 60 / CApp::CLOCK_INTERVAL);
+  long deadline = g_clock_counter - long(timeout * 60 / CApp::CLOCK_INTERVAL);
   for (it = m_active_connections.begin(); it != m_active_connections.end();)
   {
     handler = it->first;
@@ -2477,7 +2478,7 @@ int MyBaseConnector::handle_timeout(const ACE_Time_Value &current_time, const vo
   {
     if (m_connection_manager->active_connections() < m_num_connection)
     {
-      if (g_test_mode)
+      if (g_is_test)
       {
         if (m_remain_to_connect > 0)
           return 0;
@@ -2507,7 +2508,7 @@ void MyBaseConnector::on_stop()
 int MyBaseConnector::start()
 {
   m_connection_manager->unlock();
-  if (g_test_mode)
+  if (g_is_test)
     m_remain_to_connect = 0;
   if (open(m_dispatcher->reactor(), ACE_NONBLOCK) == -1)
     return -1;
@@ -2587,7 +2588,7 @@ int MyBaseConnector::stop()
 
 int MyBaseConnector::connect_ready()
 {
-  if (g_test_mode)
+  if (g_is_test)
     return do_connect(0, false);
   else
     return 0;
@@ -2600,7 +2601,7 @@ void MyBaseConnector::reset_retry_count()
 
 int MyBaseConnector::do_connect(int count, bool bNew)
 {
-  if (g_test_mode)
+  if (g_is_test)
   {
     if (unlikely(count <= 0 && m_remain_to_connect == 0))
       return 0;

@@ -33,7 +33,6 @@
 
 #include "mycomutil.h"
 #include "datapacket.h"
-#include "md5.h"
 #include "aes.h"
 
 class CMod;

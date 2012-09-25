@@ -616,7 +616,7 @@ MyVLCMonitor & MyClientApp::vlc_monitor()
 
 void MyClientApp::data_path(CMemGuard & _data_path, const char * client_id)
 {
-  if (g_test_mode)
+  if (g_is_test)
   {
     char tmp[128];
     tmp[0] = 0;
@@ -628,7 +628,7 @@ void MyClientApp::data_path(CMemGuard & _data_path, const char * client_id)
 
 void MyClientApp::calc_display_parent_path(CMemGuard & parent_path, const char * client_id)
 {
-  if (g_test_mode)
+  if (g_is_test)
   {
     CMemGuard path_x;
     MyClientApp::data_path(path_x, client_id);
@@ -739,7 +739,7 @@ bool MyClientApp::do_backup_restore(const CMemGuard & src_parent_path, const CMe
     }
   }
 
-  if (init && !g_test_mode)
+  if (init && !g_is_test)
   {
     MyClientAppX::instance()->vlc_launcher().init_mode(true);
     MyClientAppX::instance()->vlc_launcher().launch();
@@ -849,7 +849,7 @@ void MyClientApp::on_stop()
 
 bool MyClientApp::on_construct()
 {
-  if (!g_test_mode)
+  if (!g_is_test)
   {
     const char * const_id_ini = "/tmp/daily/id.ini";
     C_INFO("trying to read client id from %s\n", const_id_ini);
@@ -890,7 +890,7 @@ bool MyClientApp::on_construct()
     MyPL::instance().load(m_client_id.c_str());
   }
 
-  if (!g_test_mode)
+  if (!g_is_test)
   {
     CMemGuard pn, po, dest_parent_path;
     MyClientApp::calc_backup_parent_path(dest_parent_path, NULL);
@@ -1001,7 +1001,7 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::RUNNING_MODE mode)
     exit(5);
   }
 
-  if (g_test_mode)
+  if (g_is_test)
   {
     std::string idfile = cfg->app_path + "/config/id.file";
     std::ifstream ifs(idfile.c_str(), std::ifstream::in);

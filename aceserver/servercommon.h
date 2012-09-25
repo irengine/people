@@ -8,7 +8,6 @@
 #ifndef SERVERCOMMON_H_
 #define SERVERCOMMON_H_
 
-#include "common.h"
 #include "mycomutil.h"
 #include "basemodule.h"
 #include <tr1/unordered_map>

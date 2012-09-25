@@ -33,7 +33,7 @@ MyPL::MyPL()
 
 bool MyPL::load(const char * client_id)
 {
-  if (g_test_mode)
+  if (g_is_test)
     return true;
   CMemGuard data_path, fn;
   MyClientApp::data_path(data_path, client_id);
@@ -52,7 +52,7 @@ bool MyPL::load(const char * client_id)
 
 bool MyPL::save(const char * client_id, const char * s)
 {
-  if (g_test_mode)
+  if (g_is_test)
     return true;
   if (!s)
     return false;
@@ -84,7 +84,7 @@ MyPL & MyPL::instance()
 
 bool MyPL::parse(char * s)
 {
-  if (g_test_mode)
+  if (g_is_test)
     return true;
   if (!s || !*s)
   {
@@ -682,7 +682,7 @@ int MyClientDB::load_ftp_commands_callback(void * p, int argc, char **argv, char
   }
   dist_ftp->recv_time = atoi(argv[3]);
   dist_ftp->last_update = 0;
-  if (!g_test_mode)
+  if (!g_is_test)
   {
     dist_ftp->client_id = MyClientAppX::instance()->client_id();
     dist_ftp->client_id_index = 0;
@@ -1525,7 +1525,7 @@ void MyDistInfoFtp::post_status_message(int _status) const
     result_ok = true;
   ACE_Message_Block * mb = make_ftp_dist_message(dist_id.data(), m, result_ok, ftype);
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
-  if (g_test_mode)
+  if (g_is_test)
     dpe->magic = client_id_index;
 
 //  MyClientAppX::instance()->client_to_dist_module()->dispatcher()->add_to_buffered_mbs(mb);
@@ -2085,7 +2085,7 @@ void MyDistInfoMD5::post_md5_message()
   int total_len = dist_id_len + 1 + md5_len;
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(total_len, MyDataPacketHeader::CMD_SERVER_FILE_MD5_LIST);
   MyDataPacketExt * dpe = (MyDataPacketExt*) mb->base();
-  if (g_test_mode)
+  if (g_is_test)
     dpe->magic = client_id_index;
   ACE_OS::memcpy(dpe->data, dist_id.data(), dist_id_len);
   dpe->data[dist_id_len] = MyDataPacketHeader::ITEM_SEPARATOR;
@@ -2512,7 +2512,7 @@ int MyClientToDistProcessor::on_open()
   if (super::on_open() < 0)
     return -1;
 
-  if (g_test_mode)
+  if (g_is_test)
   {
     const char * myid = MyClientAppX::instance()->client_to_dist_module()->id_generator().get();
     if (!myid)
@@ -2533,14 +2533,14 @@ int MyClientToDistProcessor::on_open()
     client_id(MyClientAppX::instance()->client_id());
     m_client_id_index = 0;
   }
-  if (!g_test_mode || m_client_id_index == 0)
+  if (!g_is_test || m_client_id_index == 0)
     C_INFO("sending handshake request to dist server...\n");
   return send_version_check_req();
 }
 
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
 {
-  if (!g_test_mode)
+  if (!g_is_test)
     C_DEBUG("get dist packet header: command = %d, len = %d\n", m_packet_header.command, m_packet_header.length);
 
   MyBaseProcessor::EVENT_RESULT result = super::on_recv_header();
@@ -2603,7 +2603,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
       C_ERROR("failed to validate header for server ack packet\n");
       return ER_ERROR;
     }
-    if (g_test_mode)
+    if (g_is_test)
       return ER_OK_FINISHED;
     else
       return ER_OK;
@@ -2660,7 +2660,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_header()
 
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Message_Block * mb)
 {
-  if (!g_test_mode)
+  if (!g_is_test)
     C_DEBUG("get complete dist packet: command = %d, len = %d\n", m_packet_header.command, m_packet_header.length);
 
   MyBasePacketProcessor::on_recv_packet_i(mb);
@@ -2675,7 +2675,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
       client_id_verified(true);
       ((MyClientToDistHandler*)m_handler)->setup_timer();
 
-      if (g_test_mode && m_client_id_index != 0)
+      if (g_is_test && m_client_id_index != 0)
       {
         ((MyClientToDistHandler*)m_handler)->setup_heart_beat_timer(1);
       } else
@@ -2688,7 +2688,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::on_recv_packet_i(ACE_Mess
         }
       }
 
-      if (!g_test_mode)
+      if (!g_is_test)
         MyConnectIni::update_connect_status(MyConnectIni::CS_ONLINE);
     }
 
@@ -2890,7 +2890,7 @@ void MyClientToDistProcessor::check_offline_report()
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ip_ver_reply(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
-  if (g_test_mode && m_client_id_index != 0)
+  if (g_is_test && m_client_id_index != 0)
     return ER_OK;
 
   MyClientToDistModule * mod = MyClientAppX::instance()->client_to_dist_module();
@@ -2903,7 +2903,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ip_ver_reply(ACE_Messa
 MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_ack(ACE_Message_Block * mb)
 {
   CMBGuard guard(mb);
-  if (unlikely(g_test_mode))
+  if (unlikely(g_is_test))
   {
     C_ERROR("unexpected ack packet on test mode\n");
     return ER_ERROR;
@@ -2984,7 +2984,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
   switch (vcr->reply_code)
   {
   case MyClientVersionCheckReply::VER_OK:
-    if (!g_test_mode || m_client_id_index == 0)
+    if (!g_is_test || m_client_id_index == 0)
       C_INFO("handshake response from dist server: OK\n");
     client_id_verified(true);
     if (vcr->length > (int)sizeof(MyClientVersionCheckReply) + 1)
@@ -2994,7 +2994,7 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
       MyClientAppX::instance()->ftp_password(m_ftp_password.data());
     }
     m_handler->connector()->reset_retry_count();
-    if (!g_test_mode)
+    if (!g_is_test)
       check_offline_report();
     return MyBaseProcessor::ER_OK;
 
@@ -3007,9 +3007,9 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
       MyClientAppX::instance()->ftp_password(m_ftp_password.data());
     }
     m_handler->connector()->reset_retry_count();
-    if (!g_test_mode || m_client_id_index == 0)
+    if (!g_is_test || m_client_id_index == 0)
       C_INFO("handshake response from dist server: OK Can Upgrade\n");
-    if (!g_test_mode)
+    if (!g_is_test)
       check_offline_report();
     //todo: notify app to upgrade
     return MyBaseProcessor::ER_OK;
@@ -3018,25 +3018,25 @@ MyBaseProcessor::EVENT_RESULT MyClientToDistProcessor::do_version_check_reply(AC
     if (vcr->length > (int)sizeof(MyClientVersionCheckReply) + 1)
       m_ftp_password.from_string(vcr->data);
     m_handler->connector()->reset_retry_count();
-    if (!g_test_mode || m_client_id_index == 0)
+    if (!g_is_test || m_client_id_index == 0)
       C_ERROR("handshake response from dist server: Version Mismatch\n");
     //todo: notify app to upgrade
     return MyBaseProcessor::ER_ERROR;
 
   case MyClientVersionCheckReply::VER_ACCESS_DENIED:
     m_handler->connector()->reset_retry_count();
-    if (!g_test_mode || m_client_id_index == 0)
+    if (!g_is_test || m_client_id_index == 0)
       C_ERROR("handshake response from dist server: Access Denied\n");
     return MyBaseProcessor::ER_ERROR;
 
   case MyClientVersionCheckReply::VER_SERVER_BUSY:
-    if (!g_test_mode || m_client_id_index == 0)
+    if (!g_is_test || m_client_id_index == 0)
       C_INFO("handshake response from dist server: Server Busy\n");
 
     return MyBaseProcessor::ER_ERROR;
 
   default: //server_list
-    if (!g_test_mode || m_client_id_index == 0)
+    if (!g_is_test || m_client_id_index == 0)
       C_INFO("handshake response from dist server: unknown code = %d\n", vcr->reply_code);
     return MyBaseProcessor::ER_ERROR;
   }
@@ -3069,7 +3069,7 @@ int MyClientToDistProcessor::send_ip_ver_req()
   MyIpVerRequest * ivr = (MyIpVerRequest *) mb->base();
   ivr->client_version_major = const_client_version_major;
   ivr->client_version_minor = const_client_version_minor;
-  if (!g_test_mode || m_client_id_index == 0)
+  if (!g_is_test || m_client_id_index == 0)
     C_INFO("sending ip ver to dist server...\n");
   return (m_handler->send_data(mb) < 0? -1: 0);
 }
@@ -3388,7 +3388,7 @@ bool MyClientToDistHandler::setup_timer()
     return false;
   }
 
-  if (!g_test_mode)
+  if (!g_is_test)
     C_INFO("MyClientToDistHandler setup ip ver timer: OK\n");
 
   ACE_Time_Value interval2(HEART_BEAT_PING_TMP_INTERVAL * 60);
@@ -3410,7 +3410,7 @@ bool MyClientToDistHandler::setup_heart_beat_timer(int heart_beat_interval)
     heart_beat_interval = 3;
   }
 
-  if (!g_test_mode || m_processor->client_id_index() == 0)
+  if (!g_is_test || m_processor->client_id_index() == 0)
     C_INFO("setup heart beat timer (per %d minute(s))\n", heart_beat_interval);
   ACE_Time_Value interval(heart_beat_interval * 60);
   m_heart_beat_timer = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval, interval);
@@ -3519,7 +3519,7 @@ void MyClientToDistHandler::on_close()
 {
   reactor()->cancel_timer(this);
 
-  if (g_test_mode)
+  if (g_is_test)
   {
     if (m_connection_manager->locked())
       return;
@@ -3689,7 +3689,7 @@ void MyClientToDistService::do_extract_task(MyDistInfoFtp * dist_info)
     dist_info->update_db_status();
     dist_info->post_status_message();
     C_INFO("update done for dist_id(%s) client_id(%s)\n", dist_info->dist_id.data(), dist_info->client_id.as_string());
-    if (!g_test_mode && dist_info->status == 4)
+    if (!g_is_test && dist_info->status == 4)
     {
       if (ftype_is_adv_list(dist_info->ftype))
         MyClientAppX::instance()->vlc_monitor().relaunch();
@@ -3728,7 +3728,7 @@ int MyClientFtpService::svc()
 
   while (MyClientAppX::instance()->running())
   {
-    if (!g_test_mode)
+    if (!g_is_test)
     {
       const char * s = MyClientAppX::instance()->ftp_password();
       if (!s || !*s)
@@ -3805,7 +3805,7 @@ bool MyClientFtpService::do_ftp_download(MyDistInfoFtp * dist_info, const char *
       dist_info->file_password.data(),
       dist_info->failed_count());
 
-  if (!g_test_mode)
+  if (!g_is_test)
   {
     MyClientDBGuard dbg;
     if (dbg.db().open_db(MyClientAppX::instance()->client_id()))
@@ -3834,7 +3834,7 @@ bool MyClientFtpService::do_ftp_download(MyDistInfoFtp * dist_info, const char *
   dist_info->touch();
   if (result)
   {
-    if (!g_test_mode)
+    if (!g_is_test)
     {
       MyClientDBGuard dbg;
       if (dbg.db().open_db(MyClientAppX::instance()->client_id()))
@@ -3881,7 +3881,7 @@ MyClientToDistConnector::MyClientToDistConnector(MyBaseDispatcher * _dispatcher,
 {
   m_tcp_port = CCfgX::instance()->dist_server_heart_beat_port;
   m_reconnect_interval = RECONNECT_INTERVAL;
-  if (g_test_mode)
+  if (g_is_test)
     m_num_connection = MyClientAppX::instance()->client_id_table().count();
   m_last_connect_time = 0;
 }
@@ -4059,7 +4059,7 @@ bool MyClientToDistDispatcher::on_start()
 {
   m_middle_connector = new MyClientToMiddleConnector(this, new MyBaseConnectionManager());
   add_connector(m_middle_connector);
-  if (!g_test_mode)
+  if (!g_is_test)
   {
     m_http1991_acceptor = new MyHttp1991Acceptor(this, new MyBaseConnectionManager());
     add_acceptor(m_http1991_acceptor);
@@ -4085,7 +4085,7 @@ int MyClientToDistDispatcher::handle_timeout(const ACE_Time_Value &, const void 
   if ((long)act == (long)TIMER_ID_BASE)
   {
     ((MyClientToDistModule*)module_x())->check_ftp_timed_task();
-    if (!g_test_mode)
+    if (!g_is_test)
     {
       if (m_connector == NULL || m_connector->connection_manager()->active_connections() == 0)
         MyConnectIni::update_connect_status(MyConnectIni::CS_DISCONNECTED);
@@ -4166,9 +4166,9 @@ bool MyClientToDistDispatcher::on_event_loop()
     ACE_Time_Value tv(ACE_Time_Value::zero);
     if (this->getq(mb, &tv) != -1)
     {
-      if (!g_test_mode)
+      if (!g_is_test)
         C_DEBUG("packet to dist: length = %d\n", mb->length());
-      if (g_test_mode)
+      if (g_is_test)
       {
         int index = ((MyDataPacketHeader*)mb->base())->magic;
         MyBaseHandler * handler = m_connector->connection_manager()->find_handler_by_index(index);
@@ -4236,7 +4236,7 @@ ACE_Message_Block * MyHwAlarm::make_hardware_alarm_mb()
 {
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd_direct(sizeof(MyPLCAlarm),
       MyDataPacketHeader::CMD_HARDWARE_ALARM);
-  if (g_test_mode)
+  if (g_is_test)
     ((MyDataPacketHeader *)mb->base())->magic = 0;
   MyPLCAlarm * dpe = (MyPLCAlarm *)mb->base();
   dpe->x = m_x;
@@ -4249,7 +4249,7 @@ ACE_Message_Block * MyHwAlarm::make_hardware_alarm_mb()
 
 MyClientToDistModule::MyClientToDistModule(CApp * app): CMod(app)
 {
-  if (g_test_mode)
+  if (g_is_test)
   {
     MyClientIDTable & client_id_table = MyClientAppX::instance()->client_id_table();
     int count = client_id_table.count();
@@ -4349,12 +4349,12 @@ void MyClientToDistModule::ask_for_server_addr_list_done(bool success)
     return;
   if (m_client_ftp_service)
     return;
-  if (g_test_mode)
+  if (g_is_test)
     add_service(m_client_ftp_service = new MyClientFtpService(this, CCfgX::instance()->test_client_ftp_thread_number));
   else
     add_service(m_client_ftp_service = new MyClientFtpService(this, 1));
   m_client_ftp_service->start();
-  if (!g_test_mode)
+  if (!g_is_test)
   {
     MyClientAppX::instance()->check_prev_extract_task(MyClientAppX::instance()->client_id());
     check_prev_download_task();
@@ -4448,7 +4448,7 @@ MyDistServerAddrList & MyClientToDistModule::server_addr_list()
 
 void MyClientToDistModule::check_prev_download_task()
 {
-  if (!g_test_mode)
+  if (!g_is_test)
   {
     MyClientDBGuard dbg;
     if (dbg.db().open_db(MyClientAppX::instance()->client_id()))
@@ -4478,7 +4478,7 @@ int MyClientToMiddleProcessor::on_open()
   if (super::on_open() < 0)
     return -1;
 
-  if (g_test_mode)
+  if (g_is_test)
   {
     MyTestClientIDGenerator & id_generator = MyClientAppX::instance()->client_to_dist_module()->id_generator();
     const char * myid = id_generator.get();
@@ -4711,7 +4711,7 @@ bool MyClientToMiddleConnector::before_reconnect()
 MyHttp1991Processor::MyHttp1991Processor(MyBaseHandler * handler) : super(handler)
 {
   m_mb = NULL;
-  if (g_test_mode)
+  if (g_is_test)
     MyClientAppX::instance()->client_id_table().value(0, &m_client_id);
   else
     m_client_id = MyClientAppX::instance()->client_id();
@@ -4905,7 +4905,7 @@ ACE_Message_Block * MyHttp1991Processor::make_pc_on_off_mb(bool on, const char *
   int len = ACE_OS::strlen(sdata);
   ACE_Message_Block * mb = MyMemPoolFactoryX::instance()->get_message_block_cmd(len + 1 + 1,
       MyDataPacketHeader::CMD_PC_ON_OFF);
-  if (g_test_mode)
+  if (g_is_test)
     ((MyDataPacketHeader *)mb->base())->magic = 0;
   MyDataPacketExt * dpe = (MyDataPacketExt *)mb->base();
   dpe->data[0] = on ? '1' : '2';

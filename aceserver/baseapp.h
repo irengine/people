@@ -7,9 +7,9 @@
 #include "basemodule.h"
 
 
-extern const char * const_app_version;
-extern long g_clock_tick;
-extern bool g_test_mode;
+extern const char * g_const_app_ver;
+extern long g_clock_counter;
+extern bool g_is_test;
 std::string current_ver();
 
 class CApp;
