@@ -321,7 +321,7 @@ class MyHttpAcceptor;
 class MyHttpProcessor: public CFormattedProcBase<ni>
 {
 public:
-  typedef CFormattedProcBase<ni> super;
+  typedef CFormattedProcBase<ni> baseclass;
 
   MyHttpProcessor(CHandlerBase * handler);
   virtual ~MyHttpProcessor();
@@ -421,7 +421,7 @@ class MyMiddleToBSConnector;
 class MyDistLoadProcessor: public CServerProcBase
 {
 public:
-  typedef CServerProcBase super;
+  typedef CServerProcBase baseclass;
 
   MyDistLoadProcessor(CHandlerBase * handler);
   virtual ~MyDistLoadProcessor();
@@ -511,7 +511,7 @@ private:
 class MyMiddleToBSProcessor: public CBSProceBase
 {
 public:
-  typedef CBSProceBase super;
+  typedef CBSProceBase baseclass;
 
   MyMiddleToBSProcessor(CHandlerBase * handler);
   virtual CONST text * name() CONST;
@@ -650,7 +650,7 @@ class MyClientMapHash
 public:
   size_t operator()(CONST MyClientMapKey & x) CONST
   {
-    return c_util_string_hash(x.client_id) ^ c_util_string_hash(x.dist_id);
+    return c_tools_text_hash(x.client_id) ^ c_tools_text_hash(x.dist_id);
   }
 };
 
@@ -721,7 +721,7 @@ private:
 class MyHeartBeatProcessor: public CServerProcBase
 {
 public:
-  typedef CServerProcBase super;
+  typedef CServerProcBase baseclass;
 
   MyHeartBeatProcessor(CHandlerBase * handler);
   virtual CProcBase::OUTPUT on_recv_header();
@@ -1060,7 +1060,7 @@ class MyDistToMiddleModule;
 class MyDistToBSProcessor: public CBSProceBase
 {
 public:
-  typedef CBSProceBase super;
+  typedef CBSProceBase baseclass;
   MyDistToBSProcessor(CHandlerBase * handler);
   virtual CONST text * name() CONST;
 
@@ -1113,7 +1113,7 @@ class MyDistToMiddleConnector;
 class MyDistToMiddleProcessor: public CClientProcBase
 {
 public:
-  typedef CClientProcBase super;
+  typedef CClientProcBase baseclass;
 
   MyDistToMiddleProcessor(CHandlerBase * handler);
   virtual CProcBase::OUTPUT on_recv_header();

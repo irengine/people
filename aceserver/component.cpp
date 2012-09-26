@@ -371,7 +371,7 @@ CFileMD5::CFileMD5(CONST text * _filename, CONST text * md5, ni prefix_len, CONS
   if (!md5)
   {
     CMemGuard md5_result;
-    if (c_util_calculate_file_md5(_filename, md5_result))
+    if (c_tools_tally_md5(_filename, md5_result))
       memcpy(m_md5, md5_result.data(), MD5_STRING_LENGTH);
     //MD5_CTX mdContext;
     //md5file(_filename, 0, &mdContext, m_md5, MD5_STRING_LENGTH);
@@ -688,7 +688,7 @@ truefalse CFileMD5s::do_scan_directory(CONST text * dirname, ni start_len)
   {
     if (ACE_OS::last_error() != ENOENT)
     {
-      C_ERROR("can not open directory: %s %s\n", dirname, (CONST char*)CErrno());
+      C_ERROR("can not open directory: %s %s\n", dirname, (CONST char*)CSysError());
       return false;
     } else
       return true;
@@ -734,7 +734,7 @@ DVOID CFileMD5s::do_trim_garbage(CONST text * dirname, ni start_len)
   if (!dir)
   {
     if (ACE_OS::last_error() != ENOENT)
-      C_ERROR("can not open directory: %s %s\n", dirname, (CONST char*)CErrno());
+      C_ERROR("can not open directory: %s %s\n", dirname, (CONST char*)CSysError());
     return;
   }
 
@@ -784,13 +784,13 @@ truefalse CArchiveloaderBase::open(CONST text * filename)
     return false;
   }
 
-  if (!m_file.open_read(filename))
+  if (!m_file.open_nowrite(filename))
     return false;
 
   struct stat sbuf;
-  if (::fstat(m_file.handle(), &sbuf) == -1)
+  if (::fstat(m_file.get_fd(), &sbuf) == -1)
   {
-    C_ERROR("can not get file info @MyBaseArchiveReader::open(), name = %s %s\n", filename, (CONST char*)CErrno());
+    C_ERROR("can not get file info @MyBaseArchiveReader::open(), name = %s %s\n", filename, (CONST char*)CSysError());
     return false;
   }
   m_file_length = sbuf.st_size;
@@ -804,15 +804,15 @@ ni CArchiveloaderBase::read(text * buff, ni buff_len)
 
 ni CArchiveloaderBase::do_read(text * buff, ni buff_len)
 {
-  ni n = ::read(m_file.handle(), buff, buff_len);
+  ni n = ::read(m_file.get_fd(), buff, buff_len);
   if (unlikely(n < 0))
-    C_ERROR("read file %s %s\n", m_file_name.data(), (CONST char*)CErrno());
+    C_ERROR("read file %s %s\n", m_file_name.data(), (CONST char*)CSysError());
   return n;
 }
 
 DVOID CArchiveloaderBase::close()
 {
-  m_file.attach(CUnixFileGuard::INVALID_HANDLE);
+  m_file.bind_fd(CFileGuard::BAD_FD);
   m_file_name.free();
 }
 
@@ -821,7 +821,7 @@ DVOID CArchiveloaderBase::close()
 
 truefalse CArchiveLoader::open(CONST text * filename)
 {
-  if (!super::open(filename))
+  if (!baseclass::open(filename))
     return false;
   return read_header();
 }
@@ -903,7 +903,7 @@ truefalse CArchiveLoader::next()
 
 truefalse CArchiveLoader::eof() CONST
 {
-  return (m_file_length <= (ni)::lseek(m_file.handle(), 0, SEEK_CUR));
+  return (m_file_length <= (ni)::lseek(m_file.get_fd(), 0, SEEK_CUR));
 }
 
 DVOID CArchiveLoader::set_key(CONST text * skey)
@@ -955,10 +955,10 @@ truefalse CArchiveSaverBase::do_write(text * buff, ni buff_len)
   if (unlikely(!buff || buff_len <= 0))
     return true;
 
-  ni n = ::write(m_file.handle(), buff, buff_len);
+  ni n = ::write(m_file.get_fd(), buff, buff_len);
   if (unlikely(n != buff_len))
   {
-    C_ERROR("write file %s %s\n", m_file_name.data(), (CONST char*)CErrno());
+    C_ERROR("write file %s %s\n", m_file_name.data(), (CONST char*)CSysError());
     return false;
   }
   return true;
@@ -966,7 +966,7 @@ truefalse CArchiveSaverBase::do_write(text * buff, ni buff_len)
 
 DVOID CArchiveSaverBase::close()
 {
-  m_file.attach(CUnixFileGuard::INVALID_HANDLE);
+  m_file.bind_fd(CFileGuard::BAD_FD);
   m_file_name.free();
 }
 
@@ -1031,9 +1031,9 @@ truefalse CArchiveSaver::finish()
 
   m_pack_header.data_size = m_data_length;
 
-  if (::lseek(m_file.handle(), 0, SEEK_SET) == -1)
+  if (::lseek(m_file.get_fd(), 0, SEEK_SET) == -1)
   {
-    C_ERROR("fseek on file %s failed %s\n", m_file_name.data(), (CONST char*)CErrno());
+    C_ERROR("fseek on file %s failed %s\n", m_file_name.data(), (CONST char*)CSysError());
     return false;
   }
 
@@ -1285,7 +1285,7 @@ truefalse CDataComp::decompress(CONST text * srcfn, CONST text * destdir, CONST 
 
     if (!CSysFS::create_dir(destdir, _file_name, true, true))
     {
-      C_ERROR("can not mkdir %s/%s %s\n", destdir, _file_name, (CONST char*)CErrno());
+      C_ERROR("can not mkdir %s/%s %s\n", destdir, _file_name, (CONST char*)CSysError());
       return false;
     }
     CMemGuard dest_file_name;
@@ -1328,17 +1328,17 @@ truefalse CCompCombiner::open(CONST text * filename)
 
 DVOID CCompCombiner::close()
 {
-  m_file.attach(CUnixFileGuard::INVALID_HANDLE);
+  m_file.bind_fd(CFileGuard::BAD_FD);
 }
 
 truefalse CCompCombiner::add(CONST text * filename)
 {
-  if (!m_file.valid())
+  if (!m_file.ok())
     return true;
-  CUnixFileGuard src;
-  if (!src.open_read(filename))
+  CFileGuard src;
+  if (!src.open_nowrite(filename))
     return false;
-  truefalse result = CSysFS::copy_file_by_fd(src.handle(), m_file.handle());
+  truefalse result = CSysFS::copy_file_by_fd(src.get_fd(), m_file.get_fd());
   if (!result)
     C_ERROR("MyBZCompositor::add(%s) failed\n", filename);
   return result;
@@ -1438,7 +1438,7 @@ ni CProcBase::handle_input_wait_for_close()
   text buffer[4096];
   ssize_t recv_cnt = m_handler->peer().recv (buffer, 4096);
   //TEMP_FAILURE_RETRY(m_handler->peer().recv (buffer, 4096));
-  ni ret = c_util_translate_tcp_result(recv_cnt);
+  ni ret = c_tools_socket_outcome(recv_cnt);
   if (ret < 0)
     return -1;
   if (ret > 0)
@@ -1485,7 +1485,7 @@ int32_t CProcBase::client_id_index() CONST
 
 //MyBasePacketProcessor//
 
-CFormatProcBase::CFormatProcBase(CHandlerBase * handler): super(handler)
+CFormatProcBase::CFormatProcBase(CHandlerBase * handler): baseclass(handler)
 {
   m_peer_addr[0] = 0;
 }
@@ -1545,7 +1545,7 @@ CMB * CFormatProcBase::make_version_check_request_mb(CONST ni extra)
 
 //MyBSBasePacketProcessor//
 
-CBSProceBase::CBSProceBase(CHandlerBase * handler): super(handler)
+CBSProceBase::CBSProceBase(CHandlerBase * handler): baseclass(handler)
 {
 
 }
@@ -1602,7 +1602,7 @@ truefalse CServerProcBase::ok_to_send(CMB * mb) CONST
 
 CProcBase::OUTPUT CServerProcBase::on_recv_header()
 {
-  CProcBase::OUTPUT result = super::on_recv_header();
+  CProcBase::OUTPUT result = baseclass::on_recv_header();
   if (result != OP_CONTINUE)
     return result;
 
@@ -1708,7 +1708,7 @@ truefalse CClientProcBase::ok_to_send(CMB * mb) CONST
 ni CClientProcBase::on_open()
 {
 
-  if (super::on_open() < 0)
+  if (baseclass::on_open() < 0)
     return -1;
 
   if (g_is_test)
@@ -1732,7 +1732,7 @@ DVOID CClientProcBase::on_close()
 
 CProcBase::OUTPUT CClientProcBase::on_recv_header()
 {
-  CProcBase::OUTPUT result = super::on_recv_header();
+  CProcBase::OUTPUT result = baseclass::on_recv_header();
   if (result != OP_CONTINUE)
     return result;
 
@@ -2061,7 +2061,7 @@ ni CHandlerBase::on_open()
 ni CHandlerBase::open(DVOID * p)
 {
 //  C_DEBUG("MyBaseHandler::open(DVOID * p = %X), this = %X\n", long(p), long(this));
-  if (super::open(p) == -1)
+  if (baseclass::open(p) == -1)
     return -1;
   if (on_open() < 0)
     return -1;
@@ -2081,7 +2081,7 @@ ni CHandlerBase::send_data(CMB * mb)
   }
   m_proc->update_last_activity();
   ni sent_len = mb->length();
-  ni ret = c_util_send_message_block_queue(this, mb, true);
+  ni ret = c_tools_post_mbq(this, mb, true);
   if (ret >= 0)
   {
     if (m_connection_manager)
@@ -2143,12 +2143,12 @@ ni CHandlerBase::handle_close (ACE_HANDLE handle,
   //ctor: this->dynamic_ = ACE_Dynamic::instance ()->is_dynamic ();
   //destroy(): if (this->mod_ == 0 && this->dynamic_ && this->closing_ == false)
   //             delete this;
-  //so do NOT use the normal method: return super::handle_close(handle, close_mask);
+  //so do NOT use the normal method: return baseclass::handle_close(handle, close_mask);
   //for it will cause memory leaks
 //  C_DEBUG("handle_close.3 deleting object (handle = %d, mask=%x)\n", handle, close_mask);
   delete this;
   return 0;
-  //return super::handle_close (handle, close_mask); //do NOT use
+  //return baseclass::handle_close (handle, close_mask); //do NOT use
 }
 
 ni CHandlerBase::handle_output (ACE_HANDLE fd)
@@ -2158,7 +2158,7 @@ ni CHandlerBase::handle_output (ACE_HANDLE fd)
   ACE_Time_Value nowait (ACE_Time_Value::zero);
   while (-1 != this->getq(mb, &nowait))
   {
-    if (c_util_send_message_block(this, mb) < 0)
+    if (c_tools_post_mb(this, mb) < 0)
     {
       mb->release();
 //      reactor()->remove_handler(this, ACE_Event_Handler::WRITE_MASK | ACE_Event_Handler::READ_MASK |
@@ -2245,7 +2245,7 @@ ni CAcceptorBase::start()
   ACE_INET_Addr port_to_listen (m_tcp_port);
   m_connection_manager->unlock();
 
-  ni ret = super::open (port_to_listen, m_dispatcher->reactor(), ACE_NONBLOCK);
+  ni ret = baseclass::open (port_to_listen, m_dispatcher->reactor(), ACE_NONBLOCK);
   if (ret == 0)
     C_INFO(ACE_TEXT ("%s listening on port %d... OK\n"), module_x()->name(), m_tcp_port);
   else if (ret < 0)
@@ -2411,7 +2411,7 @@ ni CConnectorBase::start()
     ACE_Time_Value interval (m_reconnect_interval * 60);
     m_reconnect_timer_id = reactor()->schedule_timer (this, (void*)TIMER_ID_reconnect, interval, interval);
     if (m_reconnect_timer_id < 0)
-      C_ERROR(ACE_TEXT("%s setup reconnect timer failed, %s\n"), name(), (CONST char*)CErrno());
+      C_ERROR(ACE_TEXT("%s setup reconnect timer failed, %s\n"), name(), (CONST char*)CSysError());
   }
 
   if (m_idle_time_as_dead > 0)
@@ -2605,7 +2605,7 @@ truefalse CTaskBase::do_add_task(DVOID * p, ni task_type)
 
   text buff[100];
   snprintf(buff, 100, "command packet (%d) to %s", task_type, name());
-  return c_util_mb_putq(this, mb, buff);
+  return c_tools_mb_putq(this, mb, buff);
 }
 
 DVOID * CTaskBase::get_task(CMB * mb, ni & task_type) CONST
@@ -2650,7 +2650,7 @@ ni CDispatchBase::open (DVOID *)
     ACE_Time_Value interval(m_clock_interval);
     if (m_reactor->schedule_timer(this, (CONST void*)TIMER_ID_BASE, interval, interval) < 0)
     {
-      C_ERROR("setup timer failed %s %s\n", name(), (CONST char*)CErrno());
+      C_ERROR("setup timer failed %s %s\n", name(), (CONST char*)CSysError());
       return -1;
     }
   }
@@ -2787,7 +2787,7 @@ ni CDispatchBase::svc()
     {
       if (errno == EINTR)
         continue;
-      C_INFO(ACE_TEXT ("exiting %s::svc() due to %s\n"), name(), (CONST char*)CErrno());
+      C_INFO(ACE_TEXT ("exiting %s::svc() due to %s\n"), name(), (CONST char*)CSysError());
       break;
     }
     if (!do_schedule_work())

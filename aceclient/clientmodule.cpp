@@ -37,12 +37,12 @@ bool MyPL::load(const char * client_id)
   CMemGuard data_path, fn;
   MyClientApp::data_path(data_path, client_id);
   fn.from_string(data_path.data(), "/plist");
-  CUnixFileGuard fh;
-  fh.error_report(false);
-  if (!fh.open_read(fn.data()))
+  CFileGuard fh;
+  fh.set_print_failure(false);
+  if (!fh.open_nowrite(fn.data()))
     return false;
   char buff[100];
-  int m = ::read(fh.handle(), buff, 100);
+  int m = ::read(fh.get_fd(), buff, 100);
   if (m <= 0)
     return false;
   buff[std::min(99, m)] = 0;
@@ -58,11 +58,11 @@ bool MyPL::save(const char * client_id, const char * s)
   CMemGuard data_path, fn;
   MyClientApp::data_path(data_path, client_id);
   fn.from_string(data_path.data(), "/plist");
-  CUnixFileGuard fh;
+  CFileGuard fh;
   if (fh.open_write(fn.data(), true, true, false, true))
   {
     int m = strlen(s);
-    return m == ::write(fh.handle(), s, m);
+    return m == ::write(fh.get_fd(), s, m);
   }
   return false;
 }
@@ -128,11 +128,11 @@ u_int8_t MyServerID::load(const char * client_id)
   CMemGuard data_path, fn;
   MyClientApp::data_path(data_path, client_id);
   fn.from_string(data_path.data(), "/server.id");
-  CUnixFileGuard fh;
-  if (fh.open_read(fn.data()))
+  CFileGuard fh;
+  if (fh.open_nowrite(fn.data()))
   {
     char buff[32];
-    int m = ::read(fh.handle(), buff, 32);
+    int m = ::read(fh.get_fd(), buff, 32);
     if (m > 0)
     {
       buff[std::min(31, m)] = 0;
@@ -148,12 +148,12 @@ void MyServerID::save(const char * client_id, int server_id)
   CMemGuard data_path, fn;
   MyClientApp::data_path(data_path, client_id);
   fn.from_string(data_path.data(), "/server.id");
-  CUnixFileGuard fh;
+  CFileGuard fh;
   if (fh.open_write(fn.data(), true, true, false, true))
   {
     char buff[32];
     ACE_OS::snprintf(buff, 32, "%d", server_id);
-    ::write(fh.handle(), buff, strlen(buff));
+    ::write(fh.get_fd(), buff, strlen(buff));
   }
 }
 
@@ -766,7 +766,7 @@ void MyConnectIni::update_connect_status(MyConnectIni::CONNECT_STATUS cs)
   std::ofstream ofs(fn.data());
   if (!ofs || ofs.bad())
   {
-    C_ERROR("can not open file %s for writing: %s\n", fn.data(), (const char*)CErrno());
+    C_ERROR("can not open file %s for writing: %s\n", fn.data(), (const char*)CSysError());
     return;
   }
   ofs << (int)cs;
@@ -820,7 +820,7 @@ bool MyFTPClient::download(MyDistInfoFtp * dist_info, const char * server_ip)
   if (dist_info->ftp_md5.data() && *dist_info->ftp_md5.data())
   {
     CMemGuard md5_result;
-    if (!c_util_calculate_file_md5(dist_info->local_file_name.data(), md5_result))
+    if (!c_tools_tally_md5(dist_info->local_file_name.data(), md5_result))
       return false;
     if (ACE_OS::strcmp(md5_result.data(), dist_info->ftp_md5.data()) != 0)
     {
@@ -909,7 +909,7 @@ bool MyFTPClient::login()
 
   if (this->m_connector.connect(m_peer, m_remote_addr, &tv) == -1)
   {
-    C_ERROR("ftp connecting to server %s failed %s\n", m_ftp_server_addr.data(), (const char *)CErrno());
+    C_ERROR("ftp connecting to server %s failed %s\n", m_ftp_server_addr.data(), (const char *)CSysError());
     return false;
   }
 
@@ -1113,7 +1113,7 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
   tv.sec(get_timeout_seconds());
   if (file_con.connect(file_put, ACE_FILE_Addr(localfile), &tv, ACE_Addr::sap_any, 0, flag, S_IRUSR | S_IWUSR) == -1)
   {
-    C_ERROR("ftp failed to open local file %s to save download %s\n", localfile, (const char*)CErrno());
+    C_ERROR("ftp failed to open local file %s to save download %s\n", localfile, (const char*)CSysError());
     return false;
   }
   CFIOGuard g(file_put);
@@ -1135,7 +1135,7 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
 
     if (unlikely(file_put.send_n(file_cache, file_size) != file_size))
     {
-      C_ERROR("ftp write to file %s failed %s\n", localfile, (const char*)CErrno());
+      C_ERROR("ftp write to file %s failed %s\n", localfile, (const char*)CSysError());
       return false;
     }
     all_size += file_size;
@@ -1152,7 +1152,7 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
   if (file_size < 0)
   {
     C_ERROR("ftp read data for file %s from server %s failed %s, completed = %d, ftype=%c, adir=%s\n",
-        filename, m_ftp_server_addr.data(), (const char*)CErrno(), all_size,
+        filename, m_ftp_server_addr.data(), (const char*)CSysError(), all_size,
         m_ftp_info->ftype, m_ftp_info->adir.data() ? m_ftp_info->adir.data() : "");
     return false;
   }
@@ -1551,13 +1551,13 @@ void MyDistInfoFtp::generate_url_ini()
   file.from_string(path.data(), "/index/", adir.data(), "/url.ini");
   t_file.from_string(true_dest_p_path.data(), "/index/", adir.data(), "/url.ini");
   {
-    CUnixFileGuard h;
+    CFileGuard h;
     if (unlikely(!h.open_write(file.data(), true, true, false, false)))
       return;
 
     const char * s = index_file();
-    ::write(h.handle(), s, ACE_OS::strlen(s));
-    fsync(h.handle());
+    ::write(h.get_fd(), s, ACE_OS::strlen(s));
+    fsync(h.get_fd());
   }
   CSysFS::copy_file(file.data(), t_file.data(), true, false);
 
@@ -1566,15 +1566,15 @@ void MyDistInfoFtp::generate_url_ini()
     file.from_string(path.data(), "/index/", adir.data(), "/date.ini");
     t_file.from_string(true_dest_p_path.data(), "/index/", adir.data(), "/date.ini");
     {
-      CUnixFileGuard h;
+      CFileGuard h;
       if (unlikely(!h.open_write(file.data(), true, true, false, false)))
         return;
 
       char buff[50];
-      c_util_generate_time_string(buff, 50, false);
+      c_tools_convert_time_to_text(buff, 50, false);
       buff[8] = 0;
-      ::write(h.handle(), buff, 8);
-      fsync(h.handle());
+      ::write(h.get_fd(), buff, 8);
+      fsync(h.get_fd());
     }
     CSysFS::copy_file(file.data(), t_file.data(), true, false);
   }
@@ -1589,7 +1589,7 @@ void MyDistInfoFtp::generate_update_ini()
   CMemGuard path, file;
   calc_target_parent_path(path, false, false);
   file.from_string(path.data(), "/update.ini");
-  CUnixFileGuard h;
+  CFileGuard h;
   if (unlikely(!h.open_write(file.data(), true, true, false, false)))
     return;
 
@@ -1598,7 +1598,7 @@ void MyDistInfoFtp::generate_update_ini()
   localtime_r(&now, &_tm);
   char buff[100];
   ACE_OS::snprintf(buff, 100, "%02d:%02d;%s", _tm.tm_hour, _tm.tm_min, value.data());
-  ::write(h.handle(), buff, ACE_OS::strlen(buff));
+  ::write(h.get_fd(), buff, ACE_OS::strlen(buff));
 }
 
 bool MyDistInfoFtp::operator < (const MyDistInfoFtp & rhs) const
@@ -1619,11 +1619,11 @@ bool MyDistInfoFtp::generate_dist_id_txt(const CMemGuard & path)
   } else
     ptr = dist_id.data();
 
-  CUnixFileGuard h;
+  CFileGuard h;
   if (unlikely(!h.open_write(fn.data(), true, true, false, false)))
     return false;
-  bool ret = ::write(h.handle(), ptr, 32) == 32;
-  fsync(h.handle());
+  bool ret = ::write(h.get_fd(), ptr, 32) == 32;
+  fsync(h.get_fd());
   return ret;
 }
 
@@ -1815,7 +1815,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const CMemGua
   bool bv = ftype_is_adv(dist_info->ftype);
   if (!CSysFS::create_dir(target_parent_path.data(), true))
   {
-    C_ERROR("can not mkdir(%s) %s\n", target_parent_path.data(), (const char *)CErrno());
+    C_ERROR("can not mkdir(%s) %s\n", target_parent_path.data(), (const char *)CSysError());
     return false;
   }
   CMemGuard target_path;
@@ -1825,7 +1825,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const CMemGua
   int prefix_len = ACE_OS::strlen(target_parent_path.data());
   if (!CSysFS::create_dir_const(target_path.data(), prefix_len, false, true))
   {
-    C_ERROR("can not mkdir(%s) %s\n", target_path.data(), (const char *)CErrno());
+    C_ERROR("can not mkdir(%s) %s\n", target_path.data(), (const char *)CSysError());
     return false;
   }
 
@@ -1841,7 +1841,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const CMemGua
     prefix_len = ACE_OS::strlen(dest_parent_path.data());
     if (!CSysFS::create_dir_const(s_n.data(), prefix_len, false, true))
     {
-      C_ERROR("can not mkdir(%s) %s\n", s_n.data(), (const char *)CErrno());
+      C_ERROR("can not mkdir(%s) %s\n", s_n.data(), (const char *)CSysError());
       return false;
     }
     dist_info->calc_target_path(s_n.data(), dest_path);
@@ -1852,7 +1852,7 @@ bool MyDistFtpFileExtractor::do_extract(MyDistInfoFtp * dist_info, const CMemGua
     dest_path.from_string(dest_parent_path.data(), "/5");
     if (!CSysFS::create_dir_const(dest_path.data(), prefix_len, false, true))
     {
-      C_ERROR("can not mkdir(%s) %s\n", dest_path.data(), (const char *)CErrno());
+      C_ERROR("can not mkdir(%s) %s\n", dest_path.data(), (const char *)CSysError());
       return false;
     }
   }
@@ -2042,7 +2042,7 @@ bool MyDistFtpFileExtractor::syn(MyDistInfoFtp * dist_info)
   CSysFS::delete_dir(po.data(), true);
   if (!CSysFS::create_dir(po.data(), true))
   {
-    C_ERROR("can not mkdir(%s) %s\n", po.data(), (const char *)CErrno());
+    C_ERROR("can not mkdir(%s) %s\n", po.data(), (const char *)CSysError());
     return false;
   }
 
@@ -2208,7 +2208,7 @@ bool MyDistInfoMD5Comparer::compute(MyDistInfoHeader * dist_info_header, CFileMD
   int prefix_len = ACE_OS::strlen(target_parent_path.data());
   if (!CSysFS::create_dir_const(target_path.data(), prefix_len, false, true))
   {
-    C_ERROR("can not mkdir(%s) %s\n", target_path.data(), (const char *)CErrno());
+    C_ERROR("can not mkdir(%s) %s\n", target_path.data(), (const char *)CSysError());
     return false;
   }
 
@@ -2330,7 +2330,7 @@ void MyIpVerReply::init(char * data)
 
 void MyIpVerReply::do_init(CMemGuard & g, char * data, time_t t)
 {
-  c_util_generate_time_string(m_now, 24, false, t);
+  c_tools_convert_time_to_text(m_now, 24, false, t);
   m_now[8] = 0;
 
   if (unlikely(!data || !*data))
@@ -2418,26 +2418,26 @@ void MyIpVerReply::save_to_file(const char * s)
   if (!s || ACE_OS::strlen(s) != 8)
     return;
 
-  CUnixFileGuard f;
+  CFileGuard f;
   CMemGuard file_name;
   get_filename(file_name);
   if (!f.open_write(file_name.data(), true, true, false, true))
     return;
-  if (::write(f.handle(), s, 8) != 8)
-    C_ERROR("write to file %s failed %s\n", file_name.data(), (const char*)CErrno());
+  if (::write(f.get_fd(), s, 8) != 8)
+    C_ERROR("write to file %s failed %s\n", file_name.data(), (const char*)CSysError());
 }
 
 bool MyIpVerReply::load_from_file()
 {
-  CUnixFileGuard f;
+  CFileGuard f;
   CMemGuard file_name;
   get_filename(file_name);
-  if (!f.open_read(file_name.data()))
+  if (!f.open_nowrite(file_name.data()))
     return false;
   char buff[9];
-  if (::read(f.handle(), buff, 8) != 8)
+  if (::read(f.get_fd(), buff, 8) != 8)
   {
-    C_ERROR("read from file %s failed %s\n", file_name.data(), (const char*)CErrno());
+    C_ERROR("read from file %s failed %s\n", file_name.data(), (const char*)CSysError());
     return false;
   }
   buff[8] = 0;
@@ -2683,7 +2683,7 @@ CProcBase::OUTPUT MyClientToDistProcessor::on_recv_packet_i(ACE_Message_Block * 
         if (!mod->click_sent())
         {
           if (!((MyClientToDistHandler *)m_handler)->setup_click_send_timer())
-            C_ERROR("can not set adv click timer %s\n", (const char *)CErrno());
+            C_ERROR("can not set adv click timer %s\n", (const char *)CSysError());
         }
       }
 
@@ -2869,7 +2869,7 @@ void MyClientToDistProcessor::check_offline_report()
     return;
 
   char buff[64], buff2[64];
-  if (unlikely(!c_util_generate_time_string(buff2, 32, false, now) || ! c_util_generate_time_string(buff, 32, false, t)))
+  if (unlikely(!c_tools_convert_time_to_text(buff2, 32, false, now) || ! c_tools_convert_time_to_text(buff, 32, false, t)))
   {
     C_ERROR("mycomutil_generate_time_string failed @MyClientToDistProcessor::check_offline_report()\n");
     return;
@@ -3214,25 +3214,25 @@ void MyDistServerAddrList::save()
 {
   if (m_addr_list_len <= 5)
     return;
-  CUnixFileGuard f;
+  CFileGuard f;
   CMemGuard file_name;
   get_file_name(file_name);
   if (!f.open_write(file_name.data(), true, true, false, true))
     return;
-  if (::write(f.handle(), m_addr_list.data(), m_addr_list_len) != m_addr_list_len)
-    C_ERROR("write to file %s failed %s\n", file_name.data(), (const char*)CErrno());
+  if (::write(f.get_fd(), m_addr_list.data(), m_addr_list_len) != m_addr_list_len)
+    C_ERROR("write to file %s failed %s\n", file_name.data(), (const char*)CSysError());
 }
 
 void MyDistServerAddrList::load()
 {
-  CUnixFileGuard f;
+  CFileGuard f;
   CMemGuard file_name;
   get_file_name(file_name);
-  if (!f.open_read(file_name.data()))
+  if (!f.open_nowrite(file_name.data()))
     return;
   const int BUFF_SIZE = 2048;
   char buff[BUFF_SIZE];
-  int n = ::read(f.handle(), buff, BUFF_SIZE);
+  int n = ::read(f.get_fd(), buff, BUFF_SIZE);
   if (n <= 0)
     return;
   buff[n - 1] = 0;
@@ -3382,7 +3382,7 @@ bool MyClientToDistHandler::setup_timer()
   ACE_Time_Value interval(IP_VER_INTERVAL * 60);
   if (reactor()->schedule_timer(this, (void*)IP_VER_TIMER, interval, interval) < 0)
   {
-    C_ERROR(ACE_TEXT("MyClientToDistHandler setup ip ver timer failed, %s"), (const char*)CErrno());
+    C_ERROR(ACE_TEXT("MyClientToDistHandler setup ip ver timer failed, %s"), (const char*)CSysError());
     return false;
   }
 
@@ -3392,7 +3392,7 @@ bool MyClientToDistHandler::setup_timer()
   ACE_Time_Value interval2(HEART_BEAT_PING_TMP_INTERVAL * 60);
   m_heart_beat_tmp_timer = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TMP_TIMER, interval2, interval2);
   if (m_heart_beat_tmp_timer < 0)
-    C_ERROR(ACE_TEXT("MyClientToDistHandler setup tmp heart beat timer failed, %s"), (const char*)CErrno());
+    C_ERROR(ACE_TEXT("MyClientToDistHandler setup tmp heart beat timer failed, %s"), (const char*)CSysError());
 
   return true;
 }
@@ -3414,7 +3414,7 @@ bool MyClientToDistHandler::setup_heart_beat_timer(int heart_beat_interval)
   m_heart_beat_timer = reactor()->schedule_timer(this, (void*)HEART_BEAT_PING_TIMER, interval, interval);
   if (m_heart_beat_timer < 0)
   {
-    C_ERROR(ACE_TEXT("MyClientToDistHandler setup heart beat timer failed, %s"), (const char*)CErrno());
+    C_ERROR(ACE_TEXT("MyClientToDistHandler setup heart beat timer failed, %s"), (const char*)CSysError());
     return false;
   } else
   {
@@ -3434,7 +3434,7 @@ bool MyClientToDistHandler::setup_click_send_timer()
   ACE_Time_Value interval(delay);
   if (reactor()->schedule_timer(this, (void*)CLICK_SEND_TIMER, interval) < 0)
   {
-    C_ERROR(ACE_TEXT("MyClientToDistHandler setup click send timer failed, %s"), (const char*)CErrno());
+    C_ERROR(ACE_TEXT("MyClientToDistHandler setup click send timer failed, %s"), (const char*)CSysError());
     return false;
   }
 
@@ -4064,7 +4064,7 @@ bool MyClientToDistDispatcher::before_begin()
 
     ACE_Time_Value interval(WATCH_DOG_INTERVAL * 60);
     if (reactor()->schedule_timer(this, (const void*)TIMER_ID_WATCH_DOG, interval, interval) < 0)
-      C_ERROR("setup watch dog timer failed %s %s\n", name(), (const char*)CErrno());
+      C_ERROR("setup watch dog timer failed %s %s\n", name(), (const char*)CSysError());
 
     if (MyClientAppX::instance()->opera_launcher().running())
       start_watch_dog();
@@ -4226,7 +4226,7 @@ void MyHwAlarm::y(char _y)
   {
     ACE_Message_Block * mb = make_hardware_alarm_mb();
     if (likely(mb != NULL))
-      c_util_mb_putq(MyClientAppX::instance()->client_to_dist_module()->dispatcher(), mb, "hw alarm to dist queue");
+      c_tools_mb_putq(MyClientAppX::instance()->client_to_dist_module()->dispatcher(), mb, "hw alarm to dist queue");
   }
 }
 
@@ -4612,7 +4612,7 @@ void MyClientToMiddleHandler::setup_timer()
   ACE_Time_Value interval(TIME_OUT_INTERVAL * 60);
   m_timer_out_timer_id = reactor()->schedule_timer(this, (void*)TIMER_OUT_TIMER, interval);
   if (m_timer_out_timer_id < 0)
-    C_ERROR(ACE_TEXT("MyClientToMiddleHandler setup time out timer failed, %s"), (const char*)CErrno());
+    C_ERROR(ACE_TEXT("MyClientToMiddleHandler setup time out timer failed, %s"), (const char*)CSysError());
 }
 
 MyClientToDistModule * MyClientToMiddleHandler::module_x() const
@@ -4725,7 +4725,7 @@ int MyHttp1991Processor::handle_input()
 {
   if (m_mb == NULL)
     m_mb = CMemPoolX::instance()->get_mb(MAX_COMMAND_LINE_LENGTH);
-  if (c_util_recv_message_block(m_handler, m_mb) < 0)
+  if (c_tools_read_mb(m_handler, m_mb) < 0)
     return -1;
   int len = m_mb->length();
   if (len >= MAX_COMMAND_LINE_LENGTH)
@@ -4889,7 +4889,7 @@ void MyHttp1991Processor::do_command_plc(char * parameter)
     *(y + 15) = 0;
     *(y + 8) = ' ';
     ACE_Message_Block * mb = make_pc_on_off_mb(x == 11, y);
-    c_util_mb_putq(MyClientAppX::instance()->client_to_dist_module()->dispatcher(), mb, "pc on/off to dist queue");
+    c_tools_mb_putq(MyClientAppX::instance()->client_to_dist_module()->dispatcher(), mb, "pc on/off to dist queue");
   }
   else
   {

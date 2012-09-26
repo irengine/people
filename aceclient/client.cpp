@@ -42,7 +42,7 @@ void MyProgramLauncher::kill_instance()
   DIR * dir = opendir("/proc");
   if (!dir)
   {
-    C_ERROR("can not open directory: /proc %s\n", (const char*)CErrno());
+    C_ERROR("can not open directory: /proc %s\n", (const char*)CSysError());
     return;
   }
 
@@ -64,10 +64,10 @@ void MyProgramLauncher::kill_instance()
       ACE_OS::sprintf(buff, "/proc/%d/comm", m);
       if (!CSysFS::exist(buff))
         continue;
-      CUnixFileGuard h;
-      if (!h.open_read(buff))
+      CFileGuard h;
+      if (!h.open_nowrite(buff))
         continue;
-      int count = ::read(h.handle(), buff2, 99);
+      int count = ::read(h.get_fd(), buff2, 99);
       if (count <= 0)
         continue;
       buff2[count] = 0;
@@ -199,11 +199,11 @@ bool MyVLCLauncher::save_file(const char * buff)
   const char * fn = "/tmp/daily/video.txt";
   if (!buff || !*buff)
     return false;
-  CUnixFileGuard h;
+  CFileGuard h;
   if (!h.open_write(fn, true, true, false, true))
     return false;
   int len = ACE_OS::strlen(buff);
-  return ::write(h.handle(), buff, len) == len;
+  return ::write(h.get_fd(), buff, len) == len;
 }
 
 void MyVLCLauncher::init_mode(bool)
@@ -268,7 +268,7 @@ bool MyVLCLauncher::load(CMemGuard & file_list)
   std::ifstream ifs(adv_txt());
   if (!ifs || ifs.bad())
   {
-    C_WARNING("failed to open %s: %s\n", adv_txt(), (const char*)CErrno());
+    C_WARNING("failed to open %s: %s\n", adv_txt(), (const char*)CSysError());
     return false;
   }
 
@@ -348,8 +348,8 @@ bool MyVLCLauncher::parse_line(char * ptr, CMemGuard & file_list, bool fill_opti
       return true;
     hasfile = true;
 
-    if (c_util_string_end_with(token, ".bmp") || c_util_string_end_with(token, ".jpg") ||
-        c_util_string_end_with(token, ".gif") || c_util_string_end_with(token, ".png"))
+    if (c_tools_text_tail_is(token, ".bmp") || c_tools_text_tail_is(token, ".jpg") ||
+        c_tools_text_tail_is(token, ".gif") || c_tools_text_tail_is(token, ".png"))
     {
       //ACE_OS::strncat(cmdline.data(), " fake:///tmp/daily/5/", 63000);
       ACE_OS::strncat(cmdline.data(), " fake://", 63000);
@@ -574,7 +574,7 @@ bool MyClientApp::send_mb_to_dist(ACE_Message_Block * mb)
     return false;
   }
 
-  return c_util_mb_putq(m_client_to_dist_module->dispatcher(), mb, "to client_to_dist service queue");
+  return c_tools_mb_putq(m_client_to_dist_module->dispatcher(), mb, "to client_to_dist service queue");
 }
 
 const CTermVer & MyClientApp::client_version() const
@@ -673,7 +673,7 @@ bool MyClientApp::full_backup(const char * dist_id, const char * client_id)
 
   if (!CSysFS::create_dir(sold.data(), true))
   {
-    C_ERROR("can not mkdir(%s) %s\n", sold.data(), (const char *)CErrno());
+    C_ERROR("can not mkdir(%s) %s\n", sold.data(), (const char *)CSysError());
     return false;
   }
 
@@ -700,11 +700,11 @@ bool MyClientApp::full_restore(const char * dist_id, bool remove_existing, bool 
   if (dist_id && *dist_id)
   {
     src_path.from_string(src_parent_path.data(), "/dist_id.txt");
-    CUnixFileGuard fh;
-    if (fh.open_read(src_path.data()))
+    CFileGuard fh;
+    if (fh.open_nowrite(src_path.data()))
       return false;
     char buff[64];
-    int n = ::read(fh.handle(), buff, 64);
+    int n = ::read(fh.get_fd(), buff, 64);
     if (n <= 1)
       return false;
     buff[n - 1] = 0;
@@ -755,7 +755,7 @@ bool MyClientApp::do_backup_restore(const CMemGuard & src_parent_path, const CMe
   {
     if (!CSysFS::copy_dir(src_path.data(), dest_path.data(), true, syn))
     {
-      C_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)CErrno());
+      C_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)CSysError());
       return false;
     }
   }
@@ -766,7 +766,7 @@ bool MyClientApp::do_backup_restore(const CMemGuard & src_parent_path, const CMe
     dest_path.from_string(dest_parent_path.data(), "/", mfile.data());
     if (!CSysFS::copy_file(src_path.data(), dest_path.data(), true, syn))
     {
-      C_ERROR("failed to copy file (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)CErrno());
+      C_ERROR("failed to copy file (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)CSysError());
       return false;
     }
   }
@@ -779,7 +779,7 @@ bool MyClientApp::do_backup_restore(const CMemGuard & src_parent_path, const CMe
   {
     if (!CSysFS::copy_dir(src_path.data(), dest_path.data(), true, syn))
     {
-      C_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)CErrno());
+      C_ERROR("failed to copy path (%s) to (%s) %s\n", src_path.data(), dest_path.data(), (const char *)CSysError());
       return false;
     }
   }
@@ -815,11 +815,11 @@ bool MyClientApp::get_mfile_from_file(const CMemGuard & parent_path, CMemGuard &
   CMemGuard index_file_name;
   CMemGuard tmp;
   index_file_name.from_string(parent_path.data(), "/", index_frame_file());
-  CUnixFileGuard fh;
+  CFileGuard fh;
   char buff[512];
-  if (!fh.open_read(index_file_name.data()))
+  if (!fh.open_nowrite(index_file_name.data()))
     return false;
-  int n = ::read(fh.handle(), buff, 511);
+  int n = ::read(fh.get_fd(), buff, 511);
   if (n <= 1)
     return false;
   buff[n] = 0;
@@ -855,12 +855,12 @@ bool MyClientApp::do_init()
     C_INFO("trying to read client id from %s\n", const_id_ini);
     while (true)
     {
-      CUnixFileGuard fh;
-      fh.error_report(false);
-      if (fh.open_read(const_id_ini))
+      CFileGuard fh;
+      fh.set_print_failure(false);
+      if (fh.open_nowrite(const_id_ini))
       {
         char buff[64];
-        int n = ::read(fh.handle(), buff, 64);
+        int n = ::read(fh.get_fd(), buff, 64);
         if (n > 0)
         {
           n = std::min(n, 63);
@@ -951,15 +951,15 @@ void MyClientApp::dump_mem_pool_info()
   int chunks;
   if (likely(MyClientToDistHandler::mem_pool() != NULL))
   {
-    chunks = MyClientToDistHandler::mem_pool()->chunks();
-    MyClientToDistHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+    chunks = MyClientToDistHandler::mem_pool()->blocks();
+    MyClientToDistHandler::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
     CApp::print_pool("MyClientToDistHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToDistHandler), chunks);
   }
 
   if (likely(MyClientToMiddleHandler::mem_pool() != NULL))
   {
-    chunks = MyClientToMiddleHandler::mem_pool()->chunks();
-    MyClientToMiddleHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
+    chunks = MyClientToMiddleHandler::mem_pool()->blocks();
+    MyClientToMiddleHandler::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
     CApp::print_pool("MyClientToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToMiddleHandler), chunks);
   }
 
@@ -1007,7 +1007,7 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::CAppMode mode)
     std::ifstream ifs(idfile.c_str(), std::ifstream::in);
     if (!ifs || ifs.bad())
     {
-      C_ERROR("can not open file %s %s\n", idfile.c_str(), (const char *)CErrno());
+      C_ERROR("can not open file %s %s\n", idfile.c_str(), (const char *)CSysError());
       exit(6);
     }
     char id[64];
@@ -1064,7 +1064,7 @@ void MyClientApp::check_prev_extract_task(const char * client_id)
   DIR * dir = opendir(path.data());
   if (!dir)
   {
-    C_ERROR("can not open directory: %s %s\n", path.data(), (const char*)CErrno());
+    C_ERROR("can not open directory: %s %s\n", path.data(), (const char*)CSysError());
     return;
   }
 
@@ -1078,7 +1078,7 @@ void MyClientApp::check_prev_extract_task(const char * client_id)
     if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
       continue;
 
-    if (likely(c_util_string_end_with(entry->d_name, ".mbz")))
+    if (likely(c_tools_text_tail_is(entry->d_name, ".mbz")))
     {
       msrc.from_string(entry->d_name);
       msrc.data()[ACE_OS::strlen(msrc.data()) - ACE_OS::strlen(".mbz")] = 0;

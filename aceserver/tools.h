@@ -1,6 +1,10 @@
 #ifndef tools_h_akjd81pajkjf5
 #define tools_h_akjd81pajkjf5
 
+#include <sys/types.h>
+#include <stddef.h>
+#include <uuid/uuid.h>
+
 #include <ace/Log_Msg.h>
 #include <ace/Message_Block.h>
 #include <ace/SOCK_Stream.h>
@@ -9,19 +13,10 @@
 #include <ace/FILE_IO.h>
 #include <ace/OS_NS_string.h>
 #include <ace/INET_Addr.h>
-#include <uuid/uuid.h>
+
 #include <new>
 #include <vector>
-#include <sys/types.h>
-#include <stddef.h>
-
-#ifndef MY_client_test
-#define MY_client_test
-#endif
-
-#ifndef MY_server_test
-#define MY_server_test
-#endif
+#include <algorithm>
 
 #ifdef __GNUC__
   #define likely(x)       __builtin_expect((x),1)
@@ -53,37 +48,37 @@ typedef ACE_Message_Block CMB;
 
 EXTERN truefalse g_cache;
 
-#define INFO_PREFIX       ACE_TEXT ("(%D %P|%t %N/%l)\n  INFO %I")
+#define INFO_PREFIX        "(%D %P|%t %N/%l)\n  INFO %I"
 #define C_INFO(FMT, ...)     \
         ACE_DEBUG(( LM_INFO,  \
                     INFO_PREFIX FMT, \
                     ## __VA_ARGS__))
 
-#define DEBUG_PREFIX       ACE_TEXT("(%D %P|%t %N/%l)\n  DEBUG  %I")
+#define DEBUG_PREFIX       "(%D %P|%t %N/%l)\n  DEBUG  %I"
 #define C_DEBUG(FMT, ...)     \
         ACE_DEBUG(( LM_DEBUG,  \
                     DEBUG_PREFIX FMT, \
                     ## __VA_ARGS__))
 
-#define WARNING_PREFIX       ACE_TEXT("(%D %P|%t %N/%l)\n  WARN  %I")
+#define WARNING_PREFIX       "(%D %P|%t %N/%l)\n  WARN  %I"
 #define C_WARNING(FMT, ...)     \
         ACE_DEBUG(( LM_WARNING,  \
                     WARNING_PREFIX FMT, \
                     ## __VA_ARGS__))
 
-#define ERROR_PREFIX       ACE_TEXT("(%D %P|%t %N/%l)\n  ERROR  %I")
+#define ERROR_PREFIX       "(%D %P|%t %N/%l)\n  ERROR  %I"
 #define C_ERROR(FMT, ...)     \
         ACE_DEBUG(( LM_ERROR,  \
                     ERROR_PREFIX  FMT, \
                     ## __VA_ARGS__))
 
-#define FATAL_PREFIX       ACE_TEXT("(%D %P|%t %N.%l)\n  FATAL  %I")
+#define FATAL_PREFIX       "(%D %P|%t %N.%l)\n  FATAL  %I"
 #define C_FATAL(FMT, ...)     \
         ACE_DEBUG(( LM_ERROR,  \
                     FATAL_PREFIX  FMT, \
                     ## __VA_ARGS__))
 
-#define ASSERT_PREFIX       ACE_TEXT("(%D %P|%t %N.%l)\n  ASSERT failed %I")
+#define ASSERT_PREFIX       "(%D %P|%t %N.%l)\n  ASSERT failed %I"
 #define __C_ASSERT(FMT, ...)     \
         ACE_DEBUG(( LM_ERROR,  \
                     ASSERT_PREFIX  FMT, \
@@ -108,30 +103,30 @@ EXTERN truefalse g_cache;
   #define C_ASSERT_RETURN (condition, msg, ret) ((DVOID) 0)
 #endif
 
-class CErrno
+class CSysError
 {
 public:
-  CErrno(ni err = ACE_OS::last_error())
+  CSysError(ni x = ACE_OS::last_error())
   {
-    format_message(err);
+    get_text(x);
   }
   operator CONST text *()
   {
-    return buff;
+    return m_data;
   }
+
 private:
-  DVOID format_message(ni err)
+  DVOID get_text(ni error)
   {
-    snprintf(buff, BUFF_LEN, "errno = %d msg = ", err);
-    ni len = strlen(buff);
-    //ACE is using _GNU_SOURCE, so we can not get the POSIX version of strerror_r as per POSIX200112L
-    //using another buffer is needed here, since the GNU version is crapped
-    text temp[BUFF_LEN];
-    CONST text * ret = strerror_r(err, temp, BUFF_LEN);
-    ACE_OS::strsncpy(buff + len, (ret ? ret: "NULL"), BUFF_LEN - len);
+    snprintf(m_data, DATA_LEN, "error = %d msg = ", error);
+    ni len = strlen(m_data);
+    text temp[DATA_LEN];
+    CONST text * i = strerror_r(error, temp, DATA_LEN);
+    ACE_OS::strsncpy(m_data + len, (i ? i: "NULL"), DATA_LEN - len);
   }
-  enum { BUFF_LEN = 256 };
-  text buff[BUFF_LEN];
+
+  enum { DATA_LEN = 256 };
+  text m_data[DATA_LEN];
 };
 
 class CObjDeletor
@@ -187,66 +182,67 @@ public:
   {
     return m_mb;
   }
+
 private:
   CMB * m_mb;
 };
 
-class CUnixFileGuard
+class CFileGuard
 {
 public:
-  enum { INVALID_HANDLE = -1 };
-  CUnixFileGuard(): m_handle(INVALID_HANDLE)
-  { m_error_report = true; }
-  CUnixFileGuard(ni _handle): m_handle(_handle), m_error_report(true)
+  enum { BAD_FD = -1 };
+  CFileGuard(): m_fd(BAD_FD)
+  { m_print_failure = true; }
+  CFileGuard(ni fd): m_fd(fd), m_print_failure(true)
   {}
-  ~CUnixFileGuard()
+  ~CFileGuard()
   {
-    if (m_handle >= 0)
-      close(m_handle);
+    if (m_fd >= 0)
+      close(m_fd);
   }
 
-  truefalse open_read(CONST text * filename)
+  truefalse open_nowrite(CONST text * fn)
   {
-    return do_open(filename, true, false, false, false, false);
+    return open_i(fn, true, false, false, false, false);
   }
 
-  truefalse open_write(CONST text * filename, truefalse create, truefalse truncate, truefalse append, truefalse owned_by_me)
+  truefalse open_write(CONST text * fn, truefalse newf, truefalse zap_content, truefalse add_only, truefalse owned_by_me)
   {
-    return do_open(filename, false, create, truncate, append, owned_by_me);
+    return open_i(fn, false, newf, zap_content, add_only, owned_by_me);
   }
 
-  ni handle() CONST
+  ni get_fd() CONST
   {
-    return m_handle;
+    return m_fd;
   }
-  DVOID attach(ni _handle)
+  DVOID bind_fd(ni h)
   {
-    if (unlikely(m_handle == _handle))
+    if (unlikely(m_fd == h))
       return;
-    if (m_handle >= 0)
-      close(m_handle);
-    m_handle = _handle;
+    if (m_fd >= 0)
+      close(m_fd);
+    m_fd = h;
   }
-  ni detach()
+  ni unbind()
   {
-    ni h = m_handle;
-    m_handle = INVALID_HANDLE;
+    ni h = m_fd;
+    m_fd = BAD_FD;
     return h;
   }
-  truefalse valid() CONST
+  truefalse ok() CONST
   {
-    return m_handle >= 0;
+    return m_fd >= 0;
   }
 
-  DVOID error_report(truefalse b)
+  DVOID set_print_failure(truefalse b)
   {
-    m_error_report = b;
+    m_print_failure = b;
   }
 
 private:
-  truefalse do_open(CONST text * filename, truefalse readonly, truefalse create, truefalse truncate, truefalse append, truefalse owned_by_me);
-  ni  m_handle;
-  truefalse m_error_report;
+  truefalse open_i(CONST text *, truefalse, truefalse, truefalse, truefalse, truefalse);
+  ni  m_fd;
+  truefalse m_print_failure;
 };
 
 
@@ -280,111 +276,106 @@ private:
 template <class ACE_LOCK> class CCachedAllocator: public ACE_Dynamic_Cached_Allocator<ACE_LOCK>
 {
 public:
-  typedef ACE_Dynamic_Cached_Allocator<ACE_LOCK> super;
+  typedef ACE_Dynamic_Cached_Allocator<ACE_LOCK> baseclass;
 
-  CCachedAllocator (size_t n_chunks, size_t chunk_size): super(n_chunks, chunk_size)
+  CCachedAllocator (size_t _blocks, size_t _block_len): baseclass(_blocks, _block_len)
   {
-    m_begin = NULL;
+    m_start = NULL;
     m_end = NULL;
-    m_alloc_count = 0;
-    m_free_count = 0;
-    m_max_in_use_count = 0;
-    m_chunk_size = chunk_size;
-    m_alloc_on_full_count = 0;
-    m_chunks = n_chunks;
+    m_get = 0;
+    m_put = 0;
+    m_peak = 0;
+    m_block_len = _block_len;
+    m_fail = 0;
+    m_blocks = _blocks;
   }
 
-  DVOID setup()
+  DVOID prepare()
   {
-    m_end = super::malloc();
-    super::free(m_end);
-    m_begin = (void*)((char*)m_end - m_chunk_size * (m_chunks - 1)); //close interval
+    m_end = baseclass::malloc();
+    baseclass::free(m_end);
+    m_start = (void*)((char*)m_end - m_block_len * (m_blocks - 1));
   }
 
-  truefalse in_range(DVOID * ptr) CONST
+  truefalse belong_to(DVOID * ptr) CONST
   {
-    return (ptr >= m_begin && ptr <= m_end);
+    return (ptr >= m_start && ptr <= m_end);
   }
 
   virtual ~CCachedAllocator() {}
 
-  virtual DVOID *malloc (size_t nbytes = 0)
+  virtual DVOID *malloc (size_t size = 0)
   {
-    DVOID * result = super::malloc(nbytes);
+    DVOID * p = baseclass::malloc(size);
 
     {
-      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, result));
-      if (result)
+      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, p));
+      if (p)
       {
-        ++m_alloc_count;
-        if (m_alloc_count - m_free_count > m_max_in_use_count)
-          m_max_in_use_count = m_alloc_count - m_free_count;
+        ++m_get;
+        if (m_get - m_put > m_peak)
+          m_peak = m_get - m_put;
       } else
-        ++m_alloc_on_full_count;
+        ++m_fail;
     }
 
-    return result;
+    return p;
   }
 
-  virtual DVOID *calloc (size_t nbytes, text initial_value = '\0')
+  virtual DVOID *calloc (size_t size, text fill = '\0')
   {
-    DVOID * result = super::calloc(nbytes, initial_value);
+    DVOID * p = baseclass::calloc(size, fill);
     {
-      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, result));
-      if (result)
+      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, p));
+      if (p)
       {
-        ++m_alloc_count;
-        if (m_alloc_count - m_free_count > m_max_in_use_count)
-          m_max_in_use_count = m_alloc_count - m_free_count;
+        ++m_get;
+        if (m_get - m_put > m_peak)
+          m_peak = m_get - m_put;
       } else
-        ++m_alloc_on_full_count;
+        ++m_fail;
     }
 
-//    MY_DEBUG(ACE_TEXT("call My_Cached_Allocator.calloc(%d) = %@ from chunk_size = %d\n"),
-//        nbytes, result, m_chunk_size);
-    return result;
+    return p;
   }
-// NOT implemented
-//  virtual DVOID *calloc (size_t n_elem,  size_t elem_size,
-//                        text initial_value = '\0')
   DVOID free (DVOID * p)
   {
     {
       ACE_MT (ACE_GUARD(ACE_LOCK, ace_mon, this->m_mutex));
       if (p != NULL)
-        ++m_free_count;
+        ++m_put;
     }
-    super::free(p);
+    baseclass::free(p);
   }
 
-  DVOID get_usage(long & alloc_count, long &free_count, long & max_in_use_count, long &alloc_on_full_count)
+  DVOID query_stats(long & nGet, long & nPut, long & nPeak, long & nFail)
   {
     ACE_MT (ACE_GUARD(ACE_LOCK, ace_mon, this->m_mutex));
-    alloc_count = m_alloc_count;
-    free_count = m_free_count;
-    max_in_use_count = m_max_in_use_count;
-    alloc_on_full_count = m_alloc_on_full_count;
+    nGet = m_get;
+    nPut = m_put;
+    nPeak = m_peak;
+    nFail = m_fail;
   }
 
-  size_t chunk_size() CONST
+  size_t block_len() CONST
   {
-    return m_chunk_size;
+    return m_block_len;
   }
 
-  ni chunks() CONST
+  ni blocks() CONST
   {
-    return m_chunks;
+    return m_blocks;
   }
 
 private:
   ACE_LOCK m_mutex;
-  size_t m_chunk_size;
-  ni  m_chunks;
-  long m_alloc_count;
-  long m_free_count;
-  long m_max_in_use_count;
-  long m_alloc_on_full_count;
-  DVOID * m_begin;
+  size_t m_block_len;
+  ni  m_blocks;
+  long m_get;
+  long m_put;
+  long m_peak;
+  long m_fail;
+  DVOID * m_start;
   DVOID * m_end;
 };
 
@@ -716,27 +707,26 @@ private:
 #define type_is_multi(type) ((type) == '1')
 #define type_is_all(type) ((type) == '3')
 
-truefalse c_util_mb_putq(ACE_Task<ACE_MT_SYNCH> * target, CMB * mb, CONST text * err_msg);
-int  c_util_send_message_block_queue(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, CMB *mb, truefalse discard);
-int  c_util_recv_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, CMB *mb);
-int  c_util_translate_tcp_result(ssize_t transfer_return_value);
-int  c_util_send_message_block(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * handler, CMB *mb);
-
-truefalse c_util_generate_time_string(text * result_buff, ni buff_len, truefalse full, time_t t = time(NULL));
-truefalse c_util_find_tag_value(text * & ptr, CONST text * tag, text * & value, text terminator);
-truefalse c_util_calculate_file_md5(CONST text * _file, CMemGuard & md5_result);
-size_t c_util_string_hash(CONST text * str);
-truefalse c_util_string_end_with(CONST text * src, CONST text * key);
-DVOID c_util_gen_random_password(text * buff, CONST ni password_len);
-DVOID c_util_string_replace_text(text * s, CONST text src, CONST text dest);
-DVOID c_util_dump_hex(DVOID * ptr, ni len, text * result_buff, ni buff_len);
+truefalse c_tools_mb_putq(ACE_Task<ACE_MT_SYNCH> *, CMB *, CONST text * fail_info);
+int  c_tools_post_mbq(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * , CMB *, truefalse autofree);
+int  c_tools_read_mb(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * , CMB *);
+int  c_tools_socket_outcome(ssize_t o);
+int  c_tools_post_mb(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * , CMB *);
+truefalse c_tools_convert_time_to_text(text * ret, ni ret_size, truefalse full, time_t t = time(NULL));
+truefalse c_tools_locate_key_result(text * & p, CONST text * key, text * & , text mark);
+truefalse c_tools_tally_md5(CONST text * fn, CMemGuard & g);
+size_t c_tools_text_hash(CONST text * s);
+truefalse c_tools_text_tail_is(CONST text * p, CONST text * tail);
+DVOID c_tools_create_rnd_text(text * ret, CONST ni size);
+DVOID c_tools_text_replace(text * s, CONST text src, CONST text dest);
+DVOID c_tools_dump_hex(DVOID * ptr, ni len, text * ret, ni ret_size);
 
 class CStrHasher
 {
 public:
   size_t operator()(CONST text * x) CONST
   {
-    return c_util_string_hash(x);
+    return c_tools_text_hash(x);
   }
 };
 

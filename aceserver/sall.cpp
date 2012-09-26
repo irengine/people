@@ -218,14 +218,14 @@ truefalse MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
   destdir.from_string(CCfgX::instance()->bz_files_path.c_str(), "/", http_dist_request.ver);
   if (!CSysFS::create_dir(destdir.data(), false))
   {
-    C_ERROR("can not create directory %s, %s\n", destdir.data(), (CONST text *)CErrno());
+    C_ERROR("can not create directory %s, %s\n", destdir.data(), (CONST text *)CSysError());
     goto __exit__;
   }
 
   composite_dir.from_string(destdir.data(), "/", composite_path());
   if (!CSysFS::create_dir(composite_dir.data(), false))
   {
-    C_ERROR("can not create directory %s, %s\n", composite_dir.data(), (CONST text *)CErrno());
+    C_ERROR("can not create directory %s, %s\n", composite_dir.data(), (CONST text *)CSysError());
     goto __exit__;
   }
   all_in_one.from_string(composite_dir.data(), "/all_in_one.mbz");
@@ -293,14 +293,14 @@ truefalse MyDistCompressor::do_generate_compressed_files(CONST text * src_path, 
 
   if (!CSysFS::create_dir(dest_path, false))
   {
-    C_ERROR("can not create directory %s, %s\n", dest_path, (CONST text *)CErrno());
+    C_ERROR("can not create directory %s, %s\n", dest_path, (CONST text *)CSysError());
     return false;
   }
 
   DIR * dir = opendir(src_path);
   if (!dir)
   {
-    C_ERROR("can not open directory: %s, %s\n", src_path, (CONST char*)CErrno());
+    C_ERROR("can not open directory: %s, %s\n", src_path, (CONST char*)CSysError());
     return false;
   }
 
@@ -313,7 +313,7 @@ truefalse MyDistCompressor::do_generate_compressed_files(CONST text * src_path, 
   {
     if (!CSysFS::create_dir(dest_path, src_path + prefix_len + 1, false, false))
     {
-      C_ERROR("failed to create dir %s%s %s\n", dest_path, src_path + prefix_len, (CONST char*)CErrno());
+      C_ERROR("failed to create dir %s%s %s\n", dest_path, src_path + prefix_len, (CONST char*)CSysError());
       return false;
     }
   }
@@ -410,7 +410,7 @@ truefalse MyDistMd5Calculator::calculate_all_in_one_ftp_md5(CONST text * dist_id
 {
   CMemGuard filename;
   MyDistCompressor::get_all_in_one_mbz_file_name(dist_id, filename);
-  return c_util_calculate_file_md5(filename.data(), md5_result);
+  return c_tools_tally_md5(filename.data(), md5_result);
 }
 
 
@@ -580,7 +580,7 @@ DVOID MyUnusedPathRemover::check_path(CONST text * path)
   DIR * dir = opendir(path);
   if (!dir)
   {
-    C_ERROR("can not open directory: %s %s\n", path, (CONST char*)CErrno());
+    C_ERROR("can not open directory: %s %s\n", path, (CONST char*)CSysError());
     return;
   }
 
@@ -815,7 +815,7 @@ CONST text * MyLocationModule::name() CONST
 
 //MyHttpProcessor//
 
-MyHttpProcessor::MyHttpProcessor(CHandlerBase * handler): super(handler)
+MyHttpProcessor::MyHttpProcessor(CHandlerBase * handler): baseclass(handler)
 {
 
 }
@@ -893,7 +893,7 @@ truefalse MyHttpProcessor::do_process_input_data()
     return false;
   }
   if (likely(ntype == 1 || ntype == 3))
-    result = (c_util_mb_putq(MyServerAppX::instance()->http_module()->http_service(), m_current_block,
+    result = (c_tools_mb_putq(MyServerAppX::instance()->http_module()->http_service(), m_current_block,
               "http request into target queue @MyHttpProcessor::do_process_input_data()"));
   m_current_block = NULL;
   return result;
@@ -924,7 +924,7 @@ truefalse MyHttpProcessor::do_prio(CMB * mb)
 
   CONST text * CONST_ver = "ver=";
   text * ver = 0;
-  if (!c_util_find_tag_value(packet, CONST_ver, ver, CONST_separator))
+  if (!c_tools_locate_key_result(packet, CONST_ver, ver, CONST_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", CONST_ver);
     return false;
@@ -933,7 +933,7 @@ truefalse MyHttpProcessor::do_prio(CMB * mb)
 
   CONST text * CONST_plist = "plist=";
   text * plist = 0;
-  if (!c_util_find_tag_value(packet, CONST_plist, plist, CONST_separator))
+  if (!c_tools_locate_key_result(packet, CONST_plist, plist, CONST_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", CONST_plist);
     return false;
@@ -1043,56 +1043,56 @@ truefalse MyHttpService::parse_request(CMB * mb, MyHttpDistRequest &http_dist_re
   CONST text CONST_separator = '&';
 
   CONST text * CONST_acode = "acode=";
-  if (!c_util_find_tag_value(packet, CONST_acode, http_dist_request.acode, CONST_separator))
+  if (!c_tools_locate_key_result(packet, CONST_acode, http_dist_request.acode, CONST_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", CONST_acode);
     return false;
   }
 
   CONST text * CONST_ftype = "ftype=";
-  if (!c_util_find_tag_value(packet, CONST_ftype, http_dist_request.ftype, CONST_separator))
+  if (!c_tools_locate_key_result(packet, CONST_ftype, http_dist_request.ftype, CONST_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", CONST_ftype);
     return false;
   }
 
   CONST text * CONST_fdir = "fdir=";
-  if (!c_util_find_tag_value(packet, CONST_fdir, http_dist_request.fdir, CONST_separator))
+  if (!c_tools_locate_key_result(packet, CONST_fdir, http_dist_request.fdir, CONST_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", CONST_fdir);
     return false;
   }
 
   CONST text * CONST_findex = "findex=";
-  if (!c_util_find_tag_value(packet, CONST_findex, http_dist_request.findex, CONST_separator))
+  if (!c_tools_locate_key_result(packet, CONST_findex, http_dist_request.findex, CONST_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", CONST_findex);
     return false;
   }
 
   CONST text * CONST_adir = "adir=";
-  if (!c_util_find_tag_value(packet, CONST_adir, http_dist_request.adir, CONST_separator))
+  if (!c_tools_locate_key_result(packet, CONST_adir, http_dist_request.adir, CONST_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", CONST_adir);
     return false;
   }
 
   CONST text * CONST_aindex = "aindex=";
-  if (!c_util_find_tag_value(packet, CONST_aindex, http_dist_request.aindex, CONST_separator))
+  if (!c_tools_locate_key_result(packet, CONST_aindex, http_dist_request.aindex, CONST_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", CONST_aindex);
     return false;
   }
 
   CONST text * CONST_ver = "ver=";
-  if (!c_util_find_tag_value(packet, CONST_ver, http_dist_request.ver, CONST_separator))
+  if (!c_tools_locate_key_result(packet, CONST_ver, http_dist_request.ver, CONST_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", CONST_ver);
     return false;
   }
 
   CONST text * CONST_type = "type=";
-  if (!c_util_find_tag_value(packet, CONST_type, http_dist_request.type, CONST_separator))
+  if (!c_tools_locate_key_result(packet, CONST_type, http_dist_request.type, CONST_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", CONST_type);
     return false;
@@ -1111,7 +1111,7 @@ truefalse MyHttpService::handle_packet(CMB * _mb)
       return false;
     ni total_len;
     text buff[32];
-    c_util_generate_time_string(buff, 32, true);
+    c_tools_convert_time_to_text(buff, 32, true);
     total_len = strlen(buff) + strlen(http_dist_request.ver) + 8;
     CMB * mb = CMemPoolX::instance()->get_mb_bs(total_len, CONST_BS_DIST_FEEDBACK_CMD);
     text * dest = mb->base() + CBSData::DATA_OFFSET;
@@ -1136,7 +1136,7 @@ truefalse MyHttpService::do_handle_packet(CMB * mb, MyHttpDistRequest & http_dis
     return false;
 
   text password[12];
-  c_util_gen_random_password(password, 12);
+  c_tools_create_rnd_text(password, 12);
   http_dist_request.password = password;
   MyDB & db = MyServerAppX::instance()->db();
 
@@ -1230,7 +1230,7 @@ truefalse MyHttpService::do_handle_packet2(CMB * mb)
 
   CONST text * CONST_ver = "ver=";
   text * ver = 0;
-  if (!c_util_find_tag_value(packet, CONST_ver, ver, CONST_separator))
+  if (!c_tools_locate_key_result(packet, CONST_ver, ver, CONST_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", CONST_ver);
     return false;
@@ -1239,7 +1239,7 @@ truefalse MyHttpService::do_handle_packet2(CMB * mb)
 
   CONST text * CONST_cmd = "cmd=";
   text * cmd = 0;
-  if (!c_util_find_tag_value(packet, CONST_cmd, cmd, CONST_separator))
+  if (!c_tools_locate_key_result(packet, CONST_cmd, cmd, CONST_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", CONST_cmd);
     return false;
@@ -1247,7 +1247,7 @@ truefalse MyHttpService::do_handle_packet2(CMB * mb)
 
   CONST text * CONST_backid = "backid=";
   text * backid = 0;
-  if (!c_util_find_tag_value(packet, CONST_backid, backid, CONST_separator))
+  if (!c_tools_locate_key_result(packet, CONST_backid, backid, CONST_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", CONST_backid);
     return false;
@@ -1255,7 +1255,7 @@ truefalse MyHttpService::do_handle_packet2(CMB * mb)
 
   CONST text * CONST_acode = "acode=";
   text * acode = 0;
-  if (!c_util_find_tag_value(packet, CONST_acode, acode, CONST_separator))
+  if (!c_tools_locate_key_result(packet, CONST_acode, acode, CONST_separator))
   {
     C_ERROR("can not find tag %s at http packet\n", CONST_acode);
     return false;
@@ -1296,7 +1296,7 @@ truefalse MyHttpService::do_calc_md5(MyHttpDistRequest & http_dist_request)
 truefalse MyHttpService::notify_dist_servers()
 {
   CMB * mb = CMemPoolX::instance()->get_mb_cmd(0, CCmdHeader::PT_HAVE_DIST_TASK);
-  return c_util_mb_putq(MyServerAppX::instance()->dist_load_module()->dispatcher(), mb, "dist task notification to target queue");
+  return c_tools_mb_putq(MyServerAppX::instance()->dist_load_module()->dispatcher(), mb, "dist task notification to target queue");
 }
 
 //MyHttpDispatcher//
@@ -1393,7 +1393,7 @@ DVOID MyDistLoadProcessor::dist_loads(MyDistLoads * dist_loads)
 
 CProcBase::OUTPUT MyDistLoadProcessor::on_recv_header()
 {
-  if (super::on_recv_header() == OP_FAIL)
+  if (baseclass::on_recv_header() == OP_FAIL)
     return OP_FAIL;
 
   if (m_packet_header.cmd == CCmdHeader::PT_VER_REQ)
@@ -1552,7 +1552,7 @@ DVOID MyDistLoadDispatcher::send_to_bs(CMB * mb)
   ACE_Time_Value tv(ACE_Time_Value::zero);
   if (m_to_bs_queue.enqueue(mb, &tv) < 0)
   {
-    C_ERROR("MyDistLoadDispatcher::send_to_bs() failed, %s\n", (CONST char*)CErrno());
+    C_ERROR("MyDistLoadDispatcher::send_to_bs() failed, %s\n", (CONST char*)CSysError());
     mb->release();
   }
 }
@@ -1645,7 +1645,7 @@ DVOID MyDistLoadModule::before_finish()
 
 //MyMiddleToBSProcessor//
 
-MyMiddleToBSProcessor::MyMiddleToBSProcessor(CHandlerBase * handler): super(handler)
+MyMiddleToBSProcessor::MyMiddleToBSProcessor(CHandlerBase * handler): baseclass(handler)
 {
 
 }
@@ -1704,7 +1704,7 @@ ni MyMiddleToBSHandler::on_open()
   ACE_Time_Value interval(30);
   if (reactor()->schedule_timer(this, (void*)0, interval, interval) < 0)
   {
-    C_ERROR(ACE_TEXT("MyMiddleToBSHandler setup timer failed, %s"), (CONST char*)CErrno());
+    C_ERROR(ACE_TEXT("MyMiddleToBSHandler setup timer failed, %s"), (CONST char*)CSysError());
     return -1;
   }
 
@@ -1839,7 +1839,7 @@ DVOID MyDistClient::dist_ftp_md5_reply(CONST text * md5list)
   if (unlikely(*md5list == 0))
   {
     text buff[50];
-    c_util_generate_time_string(buff, 50, true);
+    c_tools_convert_time_to_text(buff, 50, true);
     MyServerAppX::instance()->heart_beat_module()->ftp_feedback_submitter().add(
         dist_info->ver.data(),
         dist_info->ftype[0],
@@ -2027,7 +2027,7 @@ CMB * MyDistClient::make_ftp_fb_detail_mb(truefalse bok)
 {
   CMemGuard md5_new;
   text buff[32];
-  c_util_generate_time_string(buff, 32, true);
+  c_tools_convert_time_to_text(buff, 32, true);
   CONST text * detail_files;
   if (type_is_multi(dist_info->type[0]))
   {
@@ -2036,7 +2036,7 @@ CMB * MyDistClient::make_ftp_fb_detail_mb(truefalse bok)
     else
     {
       md5_new.from_string(md5.data());
-      c_util_string_replace_text(md5_new.data(), CCmdHeader::ITEM_SEPARATOR, ':');
+      c_tools_text_replace(md5_new.data(), CCmdHeader::ITEM_SEPARATOR, ':');
       ni len = strlen(md5_new.data());
       if (md5_new.data()[len - 1] == ':')
         md5_new.data()[len - 1] = 0;
@@ -2080,7 +2080,7 @@ truefalse MyDistClient::send_md5()
 
   last_update = time(NULL);
 
-  return c_util_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "file md5 list to dispatcher's queue");
+  return c_tools_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "file md5 list to dispatcher's queue");
 }
 
 truefalse MyDistClient::generate_diff_mbz()
@@ -2111,7 +2111,7 @@ truefalse MyDistClient::generate_diff_mbz()
   }
 
   CMemGuard md5_result;
-  if (!c_util_calculate_file_md5(mdestfile.data(), md5_result))
+  if (!c_tools_tally_md5(mdestfile.data(), md5_result))
   {
     C_ERROR("failed to calculate md5 for file %s\n", mdestfile.data());
     CSysFS::remove(mdestfile.data());
@@ -2132,7 +2132,7 @@ truefalse MyDistClient::send_psp(CONST text c)
   dpe->data[0] = c;
   memcpy(dpe->data + 1, dist_info->ver.data(), data_len - 1);
   last_update = time(NULL);
-  return c_util_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "psp to dispatcher's queue");
+  return c_tools_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "psp to dispatcher's queue");
 }
 
 truefalse MyDistClient::send_ftp()
@@ -2169,7 +2169,7 @@ truefalse MyDistClient::send_ftp()
 
   last_update = time(NULL);
 
-  return c_util_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "file md5 list to dispatcher's queue");
+  return c_tools_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "file md5 list to dispatcher's queue");
 }
 
 
@@ -2502,7 +2502,7 @@ CProcBase::OUTPUT MyHeartBeatProcessor::on_recv_header()
 //          m_packet_header.command, m_packet_header.length, info.data());
 //  }
 
-  if (super::on_recv_header() == OP_FAIL)
+  if (baseclass::on_recv_header() == OP_FAIL)
     return OP_FAIL;
 
   if (m_packet_header.cmd == CCmdHeader::PT_PING)
@@ -2914,7 +2914,7 @@ CProcBase::OUTPUT MyHeartBeatProcessor::do_hardware_alarm_req(CMB * mb)
   }
 
   text datetime[32];
-  c_util_generate_time_string(datetime, 20, true);
+  c_tools_convert_time_to_text(datetime, 20, true);
   m_hardware_alarm_submitter->add_data(m_client_id.to_str(), m_client_id_length, alarm->x, alarm->y, datetime);
   return OP_OK;
 }
@@ -3396,7 +3396,7 @@ DVOID MyVLCEmptySubmitter::add_data(CONST text * client_id, ni id_len, CONST tex
     ret = false;
 
   text datetime[32];
-  c_util_generate_time_string(datetime, 20, true);
+  c_tools_convert_time_to_text(datetime, 20, true);
   if (!m_datetime_block.add(datetime))
     ret = false;
 
@@ -3444,7 +3444,7 @@ truefalse MyHeartBeatService::add_request(CMB * mb, truefalse btail)
     ret = this->msg_queue()->enqueue_head(mb, &tv);
   if (unlikely(ret < 0))
   {
-    C_ERROR("can not put message @MyHeartBeatService::add_request %s\n", (CONST text *)CErrno());
+    C_ERROR("can not put message @MyHeartBeatService::add_request %s\n", (CONST text *)CSysError());
     mb->release();
     return false;
   }
@@ -3457,7 +3457,7 @@ truefalse MyHeartBeatService::add_request_slow(CMB * mb)
   ACE_Time_Value tv(ACE_Time_Value::zero);
   if (unlikely(m_queue2.enqueue_tail(mb, &tv) < 0))
   {
-    C_ERROR("can not put message to MyHeartBeatService.m_queue2 %s\n", (CONST text *)CErrno());
+    C_ERROR("can not put message to MyHeartBeatService.m_queue2 %s\n", (CONST text *)CSysError());
     mb->release();
     return false;
   }
@@ -3604,7 +3604,7 @@ DVOID MyHeartBeatService::do_ftp_file_reply(CMB * mb)
   if ((ftype != 'x') && step != 0)
   {
     text buff[32];
-    c_util_generate_time_string(buff, 32, true);
+    c_tools_convert_time_to_text(buff, 32, true);
     ((MyHeartBeatModule *)module_x())->ftp_feedback_submitter().add(dist_id, ftype, client_id.to_str(), step, ok, buff);
     if (step == '3' && ok == '1')
       ((MyHeartBeatModule *)module_x())->ftp_feedback_submitter().add(dist_id, ftype, client_id.to_str(), '4', ok, buff);
@@ -3791,7 +3791,7 @@ truefalse MyHeartBeatDispatcher::before_begin()
     ACE_Time_Value interval(CLOCK_TICK_HEART_BEAT);
     if (reactor()->schedule_timer(this, (CONST void*)TIMER_ID_HEART_BEAT, interval, interval) < 0)
     {
-      C_ERROR("setup heart beat timer failed %s %s\n", name(), (CONST char*)CErrno());
+      C_ERROR("setup heart beat timer failed %s %s\n", name(), (CONST char*)CSysError());
       return false;
     }
   }
@@ -3800,7 +3800,7 @@ truefalse MyHeartBeatDispatcher::before_begin()
     ACE_Time_Value interval(CLOCK_TICK_IP_VER);
     if (reactor()->schedule_timer(this, (CONST void*)TIMER_ID_IP_VER, interval, interval) < 0)
     {
-      C_ERROR("setup heart beat timer failed %s %s\n", name(), (CONST char*)CErrno());
+      C_ERROR("setup heart beat timer failed %s %s\n", name(), (CONST char*)CSysError());
       return false;
     }
   }
@@ -3809,7 +3809,7 @@ truefalse MyHeartBeatDispatcher::before_begin()
     ACE_Time_Value interval(CLOCK_TICK_FTP_FEEDBACK);
     if (reactor()->schedule_timer(this, (CONST void*)TIMER_ID_FTP_FEEDBACK, interval, interval) < 0)
     {
-      C_ERROR("setup ftp feedback timer failed %s %s\n", name(), (CONST char*)CErrno());
+      C_ERROR("setup ftp feedback timer failed %s %s\n", name(), (CONST char*)CSysError());
       return false;
     }
   }
@@ -3818,7 +3818,7 @@ truefalse MyHeartBeatDispatcher::before_begin()
     ACE_Time_Value interval(CLOCK_TICK_DIST_SERVICE * 60);
     if (reactor()->schedule_timer(this, (CONST void*)TIMER_ID_DIST_SERVICE, interval, interval) < 0)
     {
-      C_ERROR("setup heart beat timer failed %s %s\n", name(), (CONST char*)CErrno());
+      C_ERROR("setup heart beat timer failed %s %s\n", name(), (CONST char*)CSysError());
       return false;
     }
   }
@@ -3827,7 +3827,7 @@ truefalse MyHeartBeatDispatcher::before_begin()
     ACE_Time_Value interval(CLOCK_TICK_ADV_CLICK * 60);
     if (reactor()->schedule_timer(this, (CONST void*)TIMER_ID_ADV_CLICK, interval, interval) < 0)
     {
-      C_ERROR("setup adv click timer failed %s %s\n", name(), (CONST char*)CErrno());
+      C_ERROR("setup adv click timer failed %s %s\n", name(), (CONST char*)CSysError());
       return false;
     }
   }
@@ -3922,7 +3922,7 @@ DVOID MyHeartBeatModule::before_finish()
 
 //MyDistToBSProcessor//
 
-MyDistToBSProcessor::MyDistToBSProcessor(CHandlerBase * handler): super(handler)
+MyDistToBSProcessor::MyDistToBSProcessor(CHandlerBase * handler): baseclass(handler)
 {
   m_handler->msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
@@ -3936,7 +3936,7 @@ CProcBase::OUTPUT MyDistToBSProcessor::on_recv_packet_i(CMB * mb)
 {
   CMBGuard guard(mb);
 
-  if (super::on_recv_packet_i(mb) != OP_OK)
+  if (baseclass::on_recv_packet_i(mb) != OP_OK)
     return OP_FAIL;
   CBSData * bspacket = (CBSData *) mb->base();
   if (memcmp(bspacket->command, CONST_BS_IP_VER_CMD, sizeof(bspacket->command)) == 0)
@@ -3979,7 +3979,7 @@ DVOID MyDistToBSProcessor::process_ip_ver_reply_one(text * item)
     CCmdExt * dpe = (CCmdExt *) mb->base();
     memcpy(dpe->data, data, len);
     dpe->signature = index;
-    c_util_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "ip ver reply to dispatcher's queue");
+    c_tools_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "ip ver reply to dispatcher's queue");
   } else
   {
     if (index >= 0)
@@ -3987,7 +3987,7 @@ DVOID MyDistToBSProcessor::process_ip_ver_reply_one(text * item)
       CMB * mb = CMemPoolX::instance()->get_mb_cmd(0, CCmdHeader::PT_DISCONNECT_INTERNAL);
       CCmdExt * dpe = (CCmdExt *) mb->base();
       dpe->signature = index;
-      c_util_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "disconnect internal to dispatcher's queue");
+      c_tools_mb_putq(MyServerAppX::instance()->heart_beat_module()->dispatcher(), mb, "disconnect internal to dispatcher's queue");
     }
   }
 }
@@ -4031,7 +4031,7 @@ ni MyDistToBSHandler::on_open()
   ACE_Time_Value interval(30);
   if (reactor()->schedule_timer(this, (void*)0, interval, interval) < 0)
   {
-    C_ERROR(ACE_TEXT("MyDistToBSHandler setup timer failed, %s"), (CONST char*)CErrno());
+    C_ERROR(ACE_TEXT("MyDistToBSHandler setup timer failed, %s"), (CONST char*)CSysError());
     return -1;
   }
 
@@ -4103,7 +4103,7 @@ MyDistToMiddleProcessor::MyDistToMiddleProcessor(CHandlerBase * handler): CClien
 
 ni MyDistToMiddleProcessor::on_open()
 {
-  if (super::on_open() < 0)
+  if (baseclass::on_open() < 0)
     return -1;
 
   ACE_INET_Addr local_addr;
@@ -4115,7 +4115,7 @@ ni MyDistToMiddleProcessor::on_open()
 
 CProcBase::OUTPUT MyDistToMiddleProcessor::on_recv_header()
 {
-  CProcBase::OUTPUT result = super::on_recv_header();
+  CProcBase::OUTPUT result = baseclass::on_recv_header();
   if (result != OP_CONTINUE)
     return OP_FAIL;
 
@@ -4286,7 +4286,7 @@ DVOID MyDistToMiddleHandler::setup_timer()
   ACE_Time_Value interval(LOAD_BALANCE_REQ_INTERVAL * 60);
   m_load_balance_req_timer_id = reactor()->schedule_timer(this, (void*)LOAD_BALANCE_REQ_TIMER, tv_start, interval);
   if (m_load_balance_req_timer_id < 0)
-    C_ERROR(ACE_TEXT("MyDistToMiddleHandler setup load balance req timer failed, %s"), (CONST char*)CErrno());
+    C_ERROR(ACE_TEXT("MyDistToMiddleHandler setup load balance req timer failed, %s"), (CONST char*)CSysError());
 }
 
 MyDistToMiddleModule * MyDistToMiddleHandler::module_x() CONST
@@ -4421,7 +4421,7 @@ DVOID MyDistToMiddleDispatcher::send_to_bs(CMB * mb)
 
 DVOID MyDistToMiddleDispatcher::send_to_middle(CMB * mb)
 {
-  c_util_mb_putq(this, mb, "@ MyDistToMiddleDispatcher::send_to_middle");
+  c_tools_mb_putq(this, mb, "@ MyDistToMiddleDispatcher::send_to_middle");
 }
 
 DVOID MyDistToMiddleDispatcher::before_finish()

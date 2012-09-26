@@ -70,7 +70,7 @@ truefalse MyServerApp::dist_put_to_service(CMB * mb)
     return false;
   }
 
-  return c_util_mb_putq(m_heart_beat_module->service(), mb, "to service's queue");
+  return c_tools_mb_putq(m_heart_beat_module->service(), mb, "to service's queue");
 }
 
 truefalse MyServerApp::before_begin()
@@ -93,77 +93,77 @@ DVOID MyServerApp::dump_mem_pool_info()
     ACE_DEBUG((LM_INFO, "    Memory Pool Disabled\n"));
     goto _exit_;
   }
-  ni chunks;
+  ni blocks;
   //start of dist server stuff
   if (MyHeartBeatHandler::mem_pool())
   {
-    chunks = MyHeartBeatHandler::mem_pool()->chunks();
-    MyHeartBeatHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyHeartBeatHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatHandler), chunks);
+    blocks = MyHeartBeatHandler::mem_pool()->blocks();
+    MyHeartBeatHandler::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
+    CApp::print_pool("MyHeartBeatHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatHandler), blocks);
   }
 
   if (MyHeartBeatProcessor::mem_pool())
   {
-    chunks = MyHeartBeatProcessor::mem_pool()->chunks();
-    MyHeartBeatProcessor::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyHeartBeatProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatProcessor), chunks);
+    blocks = MyHeartBeatProcessor::mem_pool()->blocks();
+    MyHeartBeatProcessor::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
+    CApp::print_pool("MyHeartBeatProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatProcessor), blocks);
   }
 
   if (MyDistToBSHandler::mem_pool())
   {
-    chunks = MyDistToBSHandler::mem_pool()->chunks();
-    MyDistToBSHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyDistToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToBSHandler), chunks);
+    blocks = MyDistToBSHandler::mem_pool()->blocks();
+    MyDistToBSHandler::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
+    CApp::print_pool("MyDistToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToBSHandler), blocks);
   }
 
   if (MyDistToMiddleHandler::mem_pool())
   {
-    chunks = MyDistToMiddleHandler::mem_pool()->chunks();
-    MyDistToMiddleHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyDistToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToMiddleHandler), chunks);
+    blocks = MyDistToMiddleHandler::mem_pool()->blocks();
+    MyDistToMiddleHandler::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
+    CApp::print_pool("MyDistToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToMiddleHandler), blocks);
   }
 
   //start of middle server stuff
   if (MyLocationHandler::mem_pool())
   {
-    chunks = MyLocationHandler::mem_pool()->chunks();
-    MyLocationHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyLocationHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationHandler), chunks);
+    blocks = MyLocationHandler::mem_pool()->blocks();
+    MyLocationHandler::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
+    CApp::print_pool("MyLocationHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationHandler), blocks);
   }
 
   if (MyLocationProcessor::mem_pool())
   {
-    chunks = MyLocationProcessor::mem_pool()->chunks();
-    MyLocationProcessor::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyLocationProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationProcessor), chunks);
+    blocks = MyLocationProcessor::mem_pool()->blocks();
+    MyLocationProcessor::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
+    CApp::print_pool("MyLocationProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationProcessor), blocks);
   }
 
   if (MyHttpHandler::mem_pool())
   {
-    chunks = MyHttpHandler::mem_pool()->chunks();
-    MyHttpHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyHttpHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpHandler), chunks);
+    blocks = MyHttpHandler::mem_pool()->blocks();
+    MyHttpHandler::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
+    CApp::print_pool("MyHttpHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpHandler), blocks);
   }
 
   if (MyHttpProcessor::mem_pool())
   {
-    chunks = MyHttpProcessor::mem_pool()->chunks();
-    MyHttpProcessor::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyHttpProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpProcessor), chunks);
+    blocks = MyHttpProcessor::mem_pool()->blocks();
+    MyHttpProcessor::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
+    CApp::print_pool("MyHttpProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpProcessor), blocks);
   }
 
   if (MyDistLoadHandler::mem_pool())
   {
-    chunks = MyDistLoadHandler::mem_pool()->chunks();
-    MyDistLoadHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyDistLoadHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistLoadHandler), chunks);
+    blocks = MyDistLoadHandler::mem_pool()->blocks();
+    MyDistLoadHandler::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
+    CApp::print_pool("MyDistLoadHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistLoadHandler), blocks);
   }
 
   if (MyMiddleToBSHandler::mem_pool())
   {
-    chunks = MyMiddleToBSHandler::mem_pool()->chunks();
-    MyMiddleToBSHandler::mem_pool()->get_usage(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyMiddleToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyMiddleToBSHandler), chunks);
+    blocks = MyMiddleToBSHandler::mem_pool()->blocks();
+    MyMiddleToBSHandler::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
+    CApp::print_pool("MyMiddleToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyMiddleToBSHandler), blocks);
   }
 
   CMemPoolX::instance()->print_info();

@@ -224,7 +224,7 @@ public:
 protected:
   ni do_read(text * buff, ni buff_len);
 
-  CUnixFileGuard m_file;
+  CFileGuard m_file;
   CMemGuard m_file_name;
   ni m_file_length;
 };
@@ -247,7 +247,7 @@ public:
 class CArchiveLoader: public CArchiveloaderBase
 {
 public:
-  typedef CArchiveloaderBase super;
+  typedef CArchiveloaderBase baseclass;
 
   virtual truefalse open(CONST text * filename);
   virtual ni read(text * buff, ni buff_len);
@@ -279,7 +279,7 @@ protected:
   truefalse do_open();
   truefalse do_write(text *, ni);
 
-  CUnixFileGuard m_file;
+  CFileGuard m_file;
   CMemGuard m_file_name;
 };
 
@@ -287,7 +287,7 @@ class CArchiveSaver: public CArchiveSaverBase
 {
 public:
   enum { ENCRYPT_DATA_LENGTH = 4096 };
-  typedef CArchiveSaverBase super;
+  typedef CArchiveSaverBase baseclass;
 
   virtual truefalse write(text * buff, ni buff_len);
   truefalse start(CONST text * filename, ni prefix_len = 0);
@@ -341,13 +341,13 @@ public:
   DVOID close();
 
 private:
-  CUnixFileGuard m_file;
+  CFileGuard m_file;
 };
 
 class CHandlerBase: public ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH>
 {
 public:
-  typedef ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> super;
+  typedef ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> baseclass;
   CHandlerBase(CConnectionManagerBase * xptr = NULL);
   virtual ~CHandlerBase();
   DVOID parent(DVOID * p)
@@ -503,7 +503,7 @@ protected:
 class CProcRemoteAccessBase: public CProcBase
 {
 public:
-  typedef CProcBase super;
+  typedef CProcBase baseclass;
   enum { MAX_COMMAND_LINE_LENGTH = 4096 };
 
   CProcRemoteAccessBase(CHandlerBase * handler);
@@ -530,7 +530,7 @@ private:
 template <typename T> class CFormattedProcBase: public CProcBase
 {
 public:
-  typedef CProcBase super;
+  typedef CProcBase baseclass;
 
   CFormattedProcBase (CHandlerBase * handler): CProcBase(handler)
   {
@@ -596,7 +596,7 @@ protected:
         sizeof(m_packet_header) - m_read_next_offset);
   //      TEMP_FAILURE_RETRY(m_handler->peer().recv((char*)&m_packet_header + m_read_next_offset,
   //      sizeof(m_packet_header) - m_read_next_offset));
-    ni ret = c_util_translate_tcp_result(recv_cnt);
+    ni ret = c_tools_socket_outcome(recv_cnt);
     if (ret <= 0)
       return ret;
     m_read_next_offset += recv_cnt;
@@ -642,7 +642,7 @@ protected:
       }
     }
     update_last_activity();
-    return c_util_recv_message_block(m_handler, m_current_block);
+    return c_tools_read_mb(m_handler, m_current_block);
   }
 
   ni handle_req()
@@ -698,7 +698,7 @@ protected:
 class CFormatProcBase: public CFormattedProcBase<CCmdHeader>
 {
 public:
-  typedef CFormattedProcBase<CCmdHeader> super;
+  typedef CFormattedProcBase<CCmdHeader> baseclass;
 
   CFormatProcBase(CHandlerBase * handler);
   virtual DVOID get_sinfo(CMemGuard & info) CONST;
@@ -718,7 +718,7 @@ protected:
 class CBSProceBase: public CFormattedProcBase<CBSData>
 {
 public:
-  typedef CFormattedProcBase<CBSData> super;
+  typedef CFormattedProcBase<CBSData> baseclass;
   CBSProceBase(CHandlerBase * handler);
 
 protected:
@@ -731,7 +731,7 @@ protected:
 class CServerProcBase: public CFormatProcBase
 {
 public:
-  typedef CFormatProcBase super;
+  typedef CFormatProcBase baseclass;
   CServerProcBase(CHandlerBase * handler);
   virtual ~CServerProcBase();
   virtual CONST text * name() CONST;
@@ -749,7 +749,7 @@ protected:
 class CClientProcBase: public CFormatProcBase
 {
 public:
-  typedef CFormatProcBase super;
+  typedef CFormatProcBase baseclass;
 
   CClientProcBase(CHandlerBase * handler);
   virtual ~CClientProcBase();
@@ -770,17 +770,17 @@ private:
 class CSockBridge: public ACE_SOCK_ACCEPTOR
 {
 public:
-  typedef ACE_SOCK_ACCEPTOR super;
+  typedef ACE_SOCK_ACCEPTOR baseclass;
   ni open (CONST ACE_Addr &local_sap, ni reuse_addr=0, ni protocol_family=PF_UNSPEC, ni backlog= 128, ni protocol=0)
   {
-    return super::open(local_sap, reuse_addr, protocol_family, backlog, protocol);
+    return baseclass::open(local_sap, reuse_addr, protocol_family, backlog, protocol);
   }
 };
 
 class CAcceptorBase: public ACE_Acceptor<CHandlerBase, CSockBridge>
 {
 public:
-  typedef ACE_Acceptor<CHandlerBase, CSockBridge>  super;
+  typedef ACE_Acceptor<CHandlerBase, CSockBridge>  baseclass;
   CAcceptorBase(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager);
   virtual ~CAcceptorBase();
   virtual ni handle_timeout (CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
@@ -817,7 +817,7 @@ protected:
 class CConnectorBase: public ACE_Connector<CHandlerBase, ACE_SOCK_CONNECTOR>
 {
 public:
-  typedef ACE_Connector<CHandlerBase, ACE_SOCK_CONNECTOR> super;
+  typedef ACE_Connector<CHandlerBase, ACE_SOCK_CONNECTOR> baseclass;
   enum { BATCH_CONNECT_NUM = 100 };
 
   CConnectorBase(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager);
