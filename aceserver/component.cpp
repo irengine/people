@@ -1,510 +1,491 @@
 #include "component.h"
 #include "app.h"
 
-CTermSNs * g_client_ids = NULL;
+CTermSNs * g_term_sns = NULL;
 
-//MyClientVerson//
 
 CTermVer::CTermVer()
 {
   init(0, 0);
 }
 
-CTermVer::CTermVer(u_int8_t major, u_int8_t minor)
+CTermVer::CTermVer(u8 v1, u8 v2)
 {
-  init(major, minor);
+  init(v1, v2);
 }
 
-DVOID CTermVer::init(u_int8_t major, u_int8_t minor)
+DVOID CTermVer::init(u8 v1, u8 v2)
 {
-  m_major = major;
-  m_minor = minor;
+  m_v1 = v1;
+  m_v2 = v2;
   prepare_buff();
 }
 
 DVOID CTermVer::prepare_buff()
 {
-  snprintf(m_data, DATA_LEN, "%hhu.%hhu", m_major, m_minor);
+  snprintf(m_data, DATA_LEN, "%hhu.%hhu", m_v1, m_v2);
 }
 
 
-truefalse CTermVer::from_string(CONST text * s)
+truefalse CTermVer::init(CONST text * s)
 {
   if (unlikely(!s || !*s))
     return false;
-  ni major, minor;
-  sscanf(s, "%d.%d", &major, &minor);
-  if (major > 255 || major < 0 || minor > 255 || minor < 0)
+  ni v1, v2;
+  sscanf(s, "%d.%d", &v1, &v2);
+  if (v1 > 255 || v1 < 0 || v2 > 255 || v2 < 0)
     return false;
-  m_major = (u_int8_t)major;
-  m_minor = (u_int8_t)minor;
+  m_v1 = (u8)v1;
+  m_v2 = (u8)v2;
   prepare_buff();
   return true;
 }
 
-CONST text * CTermVer::to_string() CONST
+CONST text * CTermVer::to_text() CONST
 {
   return m_data;
 }
 
-truefalse CTermVer::operator < (CONST CTermVer & rhs)
+truefalse CTermVer::operator < (CONST CTermVer & o)
 {
-  if (m_major < rhs.m_major)
+  if (m_v1 < o.m_v1)
     return true;
-  else if (m_major > rhs.m_major)
+  else if (m_v1 > o.m_v1)
     return false;
   else
-    return (m_minor < rhs.m_minor);
+    return (m_v2 < o.m_v2);
 }
 
 
-//MyMfileSplitter//
 
-CMfileSplit::CMfileSplit()
+CDirConverter::CDirConverter()
 {
 
 }
 
-truefalse CMfileSplit::init(CONST text * mfile)
+truefalse CDirConverter::prepare(CONST text * mf)
 {
-  if (!mfile || !*mfile)
+  if (!mf || !*mf)
     return true;
-  m_mfile.from_string(mfile);
-  m_path.from_string(mfile);
-  text * ptr = strrchr(m_path.data(), '.');
-  if (unlikely(!ptr))
+  m_value.init(mf);
+  m_dir.init(mf);
+  text * p = strrchr(m_dir.get_ptr(), '.');
+  if (unlikely(!p))
   {
-    C_ERROR("bad file name @MyMfileSplitter::init(%s)\n", mfile);
+    C_ERROR("bad param(%s)\n", mf);
     return false;
   }
   else
-    *ptr = 0;
+    *p = 0;
   return true;
 }
 
-CONST text * CMfileSplit::path() CONST
+CONST text * CDirConverter::dir() CONST
 {
-  return m_path.data();
+  return m_dir.get_ptr();
 }
 
-CONST text * CMfileSplit::mfile() CONST
+CONST text * CDirConverter::value() CONST
 {
-  return m_mfile.data();
+  return m_value.get_ptr();
 }
 
-CONST text * CMfileSplit::translate(CONST text * src)
+CONST text * CDirConverter::convert(CONST text * src)
 {
-  if (!m_path.data())
+  if (!m_dir.get_ptr())
     return src;
 
   if (unlikely(!src))
     return NULL;
 
-  CONST text * ptr = strchr(src, '/');
-  if (unlikely(!ptr))
-    return m_mfile.data();
+  CONST text * p = strchr(src, '/');
+  if (unlikely(!p))
+    return m_value.get_ptr();
   else
   {
-    m_translated_name.from_string(m_path.data(), ptr);
-    return m_translated_name.data();
+    m_value_converted.init(m_dir.get_ptr(), p);
+    return m_value_converted.get_ptr();
   }
 }
 
 
-//MyClientInfo//
 
 CTermData::CTermData()
 {
-  active = false;
-  expired = false;
-  switched = false;
-  set_password(NULL);
+  connected = false;
+  invalid = false;
+  server_changed = false;
+  set_download_auth(NULL);
 }
 
-CTermData::CTermData(CONST CNumber & id, CONST text * _ftp_password, truefalse _expired): term_sn(id)
+CTermData::CTermData(CONST CNumber & sn, CONST text * auth, truefalse v_invalid): term_sn(sn)
 {
-  active = false;
-  expired = _expired;
-  switched = false;
-  set_password(_ftp_password);
+  connected = false;
+  invalid = v_invalid;
+  server_changed = false;
+  set_download_auth(auth);
 }
 
-DVOID CTermData::set_password(CONST text * _ftp_password)
+DVOID CTermData::set_download_auth(CONST text * auth)
 {
-  if (!_ftp_password || !*_ftp_password)
+  if (!auth || !*auth)
   {
-    password[0] = 0;
-    password_len = 0;
+    download_auth[0] = 0;
+    download_auth_len = 0;
     return;
   }
 
-  ACE_OS::strsncpy(password, _ftp_password, PWD_SIZE);
-  password_len  = strlen(password);
+  ACE_OS::strsncpy(download_auth, auth, AUTH_SIZE);
+  download_auth_len  = strlen(download_auth);
 }
 
 
-//MyClientIDTable//
+
 
 CTermSNs::CTermSNs()
 {
-  m_last_sequence = 0;
+  m_prev_no = 0;
 }
 
 CTermSNs::~CTermSNs()
 {
-  m_table.clear();
-  m_map.clear();
+  m_SNs.clear();
+  m_fast_locater.clear();
 }
 
-truefalse CTermSNs::have(CONST CNumber & id)
+truefalse CTermSNs::have(CONST CNumber & sn)
 {
-  return (index_of(id) >= 0);
+  return (find_location(sn) >= 0);
 }
 
-DVOID CTermSNs::add_i(CONST CNumber & id, CONST text *ftp_password, truefalse expired)
+DVOID CTermSNs::append_new(CONST CNumber & sn, CONST text * auth, truefalse v_invalid)
 {
-  if (index_of_i(id) >= 0)
+  if (do_locate(sn) >= 0)
     return;
-  CTermData info(id, ftp_password, expired);
-  m_table.push_back(info);
-  m_map[id] = m_table.size() - 1;
+  CTermData info(sn, auth, v_invalid);
+  m_SNs.push_back(info);
+  m_fast_locater[sn] = m_SNs.size() - 1;
 }
 
-DVOID CTermSNs::add(CONST CNumber &id)
+DVOID CTermSNs::append(CONST CNumber & sn)
 {
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
-  add_i(id, NULL, false);
+  append_new(sn, NULL, false);
 }
 
-DVOID CTermSNs::add(CONST text * str_id, CONST text *ftp_password, truefalse expired)
+DVOID CTermSNs::append(CONST text * sn, CONST text * auth, truefalse _invalid)
 {
-  if (unlikely(!str_id || !*str_id))
+  if (unlikely(!sn || !*sn))
     return;
-  while (*str_id == ' ')
-    str_id++;
-  if (!*str_id)
+  while (*sn == ' ')
+    sn++;
+  if (!*sn)
     return;
-  CNumber id(str_id);
-  id.rtrim();
+  CNumber l_x(sn);
+  l_x.rtrim();
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
-  add_i(id, ftp_password, expired);
+  append_new(l_x, auth, _invalid);
 }
 
-DVOID CTermSNs::add_batch(text * idlist)
+DVOID CTermSNs::append_lot(text * s)
 {
-  if (!idlist)
+  if (!s)
     return;
-  CONST text * CONST_seperator = ";\r\n\t ";
-  text *str, *token, *saveptr;
+  CONST text * CONST_mark = ";\r\n\t ";
+  text * l_ptr, * l_val, * l_tmp;
 
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
-  for (str = idlist; ; str = NULL)
+  for (l_ptr = s; ; l_ptr = NULL)
   {
-    token = strtok_r(str, CONST_seperator, &saveptr);
-    if (token == NULL)
+    l_val = strtok_r(l_ptr, CONST_mark, &l_tmp);
+    if (l_val == NULL)
       break;
-    if (!*token)
+    if (!*l_val)
       continue;
-    CNumber id(token);
-    add_i(id, NULL, false);
+    CNumber sn(l_val);
+    append_new(sn, NULL, false);
   }
 }
 
-ni CTermSNs::index_of(CONST CNumber & id)
+ni CTermSNs::find_location(CONST CNumber & sn)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, -1);
-  return index_of_i(id);
+  return do_locate(sn);
 }
 
-ni CTermSNs::index_of_i(CONST CNumber & id, CTermSNs_map::iterator * pIt)
+ni CTermSNs::do_locate(CONST CNumber & sn, CTermSNs_map::iterator * v_ptr)
 {
-  CTermSNs_map::iterator it = m_map.find(id);
-  if (pIt)
-    *pIt = it;
-  if (it == m_map.end())
+  CTermSNs_map::iterator l_x = m_fast_locater.find(sn);
+  if (v_ptr)
+    *v_ptr = l_x;
+  if (l_x == m_fast_locater.end())
     return -1;
-  if (unlikely(it->second < 0 || it->second >= (ni)m_table.size()))
+  if (unlikely(l_x->second < 0 || l_x->second >= (ni)m_SNs.size()))
   {
-    C_ERROR("Invalid MyClientInfos map index = %d, table size = %d\n", it->second, (ni)m_table.size());
+    C_ERROR("bad index = %d, limit = %d\n", l_x->second, (ni)m_SNs.size());
     return -1;
   }
-  return it->second;
+  return l_x->second;
 }
 
-ni CTermSNs::count()
+ni CTermSNs::number()
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, -1);
-  return m_table.size();
+  return m_SNs.size();
 }
 
-truefalse CTermSNs::value(ni index, CNumber * id)
+truefalse CTermSNs::get_sn(ni loc, CNumber * sn)
 {
-  if (unlikely(index < 0) || !id)
+  if (unlikely(loc < 0) || !sn)
     return false;
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
-  if (unlikely(index >= (ni)m_table.size() || index < 0))
+  if (unlikely(loc >= (ni)m_SNs.size() || loc < 0))
     return false;
-  *id = m_table[index].term_sn;
+  *sn = m_SNs[loc].term_sn;
   return true;
 }
 
-truefalse CTermSNs::value_all(ni index, CTermData & client_info)
+truefalse CTermSNs::get_termData(ni loc, CTermData & td)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
-  if (unlikely(index >= (ni)m_table.size() || index < 0))
+  if (unlikely(loc >= (ni)m_SNs.size() || loc < 0))
     return false;
-  client_info = m_table[index];
+  td = m_SNs[loc];
   return true;
 }
 
-truefalse CTermSNs::active(CONST CNumber & id, ni & index, truefalse & switched)
+truefalse CTermSNs::connected(CONST CNumber & sn, ni & loc, truefalse & server_changed)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
-  if (index < 0 || index >= (ni)m_table.size())
-    index = index_of_i(id);
-  if (unlikely(index < 0))
+  if (loc < 0 || loc >= (ni)m_SNs.size())
+    loc = do_locate(sn);
+  if (unlikely(loc < 0))
     return false;
-  switched = m_table[index].switched;
-  return m_table[index].active;
+  server_changed = m_SNs[loc].server_changed;
+  return m_SNs[loc].connected;
 }
 
-//void MyClientIDTable::active(CONST MyClientID & id, truefalse _active)
-//{
-//  ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
-//  ni idx = index_of_i(id);
-//  if (unlikely(idx < 0))
-//    return;
-//  m_table[idx].active = _active;
-//}
-
-truefalse CTermSNs::active(ni index)
+truefalse CTermSNs::connected(ni loc)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, false);
-  if (unlikely(index < 0 || index > (ni)m_table.size()))
+  if (unlikely(loc < 0 || loc > (ni)m_SNs.size()))
     return false;
-  return m_table[index].active;
+  return m_SNs[loc].connected;
 }
 
-DVOID CTermSNs::active(ni index, truefalse _active)
+DVOID CTermSNs::set_connected(ni loc, truefalse bconnected)
 {
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
-  if (unlikely(index < 0 || index > (ni)m_table.size()))
+  if (unlikely(loc < 0 || loc > (ni)m_SNs.size()))
     return;
-  m_table[index].active = _active;
+  m_SNs[loc].connected = bconnected;
 }
 
-DVOID CTermSNs::switched(ni index, truefalse _switched)
+DVOID CTermSNs::server_changed(ni loc, truefalse bserver_changed)
 {
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
-  if (unlikely(index < 0 || index > (ni)m_table.size()))
+  if (unlikely(loc < 0 || loc > (ni)m_SNs.size()))
     return;
-  m_table[index].switched = _switched;
+  m_SNs[loc].server_changed = bserver_changed;
 }
 
-DVOID CTermSNs::expired(ni index, truefalse _expired)
+DVOID CTermSNs::set_invalid(ni loc, truefalse binvalid)
 {
   ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
-  if (unlikely(index < 0 || index > (ni)m_table.size()))
+  if (unlikely(loc < 0 || loc > (ni)m_SNs.size()))
     return;
-  m_table[index].expired = _expired;
+  m_SNs[loc].invalid = binvalid;
 }
 
-truefalse CTermSNs::mark_valid(CONST CNumber & id, truefalse valid, ni & index)
+truefalse CTermSNs::mark_valid(CONST CNumber & id, truefalse valid, ni & loc)
 {
   ACE_READ_GUARD_RETURN(ACE_RW_Thread_Mutex, ace_mon, m_mutex, true);
-  index = index_of_i(id);
-  truefalse i_valid = (index >= 0 && !m_table[index].expired);
-  if (likely(i_valid == valid))
+  loc = do_locate(id);
+  truefalse b_ok = (loc >= 0 && !m_SNs[loc].invalid);
+  if (likely(b_ok == valid))
     return true;
   if (valid)
   {
-    if (index < 0)
-      add_i(id, id.to_str(), false);
+    if (loc < 0)
+      append_new(id, id.to_str(), false);
     else
-      m_table[index].expired = false;
+      m_SNs[loc].invalid = false;
   } else //!valid
-    m_table[index].expired = true;
+    m_SNs[loc].invalid = true;
   return false;
 }
 
-ni CTermSNs::last_sequence() CONST
+ni CTermSNs::prev_no() CONST
 {
-  return m_last_sequence;
+  return m_prev_no;
 }
 
-DVOID CTermSNs::last_sequence(ni _seq)
+DVOID CTermSNs::set_prev_no(ni i)
 {
-  m_last_sequence = _seq;
+  m_prev_no = i;
 }
 
-DVOID CTermSNs::prepare_space(ni _count)
+DVOID CTermSNs::prepare_space(ni v_m)
 {
-  m_table.reserve(std::max(ni((m_table.size() + _count) * 1.4), 1000));
+  m_SNs.reserve(std::max(ni((m_SNs.size() + v_m) * 1.5), 990));
 }
 
 
-//MyFileMD5//
 
-CFileMD5::CFileMD5(CONST text * _filename, CONST text * md5, ni prefix_len, CONST text * alias)
+
+CCheckSum::CCheckSum(CONST text * fn, CONST text * checksum, ni ignore_lead_n, CONST text * _replace)
 {
-  m_md5[0] = 0;
+  m_checksum[0] = 0;
   m_size = 0;
-  if (unlikely(!_filename || ! *_filename))
+  if (unlikely(!fn || ! *fn))
     return;
 
-  ni len = strlen(_filename);
-  if (unlikely(len <= prefix_len))
+  ni m = strlen(fn);
+  if (unlikely(m <= ignore_lead_n))
   {
-    C_FATAL("invalid parameter in MyFileMD5::MyFileMD5(%s, %d)\n", _filename, prefix_len);
+    C_FATAL("bad param(%s, %d)\n", fn, ignore_lead_n);
     return;
   }
-  if (!alias || !*alias)
+  if (!_replace || !*_replace)
   {
-    m_size = len - prefix_len + 1;
-    m_file_name.from_string(_filename + prefix_len);
+    m_size = m - ignore_lead_n + 1;
+    m_fn.init(fn + ignore_lead_n);
   } else
   {
-    m_size = strlen(alias) + 1;
-    m_file_name.from_string(alias);
+    m_size = strlen(_replace) + 1;
+    m_fn.init(_replace);
   }
 
-  if (!md5)
+  if (!checksum)
   {
-    CMemGuard md5_result;
-    if (c_tools_tally_md5(_filename, md5_result))
-      memcpy(m_md5, md5_result.data(), MD5_STRING_LENGTH);
-    //MD5_CTX mdContext;
-    //md5file(_filename, 0, &mdContext, m_md5, MD5_STRING_LENGTH);
+    CMemProt l_x;
+    if (c_tools_tally_md5(fn, l_x))
+      memcpy(m_checksum, l_x.get_ptr(), CHECK_SUM_SIZE);
   } else
-    memcpy((void*)m_md5, (void*)md5, MD5_STRING_LENGTH);
+    memcpy((void*)m_checksum, (void*)checksum, CHECK_SUM_SIZE);
 }
 
 
-//MyFileMD5s//
 
-CFileMD5s::CFileMD5s()
+
+CCheckSums::CCheckSums()
 {
-//  C_DEBUG("creating md5s: %X\n", (ni)(long)this);
-  m_base_dir_len = 0;
-  m_md5_map = NULL;
+  m_root_path_len = 0;
+  m_locator = NULL;
 }
 
-CFileMD5s::~CFileMD5s()
+CCheckSums::~CCheckSums()
 {
-//  C_DEBUG("destroying md5s: %X\n", (ni)(long)this);
-  std::for_each(m_file_md5_list.begin(), m_file_md5_list.end(), CPoolObjectDeletor());
-  if (m_md5_map)
-    delete m_md5_map;
+  std::for_each(m_checksums.begin(), m_checksums.end(), CPoolObjectDeletor());
+  if (m_locator)
+    delete m_locator;
 }
 
-DVOID CFileMD5s::enable_map()
+DVOID CCheckSums::init_locator()
 {
-  if (m_md5_map == NULL)
-    m_md5_map = new MyMD5map();
+  if (m_locator == NULL)
+    m_locator = new CheckSumLocator();
 }
 
-truefalse CFileMD5s::base_dir(CONST text * dir)
+truefalse CCheckSums::root_path(CONST text * p)
 {
-  if (unlikely(!dir || !*dir))
+  if (unlikely(!p || !*p))
   {
-    C_FATAL("MyFileMD5s::base_dir(empty dir)\n");
+    C_FATAL("MyFileMD5s::base_dir(empty p)\n");
     return false;
   }
 
-  m_base_dir_len = strlen(dir) + 1;
-  m_base_dir.from_string(dir);
+  m_root_path_len = strlen(p) + 1;
+  m_root_path.init(p);
   return true;
 }
 
-truefalse CFileMD5s::has_file(CONST text * fn)
+truefalse CCheckSums::contains(CONST text * fn)
 {
-  return find(fn) != NULL;
+  return do_search(fn) != NULL;
 }
 
-CFileMD5 * CFileMD5s::find(CONST text * fn)
+CCheckSum * CCheckSums::do_search(CONST text * fn)
 {
   if (unlikely(!fn || !*fn))
     return NULL;
-  C_ASSERT_RETURN(m_md5_map != NULL, "MyFileMD5s::find NULL map\n", NULL);
+  C_ASSERT_RETURN(m_locator != NULL, "null ptr\n", NULL);
 
-  MyMD5map::iterator it;
-  it = m_md5_map->find(fn);
-  if (it == m_md5_map->end())
+  CheckSumLocator::iterator l_x;
+  l_x = m_locator->find(fn);
+  if (l_x == m_locator->end())
     return NULL;
   else
-    return it->second;
+    return l_x->second;
 }
 
-DVOID CFileMD5s::minus(CFileMD5s & target, CMfileSplit * spl, truefalse do_delete)
+DVOID CCheckSums::substract(CCheckSums & v_dest, CDirConverter * pObj, truefalse remove_file)
 {
-  CFileMD5Vec::iterator it1 = m_file_md5_list.begin(), it2 = target.m_file_md5_list.begin(), it;
-  //the below algorithm is based on STL's set_difference() function
+  CCheckSumVec::iterator l_p1 = m_checksums.begin(), l_p2 = v_dest.m_checksums.begin(), it;
   text fn[PATH_MAX];
-  while (it1 != m_file_md5_list.end() && it2 != target.m_file_md5_list.end())
+  while (l_p1 != m_checksums.end() && l_p2 != v_dest.m_checksums.end())
   {
-    CONST text * new_name = spl? spl->translate((**it1).filename()): (**it1).filename();
-    CFileMD5 md5_copy(new_name, (**it1).md5(), 0);
+    CONST text * new_name = pObj? pObj->convert((**l_p1).fn()): (**l_p1).fn();
+    CCheckSum md5_copy(new_name, (**l_p1).value(), 0);
 
-    if (md5_copy < **it2)
-      ++it1;
-    else if (**it2 < md5_copy)
+    if (md5_copy < **l_p2)
+      ++l_p1;
+    else if (**l_p2 < md5_copy)
     {
-      if (do_delete)
+      if (remove_file)
       {
-        snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
-        //C_INFO("deleting file %s\n", fn);
+        snprintf(fn, PATH_MAX - 1, "%s/%s", v_dest.m_root_path.get_ptr(), (**l_p2).fn());
         remove(fn);
       }
-      ++it2;
+      ++l_p2;
     }
-    else if (md5_copy.same_md5(**it2))//==
+    else if (md5_copy.checksum_equal(**l_p2))//==
     {
       CPoolObjectDeletor dlt;
-      dlt(*it1);
-      it1 = m_file_md5_list.erase(it1);
-      ++it2;
+      dlt(*l_p1);
+      l_p1 = m_checksums.erase(l_p1);
+      ++l_p2;
     } else
     {
-      ++it1;
-      ++it2;
+      ++l_p1;
+      ++l_p2;
     }
   }
 
-  if (do_delete)
+  if (remove_file)
   {
-    while (it2 != target.m_file_md5_list.end())
+    while (l_p2 != v_dest.m_checksums.end())
     {
-      snprintf(fn, PATH_MAX - 1, "%s/%s", target.m_base_dir.data(), (**it2).filename());
-      //C_INFO("deleting file %s\n", fn);
+      snprintf(fn, PATH_MAX - 1, "%s/%s", v_dest.m_root_path.get_ptr(), (**l_p2).fn());
       remove(fn);
-      ++it2;
+      ++l_p2;
     }
   }
 }
 
-DVOID CFileMD5s::trim_garbage(CONST text * pathname)
+DVOID CCheckSums::delete_unused(CONST text * fn)
 {
-  if (unlikely(!pathname || !*pathname))
+  if (unlikely(!fn || !*fn))
     return;
 
-  do_trim_garbage(pathname, strlen(pathname) + 1);
+  i_delete_unused(fn, strlen(fn) + 1);
 }
 
-DVOID CFileMD5s::sort()
+DVOID CCheckSums::make_ordered()
 {
-  std::sort(m_file_md5_list.begin(), m_file_md5_list.end(), CPtrLess());
+  std::sort(m_checksums.begin(), m_checksums.end(), CPtrLess());
 }
 
-truefalse CFileMD5s::add_file(CONST text * filename, CONST text * md5, ni prefix_len)
+truefalse CCheckSums::append_checksum(CONST text * v_fn, CONST text * v_val, ni ignore_lead_n)
 {
-  if (unlikely(!filename || !*filename || prefix_len < 0))
+  if (unlikely(!v_fn || !*v_fn || ignore_lead_n < 0))
     return false;
 
-  DVOID * p = CMemPoolX::instance()->alloc_mem_x(sizeof(CFileMD5));
-  CFileMD5 * fm = new (p) CFileMD5(filename, md5, prefix_len);
-  if (fm->ok())
+  DVOID * p = CCacheX::instance()->get_raw(sizeof(CCheckSum));
+  CCheckSum * fm = new (p) CCheckSum(v_fn, v_val, ignore_lead_n);
+  if (fm->check())
   {
-    m_file_md5_list.push_back(fm);
+    m_checksums.push_back(fm);
     return true;
   }
   else
@@ -515,830 +496,822 @@ truefalse CFileMD5s::add_file(CONST text * filename, CONST text * md5, ni prefix
   }
 }
 
-truefalse CFileMD5s::add_file(CONST text * pathname, CONST text * filename, ni prefix_len, CONST text * alias)
+truefalse CCheckSums::append_checksum(CONST text * pathname, CONST text * filename, ni prefix_len, CONST text * alias)
 {
   if (unlikely(!pathname || !filename))
     return false;
   ni len = strlen(pathname);
   if (unlikely(len + 1 < prefix_len || len  + strlen(filename) + 2 > PATH_MAX))
   {
-    C_FATAL("invalid parameter @ MyFileMD5s::add_file(%s, %s, %d)\n", pathname, filename, prefix_len);
+    C_FATAL("bad param(%s, %s, %d)\n", pathname, filename, prefix_len);
     return false;
   }
-  CFileMD5 * fm;
+  CCheckSum * fm;
   text buff[PATH_MAX];
   snprintf(buff, PATH_MAX, "%s/%s", pathname, filename);
-  DVOID * p = CMemPoolX::instance()->alloc_mem_x(sizeof(CFileMD5));
-  fm = new(p) CFileMD5(buff, NULL, prefix_len, alias);
+  DVOID * p = CCacheX::instance()->get_raw(sizeof(CCheckSum));
+  fm = new(p) CCheckSum(buff, NULL, prefix_len, alias);
 
-  truefalse ret = fm->ok();
+  truefalse ret = fm->check();
   if (likely(ret))
-    m_file_md5_list.push_back(fm);
+    m_checksums.push_back(fm);
   else
     delete fm;
   return ret;
 }
 
-ni CFileMD5s::total_size(truefalse include_md5_value)
+ni CCheckSums::text_len(truefalse full)
 {
-  ni result = 0;
-  CFileMD5Vec::iterator it;
-  for (it = m_file_md5_list.begin(); it != m_file_md5_list.end(); ++it)
+  ni m = 0;
+  CCheckSumVec::iterator l_x;
+  for (l_x = m_checksums.begin(); l_x != m_checksums.end(); ++l_x)
   {
-    CFileMD5 & fm = **it;
-    if (unlikely(!fm.ok()))
+    CCheckSum & cs = **l_x;
+    if (unlikely(!cs.check()))
       continue;
-    result += fm.size(include_md5_value);
+    m += cs.size(full);
   }
-  return result + 1;
+  return m + 1;
 }
 
-truefalse CFileMD5s::to_buffer(text * buff, ni buff_len, truefalse include_md5_value)
+truefalse CCheckSums::save_text(text * v_ptr, ni v_size, truefalse full)
 {
-  CFileMD5Vec::iterator it;
-  if (unlikely(!buff || buff_len <= 0))
+  CCheckSumVec::iterator l_x;
+  if (unlikely(!v_ptr || v_size <= 0))
   {
-    C_ERROR("invalid parameter MyFileMD5s::to_buffer(%s, %d)\n", buff, buff_len);
+    C_ERROR("bad param(%s, %d)\n", v_ptr, v_size);
     return false;
   }
-  ni len = 0;
-  for (it = m_file_md5_list.begin(); it != m_file_md5_list.end(); ++it)
+  ni m = 0;
+  for (l_x = m_checksums.begin(); l_x != m_checksums.end(); ++l_x)
   {
-    CFileMD5 & fm = **it;
-    if (unlikely(!fm.ok()))
+    CCheckSum & cs = **l_x;
+    if (unlikely(!cs.check()))
       continue;
-    if (unlikely(buff_len <= len + fm.size(include_md5_value)))
+    if (unlikely(v_size <= m + cs.size(full)))
     {
-      C_ERROR("buffer is too small @MyFileMD5s::to_buffer(buff_len=%d, need_length=%d)\n",
-          buff_len, len + fm.size(include_md5_value) + 1);
+      C_ERROR("bad text size(size=%d, size_need=%d)\n", v_size, m + cs.size(full) + 1);
       return false;
     }
-    ni fm_file_length = fm.size(false);
-    memcpy(buff + len, fm.filename(), fm_file_length);
-    buff[len + fm_file_length - 1] = include_md5_value? CCmdHeader::MIDDLE_SEPARATOR: CCmdHeader::ITEM_SEPARATOR;
-    len += fm_file_length;
-    if (include_md5_value)
+    ni n = cs.size(false);
+    memcpy(v_ptr + m, cs.fn(), n);
+    v_ptr[m + n - 1] = full? CCmdHeader::MIDDLE_SEPARATOR: CCmdHeader::ITEM_SEPARATOR;
+    m += n;
+    if (full)
     {
-      memcpy(buff + len, fm.md5(), CFileMD5::MD5_STRING_LENGTH);
-      len += CFileMD5::MD5_STRING_LENGTH;
-      buff[len++] = CCmdHeader::ITEM_SEPARATOR;
+      memcpy(v_ptr + m, cs.value(), CCheckSum::CHECK_SUM_SIZE);
+      m += CCheckSum::CHECK_SUM_SIZE;
+      v_ptr[m++] = CCmdHeader::ITEM_SEPARATOR;
     }
   }
-  buff[len] = 0;
+  v_ptr[m] = 0;
   return true;
 }
 
-truefalse CFileMD5s::from_buffer(text * buff, CMfileSplit * spl)
+truefalse CCheckSums::load_text(text * v_ptr, CDirConverter * v_pObj)
 {
-  if (!buff || !*buff)
+  if (!v_ptr || !*v_ptr)
     return true;
 
-  text seperator[2] = {CCmdHeader::ITEM_SEPARATOR, 0};
-  text *str, *token, *saveptr, *md5;
+  text delimitors[2] = {CCmdHeader::ITEM_SEPARATOR, 0};
+  text *l_ptr, *l_val, *l_tmp, *l_cs;
 
-//  ACE_WRITE_GUARD(ACE_RW_Thread_Mutex, ace_mon, m_mutex);
-  for (str = buff; ; str = NULL)
+  for (l_ptr = v_ptr; ; l_ptr = NULL)
   {
-    token = strtok_r(str, seperator, &saveptr);
-    if (token == NULL)
+    l_val = strtok_r(l_ptr, delimitors, &l_tmp);
+    if (l_val == NULL)
       break;
-    if (unlikely(!*token))
+    if (unlikely(!*l_val))
       continue;
-    md5 = strchr(token, CCmdHeader::MIDDLE_SEPARATOR);
-    if (unlikely(md5 == token || !md5))
+    l_cs = strchr(l_val, CCmdHeader::MIDDLE_SEPARATOR);
+    if (unlikely(l_cs == l_val || !l_cs))
     {
-      C_ERROR("bad file/md5 list item @MyFileMD5s::from_buffer: %s\n", token);
+      C_ERROR("broken cs: %s\n", l_val);
       return false;
     }
-    *md5++ = 0;
-    if (unlikely(strlen(md5) != CFileMD5::MD5_STRING_LENGTH))
+    *l_cs++ = 0;
+    if (unlikely(strlen(l_cs) != CCheckSum::CHECK_SUM_SIZE))
     {
-      C_ERROR("empty md5 in file/md5 list @MyFileMD5s::from_buffer: %s\n", token);
+      C_ERROR("null cs: %s\n", l_val);
       return false;
     }
-    DVOID * p = CMemPoolX::instance()->alloc_mem_x(sizeof(CFileMD5));
-    CONST text * filename = spl? spl->translate(token): token;
-    CFileMD5 * fm = new(p) CFileMD5(filename, md5, 0);
-    if (m_md5_map != NULL)
-      m_md5_map->insert(std::pair<const text *, CFileMD5 *>(fm->filename(), fm));
-    m_file_md5_list.push_back(fm);
+    DVOID * p = CCacheX::instance()->get_raw(sizeof(CCheckSum));
+    CONST text * l_fn = v_pObj? v_pObj->convert(l_val): l_val;
+    CCheckSum * csObj = new(p) CCheckSum(l_fn, l_cs, 0);
+    if (m_locator != NULL)
+      m_locator->insert(std::pair<const text *, CCheckSum *>(csObj->fn(), csObj));
+    m_checksums.push_back(csObj);
   }
 
   return true;
 }
 
-truefalse CFileMD5s::calculate_diff(CONST text * dirname, CMfileSplit * spl)
+truefalse CCheckSums::compute_diverse(CONST text * v_path, CDirConverter * v_pObj)
 {
-  C_ASSERT_RETURN(dirname && *dirname, "NULL dirname @MyFileMD5s::calculate_diff()\n", false);
-  CMemGuard fn;
-  ni n = strlen(dirname);
-  CFileMD5Vec::iterator it;
-  for (it = m_file_md5_list.begin(); it != m_file_md5_list.end(); )
+  C_ASSERT_RETURN(v_path && *v_path, "null param()\n", false);
+  CMemProt fn;
+  ni n = strlen(v_path);
+  CCheckSumVec::iterator it;
+  for (it = m_checksums.begin(); it != m_checksums.end(); )
   {
-    CONST text * new_name = spl? spl->translate((**it).filename()): (**it).filename();
-    fn.from_string(dirname, "/", new_name);
-    CFileMD5 md5(fn.data(), NULL, n + 1);
-    if (!md5.ok() || !md5.same_md5(**it))
+    CONST text * true_fn = v_pObj? v_pObj->convert((**it).fn()): (**it).fn();
+    fn.init(v_path, "/", true_fn);
+    CCheckSum cs(fn.get_ptr(), NULL, n + 1);
+    if (!cs.check() || !cs.checksum_equal(**it))
       ++ it;
     else
     {
-      CFileMD5 * p = *it;
-      it = m_file_md5_list.erase(it);
-      if (m_md5_map)
-        m_md5_map->erase(p->filename());
-      CPoolObjectDeletor dlt;
-      dlt(p);
+      CCheckSum * p = *it;
+      it = m_checksums.erase(it);
+      if (m_locator)
+        m_locator->erase(p->fn());
+      CPoolObjectDeletor g;
+      g(p);
     }
   }
   return true;
 }
 
-truefalse CFileMD5s::calculate(CONST text * dirname, CONST text * mfile, truefalse single)
+truefalse CCheckSums::compute(CONST text * v_path, CONST text * mfile, truefalse only_one)
 {
-  C_ASSERT_RETURN(dirname && *dirname, "NULL dirname @MyFileMD5s::calculate()\n", false);
-  base_dir(dirname);
+  C_ASSERT_RETURN(v_path && *v_path, "NULL param\n", false);
+  root_path(v_path);
 
   if (mfile && *mfile)
   {
-    CMemGuard mfile_name;
-    ni n = CSysFS::cat_path(dirname, mfile, mfile_name);
-//  if (unlikely(!add_file(mfile_name.data(), NULL, n)))
-//    return true;
-    add_file(mfile_name.data(), NULL, n);
-    if (single)
+    CMemProt l_fn;
+    ni n = CSysFS::dir_add(v_path, mfile, l_fn);
+    append_checksum(l_fn.get_ptr(), NULL, n);
+    if (only_one)
       return true;
-    if (unlikely(!CSysFS::get_correlate_path(mfile_name, n)))
+    if (unlikely(!CSysFS::dir_from_mfile(l_fn, n)))
       return false;
-    return do_scan_directory(mfile_name.data(), n);
+    return i_tally_path(l_fn.get_ptr(), n);
   } else
   {
-    if (single)
+    if (only_one)
     {
-      C_ERROR("unsupported operation @MyFileMD5s::calculate\n");
+      C_ERROR("unexpected\n");
       return false;
     }
-    return do_scan_directory(dirname, strlen(dirname) + 1);
+    return i_tally_path(v_path, strlen(v_path) + 1);
   }
 }
 
-truefalse CFileMD5s::do_scan_directory(CONST text * dirname, ni start_len)
+truefalse CCheckSums::i_tally_path(CONST text * v_path, ni v_begin_len)
 {
-  DIR * dir = opendir(dirname);
+  DIR * dir = opendir(v_path);
   if (!dir)
   {
     if (ACE_OS::last_error() != ENOENT)
     {
-      C_ERROR("can not open directory: %s %s\n", dirname, (CONST char*)CSysError());
+      C_ERROR("opendir: %s %s\n", v_path, (CONST char*)CSysError());
       return false;
     } else
       return true;
   }
 
-  struct dirent *entry;
-  text buff[PATH_MAX];
-  while ((entry = readdir(dir)) != NULL)
+  struct dirent * de;
+  text txt[PATH_MAX];
+  while ((de = readdir(dir)) != NULL)
   {
-    if (!entry->d_name)
+    if (!de->d_name)
       continue;
-    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+    if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
       continue;
 
-    if (entry->d_type == DT_REG)
+    if (de->d_type == DT_REG)
     {
-      if (!add_file(dirname, entry->d_name, start_len, NULL))
+      if (!append_checksum(v_path, de->d_name, v_begin_len, NULL))
       {
         closedir(dir);
         return false;
       }
     }
-    else if(entry->d_type == DT_DIR)
+    else if(de->d_type == DT_DIR)
     {
-      snprintf(buff, PATH_MAX - 1, "%s/%s", dirname, entry->d_name);
-      if (!do_scan_directory(buff, start_len))
+      snprintf(txt, PATH_MAX - 1, "%s/%s", v_path, de->d_name);
+      if (!i_tally_path(txt, v_begin_len))
       {
         closedir(dir);
         return false;
       }
     } else
-      C_WARNING("unknown file type (= %d) for file @MyFileMD5s::do_scan_directory file = %s/%s\n",
-           entry->d_type, dirname, entry->d_name);
+      C_WARNING("unknown file type (=%d) %s/%s\n", de->d_type, v_path, de->d_name);
   };
 
   closedir(dir);
   return true;
 }
 
-DVOID CFileMD5s::do_trim_garbage(CONST text * dirname, ni start_len)
+DVOID CCheckSums::i_delete_unused(CONST text * v_path, ni v_begin_len)
 {
-  DIR * dir = opendir(dirname);
+  DIR * dir = opendir(v_path);
   if (!dir)
   {
     if (ACE_OS::last_error() != ENOENT)
-      C_ERROR("can not open directory: %s %s\n", dirname, (CONST char*)CSysError());
+      C_ERROR("can not open directory: %s %s\n", v_path, (CONST char*)CSysError());
     return;
   }
 
-  struct dirent *entry;
-  text buff[PATH_MAX];
-  CMemGuard fn;
-  while ((entry = readdir(dir)) != NULL)
+  struct dirent * de;
+  text txt[PATH_MAX];
+  CMemProt l_fn;
+  while ((de = readdir(dir)) != NULL)
   {
-    if (!entry->d_name)
+    if (!de->d_name)
       continue;
-    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+    if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
       continue;
 
-    if (entry->d_type == DT_REG)
+    if (de->d_type == DT_REG)
     {
-      fn.from_string(dirname, "/", entry->d_name);
-      if (!has_file(fn.data() + start_len))
-        CSysFS::remove(fn.data(), true);
+      l_fn.init(v_path, "/", de->d_name);
+      if (!contains(l_fn.get_ptr() + v_begin_len))
+        CSysFS::remove(l_fn.get_ptr(), true);
     }
-    else if(entry->d_type == DT_DIR)
+    else if(de->d_type == DT_DIR)
     {
-      snprintf(buff, PATH_MAX - 1, "%s/%s", dirname, entry->d_name);
-      do_trim_garbage(buff, start_len);
+      snprintf(txt, PATH_MAX - 1, "%s/%s", v_path, de->d_name);
+      i_delete_unused(txt, v_begin_len);
     } else
-      C_WARNING("unknown file type (= %d) for file @MyFileMD5s::do_trim_garbage file = %s/%s\n",
-           entry->d_type, dirname, entry->d_name);
+      C_WARNING("unknown file type (=%d) %s/%s\n", de->d_type, v_path, de->d_name);
   };
 
   closedir(dir);
-  CSysFS::remove(dirname, true);
+  CSysFS::remove(v_path, true);
   return;
 }
 
 
-//MyBaseArchiveReader//
 
-CArchiveloaderBase::CArchiveloaderBase()
+
+CBaseFileReader::CBaseFileReader()
 {
-  m_file_length = 0;
+  m_size = 0;
 }
 
-truefalse CArchiveloaderBase::open(CONST text * filename)
+truefalse CBaseFileReader::open(CONST text * v_ptr)
 {
-  if (unlikely(!filename || !*filename))
+  if (unlikely(!v_ptr || !*v_ptr))
   {
-    C_ERROR("empty file name @MyBaseArchiveReader::open()\n");
+    C_ERROR("empty param\n");
     return false;
   }
 
-  if (!m_file.open_nowrite(filename))
+  if (!m_f.open_nowrite(v_ptr))
     return false;
 
-  struct stat sbuf;
-  if (::fstat(m_file.get_fd(), &sbuf) == -1)
+  struct stat l_x;
+  if (::fstat(m_f.get_fd(), &l_x) == -1)
   {
-    C_ERROR("can not get file info @MyBaseArchiveReader::open(), name = %s %s\n", filename, (CONST char*)CSysError());
+    C_ERROR("stat(%s) %s\n", v_ptr, (CONST char*)CSysError());
     return false;
   }
-  m_file_length = sbuf.st_size;
+  m_size = l_x.st_size;
   return true;
 }
 
-ni CArchiveloaderBase::read(text * buff, ni buff_len)
+ni CBaseFileReader::read(text * v_ptr, ni size)
 {
-  return do_read(buff, buff_len);
+  return read_i(v_ptr, size);
 }
 
-ni CArchiveloaderBase::do_read(text * buff, ni buff_len)
+ni CBaseFileReader::read_i(text * v_ptr, ni size)
 {
-  ni n = ::read(m_file.get_fd(), buff, buff_len);
+  ni n = ::read(m_f.get_fd(), v_ptr, size);
   if (unlikely(n < 0))
-    C_ERROR("read file %s %s\n", m_file_name.data(), (CONST char*)CSysError());
+    C_ERROR("read file %s %s\n", m_fn.get_ptr(), (CONST char*)CSysError());
   return n;
 }
 
-DVOID CArchiveloaderBase::close()
+DVOID CBaseFileReader::close()
 {
-  m_file.bind_fd(CFileGuard::BAD_FD);
-  m_file_name.free();
+  m_f.bind_fd(CFileProt::BAD_FD);
+  m_fn.free();
 }
 
 
 //MyWrappedArchiveReader//
 
-truefalse CArchiveLoader::open(CONST text * filename)
+truefalse CCompFileReader::open(CONST text * filename)
 {
   if (!baseclass::open(filename))
     return false;
-  return read_header();
+  return load_begining();
 }
 
-ni CArchiveLoader::read(text * buff, ni buff_len)
+ni CCompFileReader::read(text * buff, ni buff_len)
 {
-  ni n = std::min(buff_len, m_remain_length);
+  ni n = std::min(buff_len, m_more_size);
   if (n <= 0)
     return 0;
-  ni n2 = do_read(buff, n);
-  m_remain_length -= n2;
+  ni n2 = read_i(buff, n);
+  m_more_size -= n2;
 
-  if (m_remain_encrypted_length > 0)
+  if (m_more_comp_size > 0)
   {
     ni buff_remain_len = buff_len;
-    u_int8_t output[16];
+    u8 output[16];
     text * ptr = buff;
-    while (m_remain_encrypted_length > 0 && buff_remain_len >= 16)
+    while (m_more_comp_size > 0 && buff_remain_len >= 16)
     {
-      aes_decrypt(&m_aes_context, (u_int8_t*)ptr, output);
+      aes_decrypt(&m_x, (u8*)ptr, output);
       memcpy(ptr, output, 16);
       buff_remain_len -= 16;
-      m_remain_encrypted_length -= 16;
+      m_more_comp_size -= 16;
       ptr += 16;
     }
-    if (m_remain_encrypted_length < 0)
-      n2 += m_remain_encrypted_length;
+    if (m_more_comp_size < 0)
+      n2 += m_more_comp_size;
   }
 
   return n2;
 }
 
-CONST text * CArchiveLoader::file_name() CONST
+CONST text * CCompFileReader::fn() CONST
 {
-  return ((CPackHead*)m_wrapped_header.data())->fn;
+  return ((CCompBegining*)m_begining.get_ptr())->fn;
 }
 
 
-truefalse CArchiveLoader::read_header()
+truefalse CCompFileReader::load_begining()
 {
-  CPackHead header;
-  if (do_read((char*)&header, sizeof(header)) != sizeof(header))
+  CCompBegining begining;
+  if (read_i((char*)&begining, sizeof(begining)) != sizeof(begining))
     return false;
-  if (header.signature != CPackHead::SIGNATURE)
+  if (begining.signature != CCompBegining::SIGNATURE)
   {
-    C_ERROR("corrupted compressed file %s\n", m_file_name.data());
+    C_ERROR("bad file %s\n", m_fn.get_ptr());
     return false;
   }
 
-  ni name_length = header.header_size - sizeof(header);
-  if (name_length <= 1 || name_length > PATH_MAX)
+  ni m = begining.begining_size - sizeof(begining);
+  if (m <= 1 || m > PATH_MAX)
   {
-    C_ERROR("invalid compressed header file name length: %s\n", m_file_name.data());
+    C_ERROR("bad comp beginning fn size: %s\n", m_fn.get_ptr());
     return false;
   }
 
-  if (header.encrypted_data_length < 0 || header.encrypted_data_length > header.data_size)
+  if (begining.processed_size < 0 || begining.processed_size > begining.data_size)
   {
-    C_ERROR("invalid encrypted data length value\n");
+    C_ERROR("bad data size\n");
     return false;
   }
 
-  CMemPoolX::instance()->alloc_mem(header.header_size, &m_wrapped_header);
-  memcpy((void*)m_wrapped_header.data(), &header, sizeof(header));
-  text * name_ptr = m_wrapped_header.data() + sizeof(header);
-  if (!do_read(name_ptr, name_length))
+  CCacheX::instance()->get(begining.begining_size, &m_begining);
+  memcpy((void*)m_begining.get_ptr(), &begining, sizeof(begining));
+  text * p = m_begining.get_ptr() + sizeof(begining);
+  if (!read_i(p, m))
     return false;
-  name_ptr[name_length - 1] = 0;
+  p[m - 1] = 0;
 
-  m_remain_length = header.data_size;
-  m_remain_encrypted_length = header.encrypted_data_length;
+  m_more_size = begining.data_size;
+  m_more_comp_size = begining.processed_size;
   return true;
 };
 
-truefalse CArchiveLoader::next()
+truefalse CCompFileReader::get_more()
 {
-  return read_header();
+  return load_begining();
 }
 
-truefalse CArchiveLoader::eof() CONST
+truefalse CCompFileReader::finished() CONST
 {
-  return (m_file_length <= (ni)::lseek(m_file.get_fd(), 0, SEEK_CUR));
+  return (m_size <= (ni)::lseek(m_f.get_fd(), 0, SEEK_CUR));
 }
 
-DVOID CArchiveLoader::set_key(CONST text * skey)
+DVOID CCompFileReader::password(CONST text * v_password)
 {
-  u_int8_t aes_key[32];
-  memset((void*)aes_key, 0, sizeof(aes_key));
-  if (skey)
-    ACE_OS::strsncpy((char*)aes_key, skey, sizeof(aes_key));
-  aes_set_key(&m_aes_context, aes_key, 256);
+  u8 l_x[32];
+  memset((void*)l_x, 0, sizeof(l_x));
+  if (v_password)
+    ACE_OS::strsncpy((char*)l_x, v_password, sizeof(l_x));
+  aes_set_key(&m_x, l_x, 256);
 }
 
 
-//MyBaseArchiveWriter//
 
-truefalse CArchiveSaverBase::open(CONST text * filename)
+
+truefalse CBaseFileWriter::open(CONST text * v_fn)
 {
-  if (unlikely(!filename || !*filename))
+  if (unlikely(!v_fn || !*v_fn))
   {
-    C_ERROR("empty file name @MyBaseArchiveWriter::open()\n");
+    C_ERROR("invalid param\n");
     return false;
   }
-  m_file_name.from_string(filename);
-  return do_open();
+  m_fn.init(v_fn);
+  return open_i();
 }
 
-truefalse CArchiveSaverBase::open(CONST text * dir, CONST text * filename)
+truefalse CBaseFileWriter::open(CONST text * v_path, CONST text * v_fn)
 {
-  if (unlikely(!filename || !*filename || !filename || !*filename))
+  if (unlikely(!v_fn || !*v_fn || !v_fn || !*v_fn))
   {
-    C_ERROR("empty dir/file name @MyBaseArchiveWriter::open(,)\n");
+    C_ERROR("invalid param\n");
     return false;
   }
-  m_file_name.from_string(dir, filename);
-  return do_open();
+  m_fn.init(v_path, v_fn);
+  return open_i();
 }
 
-truefalse CArchiveSaverBase::do_open()
+truefalse CBaseFileWriter::open_i()
 {
-  return m_file.open_write(m_file_name.data(), true, true, false, false);
+  return m_f.open_write(m_fn.get_ptr(), true, true, false, false);
 }
 
-truefalse CArchiveSaverBase::write(text * buff, ni buff_len)
+truefalse CBaseFileWriter::write(text * v_ptr, ni size)
 {
-  return do_write(buff, buff_len);
+  return write_i(v_ptr, size);
 }
 
-truefalse CArchiveSaverBase::do_write(text * buff, ni buff_len)
+truefalse CBaseFileWriter::write_i(text * v_ptr, ni size)
 {
-  if (unlikely(!buff || buff_len <= 0))
+  if (unlikely(!v_ptr || size <= 0))
     return true;
 
-  ni n = ::write(m_file.get_fd(), buff, buff_len);
-  if (unlikely(n != buff_len))
+  ni n = ::write(m_f.get_fd(), v_ptr, size);
+  if (unlikely(n != size))
   {
-    C_ERROR("write file %s %s\n", m_file_name.data(), (CONST char*)CSysError());
+    C_ERROR("write file %s %s\n", m_fn.get_ptr(), (CONST char*)CSysError());
     return false;
   }
   return true;
 }
 
-DVOID CArchiveSaverBase::close()
+DVOID CBaseFileWriter::close()
 {
-  m_file.bind_fd(CFileGuard::BAD_FD);
-  m_file_name.free();
+  m_f.bind_fd(CFileProt::BAD_FD);
+  m_fn.free();
 }
 
 
-//MyWrappedArchiveWriter//
 
-truefalse CArchiveSaver::write(text * buff, ni buff_len)
+
+truefalse CCompFileWriter::write(text * v_ptr, ni size)
 {
-  if (unlikely(buff_len < 0))
+  if (unlikely(size < 0))
     return false;
-  if (unlikely(buff_len == 0))
+  if (unlikely(size == 0))
     return true;
 
-  m_data_length += buff_len;
+  m_size += size;
 
-  if (m_remain_encrypted_length > 0)
+  if (m_more_comp_size > 0)
   {
-    ni to_buffer_len = std::min(buff_len, m_remain_encrypted_length);
-    memcpy(m_encrypt_buffer.data(), buff, to_buffer_len);
-    m_remain_encrypted_length -= to_buffer_len;
-    if (m_remain_encrypted_length > 0)
+    ni to_buffer_len = std::min(size, m_more_comp_size);
+    memcpy(m_comp_cache.get_ptr(), v_ptr, to_buffer_len);
+    m_more_comp_size -= to_buffer_len;
+    if (m_more_comp_size > 0)
       return true;
-    else if (!encrypt_and_write())
+    else if (!comp_save())
       return false;
 
-    if (buff_len - to_buffer_len > 0)
-      return do_write(buff + to_buffer_len, buff_len - to_buffer_len);
+    if (size - to_buffer_len > 0)
+      return write_i(v_ptr + to_buffer_len, size - to_buffer_len);
     else
       return true;
   }
 
-  return do_write(buff, buff_len);
+  return write_i(v_ptr, size);
 }
 
-truefalse CArchiveSaver::start(CONST text * filename, ni prefix_len)
+truefalse CCompFileWriter::begin(CONST text * v_fn, ni skip_n)
 {
-  if (unlikely(prefix_len < 0 || prefix_len >= (ni)strlen(filename)))
+  if (unlikely(skip_n < 0 || skip_n >= (ni)strlen(v_fn)))
   {
-    C_ERROR("invalid prefix_len @MyWrappedArchiveWriter::start(%s, %d)\n", filename, prefix_len);
+    C_ERROR("bad param begin(%s, %d)\n", v_fn, skip_n);
     return false;
   }
-  if (unlikely(filename[prefix_len] != '/' || filename[prefix_len + 1] == '/'))
+  if (unlikely(v_fn[skip_n] != '/' || v_fn[skip_n + 1] == '/'))
   {
-    C_ERROR("bad prefix_len split @MyWrappedArchiveWriter::start(%s, %d)\n", filename, prefix_len);
+    C_ERROR("bad param.2 begin(%s, %d)\n", v_fn, skip_n);
     return false;
   }
 
-  m_data_length = 0;
-  m_encrypted_length = 0;
-  m_remain_encrypted_length = ENCRYPT_DATA_LENGTH;
-  CMemPoolX::instance()->alloc_mem(ENCRYPT_DATA_LENGTH, &m_encrypt_buffer);
-  return write_header(filename + prefix_len + 1);
+  m_size = 0;
+  m_comp_size = 0;
+  m_more_comp_size = BUFFER_SIZE;
+  CCacheX::instance()->get(BUFFER_SIZE, &m_comp_cache);
+  return save_begining(v_fn + skip_n + 1);
 }
 
-truefalse CArchiveSaver::finish()
+truefalse CCompFileWriter::end()
 {
-  if (m_remain_encrypted_length > 0)
+  if (m_more_comp_size > 0)
   {
-    if (!encrypt_and_write())
+    if (!comp_save())
       return false;
   }
 
-  m_pack_header.data_size = m_data_length;
+  m_begining.data_size = m_size;
 
-  if (::lseek(m_file.get_fd(), 0, SEEK_SET) == -1)
+  if (::lseek(m_f.get_fd(), 0, SEEK_SET) == -1)
   {
-    C_ERROR("fseek on file %s failed %s\n", m_file_name.data(), (CONST char*)CSysError());
+    C_ERROR("lseek(%s): %s\n", m_fn.get_ptr(), (CONST char*)CSysError());
     return false;
   }
 
-  return do_write((char*)&m_pack_header, sizeof(m_pack_header));
+  return write_i((char*)&m_begining, sizeof(m_begining));
 }
 
-DVOID CArchiveSaver::set_key(CONST text * skey)
+DVOID CCompFileWriter::password(CONST text * _password)
 {
-  u_int8_t aes_key[32];
-  memset((void*)aes_key, 0, sizeof(aes_key));
-  if (skey)
-    ACE_OS::strsncpy((char*)aes_key, skey, sizeof(aes_key));
-  aes_set_key(&m_aes_context, aes_key, 256);
+  u8 l_x[32];
+  memset((void*)l_x, 0, sizeof(l_x));
+  if (_password)
+    ACE_OS::strsncpy((char*)l_x, _password, sizeof(l_x));
+  aes_set_key(&m_x, l_x, 256);
 }
 
-truefalse CArchiveSaver::write_header(CONST text * filename)
+truefalse CCompFileWriter::save_begining(CONST text * v_fn)
 {
-  if (unlikely(!filename || !*filename))
+  if (unlikely(!v_fn || !*v_fn))
     return false;
-  ni filename_len = strlen(filename) + 1;
-  m_pack_header.signature = CPackHead::SIGNATURE;
-  m_pack_header.header_size = sizeof(m_pack_header) + filename_len;
-  m_pack_header.data_size = -1;
-  m_pack_header.encrypted_data_length = -1;
-  if (!do_write((char*)&m_pack_header, sizeof(m_pack_header)))
+  ni filename_len = strlen(v_fn) + 1;
+  m_begining.signature = CCompBegining::SIGNATURE;
+  m_begining.begining_size = sizeof(m_begining) + filename_len;
+  m_begining.data_size = -1;
+  m_begining.processed_size = -1;
+  if (!write_i((char*)&m_begining, sizeof(m_begining)))
     return false;
-  if (!do_write((char*)filename, filename_len))
+  if (!write_i((char*)v_fn, filename_len))
     return false;
   return true;
 }
 
-truefalse CArchiveSaver::encrypt_and_write()
+truefalse CCompFileWriter::comp_save()
 {
-  ni bytes = ENCRYPT_DATA_LENGTH - m_remain_encrypted_length;
-  m_pack_header.encrypted_data_length = bytes;
-  if (bytes == 0)
+  ni l_m = BUFFER_SIZE - m_more_comp_size;
+  m_begining.processed_size = l_m;
+  if (l_m == 0)
     return true;
 
-  ni stuff_bytes = (16 - bytes % 16) % 16;
-  if (stuff_bytes > 0)
+  ni l_padding = (16 - l_m % 16) % 16;
+  if (l_padding > 0)
   {
-    m_data_length += stuff_bytes;
-    memset(m_encrypt_buffer.data() + bytes, 0, stuff_bytes);
+    m_size += l_padding;
+    memset(m_comp_cache.get_ptr() + l_m, 0, l_padding);
   }
-  bytes += stuff_bytes;
-  u_int8_t output[16];
-  text * ptr = m_encrypt_buffer.data();
-  ni count = bytes;
-  while (count >= 16)
+  l_m += l_padding;
+  u8 output[16];
+  text * p = m_comp_cache.get_ptr();
+  ni m = l_m;
+  while (m >= 16)
   {
-    aes_encrypt(&m_aes_context, (u_int8_t*)ptr, output);
-    memcpy(ptr, output, 16);
-    ptr += 16;
-    count -= 16;
+    aes_encrypt(&m_x, (u8*)p, output);
+    memcpy(p, output, 16);
+    p += 16;
+    m -= 16;
   }
-  return do_write(m_encrypt_buffer.data(), bytes);
+  return write_i(m_comp_cache.get_ptr(), l_m);
 }
 
-//CBZMemBridge//
+
 
 DVOID * CBZMemBridge::intf_alloc(DVOID *, ni n, ni m)
 {
-  return CMemPoolX::instance()->alloc_mem_x(n * m);
+  return CCacheX::instance()->get_raw(n * m);
 }
 
 DVOID CBZMemBridge::intf_free(DVOID *, DVOID * ptr)
 {
-  CMemPoolX::instance()->release_mem_x(ptr);
+  CCacheX::instance()->put_raw(ptr);
 }
 
 
-//MyBZCompressor//
 
 CDataComp::CDataComp()
 {
-  m_bz_stream.bzalloc = CBZMemBridge::intf_alloc;
-  m_bz_stream.bzfree = CBZMemBridge::intf_free;
-  m_bz_stream.opaque = 0;
+  m_s.bzalloc = CBZMemBridge::intf_alloc;
+  m_s.bzfree = CBZMemBridge::intf_free;
+  m_s.opaque = 0;
 }
 
-truefalse CDataComp::prepare_buffers()
+truefalse CDataComp::init()
 {
-  return (m_buff_in.data() || CMemPoolX::instance()->alloc_mem(BUFF_SIZE, &m_buff_in)) &&
-         (m_buff_out.data() || CMemPoolX::instance()->alloc_mem(BUFF_SIZE, &m_buff_out));
+  return (m_in.get_ptr() || CCacheX::instance()->get(BUFF_SIZE, &m_in)) &&
+         (m_out.get_ptr() || CCacheX::instance()->get(BUFF_SIZE, &m_out));
 }
 
-truefalse CDataComp::do_compress(CArchiveloaderBase * _reader, CArchiveSaverBase * _writer)
+truefalse CDataComp::reduce_i(CBaseFileReader * v_r, CBaseFileWriter * v_w)
 {
-  ni ret, n, n2;
+  ni l_m, l_n, l_i;
 
   while (true)
   {
-    n = _reader->read(m_buff_in.data(), BUFF_SIZE);
-    if (n < 0)
+    l_n = v_r->read(m_in.get_ptr(), BUFF_SIZE);
+    if (l_n < 0)
       return false;
-    else if (n == 0)
+    else if (l_n == 0)
       break;
 
-    m_bz_stream.avail_in = n;
-    m_bz_stream.next_in = m_buff_in.data();
+    m_s.avail_in = l_n;
+    m_s.next_in = m_in.get_ptr();
     while (true)
     {
-      m_bz_stream.avail_out = BUFF_SIZE;
-      m_bz_stream.next_out = m_buff_out.data();
-      ret = BZ2_bzCompress(&m_bz_stream, BZ_RUN);
-      if (ret != BZ_RUN_OK)
+      m_s.avail_out = BUFF_SIZE;
+      m_s.next_out = m_out.get_ptr();
+      l_m = BZ2_bzCompress(&m_s, BZ_RUN);
+      if (l_m != BZ_RUN_OK)
       {
-        C_ERROR("BZ2_bzCompress(BZ_RUN) returns %d\n", ret);
+        C_ERROR("BZ2_bzCompress(BZ_RUN) = %d\n", l_m);
         return false;
       };
 
-      if (m_bz_stream.avail_out < BUFF_SIZE)
+      if (m_s.avail_out < BUFF_SIZE)
       {
-        n2 = BUFF_SIZE - m_bz_stream.avail_out;
-        if (!_writer->write(m_buff_out.data(), n2))
+        l_i = BUFF_SIZE - m_s.avail_out;
+        if (!v_w->write(m_out.get_ptr(), l_i))
          return false;
       }
 
-      if (m_bz_stream.avail_in == 0)
+      if (m_s.avail_in == 0)
         break;
     }
 
-   if (n < BUFF_SIZE)
+   if (l_n < BUFF_SIZE)
     break;
   }
 
   while (true)
   {
-    m_bz_stream.avail_out = BUFF_SIZE;
-    m_bz_stream.next_out = m_buff_out.data();
-    ret = BZ2_bzCompress(&m_bz_stream, BZ_FINISH);
-    if (ret != BZ_FINISH_OK && ret != BZ_STREAM_END)
+    m_s.avail_out = BUFF_SIZE;
+    m_s.next_out = m_out.get_ptr();
+    l_m = BZ2_bzCompress(&m_s, BZ_FINISH);
+    if (l_m != BZ_FINISH_OK && l_m != BZ_STREAM_END)
     {
-      C_ERROR("BZ2_bzCompress(BZ_FINISH) returns %d\n", ret);
+      C_ERROR("BZ2_bzCompress(BZ_FINISH) = %d\n", l_m);
       return false;
     };
 
-    if (m_bz_stream.avail_out < BUFF_SIZE)
+    if (m_s.avail_out < BUFF_SIZE)
     {
-      n2 = BUFF_SIZE - m_bz_stream.avail_out;
-      if (!_writer->write(m_buff_out.data(), n2))
+      l_i = BUFF_SIZE - m_s.avail_out;
+      if (!v_w->write(m_out.get_ptr(), l_i))
         return false;
     }
 
-    if (ret == BZ_STREAM_END)
+    if (l_m == BZ_STREAM_END)
       return true;
   }
 
   ACE_NOTREACHED(return true);
 }
 
-truefalse CDataComp::compress(CONST text * srcfn, ni prefix_len, CONST text * destfn, CONST text * key)
+truefalse CDataComp::reduce(CONST text * from_fn, ni skip_n, CONST text * to_fn, CONST text * v_password)
 {
-  CArchiveloaderBase reader;
-  if (!reader.open(srcfn))
+  CBaseFileReader l_r;
+  if (!l_r.open(from_fn))
     return false;
-  CArchiveSaver writer;
-  if (!writer.open(destfn))
+  CCompFileWriter l_w;
+  if (!l_w.open(to_fn))
     return false;
-  writer.set_key(key);
-  if (!writer.start(srcfn + prefix_len))
+  l_w.password(v_password);
+  if (!l_w.begin(from_fn + skip_n))
     return false;
-//  C_DEBUG("MyBZCompressor::compress, srcfn=%s, destfn=%d, save_as=%s\n", srcfn, destfn, srcfn + prefix_len);
-  prepare_buffers();
-  ni ret = BZ2_bzCompressInit(&m_bz_stream, COMPRESS_100k, 0, 30);
-  if (ret != BZ_OK)
+  init();
+  ni l_m = BZ2_bzCompressInit(&m_s, AGGRESSIVE, 0, 30);
+  if (l_m != BZ_OK)
   {
-    C_ERROR("BZ2_bzCompressInit() return value = %d\n", ret);
+    C_ERROR("BZ2_bzCompressInit() = %d\n", l_m);
     return false;
   }
 
-  truefalse result = do_compress(&reader, &writer);
-  if (!result)
-    C_ERROR("failed to compress file: %s to %s\n", srcfn, destfn);
-  BZ2_bzCompressEnd(&m_bz_stream);
+  truefalse n = reduce_i(&l_r, &l_w);
+  if (!n)
+    C_ERROR("reduce_i %s => %s\n", from_fn, to_fn);
+  BZ2_bzCompressEnd(&m_s);
 
-  if (!writer.finish())
+  if (!l_w.end())
     return false;
-  return result;
+  return n;
 }
 
-truefalse CDataComp::do_decompress(CArchiveloaderBase * _reader, CArchiveSaverBase * _writer)
+truefalse CDataComp::bloat_i(CBaseFileReader * v_r, CBaseFileWriter * v_w)
 {
-  ni n, n2, ret;
+  ni l_m, l_n, l_i;
 
-  m_bz_stream.avail_out = BUFF_SIZE;
-  m_bz_stream.next_out = m_buff_out.data();
-  m_bz_stream.avail_in = 0;
+  m_s.avail_out = BUFF_SIZE;
+  m_s.next_out = m_out.get_ptr();
+  m_s.avail_in = 0;
 
   while (true)
   {
-    if (m_bz_stream.avail_in == 0)
+    if (m_s.avail_in == 0)
     {
-       n = _reader->read(m_buff_in.data(), BUFF_SIZE);
-       if (n < 0)
+       l_m = v_r->read(m_in.get_ptr(), BUFF_SIZE);
+       if (l_m < 0)
          return false;
-       else if (n == 0)
+       else if (l_m == 0)
        {
          C_ERROR("error: unexpected eof\n");
          return false;
        }
-       m_bz_stream.avail_in = n;
-       m_bz_stream.next_in = m_buff_in.data();
+       m_s.avail_in = l_m;
+       m_s.next_in = m_in.get_ptr();
     }
 
-    ret = BZ2_bzDecompress(&m_bz_stream);
+    l_i = BZ2_bzDecompress(&m_s);
 
-    if (ret != BZ_OK && ret != BZ_STREAM_END)
+    if (l_i != BZ_OK && l_i != BZ_STREAM_END)
     {
-      C_ERROR("BZ2_bzDecompress() returns %d\n", ret);
+      C_ERROR("BZ2_bzDecompress() = %d\n", l_i);
       return false;
     };
 
-    if (m_bz_stream.avail_out < BUFF_SIZE)
+    if (m_s.avail_out < BUFF_SIZE)
     {
-      n2 = BUFF_SIZE - m_bz_stream.avail_out;
-      if (!_writer->write(m_buff_out.data(), n2))
+      l_n = BUFF_SIZE - m_s.avail_out;
+      if (!v_w->write(m_out.get_ptr(), l_n))
         return false;
-      m_bz_stream.avail_out = BUFF_SIZE;
-      m_bz_stream.next_out = m_buff_out.data();
+      m_s.avail_out = BUFF_SIZE;
+      m_s.next_out = m_out.get_ptr();
     }
 
-    if (ret == BZ_STREAM_END)
+    if (l_i == BZ_STREAM_END)
       return true;
   }
 
   ACE_NOTREACHED(return true);
 }
 
-truefalse CDataComp::decompress(CONST text * srcfn, CONST text * destdir, CONST text * key, CONST text * _rename)
+truefalse CDataComp::bloat(CONST text * from_fn, CONST text * to_path, CONST text * v_password, CONST text * new_name)
 {
-  CArchiveLoader reader;
-  if (!reader.open(srcfn))
+  CCompFileReader l_r;
+  if (!l_r.open(from_fn))
     return false;
-  CArchiveSaverBase writer;
-  prepare_buffers();
-  reader.set_key(key);
+  CBaseFileWriter l_w;
+  init();
+  l_r.password(v_password);
 
-  CMfileSplit spl;
-  if (!spl.init(_rename))
+  CDirConverter converter;
+  if (!converter.prepare(new_name))
     return false;
 
-  ni ret;
+  ni l_m;
   while (true)
   {
-    CONST text * _file_name = spl.translate(reader.file_name());
-    if (unlikely(!_file_name))
+    CONST text * l_x = converter.convert(l_r.fn());
+    if (unlikely(!l_x))
       return false;
 
-    if (!CSysFS::create_dir(destdir, _file_name, true, true))
+    if (!CSysFS::create_dir(to_path, l_x, true, true))
     {
-      C_ERROR("can not mkdir %s/%s %s\n", destdir, _file_name, (CONST char*)CSysError());
+      C_ERROR("create_dir %s/%s %s\n", to_path, l_x, (CONST char*)CSysError());
       return false;
     }
-    CMemGuard dest_file_name;
-    dest_file_name.from_string(destdir, "/", _file_name);
+    CMemProt true_fn;
+    true_fn.init(to_path, "/", l_x);
 
-    if (!writer.open(dest_file_name.data()))
+    if (!l_w.open(true_fn.get_ptr()))
       return false;
 
-    ret = BZ2_bzDecompressInit(&m_bz_stream, 0, 0);
-    if (ret != BZ_OK)
+    l_m = BZ2_bzDecompressInit(&m_s, 0, 0);
+    if (l_m != BZ_OK)
     {
-      C_ERROR("BZ2_bzCompressInit() return value = %d\n", ret);
+      C_ERROR("BZ2_bzCompressInit() = %d\n", l_m);
       return false;
     }
 
-    truefalse result = do_decompress(&reader, &writer);
-    BZ2_bzDecompressEnd(&m_bz_stream);
-    if (!result)
+    truefalse l_b = bloat_i(&l_r, &l_w);
+    BZ2_bzDecompressEnd(&m_s);
+    if (!l_b)
     {
-      C_ERROR("failed to decompress file: %s to %s\n", srcfn, destdir);
+      C_ERROR("bloat %s => %s\n", from_fn, to_path);
       return false;
     }
-    if (reader.eof())
+    if (l_r.finished())
       return true;
-    if (!reader.next())
+    if (!l_r.get_more())
       return false;
-    writer.close();
+    l_w.close();
   };
 
   ACE_NOTREACHED(return true);
 }
 
 
-//MyBZCompositor//
+
 
 truefalse CCompCombiner::open(CONST text * filename)
 {
-  return m_file.open_write(filename, true, true, true, false);
+  return m_f.open_write(filename, true, true, true, false);
 }
 
 DVOID CCompCombiner::close()
 {
-  m_file.bind_fd(CFileGuard::BAD_FD);
+  m_f.bind_fd(CFileProt::BAD_FD);
 }
 
 truefalse CCompCombiner::add(CONST text * filename)
 {
-  if (!m_file.ok())
+  if (!m_f.ok())
     return true;
-  CFileGuard src;
+  CFileProt src;
   if (!src.open_nowrite(filename))
     return false;
-  truefalse result = CSysFS::copy_file_by_fd(src.get_fd(), m_file.get_fd());
+  truefalse result = CSysFS::copy_file_by_fd(src.get_fd(), m_f.get_fd());
   if (!result)
     C_ERROR("MyBZCompositor::add(%s) failed\n", filename);
   return result;
@@ -1364,9 +1337,9 @@ truefalse CCompCombiner::add_multi(text * filenames, CONST text * path, CONST te
         return false;
     } else
     {
-      CMemGuard fn;
-      fn.from_string(path, "/", token, ext);
-      if (!add(fn.data()))
+      CMemProt fn;
+      fn.init(path, "/", token, ext);
+      if (!add(fn.get_ptr()))
         return false;
     }
   }
@@ -1392,7 +1365,7 @@ CProcBase::~CProcBase()
 
 }
 
-DVOID CProcBase::get_sinfo(CMemGuard & info) CONST
+DVOID CProcBase::get_sinfo(CMemProt & info) CONST
 {
   ACE_UNUSED_ARG(info);
 }
@@ -1495,7 +1468,7 @@ CONST text * CFormatProcBase::name() CONST
   return "MyBasePacketProcessor";
 }
 
-DVOID CFormatProcBase::get_sinfo(CMemGuard & info) CONST
+DVOID CFormatProcBase::get_sinfo(CMemProt & info) CONST
 {
   CONST text * str_id = m_client_id.to_str();
   if (!*str_id)
@@ -1506,7 +1479,7 @@ DVOID CFormatProcBase::get_sinfo(CMemGuard & info) CONST
   ss[2] = ", client_id=";
   ss[3] = m_client_id.to_str();
   ss[4] = ")";
-  info.from_strings(ss, 5);
+  info.inits(ss, 5);
 }
 
 ni CFormatProcBase::on_open()
@@ -1538,7 +1511,7 @@ CProcBase::OUTPUT CFormatProcBase::on_recv_packet_i(CMB * mb)
 
 CMB * CFormatProcBase::make_version_check_request_mb(CONST ni extra)
 {
-  CMB * mb = CMemPoolX::instance()->get_mb_cmd_direct(sizeof(CTerminalVerReq) + extra, CCmdHeader::PT_VER_REQ);
+  CMB * mb = CCacheX::instance()->get_mb_cmd_direct(sizeof(CTerminalVerReq) + extra, CCmdHeader::PT_VER_REQ);
   return mb;
 }
 
@@ -1610,10 +1583,10 @@ CProcBase::OUTPUT CServerProcBase::on_recv_header()
   truefalse bVersionCheck = (m_packet_header.cmd == CCmdHeader::PT_VER_REQ);
   if (bVerified == bVersionCheck)
   {
-    CMemGuard info;
+    CMemProt info;
     get_sinfo(info);
     C_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s, \n"),
-        m_packet_header.cmd, bVerified, bVersionCheck, info.data());
+        m_packet_header.cmd, bVerified, bVersionCheck, info.get_ptr());
     return OP_FAIL;
   }
 
@@ -1626,7 +1599,7 @@ CProcBase::OUTPUT CServerProcBase::do_version_check_common(CMB * mb, CTermSNs & 
   vcr->fix_data();
   CMB * reply_mb = NULL;
   m_client_version.init(vcr->term_ver_major, vcr->term_ver_minor);
-  ni client_id_index = client_id_table.index_of(vcr->term_sn);
+  ni client_id_index = client_id_table.find_location(vcr->term_sn);
   truefalse valid = false;
 
   m_client_id_index = client_id_index;
@@ -1636,8 +1609,8 @@ CProcBase::OUTPUT CServerProcBase::do_version_check_common(CMB * mb, CTermSNs & 
   if (client_id_index >= 0)
   {
     CTermData client_info;
-    if (client_id_table.value_all(client_id_index, client_info))
-      valid = ! client_info.expired;
+    if (client_id_table.get_termData(client_id_index, client_info))
+      valid = ! client_info.invalid;
   }
   if (!valid)
   {
@@ -1662,7 +1635,7 @@ CMB * CServerProcBase::make_version_check_reply_mb
    (CTermVerReply::SUBCMD code, ni extra_len)
 {
   ni total_len = sizeof(CTermVerReply) + extra_len;
-  CMB * mb = CMemPoolX::instance()->get_mb_cmd_direct(total_len, CCmdHeader::PT_VER_REPLY);
+  CMB * mb = CCacheX::instance()->get_mb_cmd_direct(total_len, CCmdHeader::PT_VER_REPLY);
   CTermVerReply * vcr = (CTermVerReply *) mb->base();
   vcr->ret_subcmd = code;
   return mb;
@@ -1740,10 +1713,10 @@ CProcBase::OUTPUT CClientProcBase::on_recv_header()
   truefalse bVersionCheck = (m_packet_header.cmd == CCmdHeader::PT_VER_REPLY);
   if (bVerified == bVersionCheck)
   {
-    CMemGuard info;
+    CMemProt info;
     get_sinfo(info);
     C_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s \n"),
-        m_packet_header.cmd, bVerified, bVersionCheck, info.data());
+        m_packet_header.cmd, bVerified, bVersionCheck, info.get_ptr());
     return OP_FAIL;
   }
 
@@ -1768,7 +1741,7 @@ CConnectionManagerBase::~CConnectionManagerBase()
 {
   MyConnectionsPtr it;
   CHandlerBase * handler;
-  MyConnectionManagerLockGuard guard(this);
+  MyConnectionManagerLockProt guard(this);
   for (it = m_active_connections.begin(); it != m_active_connections.end(); ++it)
   {
     handler = it->first;
@@ -1854,7 +1827,7 @@ DVOID CConnectionManagerBase::do_send(CMB * mb, truefalse broadcast)
 
   typedef std::vector<CHandlerBase *, CCppAllocator<CHandlerBase *> > pointers;
   pointers ptrs;
-  CMBGuard guard(mb);
+  CMBProt guard(mb);
 
   MyConnectionsPtr it;
   for (it = m_active_connections.begin(); it != m_active_connections.end(); ++it)
@@ -1899,7 +1872,7 @@ DVOID CConnectionManagerBase::detect_dead_connections(ni timeout)
 {
   MyConnectionsPtr it;
   CHandlerBase * h;
-  MyConnectionManagerLockGuard guard(this);
+  MyConnectionManagerLockProt guard(this);
   long deadline = g_clock_counter - long(timeout * 60 / CApp::CLOCK_TIME);
   for (it = m_active_connections.begin(); it != m_active_connections.end();)
   {
@@ -1934,7 +1907,7 @@ DVOID CConnectionManagerBase::set_connection_client_id_index(CHandlerBase * hand
     return;
   MyIndexHandlerMapPtr it = m_index_handler_map.lower_bound(index);
   if (id_table)
-    id_table->active(index, true);
+    id_table->set_connected(index, true);
   if (it != m_index_handler_map.end() && (it->first == index))
   {
     CHandlerBase * handler_old = it->second;
@@ -1942,9 +1915,9 @@ DVOID CConnectionManagerBase::set_connection_client_id_index(CHandlerBase * hand
     if (handler_old)
     {
       remove_from_active_table(handler_old);
-      CMemGuard info;
+      CMemProt info;
       handler_old->processor()->get_sinfo(info);
-      C_DEBUG("closing previous connection %s\n", info.data());
+      C_DEBUG("closing previous connection %s\n", info.get_ptr());
       handler_old->mark_as_reap();
       handler_old->handle_close(ACE_INVALID_HANDLE, 0);
     }
@@ -2018,7 +1991,7 @@ DVOID CConnectionManagerBase::remove_from_handler_map(CHandlerBase * handler, CT
   {
     m_index_handler_map.erase(ptr2);
     if (id_table)
-      id_table->active(index, false);
+      id_table->set_connected(index, false);
   }
 }
 
@@ -2599,7 +2572,7 @@ truefalse CTaskBase::do_add_task(DVOID * p, ni task_type)
   if (unlikely(!p))
     return true;
 
-  CMB * mb = CMemPoolX::instance()->get_mb(sizeof(ni) + sizeof(DVOID *));
+  CMB * mb = CCacheX::instance()->get_mb(sizeof(ni) + sizeof(DVOID *));
   *((ni*)mb->base()) = task_type;
   *(text **)(mb->base() + sizeof(ni)) = (char*)p;
 

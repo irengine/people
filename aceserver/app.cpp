@@ -261,13 +261,13 @@ truefalse CCfg::read_base(CCfgHeap & heap, CCfgKey & key)
     {
       if (n != AM_DIST && n != AM_MIDDLE)
       {
-        C_FATAL("invalid server running mode = %d\n", n);
+        C_FATAL("bad server mode = %d\n", n);
         return false;
       }
       mode = CAppMode(n);
     } else
     {
-      C_FATAL("can not read server running mode\n");
+      C_FATAL("can not read server mode\n");
       return false;
     }
   }
@@ -515,7 +515,7 @@ truefalse CCfg::read_dist(CCfgHeap & heap, CCfgKey & key)
   ACE_TString s;
   if (heap.get_string_value(key, TEXT_client_version_min, s) == 0)
   {
-    if (!client_ver_min.from_string(s.c_str()))
+    if (!client_ver_min.init(s.c_str()))
     {
       C_ERROR("bad config value %s: %s\n", TEXT_client_version_min, s.c_str());
       return false;
@@ -529,7 +529,7 @@ truefalse CCfg::read_dist(CCfgHeap & heap, CCfgKey & key)
 
   if (heap.get_string_value(key, TEXT_client_version_now, s) == 0)
   {
-    if (!client_ver_now.from_string(s.c_str()))
+    if (!client_ver_now.init(s.c_str()))
     {
       C_ERROR("bad config value %s: %s\n", TEXT_client_version_now, s.c_str());
       return false;
@@ -544,8 +544,8 @@ truefalse CCfg::read_dist(CCfgHeap & heap, CCfgKey & key)
   if (client_ver_now < client_ver_min)
   {
     C_ERROR("bad config value %s(%s) < %s(%s)\n",
-        TEXT_client_version_now, client_ver_now.to_string(),
-        TEXT_client_version_min, client_ver_min.to_string());
+        TEXT_client_version_now, client_ver_now.to_text(),
+        TEXT_client_version_min, client_ver_min.to_text());
     return false;
   }
 
@@ -635,10 +635,10 @@ DVOID CCfg::print_all()
   switch (mode)
   {
   case AM_DIST:
-    smode = "dist server";
+    smode = "dist";
     break;
   case AM_MIDDLE:
-    smode = "middle server";
+    smode = "middle";
     break;
   case AM_CLIENT:
     smode = "client";
@@ -705,7 +705,7 @@ DVOID CCfg::print_all()
     ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_ftp_servers, ftp_servers.c_str()));
   }
 
-  //common: file/path locations printout
+  //
   ACE_DEBUG ((LM_INFO, "\tstatus_file = %s\n", status_fn.c_str()));
   ACE_DEBUG ((LM_INFO, "\tlog_file = %s\n", log_fn.c_str()));
   ACE_DEBUG ((LM_INFO, "\tconfig_file = %s\n", cfg_fn.c_str()));
@@ -714,7 +714,7 @@ DVOID CCfg::print_all()
 }
 
 
-//MySigHandler//
+
 CSignaller::CSignaller(CApp * p)
 {
   m_parent = p;
@@ -727,7 +727,7 @@ ni CSignaller::handle_signal (ni signum, siginfo_t*, ucontext_t*)
 };
 
 
-//CNotificationFiler//
+
 CNotificationFiler::CNotificationFiler(CApp * p)
 {
   m_parent = p;
@@ -742,7 +742,7 @@ ni CNotificationFiler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
 }
 
 
-//CPrinter//
+
 CPrinter::CPrinter(CApp * p)
 {
   m_parent = p;
@@ -755,7 +755,7 @@ ni CPrinter::handle_timeout (CONST ACE_Time_Value &, CONST DVOID *)
 }
 
 
-//CClocker//
+
 
 ni CClocker::handle_timeout (CONST ACE_Time_Value &, CONST DVOID *)
 {
@@ -764,15 +764,10 @@ ni CClocker::handle_timeout (CONST ACE_Time_Value &, CONST DVOID *)
 }
 
 
-//CApp//
+
 CApp::CApp(): m_sig(this), m_sfile(this), m_printer(this)
 {
   m_running = false;
-  //moved the initializations of modules to the SF app_init() func
-  //Just can NOT do it in constructor simply because the singleton pattern
-  //will make recursively calls to our constructor by the module constructor's ref
-  //to MyServerApp's singleton.
-  //This is Ugly, but works right now
   m_hup = false;
   m_term = false;
   m_chld = false;
@@ -801,9 +796,9 @@ truefalse CApp::delayed_init()
   CCfgX::instance()->print_all();
   C_INFO("loading modules...\n");
 
-  m_signal_handler.register_handler(SIGTERM, &m_sig);
-  m_signal_handler.register_handler(SIGCHLD, &m_sig);
-  m_signal_handler.register_handler(SIGHUP, &m_sig);
+  m_sgh.register_handler(SIGTERM, &m_sig);
+  m_sgh.register_handler(SIGCHLD, &m_sig);
+  m_sgh.register_handler(SIGHUP, &m_sig);
 
   if (!do_init())
     return false;
@@ -815,8 +810,7 @@ truefalse CApp::delayed_init()
     ni fd = open(CCfgX::instance()->status_fn.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
     if (fd == -1)
     {
-      C_WARNING("status_file_check_interval enabled, but can not create/open file %s\n",
-          CCfgX::instance()->status_fn.c_str());
+      C_WARNING("sfile needed, but fail create/open file %s\n", CCfgX::instance()->status_fn.c_str());
       return false;
     }
     close(fd);
@@ -824,7 +818,7 @@ truefalse CApp::delayed_init()
 
     ACE_Time_Value interval (CCfgX::instance()->fcheck_delay * 60);
     if (ACE_Reactor::instance()->schedule_timer (&m_sfile, 0, interval, interval) == -1)
-      C_WARNING("can not setup status_file_check timer\n");
+      C_WARNING("fail init sfile timer\n");
   }
 
   if (CCfgX::instance()->print_delay > 0)
@@ -832,13 +826,13 @@ truefalse CApp::delayed_init()
     ACE_Time_Value interval(60 * CCfgX::instance()->print_delay);
     if (ACE_Reactor::instance()->schedule_timer (&m_printer,
                              0, interval, interval) == -1)
-      C_WARNING("can not setup info dump timer\n");
+      C_WARNING("fail init stats timer\n");
   }
 
   ACE_Time_Value interval(CLOCK_TIME);
   if (ACE_Reactor::instance()->schedule_timer(&m_clock, 0, interval, interval) == -1)
   {
-    C_FATAL("can not setup clock timer\n");
+    C_FATAL("fail init clock timer\n");
     return false;
   }
 
@@ -847,8 +841,8 @@ truefalse CApp::delayed_init()
 
 CApp::~CApp()
 {
-  m_signal_handler.remove_handler(SIGHUP);
-  m_signal_handler.remove_handler(SIGTERM);
+  m_sgh.remove_handler(SIGHUP);
+  m_sgh.remove_handler(SIGTERM);
   if (m_sfile_check)
     ACE_Reactor::instance()->cancel_timer(&m_sfile);
   if (CCfgX::instance()->print_delay > 0)
@@ -916,20 +910,20 @@ DVOID CApp::i_print()
 
 }
 
-DVOID CApp::print_pool(CONST text * poolname, long nAlloc, long nFree, long nMaxUse, long nAllocFull, ni block_size, ni chunks)
+DVOID CApp::print_pool(CONST text * p, long v_get, long v_put, long v_peak, long v_fail, ni block_size, ni v_blocks)
 {
-  long nInUse = nAlloc - nFree;
+  long l_use = v_get - v_put;
   ACE_DEBUG((LM_INFO, "    Obj[%s], Use=%d, Get=%d, "
-      "Rel=%d, Max=%d, Bad=%d, Size=%d, CNT=%d\n",
-      poolname, nInUse, nAlloc, nFree, nMaxUse, nAllocFull, block_size, chunks));
+      "Put=%d, Max=%d, Bad=%d, Size=%d, CNT=%d\n",
+      p, l_use, v_get, v_put, v_peak, v_fail, block_size, v_blocks));
 }
 
 DVOID CApp::print_info()
 {
-  C_INFO("##### Running Information Dump #####\n");
+  C_INFO("##### Stats Start #####\n");
   std::for_each(m_components.begin(), m_components.end(), std::mem_fun(&CMod::print_all));
   i_print();
-  ACE_DEBUG((LM_INFO, "##### Dump End #####\n"));
+  ACE_DEBUG((LM_INFO, "##### Finish #####\n"));
 }
 
 truefalse CApp::before_begin()
@@ -947,7 +941,7 @@ DVOID CApp::begin()
   std::for_each(m_components.begin(), m_components.end(), std::mem_fun(&CMod::start));
 
   C_INFO("loading components finished!\n");
-  handle_signal_child(); //fast delivery
+  handle_signal_child(); //quick handle
   schedule_works();
 }
 

@@ -125,7 +125,7 @@ public:
   bool adv_db_is_older(time_t deadline);
 
 protected:
-  friend class MyClientDBGuard;
+  friend class MyClientDBProt;
   MyClientDB();
   static ACE_Thread_Mutex m_mutex;
 
@@ -144,15 +144,15 @@ private:
   sqlite3 * m_db;
 };
 
-class MyClientDBGuard
+class MyClientDBProt
 {
 public:
-  MyClientDBGuard()
+  MyClientDBProt()
   {
     MyClientDB::m_mutex.acquire();
   }
 
-  ~MyClientDBGuard()
+  ~MyClientDBProt()
   {
     m_db.close_db();
     MyClientDB::m_mutex.release();
@@ -197,11 +197,11 @@ private:
 
   std::string        m_user_name;
   std::string        m_password;
-  CMemGuard   m_ftp_server_addr;
+  CMemProt   m_ftp_server_addr;
   ACE_INET_Addr      m_remote_addr;
   ACE_SOCK_Connector m_connector;
   ACE_SOCK_Stream    m_peer;
-  CMemGuard   m_response;
+  CMemProt   m_response;
   MyDistInfoFtp *    m_ftp_info;
 };
 
@@ -210,24 +210,24 @@ class MyDistInfoHeader
 public:
   MyDistInfoHeader();
   virtual ~MyDistInfoHeader();
-  void calc_target_parent_path(CMemGuard & target_parent_path, bool extract_only, bool bv);
-  bool calc_target_path(const char * target_parent_path, CMemGuard & target_path);
+  void calc_target_parent_path(CMemProt & target_parent_path, bool extract_only, bool bv);
+  bool calc_target_path(const char * target_parent_path, CMemProt & target_path);
   virtual bool validate();
   const char * index_file() const;
   bool need_spl() const;
 
-  CMemGuard dist_id;
-  CMemGuard findex;
-  CMemGuard adir;
-  CMemGuard aindex;
+  CMemProt dist_id;
+  CMemProt findex;
+  CMemProt adir;
+  CMemProt aindex;
   char ftype;
   char type;
   CNumber client_id;
   int client_id_index;
 
 protected:
-  int load_header_from_string(char * src);
-  bool calc_update_ini_value(CMemGuard & value);
+  int load_header_init(char * src);
+  bool calc_update_ini_value(CMemProt & value);
 };
 
 class MyDistInfoMD5: public MyDistInfoHeader
@@ -237,17 +237,17 @@ public:
 
   MyDistInfoMD5();
 
-  bool load_from_string(char * src);
+  bool load_init(char * src);
   virtual bool validate();
   bool compare_done() const;
   void compare_done(bool done);
-  CFileMD5s & md5list();
+  CCheckSums & md5list();
   void post_md5_message();
   const char * md5_text() const;
 
 private:
-  CMemGuard m_md5_text;
-  CFileMD5s m_md5list;
+  CMemProt m_md5_text;
+  CCheckSums m_md5list;
   bool m_compare_done;
 };
 
@@ -271,8 +271,8 @@ private:
 class MyDistInfoMD5Comparer
 {
 public:
-  static bool compute(MyDistInfoHeader * dist_info_header, CFileMD5s & md5list);
-  static void compare(MyDistInfoHeader * dist_info_header, CFileMD5s & server_md5, CFileMD5s & client_md5);
+  static bool compute(MyDistInfoHeader * dist_info_header, CCheckSums & md5list);
+  static void compare(MyDistInfoHeader * dist_info_header, CCheckSums & server_md5, CCheckSums & client_md5);
   static bool compute(MyDistInfoMD5 * dist_md5);
 };
 
@@ -285,7 +285,7 @@ public:
   MyDistInfoFtp();
 
   virtual bool validate();
-  bool load_from_string(char * src);
+  bool load_init(char * src);
   time_t get_delay_penalty() const;
   bool should_ftp(time_t now) const;
   bool should_extract() const;
@@ -297,22 +297,22 @@ public:
   bool update_db_status() const;
   void generate_update_ini();
   void generate_url_ini();
-  bool generate_dist_id_txt(const CMemGuard & path);
+  bool generate_dist_id_txt(const CMemProt & path);
   int  prio() const;
   bool operator < (const MyDistInfoFtp & rhs) const;
 
   static ACE_Message_Block * make_ftp_dist_message(const char * dist_id, int status, bool ok = true, char ftype = 'x');
 
-  CMemGuard file_name;
-  CMemGuard file_password;
-  CMemGuard ftp_password;
-  CMemGuard ftp_md5;
-  CMemGuard server_md5;
-  CMemGuard client_md5;
+  CMemProt file_name;
+  CMemProt file_password;
+  CMemProt ftp_password;
+  CMemProt ftp_md5;
+  CMemProt server_md5;
+  CMemProt client_md5;
 
   int  status;
   time_t recv_time;
-  CMemGuard local_file_name;
+  CMemProt local_file_name;
   bool first_download;
   time_t last_update;
 
@@ -347,11 +347,11 @@ public:
   MyDistFtpFileExtractor();
 
   bool extract(MyDistInfoFtp * dist_info);
-  bool get_true_dest_path(MyDistInfoFtp * dist_info, CMemGuard & target_path);
-  static bool has_id(const CMemGuard & target_parent_path);
+  bool get_true_dest_path(MyDistInfoFtp * dist_info, CMemProt & target_path);
+  static bool has_id(const CMemProt & target_parent_path);
 
 private:
-  bool do_extract(MyDistInfoFtp * dist_info, const CMemGuard & target_parent_path);
+  bool do_extract(MyDistInfoFtp * dist_info, const CMemProt & target_parent_path);
   bool syn(MyDistInfoFtp * dist_info);
   MyDistInfoFtp * m_dist_info;
 };
@@ -381,15 +381,15 @@ public:
 private:
   enum { DEFAULT_HEART_BEAT_INTERVAL = 1};
 
-  void do_init(CMemGuard & g, char * data, time_t t);
-  void init_time_str(CMemGuard & g, const char * s, const char c);
+  void do_init(CMemProt & g, char * data, time_t t);
+  void init_time_str(CMemProt & g, const char * s, const char c);
   const char * search(char * src);
-  static void get_filename(CMemGuard & fn);
+  static void get_filename(CMemProt & fn);
   void save_to_file(const char * s);
   bool load_from_file();
 
-  CMemGuard m_pc;
-  CMemGuard m_pc_x;
+  CMemProt m_pc;
+  CMemProt m_pc_x;
   int m_heart_beat_interval;
   ACE_Thread_Mutex m_mutex;
   char m_tail;
@@ -429,7 +429,7 @@ private:
   bool check_vlc_empty();
 
   bool m_version_check_reply_done;
-  CMemGuard m_ftp_password;
+  CMemProt m_ftp_password;
 };
 
 class MyDistServerAddrList
@@ -453,13 +453,13 @@ public:
   static bool has_cache();
 
 private:
-  static void get_file_name(CMemGuard & file_name);
+  static void get_file_name(CMemProt & file_name);
   bool valid_addr(const char * addr) const;
 
   std::vector<std::string> m_server_addrs;
   std::vector<std::string> m_ftp_addrs;
   ACE_Thread_Mutex m_mutex;
-  CMemGuard m_addr_list;
+  CMemProt m_addr_list;
   int m_addr_list_len;
   int m_index;
   int m_ftp_index;

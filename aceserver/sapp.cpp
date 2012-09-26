@@ -11,56 +11,56 @@ std::string current_ver()
 
 //MyServerApp//
 
-MyServerApp::MyServerApp()
+CRunner::CRunner()
 {
-  m_heart_beat_module = NULL;
+  m_ping_component = NULL;
   m_location_module = NULL;
   m_dist_load_module = NULL;
   m_http_module = NULL;
   m_dist_to_middle_module = NULL;
 }
 
-MyServerApp::~MyServerApp()
+CRunner::~CRunner()
 {
 
 }
 
-CTermSNs & MyServerApp::client_id_table()
+CTermSNs & CRunner::termSNs()
 {
-  return m_client_ids;
+  return m_term_SNs;
 }
 
-MyHeartBeatModule * MyServerApp::heart_beat_module() CONST
+MyHeartBeatModule * CRunner::ping_component() CONST
 {
-  return m_heart_beat_module;
+  return m_ping_component;
 }
 
-MyDistLoadModule * MyServerApp::dist_load_module() CONST
+MyDistLoadModule * CRunner::dist_load_module() CONST
 {
   return m_dist_load_module;
 }
 
-MyHttpModule * MyServerApp::http_module() CONST
+MyHttpModule * CRunner::http_module() CONST
 {
   return m_http_module;
 }
 
-MyLocationModule * MyServerApp::location_module() CONST
+MyLocationModule * CRunner::location_module() CONST
 {
   return m_location_module;
 }
 
-MyDistToMiddleModule * MyServerApp::dist_to_middle_module() CONST
+MyDistToMiddleModule * CRunner::dist_to_middle_module() CONST
 {
   return m_dist_to_middle_module;
 }
 
-MyDB & MyServerApp::db()
+MyDB & CRunner::db()
 {
   return m_db;
 }
 
-truefalse MyServerApp::dist_put_to_service(CMB * mb)
+truefalse CRunner::post_dist_task(CMB * mb)
 {
   C_ASSERT_RETURN(mb, "\n", false);
 
@@ -70,132 +70,132 @@ truefalse MyServerApp::dist_put_to_service(CMB * mb)
     return false;
   }
 
-  return c_tools_mb_putq(m_heart_beat_module->service(), mb, "to service's queue");
+  return c_tools_mb_putq(m_ping_component->service(), mb, "to service's queue");
 }
 
-truefalse MyServerApp::before_begin()
+truefalse CRunner::before_begin()
 {
 
   return true;
 }
 
-DVOID MyServerApp::before_finish()
+DVOID CRunner::before_finish()
 {
 
 }
 
-DVOID MyServerApp::dump_mem_pool_info()
+DVOID CRunner::print_caches()
 {
-  ACE_DEBUG((LM_INFO, "  !!! Memory Dump start !!!\n"));
-  long nAlloc = 0, nFree = 0, nMaxUse = 0, nAllocFull = 0;
+  ACE_DEBUG((LM_INFO, "  !!! Cache begin !!!\n"));
+  long l_get = 0, l_put = 0, l_peak = 0, l_fail = 0;
   if (!g_cache)
   {
-    ACE_DEBUG((LM_INFO, "    Memory Pool Disabled\n"));
+    ACE_DEBUG((LM_INFO, "    Cache Disabled\n"));
     goto _exit_;
   }
   ni blocks;
-  //start of dist server stuff
-  if (MyHeartBeatHandler::mem_pool())
+  //d
+  if (MyHeartBeatHandler::mem_block())
   {
-    blocks = MyHeartBeatHandler::mem_pool()->blocks();
-    MyHeartBeatHandler::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyHeartBeatHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatHandler), blocks);
+    blocks = MyHeartBeatHandler::mem_block()->blocks();
+    MyHeartBeatHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyHeartBeatHandler", l_get, l_put, l_peak, l_fail, sizeof(MyHeartBeatHandler), blocks);
   }
 
-  if (MyHeartBeatProcessor::mem_pool())
+  if (MyHeartBeatProcessor::mem_block())
   {
-    blocks = MyHeartBeatProcessor::mem_pool()->blocks();
-    MyHeartBeatProcessor::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyHeartBeatProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHeartBeatProcessor), blocks);
+    blocks = MyHeartBeatProcessor::mem_block()->blocks();
+    MyHeartBeatProcessor::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyHeartBeatProcessor", l_get, l_put, l_peak, l_fail, sizeof(MyHeartBeatProcessor), blocks);
   }
 
-  if (MyDistToBSHandler::mem_pool())
+  if (MyDistToBSHandler::mem_block())
   {
-    blocks = MyDistToBSHandler::mem_pool()->blocks();
-    MyDistToBSHandler::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyDistToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToBSHandler), blocks);
+    blocks = MyDistToBSHandler::mem_block()->blocks();
+    MyDistToBSHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyDistToBSHandler", l_get, l_put, l_peak, l_fail, sizeof(MyDistToBSHandler), blocks);
   }
 
-  if (MyDistToMiddleHandler::mem_pool())
+  if (MyDistToMiddleHandler::mem_block())
   {
-    blocks = MyDistToMiddleHandler::mem_pool()->blocks();
-    MyDistToMiddleHandler::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyDistToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistToMiddleHandler), blocks);
+    blocks = MyDistToMiddleHandler::mem_block()->blocks();
+    MyDistToMiddleHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyDistToMiddleHandler", l_get, l_put, l_peak, l_fail, sizeof(MyDistToMiddleHandler), blocks);
   }
 
-  //start of middle server stuff
-  if (MyLocationHandler::mem_pool())
+  //m
+  if (MyLocationHandler::mem_block())
   {
-    blocks = MyLocationHandler::mem_pool()->blocks();
-    MyLocationHandler::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyLocationHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationHandler), blocks);
+    blocks = MyLocationHandler::mem_block()->blocks();
+    MyLocationHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyLocationHandler", l_get, l_put, l_peak, l_fail, sizeof(MyLocationHandler), blocks);
   }
 
-  if (MyLocationProcessor::mem_pool())
+  if (MyLocationProcessor::mem_block())
   {
-    blocks = MyLocationProcessor::mem_pool()->blocks();
-    MyLocationProcessor::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyLocationProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyLocationProcessor), blocks);
+    blocks = MyLocationProcessor::mem_block()->blocks();
+    MyLocationProcessor::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyLocationProcessor", l_get, l_put, l_peak, l_fail, sizeof(MyLocationProcessor), blocks);
   }
 
-  if (MyHttpHandler::mem_pool())
+  if (MyHttpHandler::mem_block())
   {
-    blocks = MyHttpHandler::mem_pool()->blocks();
-    MyHttpHandler::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyHttpHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpHandler), blocks);
+    blocks = MyHttpHandler::mem_block()->blocks();
+    MyHttpHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyHttpHandler", l_get, l_put, l_peak, l_fail, sizeof(MyHttpHandler), blocks);
   }
 
-  if (MyHttpProcessor::mem_pool())
+  if (MyHttpProcessor::mem_block())
   {
-    blocks = MyHttpProcessor::mem_pool()->blocks();
-    MyHttpProcessor::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyHttpProcessor", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyHttpProcessor), blocks);
+    blocks = MyHttpProcessor::mem_block()->blocks();
+    MyHttpProcessor::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyHttpProcessor", l_get, l_put, l_peak, l_fail, sizeof(MyHttpProcessor), blocks);
   }
 
-  if (MyDistLoadHandler::mem_pool())
+  if (MyDistLoadHandler::mem_block())
   {
-    blocks = MyDistLoadHandler::mem_pool()->blocks();
-    MyDistLoadHandler::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyDistLoadHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyDistLoadHandler), blocks);
+    blocks = MyDistLoadHandler::mem_block()->blocks();
+    MyDistLoadHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyDistLoadHandler", l_get, l_put, l_peak, l_fail, sizeof(MyDistLoadHandler), blocks);
   }
 
-  if (MyMiddleToBSHandler::mem_pool())
+  if (MyMiddleToBSHandler::mem_block())
   {
-    blocks = MyMiddleToBSHandler::mem_pool()->blocks();
-    MyMiddleToBSHandler::mem_pool()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyMiddleToBSHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyMiddleToBSHandler), blocks);
+    blocks = MyMiddleToBSHandler::mem_block()->blocks();
+    MyMiddleToBSHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyMiddleToBSHandler", l_get, l_put, l_peak, l_fail, sizeof(MyMiddleToBSHandler), blocks);
   }
 
-  CMemPoolX::instance()->print_info();
+  CCacheX::instance()->print_info();
 
 _exit_:
-  ACE_DEBUG((LM_INFO, "  !!! Memory Dump End !!!\n"));
+  ACE_DEBUG((LM_INFO, "  !!! Cache Finish !!!\n"));
 }
 
-DVOID MyServerApp::i_print()
+DVOID CRunner::i_print()
 {
-  MyServerApp::dump_mem_pool_info();
+  CRunner::print_caches();
 }
 
-truefalse MyServerApp::do_init()
+truefalse CRunner::do_init()
 {
   CCfg * cfg = CCfgX::instance();
-  g_client_ids = &m_client_ids;
+  g_term_sns = &m_term_SNs;
 
   if (!m_db.connect())
   {
-    C_FATAL("can not connect to database. quitting...\n");
+    C_FATAL("fail to connect to database. quitting...\n");
     return false;
   }
-  if (!m_db.get_client_ids(&m_client_ids))
+  if (!m_db.get_client_ids(&m_term_SNs))
   {
-    C_FATAL("can not get client_ids database. quitting...\n");
+    C_FATAL("fail to get term sn from db. quitting...\n");
     return false;
   }
 
   if (cfg->dist())
   {
-    add_component(m_heart_beat_module = new MyHeartBeatModule(this));
+    add_component(m_ping_component = new MyHeartBeatModule(this));
     add_component(m_dist_to_middle_module = new MyDistToMiddleModule(this));
   }
   if (cfg->middle())
@@ -207,58 +207,58 @@ truefalse MyServerApp::do_init()
   return true;
 }
 
-truefalse MyServerApp::app_init(CONST text * app_home_path, CCfg::CAppMode mode)
+truefalse CRunner::initialize(CONST text * v_dir, CCfg::CAppMode v_m)
 {
-  MyServerApp * app = MyServerAppX::instance();
-  CCfg* cfg = CCfgX::instance();
-  if (!CCfgX::instance()->readall(app_home_path, mode))
+  CRunner * app = CRunnerX::instance();
+  CCfg* l_p = CCfgX::instance();
+  if (!CCfgX::instance()->readall(v_dir, v_m))
   {
-    std::printf("error loading config file, quitting\n");
+    std::printf("fail read config\n");
     exit(5);
   }
-  if (cfg->is_demon)
+  if (l_p->is_demon)
     CApp::demon();
-  if (cfg->dist())
+  if (l_p->dist())
   {
-    MyHeartBeatProcessor::init_mem_pool(cfg->client_peak);
-    MyHeartBeatHandler::init_mem_pool(cfg->client_peak);
-    MyDistToMiddleHandler::init_mem_pool(20);
-    MyDistToBSHandler::init_mem_pool(20);
+    MyHeartBeatProcessor::mem_block_start(l_p->client_peak);
+    MyHeartBeatHandler::mem_block_start(l_p->client_peak);
+    MyDistToMiddleHandler::mem_block_start(20);
+    MyDistToBSHandler::mem_block_start(20);
   }
-  if (cfg->middle())
+  if (l_p->middle())
   {
-    MyDistLoadHandler::init_mem_pool(50);
-    MyLocationHandler::init_mem_pool(1000);
-    MyLocationProcessor::init_mem_pool(1000);
-    MyHttpProcessor::init_mem_pool(20);
-    MyHttpHandler::init_mem_pool(20);
-    MyMiddleToBSHandler::init_mem_pool(20);
-    MyMiddleToBSProcessor::init_mem_pool(20);
+    MyDistLoadHandler::mem_block_start(50);
+    MyLocationHandler::mem_block_start(1000);
+    MyLocationProcessor::mem_block_start(1000);
+    MyHttpProcessor::mem_block_start(20);
+    MyHttpHandler::mem_block_start(20);
+    MyMiddleToBSHandler::mem_block_start(20);
+    MyMiddleToBSProcessor::mem_block_start(20);
   }
-  CMemPoolX::instance()->init(cfg);
+  CCacheX::instance()->prepare(l_p);
   app->init_log();
   return app->delayed_init();
 }
 
-DVOID MyServerApp::app_fini()
+DVOID CRunner::cleanup()
 {
   C_INFO(ACE_TEXT("shutdown server...\n"));
-  MyServerAppX::close();  //this comes before the releasing of memory pool
-  g_client_ids = NULL;
+  CRunnerX::close();  //this comes before the releasing of memory pool
+  g_term_sns = NULL;
   CCfgX::close();
-  dump_mem_pool_info(); //only mem pool info, other objects should gone by now
-  MyHeartBeatHandler::fini_mem_pool();
-  MyHeartBeatProcessor::fini_mem_pool();
-  MyLocationHandler::fini_mem_pool();
-  MyLocationProcessor::fini_mem_pool();
-  MyDistLoadHandler::fini_mem_pool();
-  MyHttpHandler::fini_mem_pool();
-  MyHttpProcessor::fini_mem_pool();
-  MyDistToMiddleHandler::fini_mem_pool();
-  MyDistToBSHandler::fini_mem_pool();
-  MyMiddleToBSHandler::fini_mem_pool();
-  MyMiddleToBSProcessor::fini_mem_pool();
-  CMemPoolX::close();
+  print_caches(); //only mem pool info, other objects should gone by now
+  MyHeartBeatHandler::mem_block_end();
+  MyHeartBeatProcessor::mem_block_end();
+  MyLocationHandler::mem_block_end();
+  MyLocationProcessor::mem_block_end();
+  MyDistLoadHandler::mem_block_end();
+  MyHttpHandler::mem_block_end();
+  MyHttpProcessor::mem_block_end();
+  MyDistToMiddleHandler::mem_block_end();
+  MyDistToBSHandler::mem_block_end();
+  MyMiddleToBSHandler::mem_block_end();
+  MyMiddleToBSProcessor::mem_block_end();
+  CCacheX::close();
 }
 
 
@@ -270,12 +270,12 @@ int main(ni argc, CONST text * argv[])
   truefalse ret;
 
   if (argc == 3 && strcmp(argv[1], "-home") == 0 && argv[2][0] == '/')
-    ret = MyServerApp::app_init(argv[2], CCfg::AM_UNKNOWN);
+    ret = CRunner::initialize(argv[2], CCfg::AM_UNKNOWN);
   else
-    ret = MyServerApp::app_init(NULL, CCfg::AM_UNKNOWN);
+    ret = CRunner::initialize(NULL, CCfg::AM_UNKNOWN);
 
   if (ret)
-    MyServerAppX::instance()->begin();
-  MyServerApp::app_fini();
+    CRunnerX::instance()->begin();
+  CRunner::cleanup();
   return 0;
 }

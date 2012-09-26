@@ -46,16 +46,16 @@ public:
 
   text ftype[2];
   text type[2];
-  CMemGuard fdir;
-  CMemGuard findex;
-  CMemGuard aindex;
-  CMemGuard ver;
-  CMemGuard password;
+  CMemProt fdir;
+  CMemProt findex;
+  CMemProt aindex;
+  CMemProt ver;
+  CMemProt password;
 
-  CMemGuard dist_time;
-  CMemGuard md5;
+  CMemProt dist_time;
+  CMemProt md5;
 
-  CMemGuard mbz_md5;
+  CMemProt mbz_md5;
 
   truefalse exist;
 
@@ -83,13 +83,13 @@ public:
   DVOID clear();
   MyHttpDistInfo * find(CONST text * dist_id);
 
-  CMemGuard last_load_time;
+  CMemProt last_load_time;
 
 private:
   typedef std::tr1::unordered_map<const text *,
                                   MyHttpDistInfo *,
-                                  CStrHasher,
-                                  CStrEqual,
+                                  CTextHashGenerator,
+                                  CTextEqual,
                                   CCppAllocator <std::pair<const text *, MyHttpDistInfo *> >
                                 > MyHttpDistInfoMap;
 
@@ -101,7 +101,7 @@ class MyDistCompressor
 {
 public:
   truefalse compress(MyHttpDistRequest & http_dist_request);
-  SF DVOID get_all_in_one_mbz_file_name(CONST text * dist_id, CMemGuard & filename);
+  SF DVOID get_all_in_one_mbz_file_name(CONST text * dist_id, CMemProt & filename);
   SF CONST text * composite_path();
   SF CONST text * all_in_one_mbz();
 
@@ -115,8 +115,8 @@ private:
 class MyDistMd5Calculator
 {
 public:
-  truefalse calculate(MyHttpDistRequest & http_dist_request, CMemGuard &md5_result, ni & md5_len);
-  SF truefalse calculate_all_in_one_ftp_md5(CONST text * dist_id, CMemGuard & md5_result);
+  truefalse calculate(MyHttpDistRequest & http_dist_request, CMemProt &md5_result, ni & md5_len);
+  SF truefalse calculate_all_in_one_ftp_md5(CONST text * dist_id, CMemProt & md5_result);
 };
 
 CMB * my_get_hb_mb();
@@ -224,8 +224,8 @@ public:
   DVOID check_path(CONST text * path);
 
 private:
-  typedef std::tr1::unordered_set<const text *, CStrHasher, CStrEqual, CCppAllocator<const text *> > MyPathSet;
-  typedef std::list<CMemGuard *, CCppAllocator<CMemGuard *> > MyPathList;
+  typedef std::tr1::unordered_set<const text *, CTextHashGenerator, CTextEqual, CCppAllocator<const text *> > MyPathSet;
+  typedef std::list<CMemProt *, CCppAllocator<CMemProt *> > MyPathList;
 
   truefalse path_ok(CONST text * _path);
 
@@ -584,10 +584,10 @@ public:
   MyHttpDistInfo * dist_info;
   MyDistClientOne * dist_one;
   ni status;
-  CMemGuard adir;
-  CMemGuard md5;
-  CMemGuard mbz_file;
-  CMemGuard mbz_md5;
+  CMemProt adir;
+  CMemProt md5;
+  CMemProt mbz_file;
+  CMemProt mbz_md5;
   time_t last_update;
 
 private:
@@ -666,8 +666,8 @@ public:
                                 > MyDistClientMap;
   typedef std::tr1::unordered_map<const text *,
                                   MyDistClientOne *,
-                                  CStrHasher,
-                                  CStrEqual,
+                                  CTextHashGenerator,
+                                  CTextEqual,
                                   CCppAllocator <std::pair<const text *, MyDistClientOne *>>
                                 > MyDistClientOneMap;
 
@@ -1029,7 +1029,7 @@ public:
   ni num_active_clients() CONST;
   MyFtpFeedbackSubmitter & ftp_feedback_submitter();
   DVOID pl();
-  truefalse get_pl(CMemGuard & value);
+  truefalse get_pl(CMemProt & value);
 
 protected:
   virtual truefalse before_begin();
@@ -1047,7 +1047,7 @@ private:
   MyHeartBeatService * m_service;
   MyHeartBeatDispatcher * m_dispatcher;
   ACE_Thread_Mutex m_mutex;
-  CMemGuard m_pl;
+  CMemProt m_pl;
 };
 
 
@@ -1214,7 +1214,7 @@ class MyDB
 public:
   MyDB();
   ~MyDB();
-  SF time_t get_time_from_string(CONST text * s);
+  SF time_t get_time_init(CONST text * s);
 
   truefalse connect();
   truefalse check_db_connection();
@@ -1227,7 +1227,7 @@ public:
   truefalse save_dist_clients(text * idlist, text * adirlist, CONST text * dist_id);
   truefalse save_dist_cmp_done(CONST text *dist_id);
   ni  load_dist_infos(MyHttpDistInfos & infos);
-  truefalse load_pl(CMemGuard & value);
+  truefalse load_pl(CMemProt & value);
 //  truefalse dist_take_cmp_ownership(MyHttpDistInfo * info);
 //  truefalse dist_take_md5_ownership(MyHttpDistInfo * info);
   truefalse dist_mark_cmp_done(CONST text * dist_id);
@@ -1254,18 +1254,18 @@ private:
   truefalse commit();
   truefalse rollback();
   truefalse exec_command(CONST text * sql_command, ni * affected = NULL);
-  DVOID wrap_str(CONST text * s, CMemGuard & wrapped) CONST;
+  DVOID wrap_str(CONST text * s, CMemProt & wrapped) CONST;
   time_t get_db_time_i();
-  truefalse take_owner_ship(CONST text * table, CONST text * field, CMemGuard & old_time, CONST text * where_clause);
+  truefalse take_owner_ship(CONST text * table, CONST text * field, CMemProt & old_time, CONST text * where_clause);
   truefalse set_cfg_value(CONST ni id, CONST text * value);
-  truefalse load_cfg_value(CONST ni id, CMemGuard & value);
-  truefalse load_cfg_value_i(CONST ni id, CMemGuard & value);
+  truefalse load_cfg_value(CONST ni id, CMemProt & value);
+  truefalse load_cfg_value_i(CONST ni id, CMemProt & value);
 
   PGconn * m_connection;
-  CMemGuard m_server_addr;
+  CMemProt m_server_addr;
   ni m_server_port;
-  CMemGuard m_user_name;
-  CMemGuard m_password;
+  CMemProt m_user_name;
+  CMemProt m_password;
   ACE_Thread_Mutex m_mutex;
 };
 

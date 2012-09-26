@@ -1,5 +1,5 @@
-#ifndef SERVER_H_
-#define SERVER_H_
+#ifndef sapp_h_dkjf834ab
+#define sapp_h_dkjf834ab
 
 #include "tools.h"
 #include "app.h"
@@ -8,24 +8,24 @@
 class MyHeartBeatModule;
 class MyLocationModule;
 
-class MyServerApp: public CApp
+class CRunner: public CApp
 {
 public:
-  MyServerApp();
-  virtual ~MyServerApp();
+  CRunner();
+  virtual ~CRunner();
 
-  CTermSNs & client_id_table();
-  MyHeartBeatModule * heart_beat_module() CONST;
+  CTermSNs & termSNs();
+  MyHeartBeatModule * ping_component() CONST;
   MyDistLoadModule * dist_load_module() CONST;
   MyHttpModule * http_module() CONST;
   MyLocationModule * location_module() CONST;
   MyDistToMiddleModule * dist_to_middle_module() CONST;
   MyDB & db();
 
-  SF truefalse app_init(CONST text * app_home_path = NULL, CCfg::CAppMode mode = CCfg::AM_UNKNOWN);
-  SF DVOID app_fini();
-  SF DVOID dump_mem_pool_info();
-  truefalse dist_put_to_service(CMB * mb);
+  SF truefalse initialize(CONST text * hdir = NULL, CCfg::CAppMode m = CCfg::AM_UNKNOWN);
+  SF DVOID cleanup();
+  SF DVOID print_caches();
+  truefalse post_dist_task(CMB * mb);
 
 protected:
   virtual truefalse before_begin();
@@ -34,15 +34,15 @@ protected:
   virtual DVOID i_print();
 
 private:
-  MyHeartBeatModule * m_heart_beat_module;
+  MyHeartBeatModule * m_ping_component;
   MyLocationModule * m_location_module;
   MyDistLoadModule * m_dist_load_module;
   MyHttpModule     * m_http_module;
   MyDistToMiddleModule * m_dist_to_middle_module;
-  CTermSNs m_client_ids;
+  CTermSNs m_term_SNs;
   MyDB  m_db;
 };
 
-typedef ACE_Unmanaged_Singleton<MyServerApp, ACE_Null_Mutex> MyServerAppX;
+typedef ACE_Unmanaged_Singleton<CRunner, ACE_Null_Mutex> CRunnerX;
 
-#endif /* SERVER_H_ */
+#endif

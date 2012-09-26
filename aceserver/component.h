@@ -1,5 +1,5 @@
-#ifndef BASESERVER_H_
-#define BASESERVER_H_
+#ifndef component_h_ijma834va
+#define component_h_ijma834va
 
 #include <ace/Log_Msg.h>
 #include <ace/INET_Addr.h>
@@ -34,55 +34,54 @@ class CDispatchBase;
 class CConnectorBase;
 class CProcBase;
 
+class CDirConverter
+{
+public:
+  CDirConverter();
+  truefalse prepare(CONST text * fn);
+  CONST text * dir() CONST;
+  CONST text * value() CONST;
+  CONST text * convert(CONST text * fn);
+
+private:
+  CMemProt m_value;
+  CMemProt m_dir;
+  CMemProt m_value_converted;
+};
+
 class CTermVer
 {
 public:
   CTermVer();
-  CTermVer(u8 major, u8 minor);
-  DVOID init(u8 major, u8 minor);
-  truefalse from_string(CONST text * s);
-  CONST text * to_string() CONST;
-  truefalse operator < (CONST CTermVer & rhs);
+  CTermVer(u8, u8);
+  DVOID init(u8, u8);
+  truefalse init(CONST text * s);
+  CONST text * to_text() CONST;
+  truefalse operator < (CONST CTermVer &);
 
 private:
-  enum { DATA_LEN = 8 };
   DVOID prepare_buff();
 
-  u8 m_major;
-  u8 m_minor;
+  enum { DATA_LEN = 8 };
+  u8 m_v1;
+  u8 m_v2;
   text m_data[DATA_LEN];
-};
-
-class CMfileSplit
-{
-public:
-  CMfileSplit();
-  truefalse init(CONST text * mfile);
-  CONST text * path() CONST;
-  CONST text * mfile() CONST;
-  CONST text * translate(CONST text * src);
-
-private:
-  CMemGuard m_mfile;
-  CMemGuard m_path;
-  CMemGuard m_translated_name;
 };
 
 class CTermData
 {
 public:
+  enum { AUTH_SIZE = 24 };
   CTermData();
-  CTermData(CONST CNumber & id, CONST text * _password = NULL, truefalse _exp = false);
-  DVOID set_password(CONST text * _password);
+  CTermData(CONST CNumber & id, CONST text * download_auth = NULL, truefalse v_invalid = false);
+  DVOID set_download_auth(CONST text * download_auth);
 
-  enum { PWD_SIZE = 24 };
-
-  truefalse active;
-  truefalse expired;
-  truefalse switched;
-  CNumber term_sn;
-  text password[PWD_SIZE];
-  ni   password_len;
+  text download_auth[AUTH_SIZE];
+  ni   download_auth_len;
+  truefalse server_changed;
+  CNumber   term_sn;
+  truefalse connected;
+  truefalse invalid;
 };
 
 class CTermSNs
@@ -90,220 +89,212 @@ class CTermSNs
 public:
   CTermSNs();
   ~CTermSNs();
-  truefalse have(CONST CNumber & );
-  DVOID add(CONST CNumber & );
-  DVOID add(CONST text * , CONST text * pwd = NULL, truefalse exp = false);
-  DVOID add_batch(text * ); //"34;100;111;..."
-  ni  index_of(CONST CNumber & );
-  ni  count();
-  truefalse value(ni index, CNumber * );
-  truefalse value_all(ni index, CTermData & );
-  truefalse active(CONST CNumber & id, ni & index, truefalse & switched);
-//  DVOID active(CONST MyClientID & id, truefalse _active);
-  truefalse active(ni index);
-  DVOID active(ni index, truefalse );
-  DVOID switched(ni index, truefalse );
-  DVOID expired(ni index, truefalse );
-  truefalse mark_valid(CONST CNumber & , truefalse valid, ni & idx);
 
-  //APIs used only by db-layer
-  ni  last_sequence() CONST;
-  DVOID last_sequence(ni _seq);
-  DVOID prepare_space(ni _count);
+  DVOID prepare_space(ni);
+  truefalse have(CONST CNumber &);
+  DVOID append(CONST CNumber &);
+  DVOID append(CONST text *, CONST text * auth = NULL, truefalse binvalid = false);
+  DVOID append_lot(text *); //"34;100;111;..."
+  ni  find_location(CONST CNumber &);
+  ni  number();
+  truefalse get_sn(ni loc, CNumber *);
+  truefalse get_termData(ni loc, CTermData & );
+  DVOID server_changed(ni loc, truefalse);
+  DVOID set_invalid(ni loc, truefalse);
+  truefalse mark_valid(CONST CNumber &, truefalse valid, ni & loc);
+  truefalse connected(CONST CNumber &, ni & loc, truefalse & server_changed);
+  truefalse connected(ni loc);
+  DVOID set_connected(ni loc, truefalse);
+  ni  prev_no() CONST;
+  DVOID set_prev_no(ni);
 
 private:
-  typedef std::vector<CTermData > CTermSNs_type;
+  typedef std::vector<CTermData > CTermSNs_vec;
   typedef std::map<CNumber, ni> CTermSNs_map;
 
-  ni index_of_i(CONST CNumber & , CTermSNs_map::iterator * pIt = NULL);
-  DVOID add_i(CONST CNumber & , CONST text *_password, truefalse expired);
-  CTermSNs_type  m_table;
-  CTermSNs_map   m_map;
+  ni do_locate(CONST CNumber &, CTermSNs_map::iterator * = NULL);
+  DVOID append_new(CONST CNumber &, CONST text * auth, truefalse binvalid);
+
+  ni m_prev_no;
+  CTermSNs_vec   m_SNs;
+  CTermSNs_map   m_fast_locater;
   ACE_RW_Thread_Mutex m_mutex;
-  ni m_last_sequence;
 };
 
-EXTERN CTermSNs * g_client_ids; //the side effect of sharing the source codes...
+EXTERN CTermSNs * g_term_sns;
 
-class CFileMD5
+class CCheckSum
 {
 public:
-  enum { MD5_STRING_LENGTH = 32 };
-  CFileMD5(CONST text * _filename, CONST text * md5, ni prefix_len, CONST text * alias = NULL);
-  truefalse ok() CONST
+  enum { CHECK_SUM_SIZE = 32 };
+  CCheckSum(CONST text * fn, CONST text * checksum, ni ignore_lead_n, CONST text * _replace = NULL);
+  CONST text * value() CONST
   {
-    return (m_md5[0] != 0);
+    return m_checksum;
   }
-  CONST text * filename() CONST
+  ni size(truefalse full) CONST
   {
-    return m_file_name.data();
+    return full? (m_size + CHECK_SUM_SIZE + 1) : m_size;
   }
-  CONST text * md5() CONST
+  truefalse check() CONST
   {
-    return m_md5;
+    return (m_checksum[0] != 0);
   }
-  ni size(truefalse include_md5_value) CONST
+  CONST text * fn() CONST
   {
-    return include_md5_value? (m_size + MD5_STRING_LENGTH + 1) : m_size;
+    return m_fn.get_ptr();
   }
-  truefalse operator == (CONST CFileMD5 & rhs) CONST
+  truefalse operator == (CONST CCheckSum & o) CONST
   {
-    return (strcmp(m_file_name.data(), rhs.m_file_name.data()) == 0);
+    return (strcmp(m_fn.get_ptr(), o.m_fn.get_ptr()) == 0);
   }
-  truefalse operator < (CONST CFileMD5 & rhs) CONST
+  truefalse operator < (CONST CCheckSum & o) CONST
   {
-    return (strcmp(m_file_name.data(), rhs.m_file_name.data()) < 0);
+    return (strcmp(m_fn.get_ptr(), o.m_fn.get_ptr()) < 0);
   }
-  truefalse same_md5(CONST CFileMD5 & rhs) CONST
+  truefalse checksum_equal(CONST CCheckSum & o) CONST
   {
-    return memcmp(m_md5, rhs.m_md5, MD5_STRING_LENGTH) == 0;
+    return memcmp(m_checksum, o.m_checksum, CHECK_SUM_SIZE) == 0;
   }
 
 private:
-
-  CMemGuard m_file_name;
-  text m_md5[MD5_STRING_LENGTH];
+  text m_checksum[CHECK_SUM_SIZE];
   ni m_size;
+  CMemProt m_fn;
 };
 
-class CFileMD5s
+
+class CCheckSums
 {
 public:
-  typedef std::vector<CFileMD5 *, CCppAllocator<CFileMD5 *> > CFileMD5Vec;
+  typedef std::vector<CCheckSum *, CCppAllocator<CCheckSum *> > CCheckSumVec;
 
-  CFileMD5s();
-  ~CFileMD5s();
-  DVOID enable_map();
-  truefalse has_file(CONST text * fn);
-  truefalse base_dir(CONST text *);
-  DVOID minus(CFileMD5s & , CMfileSplit * spl, truefalse do_delete);
-  DVOID trim_garbage(CONST text * pathname);
-  truefalse add_file(CONST text * filename, CONST text * md5, ni prefix_len);
-  truefalse add_file(CONST text * pathname, CONST text * filename, ni prefix_len, CONST text * alias);
-  DVOID sort();
-  ni  count() CONST
-  {
-    return m_file_md5_list.size();
-  }
-  truefalse to_buffer(text * buff, ni buff_len, truefalse include_md5_value);
-  truefalse from_buffer(text * buff, CMfileSplit * p = NULL);
-
-  ni  total_size(truefalse include_md5_value);
-  truefalse calculate(CONST text * dirname, CONST text * mfile, truefalse single);
-  truefalse calculate_diff(CONST text * dirname, CMfileSplit * p = NULL);
+  CCheckSums();
+  ~CCheckSums();
+  DVOID init_locator();
+  truefalse contains(CONST text * fn);
+  truefalse root_path(CONST text *);
+  DVOID make_ordered();
+  ni  number() CONST
+  { return m_checksums.size(); }
+  truefalse compute(CONST text * fn, CONST text * mfile, truefalse only_one);
+  truefalse compute_diverse(CONST text * fn, CDirConverter * p = NULL);
+  DVOID substract(CCheckSums &, CDirConverter *, truefalse remove_file);
+  DVOID delete_unused(CONST text * pn);
+  truefalse append_checksum(CONST text * fn, CONST text * val, ni ignore_lead_n);
+  truefalse append_checksum(CONST text * pn, CONST text * fn, ni ignore_lead_n, CONST text * _replace);
+  truefalse save_text(text *, ni, truefalse full);
+  truefalse load_text(text *, CDirConverter * p = NULL);
+  ni  text_len(truefalse full);
 
 private:
-  typedef std::tr1::unordered_map<const text *,
-                                  CFileMD5 *,
-                                  CStrHasher,
-                                  CStrEqual,
-                                  CCppAllocator <std::pair<const text *, CFileMD5 *> >
-                                > MyMD5map;
+  typedef std::tr1::unordered_map<const text *, CCheckSum *, CTextHashGenerator, CTextEqual,
+                    CCppAllocator <std::pair<const text *, CCheckSum *> > > CheckSumLocator;
 
-  truefalse do_scan_directory(CONST text * dirname, ni start_len);
-  DVOID do_trim_garbage(CONST text * pathname, ni start_len);
+  truefalse i_tally_path(CONST text *, ni);
+  DVOID i_delete_unused(CONST text * pn, ni);
+  CCheckSum * do_search(CONST text * fn);
 
-  CFileMD5 * find(CONST text * fn);
-
-  CFileMD5Vec m_file_md5_list;
-  CMemGuard m_base_dir; //todo: remove m_base_dir
-  ni m_base_dir_len;
-  MyMD5map * m_md5_map;
+  CheckSumLocator * m_locator;
+  CCheckSumVec m_checksums;
+  CMemProt m_root_path;
+  ni m_root_path_len;
 };
 
-class CArchiveloaderBase
+class CBaseFileReader
 {
 public:
-  CArchiveloaderBase();
-  virtual ~CArchiveloaderBase()
+  CBaseFileReader();
+  virtual ~CBaseFileReader()
   {}
-  virtual truefalse open(CONST text * filename);
-  virtual ni read(text * buff, ni buff_len);
+  virtual truefalse open(CONST text * fn);
+  virtual ni read(text *, ni);
   DVOID close();
 
 protected:
-  ni do_read(text * buff, ni buff_len);
+  ni read_i(text *, ni);
 
-  CFileGuard m_file;
-  CMemGuard m_file_name;
-  ni m_file_length;
+  CFileProt m_f;
+  CMemProt m_fn;
+  ni m_size;
 };
 
 #pragma pack(push, 1)
 
-class CPackHead
+class CCompBegining
 {
 public:
   enum { SIGNATURE = 0x96809685 };
-  i32  header_size;
+
+  i32  begining_size;
   u32  signature;
   i32  data_size; //exclude header
-  i32  encrypted_data_length;
+  i32  processed_size;
   text fn[0];
 };
 
 #pragma pack(pop)
 
-class CArchiveLoader: public CArchiveloaderBase
+class CCompFileReader: public CBaseFileReader
 {
 public:
-  typedef CArchiveloaderBase baseclass;
+  typedef CBaseFileReader baseclass;
 
-  virtual truefalse open(CONST text * filename);
-  virtual ni read(text * buff, ni buff_len);
-  CONST text * file_name() CONST;
-  truefalse next();
-  truefalse eof() CONST;
-  DVOID set_key(CONST text * skey);
+  virtual truefalse open(CONST text *);
+  virtual ni read(text *, ni);
+  CONST text * fn() CONST;
+  truefalse get_more();
+  truefalse finished() CONST;
+  DVOID password(CONST text *);
 
 private:
-  truefalse read_header();
-  CMemGuard m_wrapped_header;
-  ni  m_remain_length;
-  ni  m_remain_encrypted_length;
-  aes_context m_aes_context;
+  truefalse load_begining();
+
+  aes_context m_x;
+  CMemProt m_begining;
+  ni  m_more_size;
+  ni  m_more_comp_size;
 };
 
 
-class CArchiveSaverBase
+class CBaseFileWriter
 {
 public:
-  virtual ~CArchiveSaverBase()
+  virtual ~CBaseFileWriter()
   {}
-  truefalse open(CONST text * filename);
+  truefalse open(CONST text *);
   truefalse open(CONST text * dir, CONST text * filename);
   virtual truefalse write(text *, ni);
   DVOID close();
 
 protected:
-  truefalse do_open();
-  truefalse do_write(text *, ni);
+  truefalse open_i();
+  truefalse write_i(text *, ni);
 
-  CFileGuard m_file;
-  CMemGuard m_file_name;
+  CFileProt m_f;
+  CMemProt m_fn;
 };
 
-class CArchiveSaver: public CArchiveSaverBase
+class CCompFileWriter: public CBaseFileWriter
 {
 public:
-  enum { ENCRYPT_DATA_LENGTH = 4096 };
-  typedef CArchiveSaverBase baseclass;
-
-  virtual truefalse write(text * buff, ni buff_len);
-  truefalse start(CONST text * filename, ni prefix_len = 0);
-  truefalse finish();
-
-  DVOID set_key(CONST text * skey);
+  typedef CBaseFileWriter baseclass;
+  enum { BUFFER_SIZE = 4096 };
+  virtual truefalse write(text *, ni);
+  truefalse begin(CONST text * fn, ni skip_n = 0);
+  truefalse end();
+  DVOID password(CONST text *);
 
 private:
-  truefalse write_header(CONST text * filename);
-  truefalse encrypt_and_write();
-  CPackHead m_pack_header;
-  ni  m_data_length;
-  ni  m_encrypted_length;
-  aes_context m_aes_context;
-  ni m_remain_encrypted_length;
-  CMemGuard m_encrypt_buffer;
+  truefalse save_begining(CONST text * filename);
+  truefalse comp_save();
+
+  aes_context m_x;
+  CCompBegining m_begining;
+  ni  m_size;
+  ni  m_comp_size;
+  ni  m_more_comp_size;
+  CMemProt m_comp_cache;
 };
 
 class CBZMemBridge
@@ -316,32 +307,33 @@ public:
 class CDataComp
 {
 public:
-  CDataComp();
-  enum { COMPRESS_100k = 3 };
+  enum { AGGRESSIVE = 3 };
   enum { BUFF_SIZE = 4096 };
-  truefalse compress(CONST text * filename, ni prefix_len, CONST text * destfn, CONST text * key);
-  truefalse decompress(CONST text * filename, CONST text * destdir, CONST text * key, CONST text * _rename = NULL);
+
+  CDataComp();
+  truefalse reduce(CONST text * fn, ni skip_n, CONST text * to_fn, CONST text * password);
+  truefalse bloat(CONST text * fn, CONST text * to_path, CONST text * password, CONST text * new_name = NULL);
 
 private:
-  truefalse prepare_buffers();
-  truefalse do_compress(CArchiveloaderBase * _reader, CArchiveSaverBase * _writer);
-  truefalse do_decompress(CArchiveloaderBase * _reader, CArchiveSaverBase * _writer);
+  truefalse init();
+  truefalse reduce_i(CBaseFileReader *, CBaseFileWriter *);
+  truefalse bloat_i(CBaseFileReader *, CBaseFileWriter *);
 
-  CMemGuard m_buff_in;
-  CMemGuard m_buff_out;
-  bz_stream m_bz_stream;
+  bz_stream m_s;
+  CMemProt  m_in;
+  CMemProt  m_out;
 };
 
 class CCompCombiner
 {
 public:
-  truefalse open(CONST text * filename);
-  truefalse add(CONST text * filename);
+  truefalse open(CONST text *);
+  truefalse add(CONST text *);
   truefalse add_multi(text * filenames, CONST text * path, CONST text seperator = '*', CONST text * ext = NULL);
   DVOID close();
 
 private:
-  CFileGuard m_file;
+  CFileProt m_f;
 };
 
 class CHandlerBase: public ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH>
@@ -439,16 +431,16 @@ private:
 };
 
 
-class MyConnectionManagerLockGuard
+class MyConnectionManagerLockProt
 {
 public:
-  MyConnectionManagerLockGuard(CConnectionManagerBase * p): m_p(p)
+  MyConnectionManagerLockProt(CConnectionManagerBase * p): m_p(p)
   {
     if (m_p)
       m_p->lock();
   }
 
-  ~MyConnectionManagerLockGuard()
+  ~MyConnectionManagerLockProt()
   {
     if (m_p)
       m_p->unlock();
@@ -471,7 +463,7 @@ public:
   CProcBase(CHandlerBase *);
   virtual ~CProcBase();
 
-  virtual DVOID get_sinfo(CMemGuard &) CONST;
+  virtual DVOID get_sinfo(CMemProt &) CONST;
   virtual ni on_open();
   virtual DVOID on_close();
   virtual ni handle_input();
@@ -500,32 +492,6 @@ protected:
   ni     m_client_id_length;
 };
 
-class CProcRemoteAccessBase: public CProcBase
-{
-public:
-  typedef CProcBase baseclass;
-  enum { MAX_COMMAND_LINE_LENGTH = 4096 };
-
-  CProcRemoteAccessBase(CHandlerBase * handler);
-  virtual ~CProcRemoteAccessBase();
-
-  virtual ni handle_input();
-  virtual ni on_open();
-
-protected:
-  virtual ni say_hello();
-  virtual ni on_command(CONST text * cmd, text * parameter);
-  virtual ni on_command_help();
-  ni send_string(CONST text * s);
-  ni on_unsupported_command(CONST text * cmd);
-
-private:
-  ni do_command(CONST text * cmd, text * parameter);
-  ni process_command_line(text * cmdline);
-  ni on_command_quit();
-
-  CMB * m_mb;
-};
 
 template <typename T> class CFormattedProcBase: public CProcBase
 {
@@ -632,7 +598,7 @@ protected:
   {
     if (!m_current_block)
     {
-      m_current_block = CMemPoolX::instance()->get_mb(packet_length());
+      m_current_block = CCacheX::instance()->get_mb(packet_length());
       if (!m_current_block)
         return -1;
       if (copy_header_to_mb(m_current_block, m_packet_header) < 0)
@@ -701,7 +667,7 @@ public:
   typedef CFormattedProcBase<CCmdHeader> baseclass;
 
   CFormatProcBase(CHandlerBase * handler);
-  virtual DVOID get_sinfo(CMemGuard & info) CONST;
+  virtual DVOID get_sinfo(CMemProt & info) CONST;
   virtual ni on_open();
   virtual CONST text * name() CONST;
 
@@ -965,4 +931,4 @@ protected:
 };
 
 
-#endif /* BASESERVER_H_ */
+#endif

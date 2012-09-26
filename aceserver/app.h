@@ -192,7 +192,7 @@ private:
   truefalse m_sfile_check;
   truefalse m_running;
   CClocker m_clock;
-  ACE_Sig_Handler m_signal_handler;
+  ACE_Sig_Handler m_sgh;
 };
 
 #endif

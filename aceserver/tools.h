@@ -152,19 +152,19 @@ CONST time_t CONST_one_day = CONST_one_hour * 24;
 CONST time_t CONST_one_month = CONST_one_day * 30;
 CONST time_t CONST_one_year = CONST_one_month * 12;
 
-class CMBGuard
+class CMBProt
 {
 public:
-  CMBGuard(): m_mb(NULL)
+  CMBProt(): m_mb(NULL)
   {}
-  CMBGuard(CMB * mb): m_mb(mb)
+  CMBProt(CMB * mb): m_mb(mb)
   {}
-  ~CMBGuard()
+  ~CMBProt()
   {
     if (m_mb)
       m_mb->release();
   }
-  DVOID attach(CMB * mb)
+  DVOID bind_mb(CMB * mb)
   {
     if (unlikely(m_mb == mb))
       return;
@@ -172,13 +172,13 @@ public:
       m_mb->release();
     m_mb = mb;
   }
-  CMB * detach()
+  CMB * unbind()
   {
     CMB * result = m_mb;
     m_mb = NULL;
     return result;
   }
-  CMB * data() CONST
+  CMB * get_mb() CONST
   {
     return m_mb;
   }
@@ -187,15 +187,15 @@ private:
   CMB * m_mb;
 };
 
-class CFileGuard
+class CFileProt
 {
 public:
   enum { BAD_FD = -1 };
-  CFileGuard(): m_fd(BAD_FD)
+  CFileProt(): m_fd(BAD_FD)
   { m_print_failure = true; }
-  CFileGuard(ni fd): m_fd(fd), m_print_failure(true)
+  CFileProt(ni fd): m_fd(fd), m_print_failure(true)
   {}
-  ~CFileGuard()
+  ~CFileProt()
   {
     if (m_fd >= 0)
       close(m_fd);
@@ -206,9 +206,9 @@ public:
     return open_i(fn, true, false, false, false, false);
   }
 
-  truefalse open_write(CONST text * fn, truefalse newf, truefalse zap_content, truefalse add_only, truefalse owned_by_me)
+  truefalse open_write(CONST text * fn, truefalse newf, truefalse clear_content, truefalse add_only, truefalse owned_by_me)
   {
-    return open_i(fn, false, newf, zap_content, add_only, owned_by_me);
+    return open_i(fn, false, newf, clear_content, add_only, owned_by_me);
   }
 
   ni get_fd() CONST
@@ -246,12 +246,12 @@ private:
 };
 
 
-class CSStreamGuard
+class CSStreamProt
 {
 public:
-  CSStreamGuard(ACE_SOCK_Stream & s): m_ss(s)
+  CSStreamProt(ACE_SOCK_Stream & s): m_ss(s)
   {}
-  ~CSStreamGuard()
+  ~CSStreamProt()
   {
     m_ss.close();
   }
@@ -260,25 +260,25 @@ private:
 };
 
 
-class CFIOGuard
+class CFIOProt
 {
 public:
-  CFIOGuard(ACE_FILE_IO & fio): m_fio(fio)
+  CFIOProt(ACE_FILE_IO & f): m_f(f)
   {}
-  ~CFIOGuard()
+  ~CFIOProt()
   {
-    m_fio.close();
+    m_f.close();
   }
 private:
-  ACE_FILE_IO & m_fio;
+  ACE_FILE_IO & m_f;
 };
 
-template <class ACE_LOCK> class CCachedAllocator: public ACE_Dynamic_Cached_Allocator<ACE_LOCK>
+template <class ACE_LOCK> class CMemBlock: public ACE_Dynamic_Cached_Allocator<ACE_LOCK>
 {
 public:
   typedef ACE_Dynamic_Cached_Allocator<ACE_LOCK> baseclass;
 
-  CCachedAllocator (size_t _blocks, size_t _block_len): baseclass(_blocks, _block_len)
+  CMemBlock (size_t _blocks, size_t _block_len): baseclass(_blocks, _block_len)
   {
     m_start = NULL;
     m_end = NULL;
@@ -302,7 +302,7 @@ public:
     return (ptr >= m_start && ptr <= m_end);
   }
 
-  virtual ~CCachedAllocator() {}
+  virtual ~CMemBlock() {}
 
   virtual DVOID *malloc (size_t size = 0)
   {
@@ -338,7 +338,7 @@ public:
 
     return p;
   }
-  DVOID free (DVOID * p)
+  DVOID free(DVOID * p)
   {
     {
       ACE_MT (ACE_GUARD(ACE_LOCK, ace_mon, this->m_mutex));
@@ -381,13 +381,13 @@ private:
 
 #define DECLARE_MEMORY_POOL(Cls, Mutex) \
   public: \
-    typedef CCachedAllocator<Mutex> Mem_Pool; \
+    typedef CMemBlock<Mutex> MemBlock; \
     SF void* operator new(size_t _size, std::new_handler p = 0) \
     { \
       ACE_UNUSED_ARG(p); \
       if (_size != sizeof(Cls) || !g_cache) \
         return ::operator new(_size); \
-      void* _ptr = m_mem_pool->malloc(); \
+      void* _ptr = _m_mem_block->malloc(); \
       if (_ptr) \
         return _ptr; \
       else \
@@ -406,38 +406,38 @@ private:
           ::operator delete(_ptr); \
           return; \
         } \
-        m_mem_pool->free(_ptr); \
+        _m_mem_block->free(_ptr); \
       } \
     } \
-    SF DVOID init_mem_pool(ni pool_size) \
+    SF DVOID mem_block_start(ni pool_size) \
     { \
       if (g_cache) \
-        m_mem_pool = new Mem_Pool(pool_size, sizeof(Cls)); \
+        _m_mem_block = new MemBlock(pool_size, sizeof(Cls)); \
     } \
-    SF DVOID fini_mem_pool() \
+    SF DVOID mem_block_end() \
     { \
-      if (m_mem_pool) \
+      if (_m_mem_block) \
       { \
-        delete m_mem_pool; \
-        m_mem_pool = NULL; \
+        delete _m_mem_block; \
+        _m_mem_block = NULL; \
       } \
     } \
-    SF Mem_Pool * mem_pool() \
+    SF MemBlock * mem_block() \
     { \
-      return m_mem_pool; \
+      return _m_mem_block; \
     } \
   private: \
-    SF Mem_Pool * m_mem_pool
+    SF MemBlock * _m_mem_block
 
 #define DECLARE_MEMORY_POOL__NOTHROW(Cls, Mutex) \
   public: \
-    typedef CCachedAllocator<Mutex> Mem_Pool; \
+    typedef CMemBlock<Mutex> MemBlock; \
     SF void* operator new(size_t _size, std::new_handler p = 0) throw() \
     { \
       ACE_UNUSED_ARG(p); \
       if (_size != sizeof(Cls) || !g_cache) \
         return ::operator new(_size); \
-      return m_mem_pool->malloc(); \
+      return _m_mem_block->malloc(); \
     } \
     SF DVOID operator delete(void* _ptr) \
     { \
@@ -448,40 +448,40 @@ private:
           ::operator delete(_ptr); \
           return; \
         } \
-        m_mem_pool->free(_ptr); \
+        _m_mem_block->free(_ptr); \
       } \
     } \
-    SF DVOID init_mem_pool(ni pool_size) \
+    SF DVOID mem_block_start(ni pool_size) \
     { \
       if (g_cache) \
-        m_mem_pool = new Mem_Pool(pool_size, sizeof(Cls)); \
+        _m_mem_block = new MemBlock(pool_size, sizeof(Cls)); \
     } \
-    SF DVOID fini_mem_pool() \
+    SF DVOID mem_block_end() \
     { \
-      if (m_mem_pool) \
+      if (_m_mem_block) \
       { \
-        delete m_mem_pool; \
-        m_mem_pool = NULL; \
+        delete _m_mem_block; \
+        _m_mem_block = NULL; \
       } \
     } \
-    SF Mem_Pool * mem_pool() \
+    SF MemBlock * mem_block() \
     { \
-      return m_mem_pool; \
+      return _m_mem_block; \
     } \
   private: \
-    SF Mem_Pool * m_mem_pool
+    SF MemBlock * _m_mem_block
 
 #define PREPARE_MEMORY_POOL(Cls) \
-  Cls::Mem_Pool * Cls::m_mem_pool = NULL
+  Cls::MemBlock * Cls::_m_mem_block = NULL
 
 class CTermSNs;
 
 class CTerminalDirCreator
 {
 public:
-  SF DVOID create_dirs(CONST text * app_data_path, int64_t _start, ni _count);
-  SF truefalse term_sn_to_dir(CONST text * id, text * result, ni result_len);
-  SF DVOID create_dirs_from_TermSNs(CONST text * app_data_path, CTermSNs * id_table);
+  SF DVOID create_dirs(CONST text * data_dir, int64_t _from, ni _count);
+  SF truefalse term_sn_to_dir(CONST text * sn, text * ret, ni ret_len);
+  SF DVOID create_dirs_from_TermSNs(CONST text * data_dir, CTermSNs *);
 };
 
 class CCachedMB: public CMB
@@ -495,94 +495,94 @@ public:
 };
 
 class CCfg;
-class CMemGuard;
+class CMemProt;
 
-class CMemPool
+class CCache
 {
 public:
-  CMemPool();
-  ~CMemPool();
-  DVOID init(CCfg * config);
+  CCache();
+  ~CCache();
+  DVOID prepare(CCfg * config);
+  truefalse get(ni size, CMemProt *);
+  DVOID * get_raw(ni size);
   CMB * get_mb_bs(ni data_len, CONST text * cmd);
   CMB * get_mb_ack(CMB * src);
-  CMB * get_mb_cmd(ni extra, ni command, truefalse b_no_uuid = true);
-  CMB * get_mb(ni capacity);
-  CMB * get_mb_cmd_direct(ni capacity, ni command, truefalse b_no_uuid = true);
-  DVOID release_mem_x(DVOID * ptr); //use _x to avoid ambiguous of NULL pointer as parameter
-  DVOID release_mem(CMemGuard * guard);
-  truefalse alloc_mem(ni size, CMemGuard * guard);
-  DVOID * alloc_mem_x(ni size);
+  CMB * get_mb_cmd(ni extra, ni command, truefalse no_gen = true);
+  CMB * get_mb(ni size);
+  CMB * get_mb_cmd_direct(ni size, ni cmd, truefalse no_gen = true);
+  DVOID put_raw(DVOID * ptr);
+  DVOID put(CMemProt *);
   DVOID print_info();
 
 private:
   enum { BAD_IDX = 9999 };
-  typedef ACE_Atomic_Op<ACE_Thread_Mutex, long> COUNTER;
-  typedef std::vector<int> CPoolSizes;
-  typedef CCachedAllocator<ACE_Thread_Mutex> CCachedPool;
-  typedef std::vector<CCachedPool *> CCachedPools;
+  typedef ACE_Atomic_Op<ACE_Thread_Mutex, long> SYNCDATA;
+  typedef std::vector<int> CBlockSizes;
+  typedef CMemBlock<ACE_Thread_Mutex> MemBlock;
+  typedef std::vector<MemBlock *> MemBlocks;
 
-  ni find_best_index(ni capacity);
-  ni find_index_by_ptr(DVOID * ptr);
-  CCachedAllocator<ACE_Thread_Mutex> *m_mb_pool;
-  CCachedAllocator<ACE_Thread_Mutex> *m_data_block_pool;
-  CPoolSizes m_pool_sizes;
-  CCachedPools m_pools;
-  COUNTER m_total_count;
+  ni find_best(ni size);
+  ni find_by_ptr(DVOID * ptr);
+  CMemBlock<ACE_Thread_Mutex> *m_mbs;
+  CMemBlock<ACE_Thread_Mutex> *m_dbs;
+  CBlockSizes m_block_sizes;
+  MemBlocks m_blocks;
+  SYNCDATA m_all_outside;
 };
-typedef ACE_Unmanaged_Singleton<CMemPool, ACE_Null_Mutex> CMemPoolX;
+typedef ACE_Unmanaged_Singleton<CCache, ACE_Null_Mutex> CCacheX;
 
-class CMemGuard
+class CMemProt
 {
 public:
-  CMemGuard(): m_buff(NULL), m_index(-1), m_size(0)
+  CMemProt(): m_ptr(NULL), m_idx(-1), m_size(0)
   {}
 
-  ~CMemGuard()
+  ~CMemProt()
   {
     free();
   }
 
-  text * data() CONST
+  text * get_ptr() CONST
   {
-    return (char*)m_buff;
+    return (char*)m_ptr;
   }
 
   DVOID free()
   {
-    if (m_buff)
+    if (m_ptr)
     {
-      CMemPoolX::instance()->release_mem(this);
-      m_buff = NULL;
+      CCacheX::instance()->put(this);
+      m_ptr = NULL;
     }
   }
 
-  DVOID from_string(CONST text * src);
-  DVOID from_string(CONST text * src1, CONST text * src2);
-  DVOID from_string(CONST text * src1, CONST text * src2, CONST text * src3);
-  DVOID from_string(CONST text * src1, CONST text * src2, CONST text * src3, CONST text * src4);
-  DVOID from_strings(CONST text * arr[], ni len);
+  DVOID init(CONST text *);
+  DVOID init(CONST text *, CONST text *);
+  DVOID init(CONST text *, CONST text *, CONST text *);
+  DVOID init(CONST text *, CONST text *, CONST text *, CONST text *);
+  DVOID inits(CONST text * p[], ni);
 
 protected:
-  friend class CMemPool;
+  friend class CCache;
 
-  DVOID data(DVOID * _buff, ni index, ni size)
+  DVOID data(DVOID * p, ni i, ni size)
   {
-    if (unlikely(m_buff != NULL))
-      C_ERROR("mem leak @CMemGuard index=%d\n", m_index);
-    m_buff = (char*)_buff;
-    m_index = index;
+    if (unlikely(m_ptr != NULL))
+      C_ERROR("bad idx(%d)\n", m_idx);
+    m_ptr = (char*)p;
+    m_idx = i;
     m_size = size;
   }
   ni index() CONST
   {
-    return m_index;
+    return m_idx;
   }
 
 private:
-  CMemGuard(CONST CMemGuard &);
-  CMemGuard & operator = (CONST CMemGuard &);
-  text * m_buff;
-  ni m_index;
+  CMemProt(CONST CMemProt &);
+  CMemProt & operator = (CONST CMemProt &);
+  text * m_ptr;
+  ni m_idx;
   ni m_size;
 };
 
@@ -615,12 +615,12 @@ public:
 
   pointer allocate(size_type count, CONST DVOID * = 0)
   {
-    return static_cast<pointer> (CMemPoolX::instance()->alloc_mem_x(count * sizeof(T)));
+    return static_cast<pointer> (CCacheX::instance()->get_raw(count * sizeof(T)));
   }
 
   DVOID deallocate(pointer ptr, size_type)
   {
-    CMemPoolX::instance()->release_mem_x(ptr);
+    CCacheX::instance()->put_raw(ptr);
   }
 
   DVOID construct(pointer ptr, CONST T& val)
@@ -645,7 +645,7 @@ public:
   template <typename T> DVOID operator()(CONST T * ptr)
   {
     ptr->T::~T();
-    CMemPoolX::instance()->release_mem_x((void*)ptr);
+    CCacheX::instance()->put_raw((void*)ptr);
   }
 };
 
@@ -654,10 +654,10 @@ class CSysFS
 public:
   enum
   {
-    FILE_FLAG_ME = S_IRUSR | S_IWUSR,
-    FILE_FLAG_ALL = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH,
-    DIR_FLAG_ME = S_IRWXU,
-    DIR_FLAG_ALL = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH
+    FPROT_ME = S_IRUSR | S_IWUSR,
+    FPROT_NONE = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH,
+    DPROT_ME = S_IRWXU,
+    DPROT_NONE = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH
   };
   SF truefalse exist(CONST text * path);
   SF truefalse create_dir(CONST char* path, truefalse owned_by_me);
@@ -665,47 +665,47 @@ public:
   SF truefalse create_dir_const(CONST char* path, ni prefix_len, truefalse is_file, truefalse owned_by_me);
   SF truefalse create_dir(CONST text * path, CONST text * subpath, truefalse is_file, truefalse owned_by_me);
   SF truefalse copy_dir(CONST text * src, CONST text * dest, truefalse owned_by_me, truefalse syn);
-  SF truefalse copy_dir_zap(CONST text * src, CONST text * dest, truefalse owned_by_me, truefalse zap, truefalse syn);
+  SF truefalse copy_dir_clear(CONST text * src, CONST text * dest, truefalse owned_by_me, truefalse clear, truefalse syn);
   SF truefalse delete_dir(CONST text * path, truefalse ignore_eror);
-  SF truefalse remove_old_files(CONST text * path, time_t deadline);
+  SF truefalse delete_obsolete_files(CONST text * dir, time_t checkpoint);
   SF truefalse copy_file_by_fd(ni src_fd, ni dest_fd);
-  SF truefalse copy_file(CONST text * src, CONST text * dest, truefalse owned_by_me, truefalse syn);
-  SF ni        cat_path(CONST text * path, CONST text * subpath, CMemGuard & result);
-  SF truefalse get_correlate_path(CMemGuard & pathfile, ni skip);
-  SF truefalse remove(CONST text *pathfile, truefalse no_report_failure = false);
-  SF truefalse zap(CONST text *pathfile, truefalse no_report_failure);
-  SF truefalse rename(CONST text *old_path, CONST text * new_path, truefalse ignore_eror);
-  SF truefalse stat(CONST text *pathfile, struct stat * _stat);
-  SF ni        filesize(CONST text *pathfile);
-  SF truefalse clean_dir_keep_mfile(CONST CMemGuard & path, CONST CMemGuard & mfile, truefalse no_report_failure);
-  SF DVOID     clean_empty_dir(CONST CMemGuard & parent_path);
+  SF truefalse copy_file(CONST text * v_from, CONST text * v_to, truefalse owned_by_me, truefalse syn);
+  SF ni        dir_add(CONST text * parent_dir, CONST text * child_dir, CMemProt &);
+  SF truefalse dir_from_mfile(CMemProt & mfn, ni ignore_lead_n);
+  SF truefalse remove(CONST text * pfn, truefalse no_report_failure = false);
+  SF truefalse ensure_delete(CONST text * pfn, truefalse no_report_failure);
+  SF truefalse rename(CONST text * v_from, CONST text * v_to, truefalse ignore_eror);
+  SF truefalse stat(CONST text *, struct stat *);
+  SF ni        get_fsize(CONST text *);
+  SF truefalse clean_dir_keep_mfile(CONST CMemProt & path, CONST CMemProt & mfile, truefalse no_report_failure);
+  SF DVOID     clean_empty_dir(CONST CMemProt & parent_dir);
 };
 
-class CStringTokenizer
+class CTextDelimiter
 {
 public:
-  CStringTokenizer(text * str, CONST text * separator);
+  CTextDelimiter(text *, CONST text * mark);
   text * get();
 
 private:
-  text * m_str;
-  text * m_savedptr;
-  CONST text * m_separator;
+  text * m_txt;
+  text * m_tmp;
+  CONST text * m_marks;
 };
 
-#define ftype_is_led(ftype) ((ftype) == '7' || (ftype) == '9')
-#define ftype_is_adv(ftype) ((ftype) == '3' || (ftype) == '5' || (ftype) == '6')
-#define ftype_is_adv_list(ftype) ((ftype) == '6')
-#define ftype_is_chn(ftype) ((ftype) == '1' || (ftype) == '2' || (ftype) == '4')
-#define ftype_is_frame(ftype) ((ftype) == '0')
-#define ftype_is_backgnd(ftype) ((ftype) == '8')
-#define ftype_is_vd(ftype) ((ftype) == '3' || (ftype) == '5' || (ftype) == '6' || (ftype) == '8')
-#define ftype_is_valid(ftype) ((ftype) >= '0' && (ftype) <= '9')
+#define c_tell_ftype_led(ftype) ((ftype) == '7' || (ftype) == '9')
+#define c_tell_ftype_adv(ftype) ((ftype) == '3' || (ftype) == '5' || (ftype) == '6')
+#define c_tell_ftype_adv_list(ftype) ((ftype) == '6')
+#define c_tell_ftype_chn(ftype) ((ftype) == '1' || (ftype) == '2' || (ftype) == '4')
+#define c_tell_ftype_frame(ftype) ((ftype) == '0')
+#define c_tell_ftype_backgnd(ftype) ((ftype) == '8')
+#define c_tell_ftype_vd(ftype) ((ftype) == '3' || (ftype) == '5' || (ftype) == '6' || (ftype) == '8')
+#define c_tell_ftype_valid(ftype) ((ftype) >= '0' && (ftype) <= '9')
 
-#define type_is_valid(type) ((type) == '0' || (type) == '1' || (type) == '3')
-#define type_is_single(type) ((type) == '0')
-#define type_is_multi(type) ((type) == '1')
-#define type_is_all(type) ((type) == '3')
+#define c_tell_type_valid(type) ((type) == '0' || (type) == '1' || (type) == '3')
+#define c_tell_type_single(type) ((type) == '0')
+#define c_tell_type_multi(type) ((type) == '1')
+#define c_tell_type_all(type) ((type) == '3')
 
 truefalse c_tools_mb_putq(ACE_Task<ACE_MT_SYNCH> *, CMB *, CONST text * fail_info);
 int  c_tools_post_mbq(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * , CMB *, truefalse autofree);
@@ -714,14 +714,14 @@ int  c_tools_socket_outcome(ssize_t o);
 int  c_tools_post_mb(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * , CMB *);
 truefalse c_tools_convert_time_to_text(text * ret, ni ret_size, truefalse full, time_t t = time(NULL));
 truefalse c_tools_locate_key_result(text * & p, CONST text * key, text * & , text mark);
-truefalse c_tools_tally_md5(CONST text * fn, CMemGuard & g);
+truefalse c_tools_tally_md5(CONST text * fn, CMemProt & g);
 size_t c_tools_text_hash(CONST text * s);
 truefalse c_tools_text_tail_is(CONST text * p, CONST text * tail);
 DVOID c_tools_create_rnd_text(text * ret, CONST ni size);
 DVOID c_tools_text_replace(text * s, CONST text src, CONST text dest);
 DVOID c_tools_dump_hex(DVOID * ptr, ni len, text * ret, ni ret_size);
 
-class CStrHasher
+class CTextHashGenerator
 {
 public:
   size_t operator()(CONST text * x) CONST
@@ -730,7 +730,7 @@ public:
   }
 };
 
-class CStrEqual
+class CTextEqual
 {
 public:
   truefalse operator()(CONST text * x, CONST text * y) CONST

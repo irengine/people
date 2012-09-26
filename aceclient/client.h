@@ -57,13 +57,13 @@ public:
 protected:
   virtual bool on_launch(ACE_Process_Options & options);
   virtual const char * name() const;
-  bool load(CMemGuard & file_list);
+  bool load(CMemProt & file_list);
   bool file_changed();
 
 private:
   enum { GAP_THREASHHOLD = 2 * 60 };
 
-  bool parse_line(char * ptr, CMemGuard & file_list, bool fill_options);
+  bool parse_line(char * ptr, CMemProt & file_list, bool fill_options);
   void get_file_stat(time_t & t, int & n);
   const char * adv_txt() const;
   const char * gasket() const;
@@ -71,7 +71,7 @@ private:
   void clean_list(bool no_error) const;
 
   int m_next;
-  CMemGuard m_current_line;
+  CMemProt m_current_line;
   bool m_init_mode;
   time_t m_t;
   int  m_n;
@@ -128,20 +128,20 @@ public:
   CTermSNs & client_id_table()
     { return m_client_id_table; }
 
-  static void data_path(CMemGuard & _data_path, const char * client_id = NULL);
-  static void calc_display_parent_path(CMemGuard & parent_path, const char * client_id = NULL);
-  static void calc_dist_parent_path(CMemGuard & parent_path, const char * dist_id, const char * client_id = NULL);
-  static void calc_backup_parent_path(CMemGuard & parent_path, const char * client_id = NULL);
-  static void calc_download_parent_path(CMemGuard & parent_path, const char * client_id = NULL);
+  static void data_path(CMemProt & _data_path, const char * client_id = NULL);
+  static void calc_display_parent_path(CMemProt & parent_path, const char * client_id = NULL);
+  static void calc_dist_parent_path(CMemProt & parent_path, const char * dist_id, const char * client_id = NULL);
+  static void calc_backup_parent_path(CMemProt & parent_path, const char * client_id = NULL);
+  static void calc_download_parent_path(CMemProt & parent_path, const char * client_id = NULL);
   static bool full_backup(const char * dist_id, const char * client_id = NULL);
   static bool full_restore(const char * dist_id, bool remove_existing, bool is_new = true, const char * client_id = NULL, bool init = false);
   static bool app_init(const char * app_home_path = NULL, CCfg::CAppMode mode = CCfg::AM_UNKNOWN);
   static void app_fini();
   static const char * index_frame_file();
-  static bool get_mfile(const CMemGuard & parent_path, CMemGuard & mfile);
+  static bool get_mfile(const CMemProt & parent_path, CMemProt & mfile);
   static void check_prev_extract_task(const char * client_id);
   static void dump_mem_pool_info();
-  static bool do_backup_restore(const CMemGuard & src_parent_path, const CMemGuard & dest_path, bool remove_existing, bool init, bool syn);
+  static bool do_backup_restore(const CMemProt & src_parent_path, const CMemProt & dest_path, bool remove_existing, bool init, bool syn);
 
 protected:
   virtual bool before_begin();
@@ -152,7 +152,7 @@ protected:
   virtual bool do_schedule_work();
 
 private:
-  static bool get_mfile_from_file(const CMemGuard & parent_path, CMemGuard & mfile);
+  static bool get_mfile_from_file(const CMemProt & parent_path, CMemProt & mfile);
 
   MyClientToDistModule * m_client_to_dist_module;
   CTermVer m_client_version;
@@ -161,7 +161,7 @@ private:
   MyVLCLauncher m_vlc_launcher;
   MyVLCMonitor  m_vlc_monitor;
   MyOperaLauncher m_opera_launcher;
-  CMemGuard m_ftp_password;
+  CMemProt m_ftp_password;
   ACE_Thread_Mutex m_mutex;
 };
 
