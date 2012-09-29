@@ -108,7 +108,7 @@ public:
 private:
   truefalse do_generate_compressed_files(CONST text * src_path, CONST text * dest_path, ni prefix_len, CONST text * passwrod);
 
-  CCompCombiner m_compositor;
+  CCompUniter m_compositor;
   CDataComp m_compressor;
 };
 
@@ -236,8 +236,8 @@ private:
 class MyLocationProcessor: public CServerProcBase
 {
 public:
-  MyLocationProcessor(CHandlerBase * handler);
-  virtual CProcBase::OUTPUT on_recv_header();
+  MyLocationProcessor(CParentHandler * handler);
+  virtual CProc::OUTPUT at_head_arrival();
   virtual CONST text * name() CONST;
 
   SF MyDistLoads * m_dist_loads;
@@ -245,17 +245,17 @@ public:
   DECLARE_MEMORY_POOL__NOTHROW(MyLocationProcessor, ACE_Thread_Mutex);
 
 protected:
-  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb);
+  virtual CProc::OUTPUT do_read_data(CMB * mb);
 
 private:
-  CProcBase::OUTPUT do_version_check(CMB * mb);
+  CProc::OUTPUT do_version_check(CMB * mb);
 };
 
 
-class MyLocationHandler: public CHandlerBase
+class MyLocationHandler: public CParentHandler
 {
 public:
-  MyLocationHandler(CConnectionManagerBase * xptr = NULL);
+  MyLocationHandler(CHandlerDirector * xptr = NULL);
   DECLARE_MEMORY_POOL__NOTHROW(MyLocationHandler, ACE_Thread_Mutex);
 };
 
@@ -286,9 +286,9 @@ class MyLocationAcceptor: public CAcceptorBase
 {
 public:
   enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
-  MyLocationAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * manager);
+  MyLocationAcceptor(CDispatchBase * _dispatcher, CHandlerDirector * manager);
 
-  virtual ni make_svc_handler(CHandlerBase *& sh);
+  virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 };
 
@@ -318,20 +318,20 @@ private:
 class MyHttpModule;
 class MyHttpAcceptor;
 
-class MyHttpProcessor: public CFormattedProcBase<ni>
+class MyHttpProcessor: public CParentFormattedProc<ni>
 {
 public:
-  typedef CFormattedProcBase<ni> baseclass;
+  typedef CParentFormattedProc<ni> baseclass;
 
-  MyHttpProcessor(CHandlerBase * handler);
+  MyHttpProcessor(CParentHandler * handler);
   virtual ~MyHttpProcessor();
   virtual CONST text * name() CONST;
   DECLARE_MEMORY_POOL__NOTHROW(MyHttpProcessor, ACE_Thread_Mutex);
 
 protected:
   virtual ni packet_length();
-  virtual CProcBase::OUTPUT on_recv_header();
-  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb);
+  virtual CProc::OUTPUT at_head_arrival();
+  virtual CProc::OUTPUT do_read_data(CMB * mb);
 
 private:
   truefalse do_process_input_data();
@@ -339,10 +339,10 @@ private:
 };
 
 
-class MyHttpHandler: public CHandlerBase
+class MyHttpHandler: public CParentHandler
 {
 public:
-  MyHttpHandler(CConnectionManagerBase * xptr = NULL);
+  MyHttpHandler(CHandlerDirector * xptr = NULL);
 
   DECLARE_MEMORY_POOL__NOTHROW(MyHttpHandler, ACE_Thread_Mutex);
 };
@@ -386,8 +386,8 @@ class MyHttpAcceptor: public CAcceptorBase
 public:
   enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
 
-  MyHttpAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * manager);
-  virtual ni make_svc_handler(CHandlerBase *& sh);
+  MyHttpAcceptor(CDispatchBase * _dispatcher, CHandlerDirector * manager);
+  virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 };
 
@@ -423,31 +423,31 @@ class MyDistLoadProcessor: public CServerProcBase
 public:
   typedef CServerProcBase baseclass;
 
-  MyDistLoadProcessor(CHandlerBase * handler);
+  MyDistLoadProcessor(CParentHandler * handler);
   virtual ~MyDistLoadProcessor();
   virtual CONST text * name() CONST;
-  virtual truefalse client_id_verified() CONST;
-  virtual CProcBase::OUTPUT on_recv_header();
+  virtual truefalse term_sn_check_done() CONST;
+  virtual CProc::OUTPUT at_head_arrival();
   DVOID dist_loads(MyDistLoads * dist_loads);
 
 protected:
-  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb);
+  virtual CProc::OUTPUT do_read_data(CMB * mb);
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 1024 * 1024 };
 
-  CProcBase::OUTPUT do_version_check(CMB * mb);
-  CProcBase::OUTPUT do_load_balance(CMB * mb);
+  CProc::OUTPUT do_version_check(CMB * mb);
+  CProc::OUTPUT do_load_balance(CMB * mb);
 
-  truefalse m_client_id_verified;
+  truefalse m_term_sn_check_done;
   MyDistLoads * m_dist_loads;
 };
 
 
-class MyDistLoadHandler: public CHandlerBase
+class MyDistLoadHandler: public CParentHandler
 {
 public:
-  MyDistLoadHandler(CConnectionManagerBase * xptr = NULL);
+  MyDistLoadHandler(CHandlerDirector * xptr = NULL);
   DVOID dist_loads(MyDistLoads * dist_loads);
 
   DECLARE_MEMORY_POOL__NOTHROW(MyDistLoadHandler, ACE_Thread_Mutex);
@@ -479,9 +479,9 @@ class MyDistLoadAcceptor: public CAcceptorBase
 {
 public:
   enum { IDLE_TIME_AS_DEAD = 15 }; //in minutes
-  MyDistLoadAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * manager);
+  MyDistLoadAcceptor(CDispatchBase * _dispatcher, CHandlerDirector * manager);
 
-  virtual ni make_svc_handler(CHandlerBase *& sh);
+  virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 };
 
@@ -513,27 +513,27 @@ class MyMiddleToBSProcessor: public CBSProceBase
 public:
   typedef CBSProceBase baseclass;
 
-  MyMiddleToBSProcessor(CHandlerBase * handler);
+  MyMiddleToBSProcessor(CParentHandler * handler);
   virtual CONST text * name() CONST;
 
   DECLARE_MEMORY_POOL__NOTHROW(MyMiddleToBSProcessor, ACE_Thread_Mutex);
 
 protected:
-  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb);
+  virtual CProc::OUTPUT do_read_data(CMB * mb);
 };
 
-class MyMiddleToBSHandler: public CHandlerBase
+class MyMiddleToBSHandler: public CParentHandler
 {
 public:
-  MyMiddleToBSHandler(CConnectionManagerBase * xptr = NULL);
+  MyMiddleToBSHandler(CHandlerDirector * xptr = NULL);
   virtual ni handle_timeout (CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
   DVOID checker_update();
   MyDistLoadModule * module_x() CONST;
   DECLARE_MEMORY_POOL__NOTHROW(MyMiddleToBSHandler, ACE_Thread_Mutex);
 
 protected:
-  virtual DVOID on_close();
-  virtual ni  on_open();
+  virtual DVOID at_finish();
+  virtual ni  at_start();
 
 private:
   MyActChecker m_checker;
@@ -542,8 +542,8 @@ private:
 class MyMiddleToBSConnector: public CConnectorBase
 {
 public:
-  MyMiddleToBSConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager);
-  virtual ni make_svc_handler(CHandlerBase *& sh);
+  MyMiddleToBSConnector(CDispatchBase * _dispatcher, CHandlerDirector * _manager);
+  virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 
 protected:
@@ -723,8 +723,8 @@ class MyHeartBeatProcessor: public CServerProcBase
 public:
   typedef CServerProcBase baseclass;
 
-  MyHeartBeatProcessor(CHandlerBase * handler);
-  virtual CProcBase::OUTPUT on_recv_header();
+  MyHeartBeatProcessor(CParentHandler * handler);
+  virtual CProc::OUTPUT at_head_arrival();
   virtual CONST text * name() CONST;
 
   SF MyPingSubmitter * m_heart_beat_submitter;
@@ -739,24 +739,24 @@ public:
   DECLARE_MEMORY_POOL__NOTHROW(MyHeartBeatProcessor, ACE_Thread_Mutex);
 
 protected:
-  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb);
+  virtual CProc::OUTPUT do_read_data(CMB * mb);
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 2 * 1024 * 1024 };
 
   DVOID do_ping();
-  CProcBase::OUTPUT do_version_check(CMB * mb);
-  CProcBase::OUTPUT do_md5_file_list(CMB * mb);
-  CProcBase::OUTPUT do_ftp_reply(CMB * mb);
-  CProcBase::OUTPUT do_ip_ver_req(CMB * mb);
-  CProcBase::OUTPUT do_adv_click_req(CMB * mb);
-  CProcBase::OUTPUT do_pc_on_off_req(CMB * mb);
-  CProcBase::OUTPUT do_hardware_alarm_req(CMB * mb);
-  CProcBase::OUTPUT do_vlc_req(CMB * mb);
-  CProcBase::OUTPUT do_test(CMB * mb);
-  CProcBase::OUTPUT do_psp(CMB * mb);
-  CProcBase::OUTPUT do_vlc_empty_req(CMB * mb);
-  CProcBase::OUTPUT do_send_pq();
+  CProc::OUTPUT do_version_check(CMB * mb);
+  CProc::OUTPUT do_md5_file_list(CMB * mb);
+  CProc::OUTPUT do_ftp_reply(CMB * mb);
+  CProc::OUTPUT do_ip_ver_req(CMB * mb);
+  CProc::OUTPUT do_adv_click_req(CMB * mb);
+  CProc::OUTPUT do_pc_on_off_req(CMB * mb);
+  CProc::OUTPUT do_hardware_alarm_req(CMB * mb);
+  CProc::OUTPUT do_vlc_req(CMB * mb);
+  CProc::OUTPUT do_test(CMB * mb);
+  CProc::OUTPUT do_psp(CMB * mb);
+  CProc::OUTPUT do_vlc_empty_req(CMB * mb);
+  CProc::OUTPUT do_send_pq();
 
   text m_hw_ver[12];
 };
@@ -778,7 +778,7 @@ public:
 private:
   enum {ITEM_SEPARATOR = ';' };
 
-  CMB * m_current_block;
+  CMB * m_mb;
   text * m_current_ptr;
   ni m_max_item_length;
   ni m_block_size;
@@ -951,11 +951,11 @@ private:
 };
 
 
-class MyHeartBeatHandler: public CHandlerBase
+class MyHeartBeatHandler: public CParentHandler
 {
 public:
-  MyHeartBeatHandler(CConnectionManagerBase * xptr = NULL);
-  virtual CTermSNs * client_id_table() CONST;
+  MyHeartBeatHandler(CHandlerDirector * xptr = NULL);
+  virtual CTermSNs * term_SNs() CONST;
 
   DECLARE_MEMORY_POOL__NOTHROW(MyHeartBeatHandler, ACE_Thread_Mutex);
 };
@@ -1012,8 +1012,8 @@ class MyHeartBeatAcceptor: public CAcceptorBase
 {
 public:
   enum { IDLE_TIME_AS_DEAD = 15 }; //in minutes
-  MyHeartBeatAcceptor(CDispatchBase * _dispatcher, CConnectionManagerBase * manager);
-  virtual ni make_svc_handler(CHandlerBase *& sh);
+  MyHeartBeatAcceptor(CDispatchBase * _dispatcher, CHandlerDirector * manager);
+  virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 };
 
@@ -1061,11 +1061,11 @@ class MyDistToBSProcessor: public CBSProceBase
 {
 public:
   typedef CBSProceBase baseclass;
-  MyDistToBSProcessor(CHandlerBase * handler);
+  MyDistToBSProcessor(CParentHandler * handler);
   virtual CONST text * name() CONST;
 
 protected:
-  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb);
+  virtual CProc::OUTPUT do_read_data(CMB * mb);
 
 private:
   enum { MSG_QUEUE_MAX_SIZE = 2 * 1024 * 1024 };
@@ -1074,18 +1074,18 @@ private:
   DVOID process_ip_ver_reply_one(text * item);
 };
 
-class MyDistToBSHandler: public CHandlerBase
+class MyDistToBSHandler: public CParentHandler
 {
 public:
-  MyDistToBSHandler(CConnectionManagerBase * xptr = NULL);
+  MyDistToBSHandler(CHandlerDirector * xptr = NULL);
   MyDistToMiddleModule * module_x() CONST;
   virtual ni handle_timeout (CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
   DVOID checker_update();
   DECLARE_MEMORY_POOL__NOTHROW(MyDistToBSHandler, ACE_Thread_Mutex);
 
 protected:
-  virtual DVOID on_close();
-  virtual ni  on_open();
+  virtual DVOID at_finish();
+  virtual ni  at_start();
 
 private:
   MyActChecker m_checker;
@@ -1094,8 +1094,8 @@ private:
 class MyDistToBSConnector: public CConnectorBase
 {
 public:
-  MyDistToBSConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager);
-  virtual ni make_svc_handler(CHandlerBase *& sh);
+  MyDistToBSConnector(CDispatchBase * _dispatcher, CHandlerDirector * _manager);
+  virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 
 protected:
@@ -1115,39 +1115,39 @@ class MyDistToMiddleProcessor: public CClientProcBase
 public:
   typedef CClientProcBase baseclass;
 
-  MyDistToMiddleProcessor(CHandlerBase * handler);
-  virtual CProcBase::OUTPUT on_recv_header();
-  virtual ni on_open();
+  MyDistToMiddleProcessor(CParentHandler * handler);
+  virtual CProc::OUTPUT at_head_arrival();
+  virtual ni at_start();
   ni send_server_load();
 
 protected:
-  virtual CProcBase::OUTPUT on_recv_packet_i(CMB * mb);
+  virtual CProc::OUTPUT do_read_data(CMB * mb);
 
 private:
   enum { IP_ADDR_LENGTH = INET_ADDRSTRLEN };
   enum { MSG_QUEUE_MAX_SIZE = 512 * 1024 };
 
   ni send_version_check_req();
-  CProcBase::OUTPUT do_version_check_reply(CMB * mb);
-  CProcBase::OUTPUT do_have_dist_task(CMB * mb);
-  CProcBase::OUTPUT do_remote_cmd_task(CMB * mb);
+  CProc::OUTPUT do_version_check_reply(CMB * mb);
+  CProc::OUTPUT do_have_dist_task(CMB * mb);
+  CProc::OUTPUT do_remote_cmd_task(CMB * mb);
 
   truefalse m_version_check_reply_done;
   text m_local_addr[IP_ADDR_LENGTH];
 };
 
-class MyDistToMiddleHandler: public CHandlerBase
+class MyDistToMiddleHandler: public CParentHandler
 {
 public:
-  MyDistToMiddleHandler(CConnectionManagerBase * xptr = NULL);
+  MyDistToMiddleHandler(CHandlerDirector * xptr = NULL);
   virtual ni handle_timeout (CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
   DVOID setup_timer();
   MyDistToMiddleModule * module_x() CONST;
   DECLARE_MEMORY_POOL__NOTHROW(MyDistToMiddleHandler, ACE_Thread_Mutex);
 
 protected:
-  virtual DVOID on_close();
-  virtual ni  on_open();
+  virtual DVOID at_finish();
+  virtual ni  at_start();
 
 private:
   enum { LOAD_BALANCE_REQ_TIMER = 1 };
@@ -1183,8 +1183,8 @@ private:
 class MyDistToMiddleConnector: public CConnectorBase
 {
 public:
-  MyDistToMiddleConnector(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager);
-  virtual ni make_svc_handler(CHandlerBase *& sh);
+  MyDistToMiddleConnector(CDispatchBase * _dispatcher, CHandlerDirector * _manager);
+  virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 
 protected:

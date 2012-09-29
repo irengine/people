@@ -870,7 +870,7 @@ bool MyClientApp::do_init()
           if (n == 0)
             continue;
           m_client_id = buff;
-          m_client_id_table.append(buff);
+          m_term_SNs.append(buff);
           break;
         }
       }
@@ -1014,17 +1014,17 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::CAppMode mode)
     while (!ifs.eof())
     {
       ifs.getline(id, 64);
-      app->m_client_id_table.append(id);
+      app->m_term_SNs.append(id);
     }
-    CTerminalDirCreator::create_dirs_from_TermSNs(cfg->data_path.c_str(), &app->m_client_id_table);
-    MyClientToDistHandler::mem_block_start(app->m_client_id_table.number() * 1.2);
+    CTerminalDirCreator::create_dirs_from_TermSNs(cfg->data_path.c_str(), &app->m_term_SNs);
+    MyClientToDistHandler::mem_block_start(app->m_term_SNs.number() * 1.2);
 
-    int m = app->m_client_id_table.number();
+    int m = app->m_term_SNs.number();
     CNumber client_id;
     time_t deadline = time_t(NULL) - CONST_one_day * 10;
     for (int i = 0; i < m; ++i)
     {
-      app->m_client_id_table.get_sn(i, &client_id);
+      app->m_term_SNs.get_sn(i, &client_id);
       MyClientDBProt dbg;
       if (dbg.db().open_db(client_id.to_str(), true))
       {

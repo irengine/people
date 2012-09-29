@@ -1294,52 +1294,52 @@ truefalse CDataComp::bloat(CONST text * from_fn, CONST text * to_path, CONST tex
 
 
 
-truefalse CCompCombiner::open(CONST text * filename)
+truefalse CCompUniter::begin(CONST text * v_ptr)
 {
-  return m_f.open_write(filename, true, true, true, false);
+  return m_f.open_write(v_ptr, true, true, true, false);
 }
 
-DVOID CCompCombiner::close()
+DVOID CCompUniter::finish()
 {
   m_f.bind_fd(CFileProt::BAD_FD);
 }
 
-truefalse CCompCombiner::add(CONST text * filename)
+truefalse CCompUniter::append(CONST text * v_fn)
 {
   if (!m_f.ok())
     return true;
-  CFileProt src;
-  if (!src.open_nowrite(filename))
+  CFileProt fd;
+  if (!fd.open_nowrite(v_fn))
     return false;
-  truefalse result = CSysFS::copy_file_by_fd(src.get_fd(), m_f.get_fd());
-  if (!result)
-    C_ERROR("MyBZCompositor::add(%s) failed\n", filename);
-  return result;
+  truefalse b = CSysFS::copy_file_by_fd(fd.get_fd(), m_f.get_fd());
+  if (!b)
+    C_ERROR("append(%s)\n", v_fn);
+  return b;
 }
 
-truefalse CCompCombiner::add_multi(text * filenames, CONST text * path, CONST text separator, CONST text * ext)
+truefalse CCompUniter::append_batch(text * v_fns, CONST text * v_dir, CONST text mark, CONST text * ext)
 {
-  text _seperators[2];
-  _seperators[0] = separator;
-  _seperators[1] = 0;
-  text *str, *token, *saveptr;
+  text l_marks[2];
+  l_marks[0] = mark;
+  l_marks[1] = 0;
+  text *ptr, *val, *tmp;
 
-  for (str = filenames; ; str = NULL)
+  for (ptr = v_fns; ; ptr = NULL)
   {
-    token = strtok_r(str, _seperators, &saveptr);
-    if (!token)
+    val = strtok_r(ptr, l_marks, &tmp);
+    if (!val)
       break;
-    if (!*token)
+    if (!*val)
       continue;
-    if ((!path || !*path) && (!ext || !*ext))
+    if ((!v_dir || !*v_dir) && (!ext || !*ext))
     {
-      if (!add(token))
+      if (!append(val))
         return false;
     } else
     {
       CMemProt fn;
-      fn.init(path, "/", token, ext);
-      if (!add(fn.get_ptr()))
+      fn.init(v_dir, "/", val, ext);
+      if (!append(fn.get_ptr()))
         return false;
     }
   }
@@ -1349,116 +1349,114 @@ truefalse CCompCombiner::add_multi(text * filenames, CONST text * path, CONST te
 
 
 
-//MyBaseProcessor//
 
-CProcBase::CProcBase(CHandlerBase * handler)
+
+CProc::CProc(CParentHandler * v_h)
 {
-  m_handler = handler;
-  m_wait_for_close = false;
-  m_last_activity = g_clock_counter;
-  m_client_id_index = -1;
-  m_client_id_length = 0;
+  m_handler = v_h;
+  m_mark_down = false;
+  m_lastest_action = g_clock_counter;
+  m_term_loc = -1;
+  m_term_sn_len = 0;
 }
 
-CProcBase::~CProcBase()
+CProc::~CProc()
 {
 
 }
 
-DVOID CProcBase::get_sinfo(CMemProt & info) CONST
+DVOID CProc::get_sinfo(CMemProt & ) CONST
 {
-  ACE_UNUSED_ARG(info);
+
 }
 
-ni CProcBase::on_open()
+ni CProc::at_start()
 {
   return 0;
 }
 
-DVOID CProcBase::on_close()
+DVOID CProc::at_finish()
 {
 
 }
 
-truefalse CProcBase::wait_for_close() CONST
+truefalse CProc::get_mark_down() CONST
 {
-  return m_wait_for_close;
+  return m_mark_down;
 }
 
-DVOID CProcBase::prepare_to_close()
+DVOID CProc::set_mark_down()
 {
-  m_wait_for_close = true;
+  m_mark_down = true;
 }
 
-ni CProcBase::handle_input()
+ni CProc::handle_input()
 {
   return 0;
 }
 
-truefalse CProcBase::ok_to_send(CMB * mb) CONST
+truefalse CProc::ok_to_post(CMB * ) CONST
 {
-  ACE_UNUSED_ARG(mb);
   return true;
 }
 
-CONST text * CProcBase::name() CONST
+CONST text * CProc::name() CONST
 {
-  return "MyBaseProcessor";
+  return "CProc";
 }
 
-ni CProcBase::handle_input_wait_for_close()
+ni CProc::on_read_data_at_down()
 {
-  text buffer[4096];
-  ssize_t recv_cnt = m_handler->peer().recv (buffer, 4096);
-  //TEMP_FAILURE_RETRY(m_handler->peer().recv (buffer, 4096));
-  ni ret = c_tools_socket_outcome(recv_cnt);
-  if (ret < 0)
+  text txt[4096];
+  ssize_t l_x = m_handler->peer().recv (txt, 4096);
+  ni n = c_tools_socket_outcome(l_x);
+  if (n < 0)
     return -1;
-  if (ret > 0)
-    C_DEBUG("discarding %d data @%s::handle_input_wait_for_close()\n", recv_cnt, name());
+  if (n > 0)
+    C_DEBUG("ignore %d since closing()\n", l_x, name());
   return (m_handler->msg_queue()->is_empty ()) ? -1 : 0;
 }
 
 
-truefalse CProcBase::broken() CONST
+truefalse CProc::broken() CONST
 {
-  return m_last_activity + 100 < g_clock_counter;
+  return m_lastest_action + 100 < g_clock_counter;
 }
 
-DVOID CProcBase::update_last_activity()
+DVOID CProc::set_lastest_action()
 {
-  m_last_activity = g_clock_counter;
+  m_lastest_action = g_clock_counter;
 }
 
-long CProcBase::last_activity() CONST
+long CProc::get_lastest_action() CONST
 {
-  return m_last_activity;
+  return m_lastest_action;
 }
 
-CONST CNumber & CProcBase::client_id() CONST
+CONST CNumber & CProc::term_sn() CONST
 {
-  return m_client_id;
+  return m_term_sn;
 }
 
-DVOID CProcBase::client_id(CONST text *id)
+DVOID CProc::set_term_sn(CONST text * sn)
 {
-  m_client_id = id;
+  m_term_sn = sn;
 }
 
-truefalse CProcBase::client_id_verified() CONST
+truefalse CProc::term_sn_check_done() CONST
 {
   return false;
 }
 
-int32_t CProcBase::client_id_index() CONST
+int32_t CProc::term_sn_loc() CONST
 {
-  return m_client_id_index;
+  return m_term_loc;
 }
 
 
-//MyBasePacketProcessor//
 
-CFormatProcBase::CFormatProcBase(CHandlerBase * handler): baseclass(handler)
+
+CFormatProcBase::CFormatProcBase(CParentHandler * handler): baseclass(handler)
 {
   m_peer_addr[0] = 0;
 }
@@ -1470,19 +1468,19 @@ CONST text * CFormatProcBase::name() CONST
 
 DVOID CFormatProcBase::get_sinfo(CMemProt & info) CONST
 {
-  CONST text * str_id = m_client_id.to_str();
+  CONST text * str_id = m_term_sn.to_str();
   if (!*str_id)
     str_id = "NULL";
   CONST text * ss[5];
   ss[0] = "(remote addr=";
   ss[1] = m_peer_addr;
   ss[2] = ", client_id=";
-  ss[3] = m_client_id.to_str();
+  ss[3] = m_term_sn.to_str();
   ss[4] = ")";
   info.inits(ss, 5);
 }
 
-ni CFormatProcBase::on_open()
+ni CFormatProcBase::at_start()
 {
   ACE_INET_Addr peer_addr;
   if (m_handler->peer().get_remote_addr(peer_addr) == 0)
@@ -1494,18 +1492,18 @@ ni CFormatProcBase::on_open()
 
 ni CFormatProcBase::packet_length()
 {
-  return m_packet_header.size;
+  return m_data_head.size;
 }
 
-CProcBase::OUTPUT CFormatProcBase::on_recv_header()
+CProc::OUTPUT CFormatProcBase::at_head_arrival()
 {
   return OP_CONTINUE;
 }
 
-CProcBase::OUTPUT CFormatProcBase::on_recv_packet_i(CMB * mb)
+CProc::OUTPUT CFormatProcBase::do_read_data(CMB * mb)
 {
   CCmdHeader * header = (CCmdHeader *)mb->base();
-  header->signature = m_client_id_index;
+  header->signature = m_term_loc;
   return OP_OK;
 }
 
@@ -1518,17 +1516,17 @@ CMB * CFormatProcBase::make_version_check_request_mb(CONST ni extra)
 
 //MyBSBasePacketProcessor//
 
-CBSProceBase::CBSProceBase(CHandlerBase * handler): baseclass(handler)
+CBSProceBase::CBSProceBase(CParentHandler * handler): baseclass(handler)
 {
 
 }
 
-CProcBase::OUTPUT CBSProceBase::on_recv_header()
+CProc::OUTPUT CBSProceBase::at_head_arrival()
 {
-  return (m_packet_header.validate_header()? OP_OK : OP_FAIL);
+  return (m_data_head.validate_header()? OP_OK : OP_FAIL);
 }
 
-CProcBase::OUTPUT CBSProceBase::on_recv_packet_i(CMB * mb)
+CProc::OUTPUT CBSProceBase::do_read_data(CMB * mb)
 {
   CBSData * bspacket = (CBSData *) mb->base();
   if (!bspacket->fix_data())
@@ -1541,13 +1539,13 @@ CProcBase::OUTPUT CBSProceBase::on_recv_packet_i(CMB * mb)
 
 ni CBSProceBase::packet_length()
 {
-  return m_packet_header.data_len();
+  return m_data_head.data_len();
 }
 
 
 //MyBaseServerProcessor//
 
-CServerProcBase::CServerProcBase(CHandlerBase * handler) : CFormatProcBase(handler)
+CServerProcBase::CServerProcBase(CParentHandler * handler) : CFormatProcBase(handler)
 {
 
 }
@@ -1562,72 +1560,72 @@ CONST text * CServerProcBase::name() CONST
   return "MyBaseServerProcessor";
 }
 
-truefalse CServerProcBase::client_id_verified() CONST
+truefalse CServerProcBase::term_sn_check_done() CONST
 {
-  return !m_client_id.empty();
+  return !m_term_sn.empty();
 }
 
 truefalse CServerProcBase::ok_to_send(CMB * mb) CONST
 {
   ACE_UNUSED_ARG(mb);
-  return client_id_verified();
+  return term_sn_check_done();
 }
 
-CProcBase::OUTPUT CServerProcBase::on_recv_header()
+CProc::OUTPUT CServerProcBase::at_head_arrival()
 {
-  CProcBase::OUTPUT result = baseclass::on_recv_header();
+  CProc::OUTPUT result = baseclass::at_head_arrival();
   if (result != OP_CONTINUE)
     return result;
 
-  truefalse bVerified = client_id_verified();
-  truefalse bVersionCheck = (m_packet_header.cmd == CCmdHeader::PT_VER_REQ);
+  truefalse bVerified = term_sn_check_done();
+  truefalse bVersionCheck = (m_data_head.cmd == CCmdHeader::PT_VER_REQ);
   if (bVerified == bVersionCheck)
   {
     CMemProt info;
     get_sinfo(info);
     C_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s, \n"),
-        m_packet_header.cmd, bVerified, bVersionCheck, info.get_ptr());
+        m_data_head.cmd, bVerified, bVersionCheck, info.get_ptr());
     return OP_FAIL;
   }
 
   return OP_CONTINUE;
 }
 
-CProcBase::OUTPUT CServerProcBase::do_version_check_common(CMB * mb, CTermSNs & client_id_table)
+CProc::OUTPUT CServerProcBase::do_version_check_common(CMB * mb, CTermSNs & term_SNs)
 {
   CTerminalVerReq * vcr = (CTerminalVerReq *) mb->base();
   vcr->fix_data();
   CMB * reply_mb = NULL;
   m_client_version.init(vcr->term_ver_major, vcr->term_ver_minor);
-  ni client_id_index = client_id_table.find_location(vcr->term_sn);
+  ni client_id_index = term_SNs.find_location(vcr->term_sn);
   truefalse valid = false;
 
-  m_client_id_index = client_id_index;
-  m_client_id = vcr->term_sn;
-  m_client_id_length = strlen(m_client_id.to_str());
+  m_term_loc = client_id_index;
+  m_term_sn = vcr->term_sn;
+  m_term_sn_len = strlen(m_term_sn.to_str());
 
   if (client_id_index >= 0)
   {
     CTermData client_info;
-    if (client_id_table.get_termData(client_id_index, client_info))
+    if (term_SNs.get_termData(client_id_index, client_info))
       valid = ! client_info.invalid;
   }
   if (!valid)
   {
-    m_wait_for_close = true;
+    m_mark_down = true;
     C_WARNING(ACE_TEXT("closing connection due to invalid client_id = %s\n"), vcr->term_sn.to_str());
     reply_mb = make_version_check_reply_mb(CTermVerReply::SC_ACCESS_DENIED);
   }
 
-  if (m_wait_for_close)
+  if (m_mark_down)
   {
-    if (m_handler->send_data(reply_mb) <= 0)
+    if (m_handler->post_packet(reply_mb) <= 0)
       return OP_FAIL;
     else
       return OP_OK;
   }
 
-  m_handler->connection_manager()->set_connection_client_id_index(m_handler, client_id_index, m_handler->client_id_table());
+  m_handler->handler_director()->sn_at_location(m_handler, client_id_index, m_handler->term_SNs());
   return OP_CONTINUE;
 }
 
@@ -1644,7 +1642,7 @@ CMB * CServerProcBase::make_version_check_reply_mb
 
 //MyBaseClientProcessor//
 
-CClientProcBase::CClientProcBase(CHandlerBase * handler) : CFormatProcBase(handler)
+CClientProcBase::CClientProcBase(CParentHandler * handler) : CFormatProcBase(handler)
 {
   m_client_verified = false;
 }
@@ -1659,7 +1657,7 @@ CONST text * CClientProcBase::name() CONST
   return "MyBaseClientProcessor";
 }
 
-truefalse CClientProcBase::client_id_verified() CONST
+truefalse CClientProcBase::term_sn_check_done() CONST
 {
   return m_client_verified;
 }
@@ -1673,50 +1671,50 @@ truefalse CClientProcBase::ok_to_send(CMB * mb) CONST
 {
   CCmdHeader * dph = (CCmdHeader*) mb->base();
   truefalse is_request = dph->cmd == CCmdHeader::PT_VER_REQ;
-  truefalse client_verified = client_id_verified();
+  truefalse client_verified = term_sn_check_done();
   return is_request != client_verified;
 }
 
 
-ni CClientProcBase::on_open()
+ni CClientProcBase::at_start()
 {
 
-  if (baseclass::on_open() < 0)
+  if (baseclass::at_start() < 0)
     return -1;
 
   if (g_is_test)
   {
-    ni pending_count = m_handler->connection_manager()->pending_count();
+    ni pending_count = m_handler->handler_director()->waiting_count();
     if (pending_count > 0 &&  pending_count <= CConnectorBase::BATCH_CONNECT_NUM / 2)
       m_handler->connector()->connect_ready();
   }
   return 0;
 }
 
-DVOID CClientProcBase::on_close()
+DVOID CClientProcBase::at_finish()
 {
   if (g_is_test)
   {
-    ni pending_count = m_handler->connection_manager()->pending_count();
+    ni pending_count = m_handler->handler_director()->waiting_count();
     if (pending_count > 0 &&  pending_count <= CConnectorBase::BATCH_CONNECT_NUM / 2)
       m_handler->connector()->connect_ready();
   }
 }
 
-CProcBase::OUTPUT CClientProcBase::on_recv_header()
+CProc::OUTPUT CClientProcBase::at_head_arrival()
 {
-  CProcBase::OUTPUT result = baseclass::on_recv_header();
+  CProc::OUTPUT result = baseclass::at_head_arrival();
   if (result != OP_CONTINUE)
     return result;
 
-  truefalse bVerified = client_id_verified();
-  truefalse bVersionCheck = (m_packet_header.cmd == CCmdHeader::PT_VER_REPLY);
+  truefalse bVerified = term_sn_check_done();
+  truefalse bVersionCheck = (m_data_head.cmd == CCmdHeader::PT_VER_REPLY);
   if (bVerified == bVersionCheck)
   {
     CMemProt info;
     get_sinfo(info);
     C_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s \n"),
-        m_packet_header.cmd, bVerified, bVersionCheck, info.get_ptr());
+        m_data_head.cmd, bVerified, bVersionCheck, info.get_ptr());
     return OP_FAIL;
   }
 
@@ -1724,419 +1722,390 @@ CProcBase::OUTPUT CClientProcBase::on_recv_header()
 }
 
 
-//MyBaseConnectionManager//
 
-CConnectionManagerBase::CConnectionManagerBase()
+
+CHandlerDirector::CHandlerDirector()
 {
-  m_num_connections = 0;
-  m_bytes_received = 0;
-  m_bytes_sent = 0;
-  m_reaped_connections = 0;
-  m_locked = false;
-  m_pending = 0;
-  m_total_connections = 0;
+  m_count = 0;
+  m_data_get = 0;
+  m_data_post = 0;
+  m_forced_count = 0;
+  m_down = false;
+  m_waiting_count = 0;
+  m_all_count = 0;
 }
 
-CConnectionManagerBase::~CConnectionManagerBase()
+CHandlerDirector::~CHandlerDirector()
 {
-  MyConnectionsPtr it;
-  CHandlerBase * handler;
-  MyConnectionManagerLockProt guard(this);
-  for (it = m_active_connections.begin(); it != m_active_connections.end(); ++it)
+  CHandlersAllIt l_x;
+  CParentHandler * l_h;
+  CHandlerDirectorDownProt obj(this);
+  for (l_x = m_handlers.begin(); l_x != m_handlers.end(); ++l_x)
   {
-    handler = it->first;
-    if (handler)
-      handler->handle_close(ACE_INVALID_HANDLE, 0);
+    l_h = l_x->first;
+    if (l_h)
+      l_h->handle_close(ACE_INVALID_HANDLE, 0);
   }
 }
 
-ni CConnectionManagerBase::active_count() CONST
+ni CHandlerDirector::active_count() CONST
 {
-  return m_num_connections;
+  return m_count;
 }
 
-ni CConnectionManagerBase::total_count() CONST
+ni CHandlerDirector::total_count() CONST
 {
-  return m_total_connections;
+  return m_all_count;
 }
 
-ni CConnectionManagerBase::reaped_count() CONST
+ni CHandlerDirector::forced_count() CONST
 {
-  return m_reaped_connections;
+  return m_forced_count;
 }
 
-ni CConnectionManagerBase::pending_count() CONST
+ni CHandlerDirector::waiting_count() CONST
 {
-  return m_pending;
+  return m_waiting_count;
 }
 
-i64 CConnectionManagerBase::bytes_received() CONST
+i64 CHandlerDirector::data_get() CONST
 {
-  return m_bytes_received;
+  return m_data_get;
 }
 
-i64 CConnectionManagerBase::bytes_sent() CONST
+i64 CHandlerDirector::data_post() CONST
 {
-  return m_bytes_sent;
+  return m_data_post;
 }
 
-DVOID CConnectionManagerBase::on_data_received(ni data_size)
+DVOID CHandlerDirector::on_data_get(ni m)
 {
-  m_bytes_received += data_size;
+  m_data_get += m;
 }
 
-DVOID CConnectionManagerBase::on_data_send(ni data_size)
+DVOID CHandlerDirector::on_data_post(ni m)
 {
-  m_bytes_sent += data_size;
+  m_data_post += m;
 }
 
-DVOID CConnectionManagerBase::lock()
+DVOID CHandlerDirector::down()
 {
-  m_locked = true;
+  m_down = true;
 }
 
-DVOID CConnectionManagerBase::unlock()
+DVOID CHandlerDirector::up()
 {
-  m_locked = false;
+  m_down = false;
 }
 
-truefalse CConnectionManagerBase::locked() CONST
+truefalse CHandlerDirector::is_down() CONST
 {
-  return m_locked;
+  return m_down;
 }
 
-DVOID CConnectionManagerBase::print_all()
+DVOID CHandlerDirector::print_all()
 {
   i_print();
 }
 
-DVOID CConnectionManagerBase::broadcast(CMB * mb)
+DVOID CHandlerDirector::post_all(CMB * mb)
 {
-  do_send(mb, true);
+  i_post(mb, true);
 }
 
-DVOID CConnectionManagerBase::send_single(CMB * mb)
+DVOID CHandlerDirector::post_one(CMB * mb)
 {
-  do_send(mb, false);
+  i_post(mb, false);
 }
 
-DVOID CConnectionManagerBase::do_send(CMB * mb, truefalse broadcast)
+DVOID CHandlerDirector::i_post(CMB * mb, truefalse to_all)
 {
   if (unlikely(!mb))
     return;
 
-  typedef std::vector<CHandlerBase *, CCppAllocator<CHandlerBase *> > pointers;
-  pointers ptrs;
-  CMBProt guard(mb);
+  typedef std::vector<CParentHandler *, CCppAllocator<CParentHandler *> > PVEC;
+  PVEC vec;
+  CMBProt g(mb);
 
-  MyConnectionsPtr it;
-  for (it = m_active_connections.begin(); it != m_active_connections.end(); ++it)
+  CHandlersAllIt l_x;
+  for (l_x = m_handlers.begin(); l_x != m_handlers.end(); ++l_x)
   {
-    if (it->second == CS_Pending)
+    if (l_x->second == HWaiting)
       continue;
-    if (!broadcast)
+    if (!to_all)
     {
-      CHandlerBase * handler = it->first;
-      C_DEBUG("do_send: handler=%X, socket=%d, length=%d\n", (ni)(long)handler, handler->get_handle(), mb->length());
+      CParentHandler * l_h = l_x->first;
+      C_DEBUG("do_send: handler=%X, socket=%d, length=%d\n", (ni)(long)l_h, l_h->get_handle(), mb->length());
     }
-    if (it->first->send_data(mb->duplicate()) < 0)
-      ptrs.push_back(it->first);
-    else if (!broadcast)
+    if (l_x->first->post_packet(mb->duplicate()) < 0)
+      vec.push_back(l_x->first);
+    else if (!to_all)
       break;
   }
 
-  pointers::iterator it2;
-  for (it2 = ptrs.begin(); it2 != ptrs.end(); ++it2)
-    (*it2)->handle_close();
+  PVEC::iterator l_x2;
+  for (l_x2 = vec.begin(); l_x2 != vec.end(); ++l_x2)
+    (*l_x2)->handle_close();
 }
 
-DVOID CConnectionManagerBase::i_print()
+DVOID CHandlerDirector::i_print()
 {
-  CONST ni BUFF_LEN = 1024;
-  text buff[BUFF_LEN];
-  //it seems that ACE's logging system can not handle 64bit formatting, let's do it ourself
-  snprintf(buff, BUFF_LEN, "        active connections = %d\n", active_count());
-  ACE_DEBUG((LM_INFO, buff));
-  snprintf(buff, BUFF_LEN, "        total connections = %d\n", total_count());
-  ACE_DEBUG((LM_INFO, buff));
-  snprintf(buff, BUFF_LEN, "        dead connections closed = %d\n", reaped_count());
-  ACE_DEBUG((LM_INFO, buff));
-  snprintf(buff, BUFF_LEN, "        bytes_received = %lld\n", (long long int) bytes_received());
-  ACE_DEBUG((LM_INFO, buff));
-  snprintf(buff, BUFF_LEN, "        bytes_sent = %lld\n", (long long int) bytes_sent());
-  ACE_DEBUG((LM_INFO, buff));
+  CONST ni DATA_LEN = 1024;
+  text tmp[DATA_LEN];
+  snprintf(tmp, DATA_LEN, "        active = %d\n", active_count());
+  ACE_DEBUG((LM_INFO, tmp));
+  snprintf(tmp, DATA_LEN, "        total = %d\n", total_count());
+  ACE_DEBUG((LM_INFO, tmp));
+  snprintf(tmp, DATA_LEN, "        dead = %d\n", forced_count());
+  ACE_DEBUG((LM_INFO, tmp));
+  snprintf(tmp, DATA_LEN, "        read = %lld\n", (long long int) data_get());
+  ACE_DEBUG((LM_INFO, tmp));
+  snprintf(tmp, DATA_LEN, "        write = %lld\n", (long long int) data_post());
+  ACE_DEBUG((LM_INFO, tmp));
 }
 
 
-DVOID CConnectionManagerBase::detect_dead_connections(ni timeout)
+DVOID CHandlerDirector::delete_broken(ni _to)
 {
-  MyConnectionsPtr it;
-  CHandlerBase * h;
-  MyConnectionManagerLockProt guard(this);
-  long deadline = g_clock_counter - long(timeout * 60 / CApp::CLOCK_TIME);
-  for (it = m_active_connections.begin(); it != m_active_connections.end();)
+  CHandlersAllIt l_x;
+  CParentHandler * h;
+  CHandlerDirectorDownProt o(this);
+  long deadline = g_clock_counter - long(_to * 60 / CApp::CLOCK_TIME);
+  for (l_x = m_handlers.begin(); l_x != m_handlers.end();)
   {
-    h = it->first;
+    h = l_x->first;
     if (!h)
     {
-      m_active_connections.erase(it++);
-      --m_num_connections;
-      ++m_reaped_connections;
+      m_handlers.erase(l_x++);
+      --m_count;
+      ++m_forced_count;
       continue;
     }
 
-    if (h->processor()->last_activity() < deadline)
+    if (h->get_proc()->get_lastest_action() < deadline)
     {
-      if (it->second == CS_Pending)
-        -- m_pending;
-      h->mark_as_reap();
-      remove_from_handler_map(h, h->client_id_table());
+      if (l_x->second == HWaiting)
+        -- m_waiting_count;
+      h->prepare_close();
+      delete_at_map(h, h->term_SNs());
       h->handle_close(ACE_INVALID_HANDLE, 0);
-      m_active_connections.erase(it++);
-      --m_num_connections;
-      ++m_reaped_connections;
+      m_handlers.erase(l_x++);
+      --m_count;
+      ++m_forced_count;
     }
     else
-      ++it;
+      ++l_x;
   }
 }
 
-DVOID CConnectionManagerBase::set_connection_client_id_index(CHandlerBase * handler, ni index, CTermSNs * id_table)
+DVOID CHandlerDirector::sn_at_location(CParentHandler * h, ni v_idx, CTermSNs * sns)
 {
-  if (unlikely(!handler || m_locked || index < 0))
+  if (unlikely(!h || m_down || v_idx < 0))
     return;
-  MyIndexHandlerMapPtr it = m_index_handler_map.lower_bound(index);
-  if (id_table)
-    id_table->set_connected(index, true);
-  if (it != m_index_handler_map.end() && (it->first == index))
+  CHandlersMapIt l_x = m_map.lower_bound(v_idx);
+  if (sns)
+    sns->set_connected(v_idx, true);
+  if (l_x != m_map.end() && (l_x->first == v_idx))
   {
-    CHandlerBase * handler_old = it->second;
-    it->second = handler;
+    CParentHandler * handler_old = l_x->second;
+    l_x->second = h;
     if (handler_old)
     {
-      remove_from_active_table(handler_old);
-      CMemProt info;
-      handler_old->processor()->get_sinfo(info);
-      C_DEBUG("closing previous connection %s\n", info.get_ptr());
-      handler_old->mark_as_reap();
+      delete_at_container(handler_old);
+      CMemProt s;
+      handler_old->get_proc()->get_sinfo(s);
+      C_DEBUG("down old socket %s\n", s.get_ptr());
+      handler_old->prepare_close();
       handler_old->handle_close(ACE_INVALID_HANDLE, 0);
     }
   } else
-    m_index_handler_map.insert(it, MyIndexHandlerMap::value_type(index, handler));
+    m_map.insert(l_x, CHandlersMap::value_type(v_idx, h));
 }
 
-CHandlerBase * CConnectionManagerBase::find_handler_by_index(ni index)
+CParentHandler * CHandlerDirector::locate(ni loc)
 {
-  MyIndexHandlerMapPtr it = find_handler_by_index_i(index);
-  if (it == m_index_handler_map.end())
+  CHandlersMapIt l_x = do_locate(loc);
+  if (l_x == m_map.end())
     return NULL;
   else
-    return it->second;
+    return l_x->second;
 }
 
-DVOID CConnectionManagerBase::add_connection(CHandlerBase * handler, CState state)
+DVOID CHandlerDirector::add(CParentHandler * v_h, CHow how)
 {
-  if (!handler || m_locked)
+  if (!v_h || m_down)
     return;
-  MyConnectionsPtr it = m_active_connections.lower_bound(handler);
-  if (it != m_active_connections.end() && (it->first == handler))
+  CHandlersAllIt l_x = m_handlers.lower_bound(v_h);
+  if (l_x != m_handlers.end() && (l_x->first == v_h))
   {
-    if (it->second != state)
-      m_pending += (state == CS_Pending ? 1:-1);
-    it->second = state;
+    if (l_x->second != how)
+      m_waiting_count += (how == HWaiting ? 1:-1);
+    l_x->second = how;
   } else
   {
-    if (state == CS_Pending)
-      ++ m_pending;
-    m_active_connections.insert(it, MyConnections::value_type(handler, state));
-    ++m_num_connections;
-    ++m_total_connections;
+    if (how == HWaiting)
+      ++ m_waiting_count;
+    m_handlers.insert(l_x, CHandlersAll::value_type(v_h, how));
+    ++m_count;
+    ++m_all_count;
   }
 }
 
-DVOID CConnectionManagerBase::set_connection_state(CHandlerBase * handler, CState state)
+DVOID CHandlerDirector::change_how(CParentHandler * v_h, CHow how)
 {
-  add_connection(handler, state);
+  add(v_h, how);
 }
 
-DVOID CConnectionManagerBase::remove_connection(CHandlerBase * handler, CTermSNs * id_table)
+DVOID CHandlerDirector::remove_x(CParentHandler * v_h, CTermSNs * sns)
 {
-  if (unlikely(m_locked))
+  if (unlikely(m_down))
     return;
 
-  remove_from_active_table(handler);
-  remove_from_handler_map(handler, id_table);
+  delete_at_container(v_h);
+  delete_at_map(v_h, sns);
 }
 
-DVOID CConnectionManagerBase::remove_from_active_table(CHandlerBase * handler)
+DVOID CHandlerDirector::delete_at_container(CParentHandler * v_h)
 {
-  MyConnectionsPtr ptr = find(handler);
-  if (ptr != m_active_connections.end())
+  CHandlersAllIt l_x = do_search(v_h);
+  if (l_x != m_handlers.end())
   {
-    if (ptr->second == CS_Pending)
-      -- m_pending;
-    m_active_connections.erase(ptr);
-    --m_num_connections;
+    if (l_x->second == HWaiting)
+      -- m_waiting_count;
+    m_handlers.erase(l_x);
+    --m_count;
   }
 }
 
-DVOID CConnectionManagerBase::remove_from_handler_map(CHandlerBase * handler, CTermSNs * id_table)
+DVOID CHandlerDirector::delete_at_map(CParentHandler * v_h, CTermSNs * sns)
 {
-  ni index = handler->processor()->client_id_index();
-  if (index < 0)
+  ni loc = v_h->get_proc()->term_sn_loc();
+  if (loc < 0)
     return;
 
-  MyIndexHandlerMapPtr ptr2 = find_handler_by_index_i(index);
-  if (ptr2 != m_index_handler_map.end() && (ptr2->second == handler || ptr2->second == NULL))
+  CHandlersMapIt l_x = do_locate(loc);
+  if (l_x != m_map.end() && (l_x->second == v_h || l_x->second == NULL))
   {
-    m_index_handler_map.erase(ptr2);
-    if (id_table)
-      id_table->set_connected(index, false);
+    m_map.erase(l_x);
+    if (sns)
+      sns->set_connected(loc, false);
   }
 }
 
-CConnectionManagerBase::MyConnectionsPtr CConnectionManagerBase::find(CHandlerBase * handler)
+CHandlerDirector::CHandlersAllIt CHandlerDirector::do_search(CParentHandler * v_h)
 {
-  return m_active_connections.find(handler);
+  return m_handlers.find(v_h);
 }
 
-CConnectionManagerBase::MyIndexHandlerMapPtr CConnectionManagerBase::find_handler_by_index_i(ni index)
+CHandlerDirector::CHandlersMapIt CHandlerDirector::do_locate(ni loc)
 {
-  return m_index_handler_map.find(index);
+  return m_map.find(loc);
 }
 
 
-//MyBaseHandler//
 
-CHandlerBase::CHandlerBase(CConnectionManagerBase * xptr)
+CParentHandler::CParentHandler(CHandlerDirector * p)
 {
-  m_reaped = false;
-  m_connection_manager = xptr;
+  m_marked_for_close = false;
+  m_handler_director = p;
   m_proc = NULL;
-  m_parent = NULL;
+  m_container = NULL;
 }
 
-CConnectionManagerBase * CHandlerBase::connection_manager()
+CHandlerDirector * CParentHandler::handler_director()
 {
-  return m_connection_manager;
+  return m_handler_director;
 }
 
-CProcBase * CHandlerBase::processor() CONST
+CProc * CParentHandler::get_proc() CONST
 {
   return m_proc;
 }
 
-ni CHandlerBase::on_open()
+ni CParentHandler::at_start()
 {
   return 0;
 }
 
-ni CHandlerBase::open(DVOID * p)
+ni CParentHandler::open(DVOID * p)
 {
-//  C_DEBUG("MyBaseHandler::open(DVOID * p = %X), this = %X\n", long(p), long(this));
   if (baseclass::open(p) == -1)
     return -1;
-  if (on_open() < 0)
+  if (at_start() < 0)
     return -1;
-  if (m_proc->on_open() < 0)
+  if (m_proc->at_start() < 0)
     return -1;
-  if (m_connection_manager)
-    m_connection_manager->set_connection_state(this, CConnectionManagerBase::CS_Connected);
+  if (m_handler_director)
+    m_handler_director->change_how(this, CHandlerDirector::HConnected);
   return 0;
 }
 
-ni CHandlerBase::send_data(CMB * mb)
+ni CParentHandler::post_packet(CMB * mb)
 {
-  if (unlikely(!m_proc->ok_to_send(mb)))
+  if (unlikely(!m_proc->ok_to_post(mb)))
   {
     mb->release();
     return 0;
   }
-  m_proc->update_last_activity();
-  ni sent_len = mb->length();
-  ni ret = c_tools_post_mbq(this, mb, true);
-  if (ret >= 0)
+  m_proc->set_lastest_action();
+  ni l_n = mb->length();
+  ni l_m = c_tools_post_mbq(this, mb, true);
+  if (l_m >= 0)
   {
-    if (m_connection_manager)
-      m_connection_manager->on_data_send(sent_len);
+    if (m_handler_director)
+      m_handler_director->on_data_post(l_n);
   }
-  return ret;
+  return l_m;
 }
 
-DVOID CHandlerBase::mark_as_reap()
+DVOID CParentHandler::prepare_close()
 {
-  m_reaped = true;
+  m_marked_for_close = true;
 }
 
-ni CHandlerBase::handle_input(ACE_HANDLE h)
+ni CParentHandler::handle_input(ACE_HANDLE h)
 {
   ACE_UNUSED_ARG(h);
-//  C_DEBUG("handle_input (handle = %d)\n", h);
   return m_proc->handle_input();
 }
 
-CTermSNs * CHandlerBase::client_id_table() CONST
+CTermSNs * CParentHandler::term_SNs() CONST
 {
   return NULL;
 }
 
-DVOID CHandlerBase::on_close()
+DVOID CParentHandler::at_finish()
 {
 
 }
 
-ni CHandlerBase::handle_close (ACE_HANDLE handle,
-                          ACE_Reactor_Mask close_mask)
+ni CParentHandler::handle_close (ACE_HANDLE handle, ACE_Reactor_Mask close_mask)
 {
   ACE_UNUSED_ARG(handle);
   ACE_UNUSED_ARG(close_mask);
-  //  C_DEBUG("handle_close.y (handle = %d, mask=%x)\n", handle, close_mask);
-//  if (close_mask == ACE_Event_Handler::WRITE_MASK)
-//  {
-//    if (!m_processor->wait_for_close())
-//      return 0;
-//   }
-
-//  else if (!m_processor->wait_for_close())
-//  {
-//    //m_processor->handle_input();
-//  }
 
   CMB *mb;
-  ACE_Time_Value nowait(ACE_Time_Value::zero);
-  while (-1 != this->getq(mb, &nowait))
+  ACE_Time_Value t(ACE_Time_Value::zero);
+  while (-1 != this->getq(mb, &t))
     mb->release();
-  if (m_connection_manager && !m_reaped)
-    m_connection_manager->remove_connection(this, client_id_table());
-  on_close();
-  m_proc->on_close();
-  //here comes the tricky part, parent class will NOT call delete as it normally does
-  //since we override the operator new/delete pair, the same thing parent class does
-  //see ACE_Svc_Handler @ Svc_Handler.cpp
-  //ctor: this->dynamic_ = ACE_Dynamic::instance ()->is_dynamic ();
-  //destroy(): if (this->mod_ == 0 && this->dynamic_ && this->closing_ == false)
-  //             delete this;
-  //so do NOT use the normal method: return baseclass::handle_close(handle, close_mask);
-  //for it will cause memory leaks
-//  C_DEBUG("handle_close.3 deleting object (handle = %d, mask=%x)\n", handle, close_mask);
+  if (m_handler_director && !m_marked_for_close)
+    m_handler_director->remove_x(this, term_SNs());
+  at_finish();
+  m_proc->at_finish();
   delete this;
   return 0;
-  //return baseclass::handle_close (handle, close_mask); //do NOT use
 }
 
-ni CHandlerBase::handle_output (ACE_HANDLE fd)
+ni CParentHandler::handle_output (ACE_HANDLE fd)
 {
   ACE_UNUSED_ARG(fd);
   CMB *mb;
-  ACE_Time_Value nowait (ACE_Time_Value::zero);
-  while (-1 != this->getq(mb, &nowait))
+  ACE_Time_Value t (ACE_Time_Value::zero);
+  while (-1 != this->getq(mb, &t))
   {
     if (c_tools_post_mb(this, mb) < 0)
     {
       mb->release();
-//      reactor()->remove_handler(this, ACE_Event_Handler::WRITE_MASK | ACE_Event_Handler::READ_MASK |
-//                                ACE_Event_Handler::DONT_CALL);
-      //return handle_close(ACE_INVALID_HANDLE, 0);
       return -1;
     }
     if (mb->length() > 0)
@@ -2154,15 +2123,15 @@ ni CHandlerBase::handle_output (ACE_HANDLE fd)
   return 0;
 }
 
-CHandlerBase::~CHandlerBase()
+CParentHandler::~CParentHandler()
 {
   delete m_proc;
 }
 
 
-//MyBaseAcceptor//
 
-CAcceptorBase::CAcceptorBase(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager):
+
+CAcceptorBase::CAcceptorBase(CDispatchBase * _dispatcher, CHandlerDirector * _manager):
     m_dispatcher(_dispatcher), m_connection_manager(_manager)
 {
   m_tcp_port = 0;
@@ -2186,7 +2155,7 @@ CDispatchBase * CAcceptorBase::dispatcher() CONST
   return m_dispatcher;
 }
 
-CConnectionManagerBase * CAcceptorBase::connection_manager() CONST
+CHandlerDirector * CAcceptorBase::connection_manager() CONST
 {
   return m_connection_manager;
 }
@@ -2204,7 +2173,7 @@ DVOID CAcceptorBase::before_finish()
 ni CAcceptorBase::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *act)
 {
   if (long(act) == TIMER_ID_check_dead_connection)
-    m_connection_manager->detect_dead_connections(m_idle_time_as_dead);
+    m_connection_manager->delete_broken(m_idle_time_as_dead);
   return 0;
 }
 
@@ -2216,7 +2185,7 @@ ni CAcceptorBase::start()
     return -1;
   }
   ACE_INET_Addr port_to_listen (m_tcp_port);
-  m_connection_manager->unlock();
+  m_connection_manager->up();
 
   ni ret = baseclass::open (port_to_listen, m_dispatcher->reactor(), ACE_NONBLOCK);
   if (ret == 0)
@@ -2247,7 +2216,7 @@ ni CAcceptorBase::start()
 ni CAcceptorBase::stop()
 {
   before_finish();
-  m_connection_manager->lock();
+  m_connection_manager->down();
   if (m_idle_connection_timer_id >= 0)
     reactor()->cancel_timer(m_idle_connection_timer_id);
   close();
@@ -2274,7 +2243,7 @@ CONST text * CAcceptorBase::name() CONST
 
 //MyBaseAcceptor//
 
-CConnectorBase::CConnectorBase(CDispatchBase * _dispatcher, CConnectionManagerBase * _manager):
+CConnectorBase::CConnectorBase(CDispatchBase * _dispatcher, CHandlerDirector * _manager):
         m_dispatcher(_dispatcher), m_connection_manager(_manager)
 {
   m_tcp_port = 0;
@@ -2298,7 +2267,7 @@ CMod * CConnectorBase::module_x() CONST
   return m_module;
 }
 
-CConnectionManagerBase * CConnectorBase::connection_manager() CONST
+CHandlerDirector * CConnectorBase::connection_manager() CONST
 {
   return m_connection_manager;
 }
@@ -2337,7 +2306,7 @@ ni CConnectorBase::handle_timeout(CONST ACE_Time_Value &current_time, CONST DVOI
       }
     }
   } else if (long(act) == TIMER_ID_check_dead_connection && m_idle_time_as_dead > 0)
-    m_connection_manager->detect_dead_connections(m_idle_time_as_dead);
+    m_connection_manager->delete_broken(m_idle_time_as_dead);
 
   return 0;
 }
@@ -2354,7 +2323,7 @@ DVOID CConnectorBase::before_finish()
 
 ni CConnectorBase::start()
 {
-  m_connection_manager->unlock();
+  m_connection_manager->up();
   if (g_is_test)
     m_remain_to_connect = 0;
   if (open(m_dispatcher->reactor(), ACE_NONBLOCK) == -1)
@@ -2428,7 +2397,7 @@ ni CConnectorBase::stop()
     reactor()->cancel_timer(m_reconnect_timer_id);
   if (m_idle_connection_timer_id >= 0)
     reactor()->cancel_timer(m_idle_connection_timer_id);
-  m_connection_manager->lock();
+  m_connection_manager->down();
   close();
   return 0;
 }
@@ -2459,7 +2428,7 @@ ni CConnectorBase::do_connect(ni count, truefalse bNew)
       return -1;
     }
 
-    if (m_connection_manager->pending_count() >= BATCH_CONNECT_NUM / 2)
+    if (m_connection_manager->waiting_count() >= BATCH_CONNECT_NUM / 2)
       return 0;
 
     truefalse b_remain_connect = m_remain_to_connect > 0;
@@ -2467,7 +2436,7 @@ ni CConnectorBase::do_connect(ni count, truefalse bNew)
       return 0;
     ni true_count;
     if (b_remain_connect)
-      true_count = std::min(m_remain_to_connect, (BATCH_CONNECT_NUM - m_connection_manager->pending_count()));
+      true_count = std::min(m_remain_to_connect, (BATCH_CONNECT_NUM - m_connection_manager->waiting_count()));
     else
       true_count = std::min(count, (ni)BATCH_CONNECT_NUM);
 
@@ -2475,7 +2444,7 @@ ni CConnectorBase::do_connect(ni count, truefalse bNew)
       return 0;
 
     ACE_INET_Addr port_to_connect(m_tcp_port, m_tcp_addr.c_str());
-    CHandlerBase * handler = NULL;
+    CParentHandler * handler = NULL;
     ni ok_count = 0, pending_count = 0;
 
     ACE_Time_Value timeout(60);
@@ -2495,7 +2464,7 @@ ni CConnectorBase::do_connect(ni count, truefalse bNew)
         if (errno == EWOULDBLOCK)
         {
           pending_count++;
-          m_connection_manager->add_connection(handler, CConnectionManagerBase::CS_Pending);
+          m_connection_manager->add(handler, CHandlerDirector::HWaiting);
         }
       }
     }
@@ -2512,14 +2481,14 @@ ni CConnectorBase::do_connect(ni count, truefalse bNew)
   } else
   {
     ACE_INET_Addr port_to_connect(m_tcp_port, m_tcp_addr.c_str());
-    CHandlerBase * handler = NULL;
+    CParentHandler * handler = NULL;
     ACE_Time_Value timeout(60);
     ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
     C_INFO(ACE_TEXT("%s connecting to %s:%d ...\n"), name(), m_tcp_addr.c_str(), m_tcp_port);
     if (connect(handler, port_to_connect, synch_options) == -1)
     {
       if (errno == EWOULDBLOCK)
-        m_connection_manager->add_connection(handler, CConnectionManagerBase::CS_Pending);
+        m_connection_manager->add(handler, CHandlerDirector::HWaiting);
     }
     return 0;
   }

@@ -125,8 +125,8 @@ public:
   const char * ftp_password();
   void ftp_password(const char * password);
 
-  CTermSNs & client_id_table()
-    { return m_client_id_table; }
+  CTermSNs & term_SNs()
+    { return m_term_SNs; }
 
   static void data_path(CMemProt & _data_path, const char * client_id = NULL);
   static void calc_display_parent_path(CMemProt & parent_path, const char * client_id = NULL);
@@ -157,7 +157,7 @@ private:
   MyClientToDistModule * m_client_to_dist_module;
   CTermVer m_client_version;
   std::string m_client_id;
-  CTermSNs m_client_id_table;
+  CTermSNs m_term_SNs;
   MyVLCLauncher m_vlc_launcher;
   MyVLCMonitor  m_vlc_monitor;
   MyOperaLauncher m_opera_launcher;
