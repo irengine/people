@@ -421,6 +421,7 @@ bool MyVLCLauncher::on_launch(ACE_Process_Options & )
 
 MyVLCLauncher::MyVLCLauncher()
 {
+  m_next = 0;
   m_init_mode = true;
   m_empty_advlist = false;
   m_t = 0;

@@ -2,38 +2,34 @@
 #include "app.h"
 #include "sapp.h"
 
-//MyHttpDistInfo//
-
-MyHttpDistInfo::MyHttpDistInfo(CONST text * dist_id)
+CBsDistData::CBsDistData(CONST text * dist_id)
 {
+  ftype[0] = ftype[1] = 0;
+  type[0] = type[1] = 0;
+  ver.init(dist_id);
+  ver_len = strlen(dist_id);
+  md5_opt_len = 0;
   exist = false;
   md5_len = 0;
   ver_len = 0;
   findex_len = 0;
   password_len = 0;
   aindex_len = 0;
-
-  ftype[0] = ftype[1] = 0;
-  type[0] = type[1] = 0;
-  ver.init(dist_id);
-  ver_len = strlen(dist_id);
-
-  md5_opt_len = 0;
 }
 
-truefalse MyHttpDistInfo::need_md5() CONST
+truefalse CBsDistData::have_checksum() CONST
 {
   return (c_tell_type_multi(type[0]));
 }
 
-truefalse MyHttpDistInfo::need_mbz_md5() CONST
+truefalse CBsDistData::have_checksum_compress() CONST
 {
-  return !need_md5();
+  return !have_checksum();
 }
 
-DVOID MyHttpDistInfo::calc_md5_opt_len()
+DVOID CBsDistData::calc_md5_opt_len()
 {
-  if (need_md5() && md5_len > 0 && md5_opt_len == 0)
+  if (have_checksum() && md5_len > 0 && md5_opt_len == 0)
   {
     CMemProt md5_2;
     md5_2.init(md5.get_ptr());
@@ -44,326 +40,317 @@ DVOID MyHttpDistInfo::calc_md5_opt_len()
 }
 
 
-//MyHttpDistRequest//
-
-MyHttpDistRequest::MyHttpDistRequest()
+CBsDistReq::CBsDistReq()
 {
+  aindex = NULL;
+  ver = NULL;
+  type = NULL;
+  password = NULL;
   acode = NULL;
   ftype = NULL;
   fdir = NULL;
   findex = NULL;
   adir = NULL;
-  aindex = NULL;
-  ver = NULL;
-  type = NULL;
-  password = NULL;
 }
 
-MyHttpDistRequest::MyHttpDistRequest(CONST MyHttpDistInfo & info)
+CBsDistReq::CBsDistReq(CONST CBsDistData & data)
 {
   acode = NULL;
-  ftype = (char*)info.ftype;
-  fdir = info.fdir.get_ptr();
-  findex = info.findex.get_ptr();
+  ftype = (char*)data.ftype;
+  fdir = data.fdir.get_ptr();
+  findex = data.findex.get_ptr();
   adir = NULL;
-  aindex = info.aindex.get_ptr();
-  ver = info.ver.get_ptr();
-  type = (char*)info.type;
-  password = info.password.get_ptr();
+  aindex = data.aindex.get_ptr();
+  ver = data.ver.get_ptr();
+  type = (char*)data.type;
+  password = data.password.get_ptr();
 }
 
-truefalse MyHttpDistRequest::check_value(CONST text * value, CONST text * value_name) CONST
+truefalse CBsDistReq::do_validate(CONST text * v_x, CONST text * v_y) CONST
 {
-  if (!value || !*value)
+  if (!v_x || !*v_x)
   {
-    C_ERROR("bad http dist request, no %s value\n", value_name);
+    C_ERROR("invalid bs dist command, no %s\n", v_y);
     return false;
   }
 
   return true;
 }
 
-truefalse MyHttpDistRequest::check_valid(CONST truefalse check_acode) CONST
+truefalse CBsDistReq::is_ok(CONST truefalse v_acode_also) CONST
 {
-  if (check_acode && !check_value(acode, "acode"))
+  if (v_acode_also && !do_validate(acode, "acode"))
     return false;
 
-  if (!check_value(ftype, "ftype"))
+  if (!do_validate(ftype, "ftype"))
     return false;
 
   if (unlikely(ftype[1] != 0 || !c_tell_ftype_valid(ftype[0])))
   {
-    C_ERROR("bad http dist request, ftype = %s\n", ftype);
+    C_ERROR("invalid bs dist command, ftype = %s\n", ftype);
     return false;
   }
 
-  if (!check_value(findex, "findex"))
+  if (!do_validate(findex, "findex"))
     return false;
 
-  if (!check_value(fdir, "fdir"))
+  if (!do_validate(fdir, "fdir"))
     return false;
 
-  if (!check_value(ver, "ver"))
+  if (!do_validate(ver, "ver"))
     return false;
 
-  if (!check_value(type, "type"))
+  if (!do_validate(type, "type"))
     return false;
 
   if (unlikely(type[1] != 0 || !c_tell_type_valid(type[0])))
   {
-    C_ERROR("bad http dist request, type = %s\n", type);
+    C_ERROR("invalid bs dist command, type = %s\n", type);
     return false;
   }
 
   return true;
 }
 
-truefalse MyHttpDistRequest::need_md5() CONST
+truefalse CBsDistReq::have_checksum() CONST
 {
   return (type && c_tell_type_multi(*type));
 }
 
-truefalse MyHttpDistRequest::need_mbz_md5() CONST
+truefalse CBsDistReq::have_checksum_compress() CONST
 {
-  return !need_md5();
+  return !have_checksum();
 }
 
 
-//MyHttpDistInfos//
-
-MyHttpDistInfos::MyHttpDistInfos()
+CBsDistDatas::CBsDistDatas()
 {
-  last_load_time.init("");
+  prev_query_ts.init("");
 }
 
-MyHttpDistInfos::~MyHttpDistInfos()
+CBsDistDatas::~CBsDistDatas()
 {
-  clear();
+  reset();
 }
 
-ni MyHttpDistInfos::count() CONST
+ni CBsDistDatas::size() CONST
 {
-  return m_info_map.size();
+  return m_data_map.size();
 }
 
-DVOID MyHttpDistInfos::clear()
+DVOID CBsDistDatas::reset()
 {
-  std::for_each(dist_infos.begin(), dist_infos.end(), CPoolObjectDeletor());
-  dist_infos.clear();
-  MyHttpDistInfoList x;
-  x.swap(dist_infos);
-  m_info_map.clear();
+  std::for_each(m_datas.begin(), m_datas.end(), CPoolObjectDeletor());
+  m_datas.clear();
+  CBsDistDataVec x;
+  x.swap(m_datas);
+  m_data_map.clear();
 }
 
-MyHttpDistInfo * MyHttpDistInfos::create_http_dist_info(CONST text * dist_id)
+CBsDistData * CBsDistDatas::alloc_data(CONST text * did)
 {
-  DVOID * p = CCacheX::instance()->get_raw(sizeof(MyHttpDistInfo));
-  MyHttpDistInfo * result = new (p) MyHttpDistInfo(dist_id);
-  dist_infos.push_back(result);
-  m_info_map.insert(std::pair<const text *, MyHttpDistInfo *>(result->ver.get_ptr(), result));
-  return result;
+  DVOID * p = CCacheX::instance()->get_raw(sizeof(CBsDistData));
+  CBsDistData * l_x = new (p) CBsDistData(did);
+  m_datas.push_back(l_x);
+  m_data_map.insert(std::pair<const text *, CBsDistData *>(l_x->ver.get_ptr(), l_x));
+  return l_x;
 }
 
-truefalse MyHttpDistInfos::need_reload()
+truefalse CBsDistDatas::need_reload()
 {
   return (!CRunnerX::instance()->db().dist_info_is_update(*this));
 }
 
-DVOID MyHttpDistInfos::prepare_update(CONST ni capacity)
+DVOID CBsDistDatas::alloc_spaces(CONST ni m)
 {
-  clear();
-  dist_infos.reserve(capacity);
+  reset();
+  m_datas.reserve(m);
 }
 
-MyHttpDistInfo * MyHttpDistInfos::find(CONST text * dist_id)
+CBsDistData * CBsDistDatas::search(CONST text * did)
 {
-  if (unlikely(!dist_id || !*dist_id))
+  if (unlikely(!did || !*did))
     return NULL;
 
-  MyHttpDistInfoMap::iterator it = m_info_map.find(dist_id);
-  return it == m_info_map.end()? NULL: it->second;
+  CBsDistDataMap::iterator it = m_data_map.find(did);
+  return it == m_data_map.end()? NULL: it->second;
 }
 
 
-//MyDistCompressor//
 
-CONST text * MyDistCompressor::composite_path()
+CONST text * CCompFactory::dir_of_composite()
 {
   return "_x_cmp_x_";
 }
 
-CONST text * MyDistCompressor::all_in_one_mbz()
+CONST text * CCompFactory::single_fn()
 {
   return "_x_cmp_x_/all_in_one.mbz";
 }
 
-DVOID MyDistCompressor::get_all_in_one_mbz_file_name(CONST text * dist_id, CMemProt & filename)
+DVOID CCompFactory::query_single_fn(CONST text * did, CMemProt & fn)
 {
   CMemProt tmp;
-  tmp.init(CCfgX::instance()->bz_files_path.c_str(), "/", dist_id);
-  filename.init(tmp.get_ptr(), "/", all_in_one_mbz());
+  tmp.init(CCfgX::instance()->bz_files_path.c_str(), "/", did);
+  fn.init(tmp.get_ptr(), "/", single_fn());
 }
 
-truefalse MyDistCompressor::compress(MyHttpDistRequest & http_dist_request)
+truefalse CCompFactory::do_comp(CBsDistReq & v_req)
 {
-  truefalse result = false;
+  truefalse l_x = false;
   truefalse bm = false;
-  ni prefix_len = strlen(http_dist_request.fdir) - 1;
-  CMemProt destdir;
-  CMemProt composite_dir;
-  CMemProt all_in_one;
+  ni l_skip_n = strlen(v_req.fdir) - 1;
+  CMemProt l_to_path;
+  CMemProt l_cmp_path;
+  CMemProt single;
   CMemProt mfile;
-  CMemProt mdestfile;
-//  MyPooledMemProt destdir_mfile;
-  destdir.init(CCfgX::instance()->bz_files_path.c_str(), "/", http_dist_request.ver);
-  if (!CSysFS::create_dir(destdir.get_ptr(), false))
+  CMemProt l_to_fn;
+  l_to_path.init(CCfgX::instance()->bz_files_path.c_str(), "/", v_req.ver);
+  if (!CSysFS::create_dir(l_to_path.get_ptr(), false))
   {
-    C_ERROR("can not create directory %s, %s\n", destdir.get_ptr(), (CONST text *)CSysError());
-    goto __exit__;
+    C_ERROR("create_dir %s, %s\n", l_to_path.get_ptr(), (CONST text *)CSysError());
+    goto label_out;
   }
 
-  composite_dir.init(destdir.get_ptr(), "/", composite_path());
-  if (!CSysFS::create_dir(composite_dir.get_ptr(), false))
+  l_cmp_path.init(l_to_path.get_ptr(), "/", dir_of_composite());
+  if (!CSysFS::create_dir(l_cmp_path.get_ptr(), false))
   {
-    C_ERROR("can not create directory %s, %s\n", composite_dir.get_ptr(), (CONST text *)CSysError());
-    goto __exit__;
+    C_ERROR("create_dir %s, %s\n", l_cmp_path.get_ptr(), (CONST text *)CSysError());
+    goto label_out;
   }
-  all_in_one.init(composite_dir.get_ptr(), "/all_in_one.mbz");
-  if (!c_tell_type_single(*http_dist_request.type))
-    if (!m_compositor.begin(all_in_one.get_ptr()))
-      goto __exit__;
+  single.init(l_cmp_path.get_ptr(), "/all_in_one.mbz");
+  if (!c_tell_type_single(*v_req.type))
+    if (!m_comp_uniter.begin(single.get_ptr()))
+      goto label_out;
 
-  CSysFS::dir_add(http_dist_request.fdir, http_dist_request.findex, mfile);
-  mdestfile.init(destdir.get_ptr(), "/", (http_dist_request.findex? http_dist_request.findex: http_dist_request.aindex), ".mbz");
-  bm = m_compressor.reduce(mfile.get_ptr(), prefix_len, mdestfile.get_ptr(), http_dist_request.password);
-  if (!bm && !c_tell_type_multi(*http_dist_request.type))
+  CSysFS::dir_add(v_req.fdir, v_req.findex, mfile);
+  l_to_fn.init(l_to_path.get_ptr(), "/", (v_req.findex? v_req.findex: v_req.aindex), ".mbz");
+  bm =   m_data_comp.reduce(mfile.get_ptr(), l_skip_n, l_to_fn.get_ptr(), v_req.password);
+  if (!bm && !c_tell_type_multi(*v_req.type))
   {
-    C_ERROR("compress(%s) to (%s) failed\n", mfile.get_ptr(), mdestfile.get_ptr());
-    m_compositor.finish();
+    C_ERROR("comp(%s) to (%s)\n", mfile.get_ptr(), l_to_fn.get_ptr());
+    m_comp_uniter.finish();
     return false;
   }
-  if (!c_tell_type_single(*http_dist_request.type) && bm && !m_compositor.append(mdestfile.get_ptr()))
+  if (!c_tell_type_single(*v_req.type) && bm && !m_comp_uniter.append(l_to_fn.get_ptr()))
   {
-    m_compositor.finish();
+    m_comp_uniter.finish();
     return false;
   }
 
-  if (c_tell_type_single(*http_dist_request.type))
+  if (c_tell_type_single(*v_req.type))
   {
-    result = CSysFS::rename(mdestfile.get_ptr(), all_in_one.get_ptr(), false);
-    goto __exit__;
+    l_x = CSysFS::rename(l_to_fn.get_ptr(), single.get_ptr(), false);
+    goto label_out;
   }
 
-  if (unlikely(!CSysFS::dir_from_mfile(mfile, prefix_len)))
+  if (unlikely(!CSysFS::dir_from_mfile(mfile, l_skip_n)))
   {
-    C_ERROR("can not calculate related path for %s\n", mfile.get_ptr());
-    m_compositor.finish();
-    goto __exit__;
+    C_ERROR("dir_from_mfile %s\n", mfile.get_ptr());
+    m_comp_uniter.finish();
+    goto label_out;
   }
 
-//  destdir_mfile.init_init(destdir.data(), mfile.data() + prefix_len);
-  result = do_generate_compressed_files(mfile.get_ptr(), destdir.get_ptr(), prefix_len, http_dist_request.password);
-  m_compositor.finish();
+  l_x = i_work(mfile.get_ptr(), l_to_path.get_ptr(), l_skip_n, v_req.password);
+  m_comp_uniter.finish();
 
-__exit__:
-  if (!result)
-    C_ERROR("can not generate compressed files for %s\n", http_dist_request.ver);
+label_out:
+  if (!l_x)
+    C_ERROR("fail to create comp files%s\n", v_req.ver);
   else
-    C_INFO("generation of compressed files for %s is done\n", http_dist_request.ver);
+    C_INFO("creation comp files %s finished\n", v_req.ver);
 
-  if (c_tell_type_all(*http_dist_request.type))
+  if (c_tell_type_all(*v_req.type))
   {
-    CSysFS::remove(mdestfile.get_ptr());
-    ni len = strlen(mdestfile.get_ptr());
-    if (likely(len > 4))
+    CSysFS::remove(l_to_fn.get_ptr());
+    ni m = strlen(l_to_fn.get_ptr());
+    if (likely(m > 4))
     {
-      mdestfile.get_ptr()[len - 4] = 0;
-      if (likely(CSysFS::dir_from_mfile(mdestfile, 1)))
-        CSysFS::delete_dir(mdestfile.get_ptr(), true);
+      l_to_fn.get_ptr()[m - 4] = 0;
+      if (likely(CSysFS::dir_from_mfile(l_to_fn, 1)))
+        CSysFS::delete_dir(l_to_fn.get_ptr(), true);
     }
   }
-  return result;
+  return l_x;
 }
 
-truefalse MyDistCompressor::do_generate_compressed_files(CONST text * src_path, CONST text * dest_path,
-     ni prefix_len, CONST text * password)
+truefalse CCompFactory::i_work(CONST text * from_dir, CONST text * to_dir, ni skip_n, CONST text * key)
 {
-  if (unlikely(!src_path || !*src_path || !dest_path || !*dest_path))
+  if (unlikely(!from_dir || !*from_dir || !to_dir || !*to_dir))
     return false;
 
-  if (!CSysFS::create_dir(dest_path, false))
+  if (!CSysFS::create_dir(to_dir, false))
   {
-    C_ERROR("can not create directory %s, %s\n", dest_path, (CONST text *)CSysError());
+    C_ERROR("fail create path %s, %s\n", to_dir, (CONST text *)CSysError());
     return false;
   }
 
-  DIR * dir = opendir(src_path);
+  DIR * dir = opendir(from_dir);
   if (!dir)
   {
-    C_ERROR("can not open directory: %s, %s\n", src_path, (CONST char*)CSysError());
+    C_ERROR("opendir: %s, %s\n", from_dir, (CONST char*)CSysError());
     return false;
   }
 
-  ni len1 = strlen(src_path);
-  ni len2 = strlen(dest_path);
+  ni len1 = strlen(from_dir);
+  ni len2 = strlen(to_dir);
 
-  struct dirent *entry;
-  ni dest_middle_leading_path_len = len1 - prefix_len;
-  if (dest_middle_leading_path_len > 0)
+  struct dirent * l_x;
+  ni l_y = len1 - skip_n;
+  if (l_y > 0)
   {
-    if (!CSysFS::create_dir(dest_path, src_path + prefix_len + 1, false, false))
+    if (!CSysFS::create_dir(to_dir, from_dir + skip_n + 1, false, false))
     {
-      C_ERROR("failed to create dir %s%s %s\n", dest_path, src_path + prefix_len, (CONST char*)CSysError());
+      C_ERROR("create_dir %s%s %s\n", to_dir, from_dir + skip_n, (CONST char*)CSysError());
       return false;
     }
   }
 
-  while ((entry = readdir(dir)) != NULL)
+  while ((l_x = readdir(dir)) != NULL)
   {
-    if (unlikely(!entry->d_name))
+    if (unlikely(!l_x->d_name))
       continue;
-    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+    if (!strcmp(l_x->d_name, ".") || !strcmp(l_x->d_name, ".."))
       continue;
 
-    CMemProt msrc, mdest;
-    ni len = strlen(entry->d_name);
-    CCacheX::instance()->get(len1 + len + 2, &msrc);
-    sprintf(msrc.get_ptr(), "%s/%s", src_path, entry->d_name);
-    CCacheX::instance()->get(len2 + len + 10 + dest_middle_leading_path_len, &mdest);
+    CMemProt l_from, l_to;
+    ni l_m = strlen(l_x->d_name);
+    CCacheX::instance()->get(len1 + l_m + 2, &l_from);
+    sprintf(l_from.get_ptr(), "%s/%s", from_dir, l_x->d_name);
+    CCacheX::instance()->get(len2 + l_m + 10 + l_y, &l_to);
 
-    if (entry->d_type == DT_REG)
+    if (l_x->d_type == DT_REG)
     {
-      if (dest_middle_leading_path_len > 0)
-        sprintf(mdest.get_ptr(), "%s%s/%s.mbz", dest_path, src_path + prefix_len, entry->d_name);
+      if (l_y > 0)
+        sprintf(l_to.get_ptr(), "%s%s/%s.mbz", to_dir, from_dir + skip_n, l_x->d_name);
       else
-        sprintf(mdest.get_ptr(), "%s/%s.mbz", dest_path, entry->d_name);
-      if (!m_compressor.reduce(msrc.get_ptr(), prefix_len, mdest.get_ptr(), password))
+        sprintf(l_to.get_ptr(), "%s/%s.mbz", to_dir, l_x->d_name);
+      if (!m_data_comp.reduce(l_from.get_ptr(), skip_n, l_to.get_ptr(), key))
       {
-        C_ERROR("compress(%s) to (%s) failed\n", msrc.get_ptr(), mdest.get_ptr());
+        C_ERROR("comp(%s) to (%s) failed\n", l_from.get_ptr(), l_to.get_ptr());
         closedir(dir);
         return false;
       }
-      if (!m_compositor.append(mdest.get_ptr()))
+      if (!m_comp_uniter.append(l_to.get_ptr()))
       {
         closedir(dir);
         return false;
       }
     }
-    else if(entry->d_type == DT_DIR)
+    else if(l_x->d_type == DT_DIR)
     {
-      if (dest_middle_leading_path_len > 0)
-        sprintf(mdest.get_ptr(), "%s%s/%s", dest_path, src_path + prefix_len, entry->d_name);
+      if (l_y > 0)
+        sprintf(l_to.get_ptr(), "%s%s/%s", to_dir, from_dir + skip_n, l_x->d_name);
       else
-        sprintf(mdest.get_ptr(), "%s/%s", dest_path, entry->d_name);
+        sprintf(l_to.get_ptr(), "%s/%s", to_dir, l_x->d_name);
 
-      if (!do_generate_compressed_files(msrc.get_ptr(), dest_path, prefix_len, password))
+      if (!i_work(l_from.get_ptr(), to_dir, skip_n, key))
       {
         closedir(dir);
         return false;
       }
     } else
-      C_WARNING("unknown file type (= %d) for file @MyHttpService::generate_compressed_files file = %s/%s\n",
-           entry->d_type, src_path, entry->d_name);
+      C_WARNING("unexpected file type (= %d) file = %s/%s\n", l_x->d_type, from_dir, l_x->d_name);
   };
 
   closedir(dir);
@@ -371,50 +358,44 @@ truefalse MyDistCompressor::do_generate_compressed_files(CONST text * src_path, 
 }
 
 
-//MyDistMd5Calculator//
 
-truefalse MyDistMd5Calculator::calculate(MyHttpDistRequest & http_dist_request, CMemProt &md5_result, ni & md5_len)
+
+truefalse CChecksumComputer::compute(CBsDistReq & v_req, CMemProt & v_checksum, ni & v_cs_size)
 {
-  if (!http_dist_request.need_md5())
+  if (!v_req.have_checksum())
   {
-    C_INFO("skipping file md5 generation for %s, not needed\n", http_dist_request.ver);
+    C_INFO("skipping file md5 generation for %s, not needed\n", v_req.ver);
     return true;
   }
 
-  CCheckSums md5s_server;
-  if (unlikely(!md5s_server.compute(http_dist_request.fdir, http_dist_request.findex, c_tell_type_single(*http_dist_request.type))))
+  CCheckSums l_cs;
+  if (unlikely(!l_cs.compute(v_req.fdir, v_req.findex, c_tell_type_single(*v_req.type))))
   {
-    C_ERROR("failed to calculate md5 file list for dist %s\n", http_dist_request.ver);
+    C_ERROR("failed to calculate md5 file list for dist %s\n", v_req.ver);
     return false;
   }
-  md5s_server.make_ordered();
-  md5_len = md5s_server.text_len(true);
+  l_cs.make_ordered();
+  v_cs_size = l_cs.text_len(true);
 
-  CCacheX::instance()->get(md5_len, &md5_result);
-  if (unlikely(!md5s_server.save_text(md5_result.get_ptr(), md5_len, true)))
+  CCacheX::instance()->get(v_cs_size, &v_checksum);
+  if (unlikely(!l_cs.save_text(v_checksum.get_ptr(), v_cs_size, true)))
   {
-    C_ERROR("can not get md5 file list result for dist %s\n", http_dist_request.ver);
+    C_ERROR("can not get md5 file list result for dist %s\n", v_req.ver);
     return false;
   }
-
-//  truefalse result = MyServerAppX::instance()->db().save_dist_md5(http_dist_request.ver, md5_result.data(), md5_len);
-//  if (likely(result))
-//    C_INFO("file md5 list for %s generated and stored into database\n", http_dist_request.ver);
-//  else
-//    C_ERROR("can not save file md5 list for %s into database\n", http_dist_request.ver);
   return true;
 }
 
 
-truefalse MyDistMd5Calculator::calculate_all_in_one_ftp_md5(CONST text * dist_id, CMemProt & md5_result)
+truefalse CChecksumComputer::compute_single_cs(CONST text * did, CMemProt & v_cs)
 {
-  CMemProt filename;
-  MyDistCompressor::get_all_in_one_mbz_file_name(dist_id, filename);
-  return c_tools_tally_md5(filename.get_ptr(), md5_result);
+  CMemProt l_fn;
+  CCompFactory::query_single_fn(did, l_fn);
+  return c_tools_tally_md5(l_fn.get_ptr(), v_cs);
 }
 
 
-CMB * my_get_hb_mb()
+CMB * c_create_hb_mb()
 {
   CMB * mb = CCacheX::instance()->get_mb_bs(1, "99");
   if (!mb)
@@ -426,206 +407,201 @@ CMB * my_get_hb_mb()
 }
 
 
-//MyFindDistLoad//
-
-class MyFindDistLoad
+class CBalanceSearcher
 {
 public:
-  MyFindDistLoad(CONST text * addr)
+  CBalanceSearcher(CONST text * p)
   {
-    m_addr = addr;
+    m_ip = p;
   }
 
-  truefalse operator()(MyDistLoad& load) CONST
+  truefalse operator()(CBalanceData& x) CONST
   {
-    if (!m_addr)
+    if (!m_ip)
       return false;
-    return (strcmp(m_addr, load.m_ip_addr) == 0);
+    return (strcmp(m_ip, x.m_ip) == 0);
   }
 
 private:
-  CONST text * m_addr;
+  CONST text * m_ip;
 };
 
 
-//MyDistLoads//
 
-MyDistLoads::MyDistLoads()
+CBalanceDatas::CBalanceDatas()
 {
   m_loads.reserve(6);
-  m_server_list_length = 0;
-  m_server_list[0] = 0;
+  m_ip_size = 0;
+  m_ips[0] = 0;
 }
 
-DVOID MyDistLoads::update(CONST MyDistLoad & load)
+DVOID CBalanceDatas::refresh(CONST CBalanceData & load)
 {
-  if (load.m_ip_addr[0] == 0)
+  if (load.m_ip[0] == 0)
     return;
   ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_mutex));
-  MyDistLoadVecIt it = find_i(load.m_ip_addr);
+  CBalanceDataVecIt it = do_search(load.m_ip);
   if (it == m_loads.end())
     m_loads.push_back(load);
   else
   {
-    it->clients_connected(load.m_clients_connected);
-    it->m_last_access = g_clock_counter;
+    it->set_load(load.m_load);
+    it->m_prev_access_ts = g_clock_counter;
   }
 
-  calc_server_list();
+  do_compute_ips();
 }
 
-DVOID MyDistLoads::remove(CONST text * addr)
+DVOID CBalanceDatas::del(CONST text * ip)
 {
-  if (!addr || !*addr)
+  if (!ip || !*ip)
     return;
   ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_mutex));
-  MyDistLoadVecIt it = find_i(addr);
+  CBalanceDataVecIt it = do_search(ip);
   if (it == m_loads.end())
     return;
   m_loads.erase(it);
 
-  calc_server_list();
+  do_compute_ips();
 }
 
-MyDistLoads::MyDistLoadVecIt MyDistLoads::find_i(CONST text * addr)
+CBalanceDatas::CBalanceDataVecIt CBalanceDatas::do_search(CONST text * ip)
 {
-  return find_if(m_loads.begin(), m_loads.end(), MyFindDistLoad(addr));
+  return find_if(m_loads.begin(), m_loads.end(), CBalanceSearcher(ip));
 }
 
-DVOID MyDistLoads::calc_server_list()
+DVOID CBalanceDatas::do_compute_ips()
 {
-  m_server_list[0] = 0;
+  m_ips[0] = 0;
   sort(m_loads.begin(), m_loads.end());
-  MyDistLoadVecIt it;
-  ni remain_len = SERVER_LIST_LENGTH - 2;
-  text * ptr = m_server_list;
+  CBalanceDataVecIt it;
+  ni l_x = IP_SIZE - 2;
+  text * l_p = m_ips;
   for (it = m_loads.begin(); it != m_loads.end(); ++it)
   {
-    ni len = strlen(it->m_ip_addr);
+    ni len = strlen(it->m_ip);
     if (len == 0)
       continue;
-    if (unlikely(len > remain_len))
+    if (unlikely(len > l_x))
     {
-      C_ERROR("dist server addr list is too long @MyDistLoads::calc_server_list()\n");
+      C_ERROR("ips too long\n");
       break;
     }
-    memcpy(ptr, it->m_ip_addr, len + 1);
-    ptr += len;
-    remain_len -= (len + 1);
-    *ptr = CCmdHeader::ITEM_SEPARATOR;
-    ++ptr;
+    memcpy(l_p, it->m_ip, len + 1);
+    l_p += len;
+    l_x -= (len + 1);
+    *l_p = CCmdHeader::ITEM_SEPARATOR;
+    ++l_p;
   }
-  *ptr = 0;
+  *l_p = 0;
 
-  ni ftp_list_len = CCfgX::instance()->ftp_servers.length();
-  if (unlikely(ftp_list_len + 3 > remain_len))
-    C_ERROR("ftp server addr list is too long @MyDistLoads::calc_server_list()\n");
+  ni l_m = CCfgX::instance()->ftp_servers.length();
+  if (unlikely(l_m + 3 > l_x))
+    C_ERROR("ips too long\n");
   else
   {
-    *ptr++ = CCmdHeader::FINISH_SEPARATOR;
-    ACE_OS::strsncpy(ptr, CCfgX::instance()->ftp_servers.c_str(), remain_len + 1);
+    *l_p++ = CCmdHeader::FINISH_SEPARATOR;
+    ACE_OS::strsncpy(l_p, CCfgX::instance()->ftp_servers.c_str(), l_x + 1);
   }
 
-  m_server_list_length = strlen(m_server_list);
-  ++m_server_list_length;
+  m_ip_size = strlen(m_ips);
+  ++m_ip_size;
 }
 
-ni MyDistLoads::get_server_list(text * buffer, ni buffer_len)
+ni CBalanceDatas::query_servers(text * v_result, ni v_result_size)
 {
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_mutex, 0);
-  if (!buffer || buffer_len < m_server_list_length)
+  if (!v_result || v_result_size < m_ip_size)
     return 0;
-  ACE_OS::strsncpy(buffer, m_server_list, buffer_len);
-  return m_server_list_length;
+  ACE_OS::strsncpy(v_result, m_ips, v_result_size);
+  return m_ip_size;
 }
 
-DVOID MyDistLoads::scan_for_dead()
+DVOID CBalanceDatas::check_broken()
 {
   ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_mutex));
-  MyDistLoadVecIt it;
+  CBalanceDataVecIt it;
   for (it = m_loads.begin(); it != m_loads.end(); )
   {
-    if (it->m_last_access + ni(DEAD_TIME * 60 / CApp::CLOCK_TIME) < g_clock_counter)
+    if (it->m_prev_access_ts + ni(BROKEN_INTERVAL * 60 / CApp::CLOCK_TIME) < g_clock_counter)
       it = m_loads.erase(it);
     else
       ++it;
   };
 
-  calc_server_list();
+  do_compute_ips();
 }
 
 
-//MyUnusedPathRemover//
-
-MyUnusedPathRemover::~MyUnusedPathRemover()
+CObsoleteDirDeleter::~CObsoleteDirDeleter()
 {
-  std::for_each(m_path_list.begin(), m_path_list.end(), CObjDeletor());
+  std::for_each(m_dirlist.begin(), m_dirlist.end(), CObjDeletor());
 }
 
-DVOID MyUnusedPathRemover::add_dist_id(CONST text * dist_id)
+DVOID CObsoleteDirDeleter::append_did(CONST text * did)
 {
-  CMemProt * guard = new CMemProt;
-  guard->init(dist_id);
-  m_path_list.push_back(guard);
-  m_path_set.insert(guard->get_ptr());
+  CMemProt * l_x = new CMemProt;
+  l_x->init(did);
+  m_dirlist.push_back(l_x);
+  m_dirs.insert(l_x->get_ptr());
 }
 
-truefalse MyUnusedPathRemover::path_ok(CONST text * _path)
+truefalse CObsoleteDirDeleter::dir_valid(CONST text * dir)
 {
-  return m_path_set.find(_path) != m_path_set.end();
+  return m_dirs.find(dir) != m_dirs.end();
 }
 
-DVOID MyUnusedPathRemover::check_path(CONST text * path)
+DVOID CObsoleteDirDeleter::work(CONST text * v_dir)
 {
-  DIR * dir = opendir(path);
-  if (!dir)
+  DIR * l_x = opendir(v_dir);
+  if (!l_x)
   {
-    C_ERROR("can not open directory: %s %s\n", path, (CONST char*)CSysError());
+    C_ERROR("opendir(%s) %s\n", v_dir, (CONST char*)CSysError());
     return;
   }
 
-  ni count = 0, ok_count = 0;
-  struct dirent *entry;
-  while ((entry = readdir(dir)) != NULL)
+  ni l_total = 0, l_good_num = 0;
+  struct dirent * l_y;
+  while ((l_y = readdir(l_x)) != NULL)
   {
-    if (!entry->d_name)
+    if (!l_y->d_name)
       continue;
-    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+    if (!strcmp(l_y->d_name, ".") || !strcmp(l_y->d_name, ".."))
       continue;
 
-    if(entry->d_type == DT_DIR)
+    if(l_y->d_type == DT_DIR)
     {
-      if(!path_ok(entry->d_name))
+      if(!dir_valid(l_y->d_name))
       {
-        ++count;
-        CMemProt mpath;
-        mpath.init(path, "/", entry->d_name);
-        if (CSysFS::delete_dir(mpath.get_ptr(), true))
-          ++ ok_count;
+        ++l_total;
+        CMemProt l_z;
+        l_z.init(v_dir, "/", l_y->d_name);
+        if (CSysFS::delete_dir(l_z.get_ptr(), true))
+          ++ l_good_num;
       }
     }
   };
 
-  closedir(dir);
-  C_INFO("removed %d/%d unused path(s) from compress_store\n", ok_count, count);
+  closedir(l_x);
+  C_INFO("deleted %d/%d obsolete dir @CObsoleteDirDeleter\n", l_good_num, l_total);
 }
 
 
-//MyLocationProcessor//
 
-MyDistLoads * MyLocationProcessor::m_dist_loads = NULL;
 
-MyLocationProcessor::MyLocationProcessor(CParentHandler * handler): CParentServerProc(handler)
+CBalanceDatas * CPositionProc::m_balance_datas = NULL;
+
+CPositionProc::CPositionProc(CParentHandler * p): CParentServerProc(p)
 {
 
 }
 
-CONST text * MyLocationProcessor::name() CONST
+CONST text * CPositionProc::name() CONST
 {
-  return "MyLocationProcessor";
+  return "CPositionProc";
 }
 
-CProc::OUTPUT MyLocationProcessor::at_head_arrival()
+CProc::OUTPUT CPositionProc::at_head_arrival()
 {
   if (CParentServerProc::at_head_arrival() == OP_FAIL)
     return OP_FAIL;
@@ -634,7 +610,7 @@ CProc::OUTPUT MyLocationProcessor::at_head_arrival()
   {
     if (!c_packet_check_term_ver_req(&m_data_head))
     {
-      C_ERROR("failed to validate header for client version check req\n");
+      C_ERROR("bad term packet header\n");
       return OP_FAIL;
     }
     return OP_OK;
@@ -643,95 +619,82 @@ CProc::OUTPUT MyLocationProcessor::at_head_arrival()
   return OP_FAIL;
 }
 
-CProc::OUTPUT MyLocationProcessor::do_read_data(CMB * mb)
+CProc::OUTPUT CPositionProc::do_read_data(CMB * mb)
 {
   CParentServerProc::do_read_data(mb);
 
-  CCmdHeader * header = (CCmdHeader *)mb->base();
-  if (header->cmd == CCmdHeader::PT_VER_REQ)
+  CCmdHeader * l_p = (CCmdHeader *)mb->base();
+  if (l_p->cmd == CCmdHeader::PT_VER_REQ)
     return do_version_check(mb);
 
   CMBProt guard(mb);
-  C_ERROR("unsupported command received, command = %d\n", header->cmd);
+  C_ERROR("get bad cmd = %d\n", l_p->cmd);
   return OP_FAIL;
 }
 
 
-CProc::OUTPUT MyLocationProcessor::do_version_check(CMB * mb)
+CProc::OUTPUT CPositionProc::do_version_check(CMB * mb)
 {
-  CMBProt guard(mb);
+  CMBProt prot(mb);
+  m_term_sn = "foobar";
+  text ips[CBalanceDatas::IP_SIZE];
+  ni m = m_balance_datas->query_servers(ips, CBalanceDatas::IP_SIZE);
+  CMB * mb2 = i_create_mb_ver_reply(CTermVerReply::SC_SERVER_LIST, m);
 
-//  MyClientIDTable & term_SNs = MyServerAppX::instance()->term_SNs();
-//
-//  MyBaseProcessor::EVENT_RESULT ret = do_version_check_common(mb, term_SNs);
-//  if (ret != ER_CONTINUE)
-//    return ret;
-  m_term_sn = "dummy";
+  CTermVerReply * l_x = (CTermVerReply *)mb2->base();
+  if (likely(m > 0))
+    memcpy(l_x->data, ips, m);
 
-  text server_list[MyDistLoads::SERVER_LIST_LENGTH];
-  ni len = m_dist_loads->get_server_list(server_list, MyDistLoads::SERVER_LIST_LENGTH); //double copy
-  CMB * reply_mb = i_create_mb_ver_reply(CTermVerReply::SC_SERVER_LIST, len);
-
-  CTermVerReply *reply = (CTermVerReply *)reply_mb->base();
-  if (likely(len > 0))
-    memcpy(reply->data, server_list, len);
-
-  if (m_handler->post_packet(reply_mb) <= 0)
-    return OP_FAIL; //no unsent data, force a close
+  if (m_handler->post_packet(mb2) <= 0)
+    return OP_FAIL;
   else
     return OP_OK;
 }
 
-PREPARE_MEMORY_POOL(MyLocationProcessor);
+PREPARE_MEMORY_POOL(CPositionProc);
 
 
-//MyLocationHandler//
 
-MyLocationHandler::MyLocationHandler(CHandlerDirector * xptr): CParentHandler(xptr)
+
+CPositionHandler::CPositionHandler(CHandlerDirector * p): CParentHandler(p)
 {
-  m_proc = new MyLocationProcessor(this);
+  m_proc = new CPositionProc(this);
 }
 
-PREPARE_MEMORY_POOL(MyLocationHandler);
+PREPARE_MEMORY_POOL(CPositionHandler);
 
-//MyLocationService//
 
-MyLocationService::MyLocationService(CContainer * module, ni numThreads):
-    CTaskBase(module, numThreads)
+
+CPositionTask::CPositionTask(CContainer * p, ni v_thrds):
+    CTaskBase(p, v_thrds)
 {
 
 }
 
-ni MyLocationService::svc()
+ni CPositionTask::svc()
 {
-  C_INFO("running %s::svc()\n", name());
-
+  C_INFO("Start %s::svc()\n", name());
   for (CMB * mb; getq(mb) != -1;)
-  {
-
     mb->release ();
-  }
-
   C_INFO("exiting %s::svc()\n", name());
   return 0;
 }
 
 
-//MyLocationAcceptor//
 
-MyLocationAcceptor::MyLocationAcceptor(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
-    CParentAcc(_dispatcher, _manager)
+
+CPositionAcc::CPositionAcc(CParentScheduler * p1, CHandlerDirector * p2): CParentAcc(p1, p2)
 {
   m_tcp_port = CCfgX::instance()->pre_client_port;
-  m_reap_interval = IDLE_TIME_AS_DEAD;
+  m_reap_interval = BROKEN_DELAY;
 }
 
-ni MyLocationAcceptor::make_svc_handler(CParentHandler *& sh)
+ni CPositionAcc::make_svc_handler(CParentHandler *& sh)
 {
-  sh = new MyLocationHandler(m_director);
+  sh = new CPositionHandler(m_director);
   if (!sh)
   {
-    C_ERROR("can not alloc MyLocationHandler from %s\n", name());
+    C_ERROR("oom @%s\n", name());
     return -1;
   }
   sh->container((void*)this);
@@ -739,203 +702,193 @@ ni MyLocationAcceptor::make_svc_handler(CParentHandler *& sh)
   return 0;
 }
 
-CONST text * MyLocationAcceptor::name() CONST
+CONST text * CPositionAcc::name() CONST
 {
-  return "MyLocationAcceptor";
+  return "CPositionAcc";
 }
 
 
-//MyLocationDispatcher//
-
-MyLocationDispatcher::MyLocationDispatcher(CContainer * _module, ni numThreads):
-    CParentScheduler(_module, numThreads)
+CPositionScheduler::CPositionScheduler(CContainer * p, ni m): CParentScheduler(p, m)
 {
-  m_acceptor = NULL;
-  msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
+  m_acc = NULL;
+  msg_queue()->high_water_mark(MQ_MAX);
 }
 
-truefalse MyLocationDispatcher::before_begin()
+truefalse CPositionScheduler::before_begin()
 {
-  if (!m_acceptor)
-    m_acceptor = new MyLocationAcceptor(this, new CHandlerDirector());
-  acc_add(m_acceptor);
+  if (!m_acc)
+    m_acc = new CPositionAcc(this, new CHandlerDirector());
+  acc_add(m_acc);
   return true;
 }
 
-DVOID MyLocationDispatcher::before_finish()
+DVOID CPositionScheduler::before_finish()
 {
-  m_acceptor = NULL;
+  m_acc = NULL;
 }
 
-CONST text * MyLocationDispatcher::name() CONST
+CONST text * CPositionScheduler::name() CONST
 {
-  return "MyLocationDispatcher";
+  return "CPositionScheduler";
 }
 
-//MyLocationModule//
 
-MyLocationModule::MyLocationModule(CApp * app): CContainer(app)
+
+CPositionContainer::CPositionContainer(CApp * p): CContainer(p)
 {
-  m_service = NULL;
-  m_dispatcher = NULL;
-  MyLocationProcessor::m_dist_loads = &m_dist_loads;
+  m_task = NULL;
+  m_scheduler = NULL;
+  CPositionProc::m_balance_datas = &m_balance_datas;
 }
 
-MyLocationModule::~MyLocationModule()
+CPositionContainer::~CPositionContainer()
 {
 
 }
 
-MyDistLoads * MyLocationModule::dist_loads()
+CBalanceDatas * CPositionContainer::balance_datas()
 {
-  return &m_dist_loads;
+  return &m_balance_datas;
 }
 
-truefalse MyLocationModule::before_begin()
+truefalse CPositionContainer::before_begin()
 {
-  add_task(m_service = new MyLocationService(this, 1));
-  add_scheduler(m_dispatcher = new MyLocationDispatcher(this));
+  add_task(m_task = new CPositionTask(this, 1));
+  add_scheduler(m_scheduler = new CPositionScheduler(this));
   return true;
 }
 
-DVOID MyLocationModule::before_finish()
+DVOID CPositionContainer::before_finish()
 {
-  m_service = NULL;
-  m_dispatcher = NULL;
+  m_task = NULL;
+  m_scheduler = NULL;
 }
 
-CONST text * MyLocationModule::name() CONST
+CONST text * CPositionContainer::name() CONST
 {
-  return "MyLocationModule";
+  return "CPositionContainer";
 }
 
-//============================//
-//http module stuff begins here
-//============================//
-
-//MyHttpProcessor//
-
-MyHttpProcessor::MyHttpProcessor(CParentHandler * handler): baseclass(handler)
+CBsReqProc::CBsReqProc(CParentHandler * p): baseclass(p)
 {
 
 }
 
-MyHttpProcessor::~MyHttpProcessor()
+CBsReqProc::~CBsReqProc()
 {
 
 }
 
-CONST text * MyHttpProcessor::name() CONST
+CONST text * CBsReqProc::name() CONST
 {
-  return "MyHttpProcessor";
+  return "CBsReqProc";
 }
 
-ni MyHttpProcessor::data_len()
+ni CBsReqProc::data_len()
 {
   return m_data_head;
 }
 
-CProc::OUTPUT MyHttpProcessor::at_head_arrival()
+CProc::OUTPUT CBsReqProc::at_head_arrival()
 {
-  ni len = data_len();
-  if (len > 1024 * 1024 || len <= 32)
+  ni l_x = data_len();
+  if (l_x > 1024 * 1024 || l_x <= 32)
   {
-    C_ERROR("got an invalid http packet with size = %d\n", len);
+    C_ERROR("bad bs req size = %d\n", l_x);
     return OP_FAIL;
   }
-  C_INFO("http processor got packet len = %d\n", len);
+  C_INFO("recv bs req len = %d\n", l_x);
   return OP_OK;
 }
 
-CProc::OUTPUT MyHttpProcessor::do_read_data(CMB * mb)
+CProc::OUTPUT CBsReqProc::do_read_data(CMB * v_mb)
 {
-  ACE_UNUSED_ARG(mb);
-  C_INFO("http processor got complete packet, len = %d\n", mb->length());
+  C_INFO("BS req full len = %d\n", v_mb->length());
   m_mark_down = true;
-  truefalse ok = do_process_input_data();
-  CMB * reply_mb = CCacheX::instance()->get_mb(1);
-  if (!reply_mb)
+  truefalse ok = handle_req();
+  CMB * mb = CCacheX::instance()->get_mb(1);
+  if (!mb)
   {
-    C_ERROR(ACE_TEXT("failed to allocate 1 bytes sized memory block @MyHttpProcessor::handle_input().\n"));
+    C_ERROR(ACE_TEXT("oom\n"));
     return OP_FAIL;
   }
-  *(reply_mb->base()) = (ok? '1':'0');
-  reply_mb->wr_ptr(1);
-  return (m_handler->post_packet(reply_mb) <= 0 ? OP_FAIL:OP_OK);
+  *(mb->base()) = (ok? '1':'0');
+  mb->wr_ptr(1);
+  return (m_handler->post_packet(mb) <= 0 ? OP_FAIL:OP_OK);
 }
 
-truefalse MyHttpProcessor::do_process_input_data()
+truefalse CBsReqProc::handle_req()
 {
-  truefalse result = true;
-  CONST text * CONST_dist_cmd = "http://127.0.0.1:10092/file?";
-  CONST text * CONST_task_cmd = "http://127.0.0.1:10092/task?";
-  CONST text * CONST_prio_cmd = "http://127.0.0.1:10092/prio?";
-  ni ntype = -1;
-  if (likely(ACE_OS::strncmp(CONST_dist_cmd, m_mb->base() + 4, strlen(CONST_dist_cmd)) == 0))
-    ntype = 1;
-  else if (ACE_OS::strncmp(CONST_task_cmd, m_mb->base() + 4, strlen(CONST_task_cmd)) == 0)
+  truefalse l_ret = true;
+  CONST text * CONST_task = "http://127.0.0.1:10092/task?";
+  CONST text * CONST_prio = "http://127.0.0.1:10092/prio?";
+  CONST text * CONST_dist = "http://127.0.0.1:10092/file?";
+  ni l_m = -1;
+  if (likely(ACE_OS::strncmp(CONST_dist, m_mb->base() + 4, strlen(CONST_dist)) == 0))
+    l_m = 1;
+  else if (ACE_OS::strncmp(CONST_task, m_mb->base() + 4, strlen(CONST_task)) == 0)
   {
-    ntype = 3;
+    l_m = 3;
     m_mb->set_self_flags(0x2000);
   }
-  else if (ACE_OS::strncmp(CONST_prio_cmd, m_mb->base() + 4, strlen(CONST_prio_cmd)) == 0)
+  else if (ACE_OS::strncmp(CONST_prio, m_mb->base() + 4, strlen(CONST_prio)) == 0)
   {
-    truefalse ret = do_prio(m_mb);
+    truefalse ret = handle_prio(m_mb);
     m_mb->release();
     m_mb = NULL;
     return ret;
   }
 
-  if (ntype == -1)
+  if (l_m == -1)
   {
     m_mb->release();
     m_mb = NULL;
     return false;
   }
-  if (likely(ntype == 1 || ntype == 3))
-    result = (c_tools_mb_putq(CRunnerX::instance()->http_module()->http_service(), m_mb,
-              "http request into target queue @MyHttpProcessor::do_process_input_data()"));
+  if (likely(l_m == 1 || l_m == 3))
+    l_ret = (c_tools_mb_putq(CRunnerX::instance()->http_module()->http_service(), m_mb,
+              "CBsReqProc::handle_req"));
   m_mb = NULL;
-  return result;
+  return l_ret;
 }
 
-truefalse MyHttpProcessor::do_prio(CMB * mb)
+truefalse CBsReqProc::handle_prio(CMB * mb)
 {
-  CONST text CONST_header[] = "http://127.0.0.1:10092/prio?";
-  CONST ni CONST_header_len = sizeof(CONST_header) / sizeof(text) - 1;
+  CONST text CONST_leading[] = "http://127.0.0.1:10092/prio?";
+  CONST ni CONST_leading_size = sizeof(CONST_leading) / sizeof(text) - 1;
   ni mb_len = mb->length();
   memmove(mb->base(), mb->base() + 4, mb_len - 4);
   mb->base()[mb_len - 4] = 0;
-  if (unlikely((ni)(mb->length()) <= CONST_header_len + 10))
+  if (unlikely((ni)(mb->length()) <= CONST_leading_size + 10))
   {
-    C_ERROR("bad http request, packet too short\n", CONST_header);
+    C_ERROR("invalid bs req too short\n");
     return false;
   }
 
-  text * packet = mb->base();
-  if (memcmp(packet, CONST_header, CONST_header_len) != 0)
+  text * l_ptr = mb->base();
+  if (memcmp(l_ptr, CONST_leading, CONST_leading_size) != 0)
   {
-    C_ERROR("bad http packet, no match header of (%s) found\n", CONST_header);
+    C_ERROR("invalid bs req, no %s\n", CONST_leading);
     return false;
   }
 
-  packet += CONST_header_len;
+  l_ptr += CONST_leading_size;
   CONST text CONST_separator = '&';
 
   CONST text * CONST_ver = "ver=";
   text * ver = 0;
-  if (!c_tools_locate_key_result(packet, CONST_ver, ver, CONST_separator))
+  if (!c_tools_locate_key_result(l_ptr, CONST_ver, ver, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", CONST_ver);
+    C_ERROR("bad bs req, no %s\n", CONST_ver);
     return false;
   }
 
 
   CONST text * CONST_plist = "plist=";
   text * plist = 0;
-  if (!c_tools_locate_key_result(packet, CONST_plist, plist, CONST_separator))
+  if (!c_tools_locate_key_result(l_ptr, CONST_plist, plist, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", CONST_plist);
+    C_ERROR("bad bs req, no %s\n", CONST_plist);
     return false;
   }
 
@@ -943,28 +896,24 @@ truefalse MyHttpProcessor::do_prio(CMB * mb)
   MyDB & db = CRunnerX::instance()->db();
   if (!db.ping_db_server())
   {
-    C_ERROR("no connection to db, aborting processing\n");
+    C_ERROR("no connection to db, quitting\n");
     return false;
   }
 
-  C_INFO("prio list = %s\n", plist? plist:"NULL");
+  C_INFO("prio = %s\n", plist? plist:"NULL");
   return db.save_prio(plist);
 }
 
-PREPARE_MEMORY_POOL(MyHttpProcessor);
+PREPARE_MEMORY_POOL(CBsReqProc);
 
 
-//MyHttpHandler//
-
-MyHttpHandler::MyHttpHandler(CHandlerDirector * xptr): CParentHandler(xptr)
+CBsReqHandler::CBsReqHandler(CHandlerDirector * p): CParentHandler(p)
 {
-  m_proc = new MyHttpProcessor(this);
+  m_proc = new CBsReqProc(this);
 }
 
-PREPARE_MEMORY_POOL(MyHttpHandler);
+PREPARE_MEMORY_POOL(CBsReqHandler);
 
-
-//MyHttpAcceptor//
 
 MyHttpAcceptor::MyHttpAcceptor(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
     CParentAcc(_dispatcher, _manager)
@@ -975,7 +924,7 @@ MyHttpAcceptor::MyHttpAcceptor(CParentScheduler * _dispatcher, CHandlerDirector 
 
 ni MyHttpAcceptor::make_svc_handler(CParentHandler *& sh)
 {
-  sh = new MyHttpHandler(m_director);
+  sh = new CBsReqHandler(m_director);
   if (!sh)
   {
     C_ERROR("not enough memory to create MyHttpHandler object\n");
@@ -992,34 +941,29 @@ CONST text * MyHttpAcceptor::name() CONST
 }
 
 
-//MyHttpService//
-
-MyHttpService::MyHttpService(CContainer * module, ni numThreads)
-  : CTaskBase(module, numThreads)
+CBsReqTask::CBsReqTask(CContainer * p, ni m): CTaskBase(p, m)
 {
-  msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
+  msg_queue()->high_water_mark(MQ_MAX);
 }
 
-ni MyHttpService::svc()
+ni CBsReqTask::svc()
 {
-  C_INFO("running %s::svc()\n", name());
-
+  C_INFO("Start %s::svc()\n", name());
   for (CMB * mb; getq(mb) != -1; )
   {
     handle_packet(mb);
     mb->release();
   }
-
   C_INFO("exiting %s::svc()\n", name());
   return 0;
 };
 
-CONST text * MyHttpService::name() CONST
+CONST text * CBsReqTask::name() CONST
 {
   return "MyHttpService";
 }
 
-truefalse MyHttpService::parse_request(CMB * mb, MyHttpDistRequest &http_dist_request)
+truefalse CBsReqTask::parse_request(CMB * mb, CBsDistReq &http_dist_request)
 {
   CONST text CONST_header[] = "http://127.0.0.1:10092/file?";
   CONST ni CONST_header_len = sizeof(CONST_header) / sizeof(text) - 1;
@@ -1101,13 +1045,13 @@ truefalse MyHttpService::parse_request(CMB * mb, MyHttpDistRequest &http_dist_re
   return true;
 }
 
-truefalse MyHttpService::handle_packet(CMB * _mb)
+truefalse CBsReqTask::handle_packet(CMB * _mb)
 {
   if ((_mb->self_flags() & 0x2000) == 0)
   {
-    MyHttpDistRequest http_dist_request;
+    CBsDistReq http_dist_request;
     truefalse result = do_handle_packet(_mb, http_dist_request);
-    if (unlikely(!result && !http_dist_request.check_valid(true)))
+    if (unlikely(!result && !http_dist_request.is_ok(true)))
       return false;
     ni total_len;
     text buff[32];
@@ -1127,12 +1071,12 @@ truefalse MyHttpService::handle_packet(CMB * _mb)
   }
 }
 
-truefalse MyHttpService::do_handle_packet(CMB * mb, MyHttpDistRequest & http_dist_request)
+truefalse CBsReqTask::do_handle_packet(CMB * mb, CBsDistReq & http_dist_request)
 {
   if (!parse_request(mb, http_dist_request))
     return false;
 
-  if (!http_dist_request.check_valid(true))
+  if (!http_dist_request.is_ok(true))
     return false;
 
   text password[12];
@@ -1151,9 +1095,9 @@ truefalse MyHttpService::do_handle_packet(CMB * mb, MyHttpDistRequest & http_dis
 
   CMemProt md5_result;
   {
-    MyDistMd5Calculator calc;
+    CChecksumComputer calc;
     ni md5_len;
-    if (!calc.calculate(http_dist_request, md5_result, md5_len))
+    if (!calc.compute(http_dist_request, md5_result, md5_len))
       return false;
   }
 
@@ -1163,7 +1107,7 @@ truefalse MyHttpService::do_handle_packet(CMB * mb, MyHttpDistRequest & http_dis
   CMemProt mbz_md5_result;
 //  if (http_dist_request.need_mbz_md5()) //generate all in one.mbz md5 anyway
   {
-    if (!MyDistMd5Calculator::calculate_all_in_one_ftp_md5(http_dist_request.ver, mbz_md5_result))
+    if (!CChecksumComputer::compute_single_cs(http_dist_request.ver, mbz_md5_result))
       return false;
   }
 
@@ -1198,14 +1142,14 @@ truefalse MyHttpService::do_handle_packet(CMB * mb, MyHttpDistRequest & http_dis
 
   notify_dist_servers();
 
-  MyUnusedPathRemover path_remover;
+  CObsoleteDirDeleter path_remover;
   if (db.get_dist_ids(path_remover))
-    path_remover.check_path(CCfgX::instance()->bz_files_path.c_str());
+    path_remover.work(CCfgX::instance()->bz_files_path.c_str());
 
   return true;
 }
 
-truefalse MyHttpService::do_handle_packet2(CMB * mb)
+truefalse CBsReqTask::do_handle_packet2(CMB * mb)
 {
   CONST text CONST_header[] = "http://127.0.0.1:10092/task?";
   CONST ni CONST_header_len = sizeof(CONST_header) / sizeof(text) - 1;
@@ -1279,21 +1223,21 @@ truefalse MyHttpService::do_handle_packet2(CMB * mb)
   return true;
 }
 
-truefalse MyHttpService::do_compress(MyHttpDistRequest & http_dist_request)
+truefalse CBsReqTask::do_compress(CBsDistReq & http_dist_request)
 {
-  MyDistCompressor compressor;
-  return compressor.compress(http_dist_request);
+  CCompFactory compressor;
+  return compressor.do_comp(http_dist_request);
 }
 
-truefalse MyHttpService::do_calc_md5(MyHttpDistRequest & http_dist_request)
+truefalse CBsReqTask::do_calc_md5(CBsDistReq & http_dist_request)
 {
-  MyDistMd5Calculator calc;
+  CChecksumComputer calc;
   CMemProt md5_result;
   ni md5_len;
-  return calc.calculate(http_dist_request, md5_result, md5_len);
+  return calc.compute(http_dist_request, md5_result, md5_len);
 }
 
-truefalse MyHttpService::notify_dist_servers()
+truefalse CBsReqTask::notify_dist_servers()
 {
   CMB * mb = CCacheX::instance()->get_mb_cmd(0, CCmdHeader::PT_HAVE_DIST_TASK);
   return c_tools_mb_putq(CRunnerX::instance()->dist_load_module()->dispatcher(), mb, "dist task notification to target queue");
@@ -1344,14 +1288,14 @@ CONST text * MyHttpModule::name() CONST
   return "MyHttpModule";
 }
 
-MyHttpService * MyHttpModule::http_service()
+CBsReqTask * MyHttpModule::http_service()
 {
   return m_service;
 }
 
 truefalse MyHttpModule::before_begin()
 {
-  add_task(m_service = new MyHttpService(this, 1));
+  add_task(m_service = new CBsReqTask(this, 1));
   add_scheduler(m_dispatcher = new MyHttpDispatcher(this));
   return true;
 }
@@ -1386,7 +1330,7 @@ CONST text * MyDistLoadProcessor::name() CONST
   return "MyDistLoadProcessor";
 }
 
-DVOID MyDistLoadProcessor::dist_loads(MyDistLoads * dist_loads)
+DVOID MyDistLoadProcessor::dist_loads(CBalanceDatas * dist_loads)
 {
   m_dist_loads = dist_loads;
 }
@@ -1468,22 +1412,21 @@ truefalse MyDistLoadProcessor::term_sn_check_done() CONST
 CProc::OUTPUT MyDistLoadProcessor::do_load_balance(CMB * mb)
 {
   CLoadBalanceReq * br = (CLoadBalanceReq *)mb->base();
-  MyDistLoad dl;
-  dl.clients_connected(br->load);
-  dl.ip_addr(br->ip);
-  m_dist_loads->update(dl);
+  CBalanceData dl;
+  dl.set_load(br->load);
+  dl.set_ip(br->ip);
+  m_dist_loads->refresh(dl);
   return OP_OK;
 }
 
 
-//MyDistLoadHandler//
 
 MyDistLoadHandler::MyDistLoadHandler(CHandlerDirector * xptr): CParentHandler(xptr)
 {
   m_proc = new MyDistLoadProcessor(this);
 }
 
-DVOID MyDistLoadHandler::dist_loads(MyDistLoads * dist_loads)
+DVOID MyDistLoadHandler::dist_loads(CBalanceDatas * dist_loads)
 {
   ((MyDistLoadProcessor*)m_proc)->dist_loads(dist_loads);
 }
@@ -1509,7 +1452,7 @@ ni MyDistLoadAcceptor::make_svc_handler(CParentHandler *& sh)
   }
   sh->container((void*)this);
   sh->reactor(reactor());
-  ((MyDistLoadHandler*)sh)->dist_loads(CRunnerX::instance()->location_module()->dist_loads());
+  ((MyDistLoadHandler*)sh)->dist_loads(CRunnerX::instance()->location_module()->balance_datas());
   return 0;
 }
 
@@ -1559,7 +1502,7 @@ DVOID MyDistLoadDispatcher::send_to_bs(CMB * mb)
 
 ni MyDistLoadDispatcher::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
 {
-  CRunnerX::instance()->location_module()->dist_loads()->scan_for_dead();
+  CRunnerX::instance()->location_module()->balance_datas()->check_broken();
   return 0;
 }
 
@@ -1579,7 +1522,7 @@ truefalse MyDistLoadDispatcher::before_begin()
     m_bs_connector = new MyMiddleToBSConnector(this, new CHandlerDirector());
   conn_add(m_bs_connector);
 
-  ACE_Time_Value interval(ni(MyDistLoads::DEAD_TIME * 60 / CApp::CLOCK_TIME / 2));
+  ACE_Time_Value interval(ni(CBalanceDatas::BROKEN_INTERVAL * 60 / CApp::CLOCK_TIME / 2));
   if (reactor()->schedule_timer(this, 0, interval, interval) == -1)
   {
     C_ERROR("can not setup dist load server scan timer\n");
@@ -1680,17 +1623,17 @@ MyDistLoadModule * MyMiddleToBSHandler::module_x() CONST
 
 DVOID MyMiddleToBSHandler::checker_update()
 {
-  m_checker.update();
+  m_checker.refresh();
 }
 
 ni MyMiddleToBSHandler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
 {
-  if (m_checker.expired())
+  if (m_checker.overdue())
   {
     C_ERROR("no data received from bs @MyMiddleToBSHandler ...\n");
     return -1;
   }
-  CMB * mb = my_get_hb_mb();
+  CMB * mb = c_create_hb_mb();
   if (mb)
   {
     if (post_packet(mb) < 0)
@@ -1711,13 +1654,13 @@ ni MyMiddleToBSHandler::at_start()
   if (!g_is_test)
     C_INFO("MyMiddleToBSHandler setup timer: OK\n");
 
-  CMB * mb = my_get_hb_mb();
+  CMB * mb = c_create_hb_mb();
   if (mb)
   {
     if (post_packet(mb) < 0)
       return -1;
   }
-  m_checker.update();
+  m_checker.refresh();
 
   return 0;
 }
@@ -1763,7 +1706,7 @@ ni MyMiddleToBSConnector::make_svc_handler(CParentHandler *& sh)
 
 //MyDistClient//
 
-MyDistClient::MyDistClient(MyHttpDistInfo * _dist_info, MyDistClientOne * _dist_one)
+MyDistClient::MyDistClient(CBsDistData * _dist_info, MyDistClientOne * _dist_one)
 {
   dist_info = _dist_info;
   status = -1;
@@ -1804,7 +1747,7 @@ DVOID MyDistClient::delete_self()
 
 DVOID MyDistClient::update_md5_list(CONST text * _md5)
 {
-  if (unlikely(!dist_info->need_md5()))
+  if (unlikely(!dist_info->have_checksum()))
   {
     C_WARNING("got unexpected md5 reply packet on client_id(%s) dist_id(%s)\n",
         client_id(), dist_info->ver.get_ptr());
@@ -1917,7 +1860,7 @@ truefalse MyDistClient::dist_file()
 
 truefalse MyDistClient::do_stage_0()
 {
-  if (dist_info->need_md5())
+  if (dist_info->have_checksum())
   {
     if(send_md5())
     {
@@ -1950,7 +1893,7 @@ truefalse MyDistClient::do_stage_2()
   {
     if ((dist_info->md5_opt_len > 0 && (ni)strlen(md5.get_ptr()) >= dist_info->md5_opt_len) || !generate_diff_mbz())
     {
-      mbz_file.init(MyDistCompressor::all_in_one_mbz());
+      mbz_file.init(CCompFactory::single_fn());
       mbz_md5.init(dist_info->mbz_md5.get_ptr());
     }
     CRunnerX::instance()->db().set_dist_client_mbz(client_id(), dist_info->ver.get_ptr(), mbz_file.get_ptr(), mbz_md5.get_ptr());
@@ -2089,7 +2032,7 @@ truefalse MyDistClient::generate_diff_mbz()
   CMemProt composite_dir;
   CMemProt mdestfile;
   destdir.init(CCfgX::instance()->bz_files_path.c_str(), "/", dist_info->ver.get_ptr());
-  composite_dir.init(destdir.get_ptr(), "/", MyDistCompressor::composite_path());
+  composite_dir.init(destdir.get_ptr(), "/", CCompFactory::dir_of_composite());
   mdestfile.init(composite_dir.get_ptr(), "/", client_id(), ".mbz");
   CCompUniter compositor;
   if (!compositor.begin(mdestfile.get_ptr()))
@@ -2140,9 +2083,9 @@ truefalse MyDistClient::send_ftp()
   CONST text * ftp_file_name;
   CONST text * _mbz_md5;
 
-  if (!dist_info->need_md5())
+  if (!dist_info->have_checksum())
   {
-    ftp_file_name = MyDistCompressor::all_in_one_mbz();
+    ftp_file_name = CCompFactory::single_fn();
     _mbz_md5 = dist_info->mbz_md5.get_ptr();
   } else
   {
@@ -2207,7 +2150,7 @@ truefalse MyDistClientOne::is_client_id(CONST text * _client_id) CONST
   return strcmp(m_client_id.to_str(), _client_id) == 0;
 }
 
-MyDistClient * MyDistClientOne::create_dist_client(MyHttpDistInfo * _dist_info)
+MyDistClient * MyDistClientOne::create_dist_client(CBsDistData * _dist_info)
 {
   DVOID * p = CCacheX::instance()->get_raw(sizeof(MyDistClient));
   MyDistClient * result = new (p) MyDistClient(_dist_info, this);
@@ -2283,7 +2226,7 @@ truefalse MyClientMapKey::operator == (CONST MyClientMapKey & rhs) CONST
 
 //MyDistClients//
 
-MyDistClients::MyDistClients(MyHttpDistInfos * dist_infos)
+MyDistClients::MyDistClients(CBsDistDatas * dist_infos)
 {
   m_dist_infos = dist_infos;
   db_time = 0;
@@ -2317,10 +2260,10 @@ DVOID MyDistClients::on_remove_dist_client(MyDistClient * dc, truefalse finished
   m_dist_clients_map.erase(MyClientMapKey(dc->dist_info->ver.get_ptr(), dc->client_id()));
 }
 
-MyHttpDistInfo * MyDistClients::find_dist_info(CONST text * dist_id)
+CBsDistData * MyDistClients::find_dist_info(CONST text * dist_id)
 {
   C_ASSERT_RETURN(m_dist_infos, "", NULL);
-  return m_dist_infos->find(dist_id);
+  return m_dist_infos->search(dist_id);
 }
 
 MyDistClient * MyDistClients::find_dist_client(CONST text * client_id, CONST text * dist_id)
@@ -2377,7 +2320,7 @@ DVOID MyDistClients::dist_files()
   if (m_dist_client_finished > 0)
     C_INFO("number of dist client(s) finished in this round = %d\n", m_dist_client_finished);
   C_INFO("after dist_files(), dist info = %d, client one = %d, dist client = %d\n",
-     m_dist_infos->count(),  m_dist_client_ones_map.size(), m_dist_clients_map.size());
+     m_dist_infos->size(),  m_dist_client_ones_map.size(), m_dist_clients_map.size());
 }
 
 
@@ -2417,7 +2360,7 @@ truefalse MyClientFileDistributor::check_dist_info(truefalse reload)
 {
   if (reload)
   {
-    m_dist_infos.prepare_update(0);
+    m_dist_infos.alloc_spaces(0);
     return (CRunnerX::instance()->db().load_dist_infos(m_dist_infos) < 0)? false:true;
   }
 
@@ -4007,17 +3950,17 @@ MyDistToMiddleModule * MyDistToBSHandler::module_x() CONST
 
 DVOID MyDistToBSHandler::checker_update()
 {
-  m_checker.update();
+  m_checker.refresh();
 }
 
 ni MyDistToBSHandler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
 {
-  if (m_checker.expired())
+  if (m_checker.overdue())
   {
     C_ERROR("no data received from bs @MyDistToBSHandler ...\n");
     return -1;
   }
-  CMB * mb = my_get_hb_mb();
+  CMB * mb = c_create_hb_mb();
   if (mb)
   {
     if (post_packet(mb) < 0)
@@ -4038,13 +3981,13 @@ ni MyDistToBSHandler::at_start()
   if (!g_is_test)
     C_INFO("MyDistToBSHandler setup timer: OK\n");
 
-  CMB * mb = my_get_hb_mb();
+  CMB * mb = c_create_hb_mb();
   if (mb)
   {
     if (post_packet(mb) < 0)
       return -1;
   }
-  m_checker.update();
+  m_checker.refresh();
 
   return 0;
 }
@@ -4709,7 +4652,7 @@ truefalse MyDB::save_client_id(CONST text * s)
   return exec_command(insert_sql);
 }
 
-truefalse MyDB::save_dist(MyHttpDistRequest & http_dist_request, CONST text * md5, CONST text * mbz_md5)
+truefalse MyDB::save_dist(CBsDistReq & http_dist_request, CONST text * md5, CONST text * mbz_md5)
 {
   CONST text * insert_sql_template = "insert into tb_dist_info("
                "dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
@@ -4880,7 +4823,7 @@ truefalse MyDB::save_dist_cmp_done(CONST text *dist_id)
   return exec_command(insert_sql);
 }
 
-ni MyDB::load_dist_infos(MyHttpDistInfos & infos)
+ni MyDB::load_dist_infos(CBsDistDatas & infos)
 {
   CONST text * CONST_select_sql = "select dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
                                   " dist_ftype, dist_time, dist_password, dist_mbz_md5, dist_md5"
@@ -4909,10 +4852,10 @@ ni MyDB::load_dist_infos(MyHttpDistInfos & infos)
     return -1;
   }
 
-  infos.prepare_update(count);
+  infos.alloc_spaces(count);
   for (ni i = 0; i < count; ++ i)
   {
-    MyHttpDistInfo * info = infos.create_http_dist_info(PQgetvalue(pres, i, 0));
+    CBsDistData * info = infos.alloc_data(PQgetvalue(pres, i, 0));
 
     for (ni j = 0; j < field_count; ++j)
     {
@@ -5126,7 +5069,7 @@ truefalse MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne 
     return false;
   }
 
-  MyHttpDistInfo * info;
+  CBsDistData * info;
   if (!_dc_one)
     dc_one = dist_clients->create_client_one(PQgetvalue(pres, 0, 1));
   else
@@ -5235,7 +5178,7 @@ truefalse MyDB::delete_dist_client(CONST text * client_id, CONST text * dist_id)
   return exec_command(sql);
 }
 
-truefalse MyDB::dist_info_is_update(MyHttpDistInfos & infos)
+truefalse MyDB::dist_info_is_update(CBsDistDatas & infos)
 {
   {
     ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
@@ -5245,9 +5188,9 @@ truefalse MyDB::dist_info_is_update(MyHttpDistInfos & infos)
   CMemProt value;
   if (!load_cfg_value(1, value))
     return true;
-  truefalse result = strcmp(infos.last_load_time.get_ptr(), value.get_ptr()) == 0;
+  truefalse result = strcmp(infos.prev_query_ts.get_ptr(), value.get_ptr()) == 0;
   if (!result)
-    infos.last_load_time.init(value.get_ptr());
+    infos.prev_query_ts.init(value.get_ptr());
   return result;
 }
 
@@ -5273,7 +5216,7 @@ truefalse MyDB::remove_orphan_dist_info()
   return exec_command(sql);
 }
 
-truefalse MyDB::get_dist_ids(MyUnusedPathRemover & path_remover)
+truefalse MyDB::get_dist_ids(CObsoleteDirDeleter & path_remover)
 {
   CONST text * sql = "select dist_id from tb_dist_info";
 
@@ -5289,7 +5232,7 @@ truefalse MyDB::get_dist_ids(MyUnusedPathRemover & path_remover)
   if (count > 0)
   {
     for (ni i = 0; i < count; ++i)
-      path_remover.add_dist_id(PQgetvalue(pres, i, 0));
+      path_remover.append_did(PQgetvalue(pres, i, 0));
   }
   return true;
 }

@@ -6,7 +6,7 @@
 #include "sall.h"
 
 class MyHeartBeatModule;
-class MyLocationModule;
+class CPositionContainer;
 
 class CRunner: public CApp
 {
@@ -18,7 +18,7 @@ public:
   MyHeartBeatModule * ping_component() CONST;
   MyDistLoadModule * dist_load_module() CONST;
   MyHttpModule * http_module() CONST;
-  MyLocationModule * location_module() CONST;
+  CPositionContainer * location_module() CONST;
   MyDistToMiddleModule * dist_to_middle_module() CONST;
   MyDB & db();
 
@@ -35,7 +35,7 @@ protected:
 
 private:
   MyHeartBeatModule * m_ping_component;
-  MyLocationModule * m_location_module;
+  CPositionContainer * m_location_module;
   MyDistLoadModule * m_dist_load_module;
   MyHttpModule     * m_http_module;
   MyDistToMiddleModule * m_dist_to_middle_module;

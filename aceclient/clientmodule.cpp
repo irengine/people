@@ -1174,6 +1174,7 @@ bool MyFTPClient::get_file(const char *filename, const char * localfile)
 
 MyDistInfoHeader::MyDistInfoHeader()
 {
+  client_id_index = -1;
   ftype = 0;
   type = 0;
 }
@@ -2266,6 +2267,7 @@ void MyDistInfoMD5Comparer::compare(MyDistInfoHeader * dist_info_header, CCheckS
 MyWatchDog::MyWatchDog()
 {
   m_running = false;
+  m_time = 0;
 }
 
 void MyWatchDog::touch()

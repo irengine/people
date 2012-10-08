@@ -15,13 +15,11 @@ CONST text * g_CONST_ver = "1.0";
 long g_clock_counter = 0;
 truefalse g_is_test = false;
 
-//MyServerConfig//
-
 CONST truefalse CONST_demon = false;
 CONST ni  CONST_client_peak = 9900;
 CONST truefalse CONST_mem_pool = true;
-CONST ni  CONST_mem_print_delay = 30; //minutes
-CONST ni  CONST_sfile_check_delay = 3; //minutes
+CONST ni  CONST_mem_print_delay = 30; //m
+CONST ni  CONST_sfile_check_delay = 3; //m
 CONST ni  CONST_log_fs = 20;
 CONST ni  CONST_log_file_count = 3;
 CONST truefalse CONST_log_console = true;
@@ -781,20 +779,20 @@ truefalse CApp::do_init()
   return true;
 }
 
-DVOID CApp::add_component(CContainer * module)
+DVOID CApp::add_component(CContainer * p)
 {
-  if (!module)
+  if (!p)
   {
-    C_ERROR("MyBaseApp::add_module(): module is NULL\n");
+    C_ERROR("CApp::add_component(): null param\n");
     return;
   }
-  m_components.push_back(module);
+  m_components.push_back(p);
 }
 
 truefalse CApp::delayed_init()
 {
   CCfgX::instance()->print_all();
-  C_INFO("loading modules...\n");
+  C_INFO("loading containers...\n");
 
   m_sgh.register_handler(SIGTERM, &m_sig);
   m_sgh.register_handler(SIGCHLD, &m_sig);
@@ -803,7 +801,7 @@ truefalse CApp::delayed_init()
   if (!do_init())
     return false;
 
-  C_INFO("loading modules done!\n");
+  C_INFO("loading containers done!\n");
 
   if (CCfgX::instance()->fcheck_delay != 0)
   {

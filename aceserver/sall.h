@@ -1,5 +1,5 @@
-#ifndef SERVERCOMMON_H_
-#define SERVERCOMMON_H_
+#ifndef sall_header_kjjaif834
+#define sall_header_kjjaif834
 #include <libpq-fe.h>
 #include <tr1/unordered_map>
 #include <ace/Malloc_T.h>
@@ -10,17 +10,16 @@
 #include "component.h"
 #include "app.h"
 
-class MyHttpDistInfo;
+class CBsDistData;
 
-class MyHttpDistRequest
+class CBsDistReq
 {
 public:
-  MyHttpDistRequest();
-  MyHttpDistRequest(CONST MyHttpDistInfo & info);
-
-  truefalse check_valid(CONST truefalse check_acode) CONST;
-  truefalse need_md5() CONST;
-  truefalse need_mbz_md5() CONST;
+  CBsDistReq();
+  CBsDistReq(CONST CBsDistData &);
+  truefalse have_checksum() CONST;
+  truefalse have_checksum_compress() CONST;
+  truefalse is_ok(CONST truefalse acode_also) CONST;
 
   text * acode;
   text * ftype;
@@ -33,102 +32,92 @@ public:
   text * password;
 
 private:
-  truefalse check_value(CONST text * value, CONST text * value_name) CONST;
+  truefalse do_validate(CONST text *, CONST text *) CONST;
 };
 
-class MyHttpDistInfo
+class CBsDistData
 {
 public:
-  MyHttpDistInfo(CONST text * dist_id);
-  truefalse need_md5() CONST;
-  truefalse need_mbz_md5() CONST;
+  CBsDistData(CONST text *);
+  truefalse have_checksum() CONST;
+  truefalse have_checksum_compress() CONST;
   DVOID calc_md5_opt_len();
 
+  truefalse exist;
+  ni  md5_len;
+  ni  ver_len;
+  ni  findex_len;
+  ni  aindex_len;
+  ni  password_len;
+  ni  md5_opt_len;
   text ftype[2];
   text type[2];
+  CMemProt dist_time;
+  CMemProt md5;
+  CMemProt mbz_md5;
   CMemProt fdir;
   CMemProt findex;
   CMemProt aindex;
   CMemProt ver;
   CMemProt password;
 
-  CMemProt dist_time;
-  CMemProt md5;
-
-  CMemProt mbz_md5;
-
-  truefalse exist;
-
-  ni  md5_len;
-  ni  ver_len;
-  ni  findex_len;
-  ni  aindex_len;
-  ni  password_len;
-
-  ni  md5_opt_len;
 };
 
-class MyHttpDistInfos
+class CBsDistDatas
 {
 public:
-  typedef std::vector<MyHttpDistInfo *, CCppAllocator<MyHttpDistInfo *> > MyHttpDistInfoList;
+  typedef std::vector<CBsDistData *, CCppAllocator<CBsDistData *> > CBsDistDataVec;
 
-  MyHttpDistInfos();
-  ~MyHttpDistInfos();
-
-  ni count() CONST;
-  MyHttpDistInfo * create_http_dist_info(CONST text * dist_id);
+  CBsDistDatas();
+  ~CBsDistDatas();
+  DVOID alloc_spaces(CONST ni);
+  DVOID reset();
+  CBsDistData * search(CONST text * did);
+  ni size() CONST;
+  CBsDistData * alloc_data(CONST text * did);
   truefalse need_reload();
-  DVOID prepare_update(CONST ni capacity);
-  DVOID clear();
-  MyHttpDistInfo * find(CONST text * dist_id);
-
-  CMemProt last_load_time;
+  CMemProt prev_query_ts;
 
 private:
-  typedef std::tr1::unordered_map<const text *,
-                                  MyHttpDistInfo *,
-                                  CTextHashGenerator,
-                                  CTextEqual,
-                                  CCppAllocator <std::pair<const text *, MyHttpDistInfo *> >
-                                > MyHttpDistInfoMap;
-
-  MyHttpDistInfoList dist_infos;
-  MyHttpDistInfoMap  m_info_map;
+  typedef std::tr1::unordered_map<const text *, CBsDistData *,
+                                  CTextHashGenerator, CTextEqual,
+                                  CCppAllocator <std::pair<const text *, CBsDistData *> > > CBsDistDataMap;
+  CBsDistDataMap m_data_map;
+  CBsDistDataVec m_datas;
 };
 
-class MyDistCompressor
+class CCompFactory
 {
 public:
-  truefalse compress(MyHttpDistRequest & http_dist_request);
-  SF DVOID get_all_in_one_mbz_file_name(CONST text * dist_id, CMemProt & filename);
-  SF CONST text * composite_path();
-  SF CONST text * all_in_one_mbz();
+  truefalse do_comp(CBsDistReq &);
+  SF CONST text * dir_of_composite();
+  SF CONST text * single_fn();
+  SF DVOID query_single_fn(CONST text * did, CMemProt & fn);
 
 private:
-  truefalse do_generate_compressed_files(CONST text * src_path, CONST text * dest_path, ni prefix_len, CONST text * passwrod);
+  truefalse i_work(CONST text * from_dir, CONST text * to_dir, ni skip_n, CONST text * key);
 
-  CCompUniter m_compositor;
-  CDataComp m_compressor;
+  CCompUniter m_comp_uniter;
+  CDataComp   m_data_comp;
 };
 
-class MyDistMd5Calculator
+class CChecksumComputer
 {
 public:
-  truefalse calculate(MyHttpDistRequest & http_dist_request, CMemProt &md5_result, ni & md5_len);
-  SF truefalse calculate_all_in_one_ftp_md5(CONST text * dist_id, CMemProt & md5_result);
+  truefalse compute(CBsDistReq &, CMemProt &, ni &);
+  SF truefalse compute_single_cs(CONST text *, CMemProt &);
 };
 
-CMB * my_get_hb_mb();
+CMB * c_create_hb_mb();
 
-class MyActChecker
+class CActValidator
 {
 public:
-  DVOID update()
+  DVOID refresh()
   {
     m_tm = time(NULL);
   }
-  truefalse expired() CONST
+  truefalse overdue() CONST
   {
     return time(NULL) - m_tm >= 85;
   }
@@ -138,138 +127,130 @@ private:
 };
 
 
-class MyLocationAcceptor;
-class MyLocationModule;
+class CPositionAcc;
+class CPositionContainer;
 
-class MyDistLoad
+class CBalanceData
 {
 public:
-  MyDistLoad()
+  enum { IP_SIZE = 40 };
+
+  CBalanceData()
   {
-    m_ip_addr[0] = 0;
-    m_clients_connected = 0;
-    m_last_access = g_clock_counter;
+    m_ip[0] = 0;
+    m_load = 0;
+    m_prev_access_ts = g_clock_counter;
   }
 
-  MyDistLoad(CONST text * _addr, ni m)
+  CBalanceData(CONST text * p, ni m)
   {
-    ip_addr(_addr);
-    clients_connected(m);
-    m_last_access = g_clock_counter;
+    set_ip(p);
+    set_load(m);
+    m_prev_access_ts = g_clock_counter;
   }
 
-  DVOID ip_addr(CONST text * _addr)
+  DVOID set_ip(CONST text * p)
   {
-    if (_addr)
-      ACE_OS::strsncpy(m_ip_addr, _addr, IP_ADDR_LEN);
+    if (p)
+      ACE_OS::strsncpy(m_ip, p, IP_SIZE);
     else
-      m_ip_addr[0] = 0;
+      m_ip[0] = 0;
   }
 
-  DVOID clients_connected(ni m)
+  DVOID set_load(ni m)
   {
     if (m >= 0)
-      m_clients_connected = m;
+      m_load = m;
     else
-      m_clients_connected = 0;
+      m_load = 0;
   }
 
-  truefalse operator < (CONST MyDistLoad & rhs) CONST
+  truefalse operator < (CONST CBalanceData & obj) CONST
   {
-    return m_clients_connected < rhs.m_clients_connected;
+    return m_load < obj.m_load;
   }
 
-  enum
-  {
-    IP_ADDR_LEN = 40
-  };
-
-  text    m_ip_addr[IP_ADDR_LEN];
-  int32_t m_clients_connected;
-  long    m_last_access;
+  long    m_prev_access_ts;
+  text    m_ip[IP_SIZE];
+  i32     m_load;
 };
 
 
-class MyDistLoads
+class CBalanceDatas
 {
 public:
-  typedef std::vector<MyDistLoad> MyDistLoadVec;
-  typedef MyDistLoadVec::iterator MyDistLoadVecIt;
-  enum { SERVER_LIST_LENGTH = 2048 };
-  enum { DEAD_TIME = 10 }; //in minutes
-
-  MyDistLoads();
-
-  DVOID update(CONST MyDistLoad & load);
-  DVOID remove(CONST text * addr);
-  ni  get_server_list(text * buffer, ni buffer_len);
-  DVOID scan_for_dead();
+  typedef std::vector<CBalanceData> CBalanceDataVec;
+  typedef CBalanceDataVec::iterator CBalanceDataVecIt;
+  enum { IP_SIZE = 2048 };
+  enum { BROKEN_INTERVAL = 10 }; //m
+  CBalanceDatas();
+  ni    query_servers(text *, ni);
+  DVOID check_broken();
+  DVOID refresh(CONST CBalanceData & load);
+  DVOID del(CONST text *);
 
 private:
-  DVOID calc_server_list();
-  MyDistLoads::MyDistLoadVecIt find_i(CONST text * addr);
+  DVOID do_compute_ips();
+  CBalanceDatas::CBalanceDataVecIt do_search(CONST text *);
 
-  MyDistLoadVec m_loads;
-  text m_server_list[SERVER_LIST_LENGTH];
-  ni  m_server_list_length;
   ACE_Thread_Mutex m_mutex;
+  CBalanceDataVec m_loads;
+  text m_ips[IP_SIZE];
+  ni   m_ip_size;
 };
 
-class MyUnusedPathRemover
+class CObsoleteDirDeleter
 {
 public:
-  ~MyUnusedPathRemover();
-
-  DVOID add_dist_id(CONST text * dist_id);
-  DVOID check_path(CONST text * path);
+  ~CObsoleteDirDeleter();
+  DVOID append_did(CONST text *);
+  DVOID work(CONST text *);
 
 private:
-  typedef std::tr1::unordered_set<const text *, CTextHashGenerator, CTextEqual, CCppAllocator<const text *> > MyPathSet;
-  typedef std::list<CMemProt *, CCppAllocator<CMemProt *> > MyPathList;
+  typedef std::tr1::unordered_set<const text *, CTextHashGenerator, CTextEqual, CCppAllocator<const text *> > CDirs;
+  typedef std::list<CMemProt *, CCppAllocator<CMemProt *> > CDirList;
 
-  truefalse path_ok(CONST text * _path);
-
-  MyPathSet  m_path_set;
-  MyPathList m_path_list;
+  truefalse dir_valid(CONST text *);
+  CDirList m_dirlist;
+  CDirs  m_dirs;
 };
 
-class MyLocationProcessor: public CParentServerProc
+class CPositionProc: public CParentServerProc
 {
 public:
-  MyLocationProcessor(CParentHandler * handler);
+  CPositionProc(CParentHandler *);
   virtual CProc::OUTPUT at_head_arrival();
   virtual CONST text * name() CONST;
 
-  SF MyDistLoads * m_dist_loads;
-
-  DECLARE_MEMORY_POOL__NOTHROW(MyLocationProcessor, ACE_Thread_Mutex);
+  SF CBalanceDatas * m_balance_datas;
+  DECLARE_MEMORY_POOL__NOTHROW(CPositionProc, ACE_Thread_Mutex);
 
 protected:
-  virtual CProc::OUTPUT do_read_data(CMB * mb);
+  virtual CProc::OUTPUT do_read_data(CMB *);
 
 private:
-  CProc::OUTPUT do_version_check(CMB * mb);
+  CProc::OUTPUT do_version_check(CMB *);
 };
 
 
-class MyLocationHandler: public CParentHandler
+class CPositionHandler: public CParentHandler
 {
 public:
-  MyLocationHandler(CHandlerDirector * xptr = NULL);
-  DECLARE_MEMORY_POOL__NOTHROW(MyLocationHandler, ACE_Thread_Mutex);
+  CPositionHandler(CHandlerDirector * = NULL);
+  DECLARE_MEMORY_POOL__NOTHROW(CPositionHandler, ACE_Thread_Mutex);
 };
 
-class MyLocationService: public CTaskBase
+class CPositionTask: public CTaskBase
 {
 public:
-  MyLocationService(CContainer * module, ni numThreads = 1);
+  CPositionTask(CContainer *, ni = 1);
   virtual ni svc();
 };
 
-class MyLocationDispatcher: public CParentScheduler
+class CPositionScheduler: public CParentScheduler
 {
 public:
-  MyLocationDispatcher(CContainer * _module, ni numThreads = 1);
+  CPositionScheduler(CContainer *, ni = 1);
 
 protected:
   virtual truefalse before_begin();
@@ -277,28 +258,27 @@ protected:
   virtual CONST text * name() CONST;
 
 private:
-  enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
-
-  MyLocationAcceptor * m_acceptor;
+  enum { MQ_MAX = 1024 * 1024 * 5 };
+  CPositionAcc * m_acc;
 };
 
-class MyLocationAcceptor: public CParentAcc
+class CPositionAcc: public CParentAcc
 {
 public:
-  enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
-  MyLocationAcceptor(CParentScheduler * _dispatcher, CHandlerDirector * manager);
+  enum { BROKEN_DELAY = 5 }; //m
+  CPositionAcc(CParentScheduler *, CHandlerDirector *);
 
   virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 };
 
 
-class MyLocationModule: public CContainer
+class CPositionContainer: public CContainer
 {
 public:
-  MyLocationModule(CApp * app);
-  virtual ~MyLocationModule();
-  MyDistLoads * dist_loads();
+  CPositionContainer(CApp *);
+  virtual ~CPositionContainer();
+  CBalanceDatas * balance_datas();
 
 protected:
   virtual truefalse before_begin();
@@ -306,27 +286,23 @@ protected:
   virtual CONST text * name() CONST;
 
 private:
-  MyDistLoads m_dist_loads;
-  MyLocationService * m_service;
-  MyLocationDispatcher *m_dispatcher;
+  CBalanceDatas m_balance_datas;
+  CPositionTask * m_task;
+  CPositionScheduler * m_scheduler;
 };
 
-//============================//
-//http module stuff begins here
-//============================//
 
 class MyHttpModule;
 class MyHttpAcceptor;
 
-class MyHttpProcessor: public CParentFormattedProc<ni>
+class CBsReqProc: public CParentFormattedProc<ni>
 {
 public:
   typedef CParentFormattedProc<ni> baseclass;
-
-  MyHttpProcessor(CParentHandler * handler);
-  virtual ~MyHttpProcessor();
+  CBsReqProc(CParentHandler *);
+  virtual ~CBsReqProc();
   virtual CONST text * name() CONST;
-  DECLARE_MEMORY_POOL__NOTHROW(MyHttpProcessor, ACE_Thread_Mutex);
+  DECLARE_MEMORY_POOL__NOTHROW(CBsReqProc, ACE_Thread_Mutex);
 
 protected:
   virtual ni data_len();
@@ -334,36 +310,36 @@ protected:
   virtual CProc::OUTPUT do_read_data(CMB * mb);
 
 private:
-  truefalse do_process_input_data();
-  truefalse do_prio(CMB * mb);
+  truefalse handle_req();
+  truefalse handle_prio(CMB * mb);
 };
 
 
-class MyHttpHandler: public CParentHandler
+class CBsReqHandler: public CParentHandler
 {
 public:
-  MyHttpHandler(CHandlerDirector * xptr = NULL);
+  CBsReqHandler(CHandlerDirector * = NULL);
 
-  DECLARE_MEMORY_POOL__NOTHROW(MyHttpHandler, ACE_Thread_Mutex);
+  DECLARE_MEMORY_POOL__NOTHROW(CBsReqHandler, ACE_Thread_Mutex);
 };
 
-class MyHttpService: public CTaskBase
+class CBsReqTask: public CTaskBase
 {
 public:
-  MyHttpService(CContainer * module, ni numThreads = 1);
+  CBsReqTask(CContainer *, ni = 1);
 
   virtual ni svc();
   virtual CONST text * name() CONST;
 
 private:
-  enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
+  enum { MQ_MAX = 5 * 1024 * 1024 };
 
   truefalse handle_packet(CMB * mb);
-  truefalse do_handle_packet(CMB * mb, MyHttpDistRequest & http_dist_request);
+  truefalse do_handle_packet(CMB * mb, CBsDistReq & );
   truefalse do_handle_packet2(CMB * mb);
-  truefalse parse_request(CMB * mb, MyHttpDistRequest & http_dist_request);
-  truefalse do_compress(MyHttpDistRequest & http_dist_request);
-  truefalse do_calc_md5(MyHttpDistRequest & http_dist_request);
+  truefalse parse_request(CMB * mb, CBsDistReq & );
+  truefalse do_compress(CBsDistReq & );
+  truefalse do_calc_md5(CBsDistReq &);
   truefalse notify_dist_servers();
 };
 
@@ -398,21 +374,17 @@ public:
   MyHttpModule(CApp * app);
   virtual ~MyHttpModule();
   virtual CONST text * name() CONST;
-  MyHttpService * http_service();
+  CBsReqTask * http_service();
 
 protected:
   virtual truefalse before_begin();
   virtual DVOID before_finish();
 
 private:
-  MyHttpService *m_service;
+  CBsReqTask *m_service;
   MyHttpDispatcher * m_dispatcher;
 };
 
-
-//============================//
-//DistLoad module stuff begins here
-//============================//
 
 class MyDistLoadModule;
 class MyDistLoadAcceptor;
@@ -428,7 +400,7 @@ public:
   virtual CONST text * name() CONST;
   virtual truefalse term_sn_check_done() CONST;
   virtual CProc::OUTPUT at_head_arrival();
-  DVOID dist_loads(MyDistLoads * dist_loads);
+  DVOID dist_loads(CBalanceDatas * dist_loads);
 
 protected:
   virtual CProc::OUTPUT do_read_data(CMB * mb);
@@ -440,7 +412,7 @@ private:
   CProc::OUTPUT do_load_balance(CMB * mb);
 
   truefalse m_term_sn_check_done;
-  MyDistLoads * m_dist_loads;
+  CBalanceDatas * m_dist_loads;
 };
 
 
@@ -448,7 +420,7 @@ class MyDistLoadHandler: public CParentHandler
 {
 public:
   MyDistLoadHandler(CHandlerDirector * xptr = NULL);
-  DVOID dist_loads(MyDistLoads * dist_loads);
+  DVOID dist_loads(CBalanceDatas * dist_loads);
 
   DECLARE_MEMORY_POOL__NOTHROW(MyDistLoadHandler, ACE_Thread_Mutex);
 };
@@ -504,10 +476,6 @@ private:
 
 
 
-/////////////////////////////////////
-//middle to BS
-/////////////////////////////////////
-
 class MyMiddleToBSProcessor: public CBSProceBase
 {
 public:
@@ -536,7 +504,7 @@ protected:
   virtual ni  at_start();
 
 private:
-  MyActChecker m_checker;
+  CActValidator m_checker;
 };
 
 class MyMiddleToBSConnector: public CParentConn
@@ -551,7 +519,7 @@ protected:
 };
 
 
-//dist component
+//dist cmp
 class MyHeartBeatModule;
 class MyPingSubmitter;
 class MyIPVerSubmitter;
@@ -568,7 +536,7 @@ class MyDistClientOne;
 class MyDistClient
 {
 public:
-  MyDistClient(MyHttpDistInfo * _dist_info, MyDistClientOne * dist_one);
+  MyDistClient(CBsDistData * _dist_info, MyDistClientOne * dist_one);
   truefalse check_valid() CONST;
   truefalse dist_file();
   DVOID delete_self();
@@ -581,7 +549,7 @@ public:
   DVOID send_fb_detail(truefalse ok);
   DVOID psp(CONST text c);
 
-  MyHttpDistInfo * dist_info;
+  CBsDistData * dist_info;
   MyDistClientOne * dist_one;
   ni status;
   CMemProt adir;
@@ -619,7 +587,7 @@ public:
   MyDistClientOne(MyDistClients * dist_clients, CONST text * client_id);
   ~MyDistClientOne();
 
-  MyDistClient * create_dist_client(MyHttpDistInfo * _dist_info);
+  MyDistClient * create_dist_client(CBsDistData * _dist_info);
   DVOID delete_dist_client(MyDistClient * dc);
   truefalse active();
   truefalse is_client_id(CONST text * _client_id) CONST;
@@ -672,10 +640,10 @@ public:
                                 > MyDistClientOneMap;
 
 
-  MyDistClients(MyHttpDistInfos * dist_infos);
+  MyDistClients(CBsDistDatas * dist_infos);
   ~MyDistClients();
 
-  MyHttpDistInfo * find_dist_info(CONST text * dist_id);
+  CBsDistData * find_dist_info(CONST text * dist_id);
   DVOID clear();
   DVOID dist_files();
   DVOID on_create_dist_client(MyDistClient * dc);
@@ -690,7 +658,7 @@ public:
 
 private:
 
-  MyHttpDistInfos * m_dist_infos;
+  CBsDistDatas * m_dist_infos;
   MyDistClientMap m_dist_clients_map;
   MyDistClientOneMap m_dist_client_ones_map;
   ni m_dist_client_finished;
@@ -712,7 +680,7 @@ private:
   truefalse check_dist_info(truefalse reload);
   truefalse check_dist_clients(truefalse reload);
 
-  MyHttpDistInfos m_dist_infos;
+  CBsDistDatas m_dist_infos;
   MyDistClients m_dist_clients;
   time_t m_last_begin;
   time_t m_last_end;
@@ -1088,7 +1056,7 @@ protected:
   virtual ni  at_start();
 
 private:
-  MyActChecker m_checker;
+  CActValidator m_checker;
 };
 
 class MyDistToBSConnector: public CParentConn
@@ -1221,12 +1189,12 @@ public:
   truefalse ping_db_server();
   truefalse get_client_ids(CTermSNs * idtable);
   truefalse save_client_id(CONST text * s);
-  truefalse save_dist(MyHttpDistRequest & http_dist_request, CONST text * md5, CONST text * mbz_md5);
+  truefalse save_dist(CBsDistReq & http_dist_request, CONST text * md5, CONST text * mbz_md5);
   truefalse save_sr(text * dist_id, CONST text * cmd, text * idlist);
   truefalse save_prio(CONST text * prio);
   truefalse save_dist_clients(text * idlist, text * adirlist, CONST text * dist_id);
   truefalse save_dist_cmp_done(CONST text *dist_id);
-  ni  load_dist_infos(MyHttpDistInfos & infos);
+  ni  load_dist_infos(CBsDistDatas & infos);
   truefalse load_pl(CMemProt & value);
 //  truefalse dist_take_cmp_ownership(MyHttpDistInfo * info);
 //  truefalse dist_take_md5_ownership(MyHttpDistInfo * info);
@@ -1240,10 +1208,10 @@ public:
   truefalse set_dist_client_md5(CONST text * client_id, CONST text * dist_id, CONST text * md5, ni new_status);
   truefalse set_dist_client_mbz(CONST text * client_id, CONST text * dist_id, CONST text * mbz, CONST text * mbz_md5);
   truefalse delete_dist_client(CONST text * client_id, CONST text * dist_id);
-  truefalse dist_info_is_update(MyHttpDistInfos & infos);
+  truefalse dist_info_is_update(CBsDistDatas & infos);
   truefalse dist_info_update_status();
   truefalse remove_orphan_dist_info();
-  truefalse get_dist_ids(MyUnusedPathRemover & path_remover);
+  truefalse get_dist_ids(CObsoleteDirDeleter & path_remover);
   truefalse mark_client_valid(CONST text * client_id, truefalse valid);
 
 private:
@@ -1269,4 +1237,4 @@ private:
   ACE_Thread_Mutex m_mutex;
 };
 
-#endif /* SERVERCOMMON_H_ */
+#endif

@@ -45,7 +45,7 @@ MyHttpModule * CRunner::http_module() CONST
   return m_http_module;
 }
 
-MyLocationModule * CRunner::location_module() CONST
+CPositionContainer * CRunner::location_module() CONST
 {
   return m_location_module;
 }
@@ -124,32 +124,32 @@ DVOID CRunner::print_caches()
   }
 
   //m
-  if (MyLocationHandler::mem_block())
+  if (CPositionHandler::mem_block())
   {
-    blocks = MyLocationHandler::mem_block()->blocks();
-    MyLocationHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyLocationHandler", l_get, l_put, l_peak, l_fail, sizeof(MyLocationHandler), blocks);
+    blocks = CPositionHandler::mem_block()->blocks();
+    CPositionHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyLocationHandler", l_get, l_put, l_peak, l_fail, sizeof(CPositionHandler), blocks);
   }
 
-  if (MyLocationProcessor::mem_block())
+  if (CPositionProc::mem_block())
   {
-    blocks = MyLocationProcessor::mem_block()->blocks();
-    MyLocationProcessor::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyLocationProcessor", l_get, l_put, l_peak, l_fail, sizeof(MyLocationProcessor), blocks);
+    blocks = CPositionProc::mem_block()->blocks();
+    CPositionProc::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyLocationProcessor", l_get, l_put, l_peak, l_fail, sizeof(CPositionProc), blocks);
   }
 
-  if (MyHttpHandler::mem_block())
+  if (CBsReqHandler::mem_block())
   {
-    blocks = MyHttpHandler::mem_block()->blocks();
-    MyHttpHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyHttpHandler", l_get, l_put, l_peak, l_fail, sizeof(MyHttpHandler), blocks);
+    blocks = CBsReqHandler::mem_block()->blocks();
+    CBsReqHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyHttpHandler", l_get, l_put, l_peak, l_fail, sizeof(CBsReqHandler), blocks);
   }
 
-  if (MyHttpProcessor::mem_block())
+  if (CBsReqProc::mem_block())
   {
-    blocks = MyHttpProcessor::mem_block()->blocks();
-    MyHttpProcessor::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyHttpProcessor", l_get, l_put, l_peak, l_fail, sizeof(MyHttpProcessor), blocks);
+    blocks = CBsReqProc::mem_block()->blocks();
+    CBsReqProc::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyHttpProcessor", l_get, l_put, l_peak, l_fail, sizeof(CBsReqProc), blocks);
   }
 
   if (MyDistLoadHandler::mem_block())
@@ -200,7 +200,7 @@ truefalse CRunner::do_init()
   }
   if (cfg->middle())
   {
-    add_component(m_location_module = new MyLocationModule(this));
+    add_component(m_location_module = new CPositionContainer(this));
     add_component(m_dist_load_module = new MyDistLoadModule(this));
     add_component(m_http_module = new MyHttpModule(this));
   }
@@ -228,10 +228,10 @@ truefalse CRunner::initialize(CONST text * v_dir, CCfg::CAppMode v_m)
   if (l_p->middle())
   {
     MyDistLoadHandler::mem_block_start(50);
-    MyLocationHandler::mem_block_start(1000);
-    MyLocationProcessor::mem_block_start(1000);
-    MyHttpProcessor::mem_block_start(20);
-    MyHttpHandler::mem_block_start(20);
+    CPositionHandler::mem_block_start(1000);
+    CPositionProc::mem_block_start(1000);
+    CBsReqProc::mem_block_start(20);
+    CBsReqHandler::mem_block_start(20);
     MyMiddleToBSHandler::mem_block_start(20);
     MyMiddleToBSProcessor::mem_block_start(20);
   }
@@ -249,11 +249,11 @@ DVOID CRunner::cleanup()
   print_caches(); //only mem pool info, other objects should gone by now
   MyHeartBeatHandler::mem_block_end();
   MyHeartBeatProcessor::mem_block_end();
-  MyLocationHandler::mem_block_end();
-  MyLocationProcessor::mem_block_end();
+  CPositionHandler::mem_block_end();
+  CPositionProc::mem_block_end();
   MyDistLoadHandler::mem_block_end();
-  MyHttpHandler::mem_block_end();
-  MyHttpProcessor::mem_block_end();
+  CBsReqHandler::mem_block_end();
+  CBsReqProc::mem_block_end();
   MyDistToMiddleHandler::mem_block_end();
   MyDistToBSHandler::mem_block_end();
   MyMiddleToBSHandler::mem_block_end();

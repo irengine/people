@@ -2125,6 +2125,7 @@ CParentHandler::~CParentHandler()
 
 CParentAcc::CParentAcc(CParentScheduler * p1, CHandlerDirector * p2): m_scheduler(p1), m_director(p2)
 {
+  m_reap_interval = 0;
   m_tcp_port = 0;
   m_container = m_scheduler->container();
   m_reaper_id = -1;
@@ -2234,6 +2235,7 @@ CONST text * CParentAcc::name() CONST
 
 CParentConn::CParentConn(CParentScheduler * p1, CHandlerDirector * p2): m_scheduler(p1), m_director(p2)
 {
+  m_unfinished_count = 0;
   m_port_of_ip = 0;
   m_conn_count = 1;
   m_retry_delay = 0;
