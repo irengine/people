@@ -262,14 +262,14 @@ public:
 class MyLocationService: public CTaskBase
 {
 public:
-  MyLocationService(CMod * module, ni numThreads = 1);
+  MyLocationService(CContainer * module, ni numThreads = 1);
   virtual ni svc();
 };
 
-class MyLocationDispatcher: public CDispatchBase
+class MyLocationDispatcher: public CParentScheduler
 {
 public:
-  MyLocationDispatcher(CMod * _module, ni numThreads = 1);
+  MyLocationDispatcher(CContainer * _module, ni numThreads = 1);
 
 protected:
   virtual truefalse before_begin();
@@ -282,18 +282,18 @@ private:
   MyLocationAcceptor * m_acceptor;
 };
 
-class MyLocationAcceptor: public CAcceptorBase
+class MyLocationAcceptor: public CParentAcc
 {
 public:
   enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
-  MyLocationAcceptor(CDispatchBase * _dispatcher, CHandlerDirector * manager);
+  MyLocationAcceptor(CParentScheduler * _dispatcher, CHandlerDirector * manager);
 
   virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 };
 
 
-class MyLocationModule: public CMod
+class MyLocationModule: public CContainer
 {
 public:
   MyLocationModule(CApp * app);
@@ -350,7 +350,7 @@ public:
 class MyHttpService: public CTaskBase
 {
 public:
-  MyHttpService(CMod * module, ni numThreads = 1);
+  MyHttpService(CContainer * module, ni numThreads = 1);
 
   virtual ni svc();
   virtual CONST text * name() CONST;
@@ -367,10 +367,10 @@ private:
   truefalse notify_dist_servers();
 };
 
-class MyHttpDispatcher: public CDispatchBase
+class MyHttpDispatcher: public CParentScheduler
 {
 public:
-  MyHttpDispatcher(CMod * pModule, ni numThreads = 1);
+  MyHttpDispatcher(CContainer * pModule, ni numThreads = 1);
   virtual CONST text * name() CONST;
 
 protected:
@@ -381,18 +381,18 @@ private:
   MyHttpAcceptor * m_acceptor;
 };
 
-class MyHttpAcceptor: public CAcceptorBase
+class MyHttpAcceptor: public CParentAcc
 {
 public:
   enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
 
-  MyHttpAcceptor(CDispatchBase * _dispatcher, CHandlerDirector * manager);
+  MyHttpAcceptor(CParentScheduler * _dispatcher, CHandlerDirector * manager);
   virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 };
 
 
-class MyHttpModule: public CMod
+class MyHttpModule: public CContainer
 {
 public:
   MyHttpModule(CApp * app);
@@ -453,10 +453,10 @@ public:
   DECLARE_MEMORY_POOL__NOTHROW(MyDistLoadHandler, ACE_Thread_Mutex);
 };
 
-class MyDistLoadDispatcher: public CDispatchBase
+class MyDistLoadDispatcher: public CParentScheduler
 {
 public:
-  MyDistLoadDispatcher(CMod * pModule, ni numThreads = 1);
+  MyDistLoadDispatcher(CContainer * pModule, ni numThreads = 1);
   ~MyDistLoadDispatcher();
   virtual CONST text * name() CONST;
   virtual ni handle_timeout(CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
@@ -475,18 +475,18 @@ private:
   ACE_Message_Queue<ACE_MT_SYNCH> m_to_bs_queue;
 };
 
-class MyDistLoadAcceptor: public CAcceptorBase
+class MyDistLoadAcceptor: public CParentAcc
 {
 public:
   enum { IDLE_TIME_AS_DEAD = 15 }; //in minutes
-  MyDistLoadAcceptor(CDispatchBase * _dispatcher, CHandlerDirector * manager);
+  MyDistLoadAcceptor(CParentScheduler * _dispatcher, CHandlerDirector * manager);
 
   virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 };
 
 
-class MyDistLoadModule: public CMod
+class MyDistLoadModule: public CContainer
 {
 public:
   MyDistLoadModule(CApp * app);
@@ -539,10 +539,10 @@ private:
   MyActChecker m_checker;
 };
 
-class MyMiddleToBSConnector: public CConnectorBase
+class MyMiddleToBSConnector: public CParentConn
 {
 public:
-  MyMiddleToBSConnector(CDispatchBase * _dispatcher, CHandlerDirector * _manager);
+  MyMiddleToBSConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager);
   virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 
@@ -965,7 +965,7 @@ class MyHeartBeatService: public CTaskBase
 public:
   enum { TIMED_DIST_TASK = 1 };
 
-  MyHeartBeatService(CMod * module, ni numThreads = 1);
+  MyHeartBeatService(CContainer * module, ni numThreads = 1);
   virtual ni svc();
   truefalse add_request(CMB * mb, truefalse btail);
   truefalse add_request_slow(CMB * mb);
@@ -982,10 +982,10 @@ private:
   ACE_Message_Queue<ACE_MT_SYNCH> m_queue2;
 };
 
-class MyHeartBeatDispatcher: public CDispatchBase
+class MyHeartBeatDispatcher: public CParentScheduler
 {
 public:
-  MyHeartBeatDispatcher(CMod * pModule, ni numThreads = 1);
+  MyHeartBeatDispatcher(CContainer * pModule, ni numThreads = 1);
   virtual CONST text * name() CONST;
   virtual ni handle_timeout (CONST ACE_Time_Value &tv, CONST DVOID *act);
   MyHeartBeatAcceptor * acceptor() CONST;
@@ -1008,17 +1008,17 @@ private:
   MyHeartBeatAcceptor * m_acceptor;
 };
 
-class MyHeartBeatAcceptor: public CAcceptorBase
+class MyHeartBeatAcceptor: public CParentAcc
 {
 public:
   enum { IDLE_TIME_AS_DEAD = 15 }; //in minutes
-  MyHeartBeatAcceptor(CDispatchBase * _dispatcher, CHandlerDirector * manager);
+  MyHeartBeatAcceptor(CParentScheduler * _dispatcher, CHandlerDirector * manager);
   virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 };
 
 
-class MyHeartBeatModule: public CMod
+class MyHeartBeatModule: public CContainer
 {
 public:
   MyHeartBeatModule(CApp * app);
@@ -1091,10 +1091,10 @@ private:
   MyActChecker m_checker;
 };
 
-class MyDistToBSConnector: public CConnectorBase
+class MyDistToBSConnector: public CParentConn
 {
 public:
-  MyDistToBSConnector(CDispatchBase * _dispatcher, CHandlerDirector * _manager);
+  MyDistToBSConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager);
   virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 
@@ -1155,10 +1155,10 @@ private:
   long m_load_balance_req_timer_id;
 };
 
-class MyDistToMiddleDispatcher: public CDispatchBase
+class MyDistToMiddleDispatcher: public CParentScheduler
 {
 public:
-  MyDistToMiddleDispatcher(CMod * pModule, ni numThreads = 1);
+  MyDistToMiddleDispatcher(CContainer * pModule, ni numThreads = 1);
   virtual ~MyDistToMiddleDispatcher();
 
   virtual CONST text * name() CONST;
@@ -1180,10 +1180,10 @@ private:
 };
 
 
-class MyDistToMiddleConnector: public CConnectorBase
+class MyDistToMiddleConnector: public CParentConn
 {
 public:
-  MyDistToMiddleConnector(CDispatchBase * _dispatcher, CHandlerDirector * _manager);
+  MyDistToMiddleConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager);
   virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 
@@ -1191,7 +1191,7 @@ protected:
   enum { RECONNECT_INTERVAL = 3 }; //time in minutes
 };
 
-class MyDistToMiddleModule: public CMod
+class MyDistToMiddleModule: public CContainer
 {
 public:
   MyDistToMiddleModule(CApp * app);

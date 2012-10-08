@@ -25,13 +25,13 @@
 
 #include "tools.h"
 
-class CMod;
+class CContainer;
 class CParentHandler;
-class CAcceptorBase;
+class CParentAcc;
 class CHandlerDirector;
 class CApp;
-class CDispatchBase;
-class CConnectorBase;
+class CParentScheduler;
+class CParentConn;
 class CProc;
 
 class CDirConverter
@@ -354,10 +354,10 @@ public:
   DVOID prepare_close();
   DVOID container(DVOID * p)
   { m_container = p; }
-  CAcceptorBase * acceptor() CONST
-  { return (CAcceptorBase *)m_container; }
-  CConnectorBase * connector() CONST
-  { return (CConnectorBase *)m_container; }
+  CParentAcc * acceptor() CONST
+  { return (CParentAcc *)m_container; }
+  CParentConn * connector() CONST
+  { return (CParentConn *)m_container; }
 
 protected:
   virtual DVOID at_finish();
@@ -725,21 +725,21 @@ public:
   }
 };
 
-class CAcceptorBase: public ACE_Acceptor<CParentHandler, CSockBridge>
+class CParentAcc: public ACE_Acceptor<CParentHandler, CSockBridge>
 {
 public:
   typedef ACE_Acceptor<CParentHandler, CSockBridge>  baseclass;
-  CAcceptorBase(CDispatchBase *, CHandlerDirector *);
-  virtual ~CAcceptorBase();
+  CParentAcc(CParentScheduler *, CHandlerDirector *);
+  virtual ~CParentAcc();
   virtual ni handle_timeout (CONST ACE_Time_Value &, CONST DVOID * = 0);
-  CMod * container() CONST;
-  CHandlerDirector * director() CONST;
-  CDispatchBase * dispatcher() CONST;
-
-  ni start();
-  ni stop();
+  ni begin();
+  ni end();
   DVOID print_info();
   virtual CONST text * name() CONST;
+  CContainer * container() CONST;
+  CHandlerDirector * director() CONST;
+  CParentScheduler * scheduler() CONST;
+
 
 protected:
   enum { TID_reap_broken = 1, TID1, TID2, TID3 };
@@ -747,163 +747,151 @@ protected:
   virtual truefalse before_begin();
   virtual DVOID before_finish();
 
-  CDispatchBase * m_dispatcher;
-  CMod * m_container;
-  CHandlerDirector * m_director;
   ni m_tcp_port;
   ni m_reap_interval; //min
   ni m_reaper_id;
+  CParentScheduler * m_scheduler;
+  CContainer * m_container;
+  CHandlerDirector * m_director;
 };
 
 
-class CConnectorBase: public ACE_Connector<CParentHandler, ACE_SOCK_CONNECTOR>
+class CParentConn: public ACE_Connector<CParentHandler, ACE_SOCK_CONNECTOR>
 {
 public:
-  typedef ACE_Connector<CParentHandler, ACE_SOCK_CONNECTOR> baseclass;
   enum { ONCE_COUNT = 100 };
+  typedef ACE_Connector<CParentHandler, ACE_SOCK_CONNECTOR> baseclass;
 
-  CConnectorBase(CDispatchBase * _dispatcher, CHandlerDirector * _manager);
-  virtual ~CConnectorBase();
-
-  virtual ni handle_timeout (CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
-
-  CMod * container() CONST;
+  CParentConn(CParentScheduler *, CHandlerDirector *);
+  virtual ~CParentConn();
+  virtual ni handle_timeout (CONST ACE_Time_Value &, CONST DVOID * = 0);
+  CContainer * container() CONST;
   CHandlerDirector * director() CONST;
-  CDispatchBase * dispatcher() CONST;
-  DVOID tcp_addr(CONST text *);
-  ni start();
-  ni stop();
+  CParentScheduler * scheduler() CONST;
   DVOID print_data();
   virtual CONST text * name() CONST;
-  ni connect_ready();
+  ni on_can_connect();
   DVOID reset_retry_count();
+  DVOID tcp_addr(CONST text *);
+  ni begin();
+  ni end();
 
 protected:
-  enum
-  {
-    TIMER_ID_check_dead_connection = 1,
-    TIMER_ID_reconnect = 2,
-    TIMER_ID_multi_connect,
-    TIMER_ID_reserved_1,
-    TIMER_ID_reserved_2,
-    TIMER_ID_reserved_3,
-  };
-  ni do_connect(ni count = 1, truefalse bNew = false);
+  enum { TID_reap_broken = 1, TID_retry = 2, TID_connect_batch, TID1, TID2, TID3 };
+  ni i_socket_connect(ni cnt = 1, truefalse is_new = false);
   virtual truefalse before_begin();
   virtual DVOID before_finish();
   virtual DVOID i_print();
   virtual truefalse before_reconnect();
 
-  CDispatchBase * m_dispatcher;
-  CMod * m_module;
-  CHandlerDirector * m_connection_manager;
-  ni m_tcp_port;
-  std::string m_tcp_addr;
-  ni m_num_connection;
-  ni m_reconnect_interval; //minutes
-  ni m_reconnect_retry_count;
-  long m_reconnect_timer_id;
-  ni m_idle_time_as_dead; //minutes
-  ni m_idle_connection_timer_id;
-  ni m_remain_to_connect;
+  long m_retry_tid;
+  ni m_no_activity_delay; //m
+  ni m_no_activity_tid;
+  ni m_unfinished_count;
+  CParentScheduler * m_scheduler;
+  CContainer * m_container;
+  CHandlerDirector * m_director;
+  ni m_conn_count;
+  ni m_retry_delay; //m
+  ni m_retry_num;
+  ni m_port_of_ip;
+  std::string m_remote_ip;
 };
 
-
-class CTaskBase: public ACE_Task<ACE_MT_SYNCH>
+class CTaskBase;
+class CParentScheduler;
+class CContainer
 {
 public:
-  CTaskBase(CMod * mod, ni num_threads);
-  CMod * module_x() CONST;
-  ni start();
-  ni stop();
-  DVOID print_all();
-  virtual CONST text * name() CONST;
-
-protected:
-  virtual DVOID i_print();
-  truefalse do_add_task(DVOID * p, ni task_type);
-  DVOID * get_task(CMB * mb, ni & task_type) CONST;
-
-private:
-  CMod * m_mod;
-  ni m_threads_count;
-};
-
-
-class CDispatchBase: public ACE_Task<ACE_MT_SYNCH>
-{
-public:
-  CDispatchBase(CMod * pModule, ni numThreads = 1);
-
-  virtual ~CDispatchBase();
-  virtual ni open (DVOID * p= 0);
-  virtual ni svc();
-  ni start();
-  ni stop();
-  CMod * container() CONST;
-  DVOID dump_info();
-  virtual CONST text * name() CONST;
-
-protected:
-  typedef std::vector<CConnectorBase *> CConnectors;
-  typedef std::vector<CAcceptorBase *> CAcceptors;
-  enum { TIMER_ID_BASE = 1 };
-
-  virtual DVOID before_finish();
-  virtual DVOID before_finish_stage_1();
-  virtual truefalse before_begin();
-  virtual truefalse do_schedule_work();
-  DVOID add_connector(CConnectorBase * _connector);
-  DVOID add_acceptor(CAcceptorBase * _acceptor);
-  virtual DVOID i_print();
-
-  CMod * m_container;
-  ni m_clock_interval;
-  CConnectors m_connectors;
-  CAcceptors m_acceptors;
-
-private:
-  truefalse do_start_i();
-  DVOID do_stop_i();
-
-  ACE_Reactor *m_reactor;
-  ni m_numThreads;
-  ni m_numBatchSend;
-  ACE_Thread_Mutex m_mutex;
-  truefalse m_init_done;
-};
-
-
-class CMod
-{
-public:
-  CMod(CApp * app);
-  virtual ~CMod();
-  //module specific
-  truefalse running() CONST;
-  //both module and app
-  truefalse running_with_app() CONST;
+  CContainer(CApp *);
+  virtual ~CContainer();
+  truefalse working() CONST;
+  truefalse working_app() CONST;
   CApp * app() CONST;
-  ni start();
-  ni stop();
+  ni begin();
+  ni end();
   DVOID print_all();
   virtual CONST text * name() CONST;
 
 protected:
   typedef std::vector<CTaskBase *> CTasks;
-  typedef std::vector<CDispatchBase *> CDispatchBases;
+  typedef std::vector<CParentScheduler *> CSchedulers;
 
   virtual truefalse before_begin();
   virtual DVOID before_finish();
   DVOID add_task(CTaskBase * _service);
-  DVOID add_dispatch(CDispatchBase * _dispatcher);
+  DVOID add_scheduler(CParentScheduler *);
   virtual DVOID i_print();
 
-  CApp * m_app;
-  truefalse m_running;
-
   CTasks m_tasks;
-  CDispatchBases m_dispatchs;
+  CSchedulers m_schedulers;
+  CApp * m_app;
+  truefalse m_is_working;
+};
+
+//svc
+class CTaskBase: public ACE_Task<ACE_MT_SYNCH>
+{
+public:
+  CTaskBase(CContainer * mod, ni num_threads);
+  CContainer * container() CONST;
+  DVOID print_all();
+  virtual CONST text * name() CONST;
+  ni begin();
+  ni end();
+
+protected:
+  virtual DVOID i_print();
+  truefalse add_new(DVOID * p, ni);
+  DVOID * task_convert(CMB * mb, ni &) CONST;
+
+private:
+  CContainer * m_container;
+  ni m_num_threads;
+};
+
+
+//dsp
+class CParentScheduler: public ACE_Task<ACE_MT_SYNCH>
+{
+public:
+  CParentScheduler(CContainer *, ni nthreads = 1);
+  virtual ~CParentScheduler();
+  virtual ni open (DVOID * p= 0);
+  virtual ni svc();
+  CContainer * container() CONST;
+  DVOID print_data();
+  virtual CONST text * name() CONST;
+  ni begin();
+  ni end();
+
+protected:
+  enum { TID = 1 };
+  typedef std::vector<CParentConn *> CConns;
+  typedef std::vector<CParentAcc *> CAccs;
+
+  virtual DVOID before_finish();
+  virtual DVOID before_finish_stage_1();
+  virtual truefalse before_begin();
+  virtual truefalse do_schedule_work();
+  DVOID conn_add(CParentConn *);
+  DVOID acc_add(CParentAcc *);
+  virtual DVOID i_print();
+
+  CConns m_conns;
+  CAccs m_accs;
+  CContainer * m_container;
+  ni m_delay_clock;
+
+private:
+  truefalse i_begin();
+  DVOID i_end();
+
+  ni m_post_batch_count;
+  ACE_Thread_Mutex m_mutex;
+  truefalse m_finished_init;
+  ACE_Reactor *m_reactor;
+  ni m_thread_count;
 };
 
 

@@ -162,7 +162,7 @@ protected:
   friend class CSignaller;
   friend class CNotificationFiler;
 
-  typedef std::vector<CMod *> CMods;
+  typedef std::vector<CContainer *> CMods;
 
   virtual truefalse before_begin();
   virtual truefalse do_init();
@@ -177,7 +177,7 @@ protected:
   truefalse handle_signal_up();
   DVOID handle_no_sfile();
   truefalse delayed_init();
-  DVOID add_component(CMod *);
+  DVOID add_component(CContainer *);
 
   CMods m_components;
 

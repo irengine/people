@@ -781,7 +781,7 @@ truefalse CApp::do_init()
   return true;
 }
 
-DVOID CApp::add_component(CMod * module)
+DVOID CApp::add_component(CContainer * module)
 {
   if (!module)
   {
@@ -921,7 +921,7 @@ DVOID CApp::print_pool(CONST text * p, long v_get, long v_put, long v_peak, long
 DVOID CApp::print_info()
 {
   C_INFO("##### Stats Start #####\n");
-  std::for_each(m_components.begin(), m_components.end(), std::mem_fun(&CMod::print_all));
+  std::for_each(m_components.begin(), m_components.end(), std::mem_fun(&CContainer::print_all));
   i_print();
   ACE_DEBUG((LM_INFO, "##### Finish #####\n"));
 }
@@ -938,7 +938,7 @@ DVOID CApp::begin()
   C_INFO("loading components...\n");
   m_running = true;
   before_begin();
-  std::for_each(m_components.begin(), m_components.end(), std::mem_fun(&CMod::start));
+  std::for_each(m_components.begin(), m_components.end(), std::mem_fun(&CContainer::begin));
 
   C_INFO("loading components finished!\n");
   handle_signal_child(); //quick handle
@@ -956,7 +956,7 @@ DVOID CApp::end()
     return;
   C_INFO("ending components...\n");
   m_running = false;
-  std::for_each(m_components.begin(), m_components.end(), std::mem_fun(&CMod::stop));
+  std::for_each(m_components.begin(), m_components.end(), std::mem_fun(&CContainer::end));
   before_finish();
   C_INFO("ending components finish!\n");
 }

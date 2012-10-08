@@ -525,7 +525,7 @@ private:
 class MyClientToDistService: public CTaskBase
 {
 public:
-  MyClientToDistService(CMod * module, int numThreads = 1);
+  MyClientToDistService(CContainer * module, int numThreads = 1);
   virtual int svc();
   virtual const char * name() const;
   bool add_md5_task(MyDistInfoMD5 * p);
@@ -546,7 +546,7 @@ private:
 class MyClientFtpService: public CTaskBase
 {
 public:
-  MyClientFtpService(CMod * module, int numThreads = 1);
+  MyClientFtpService(CContainer * module, int numThreads = 1);
   virtual int svc();
   virtual const char * name() const;
   bool add_ftp_task(MyDistInfoFtp * p);
@@ -597,10 +597,10 @@ private:
   MyBufferedMBList m_mblist;
 };
 
-class MyClientToDistDispatcher: public CDispatchBase
+class MyClientToDistDispatcher: public CParentScheduler
 {
 public:
-  MyClientToDistDispatcher(CMod * pModule, int numThreads = 1);
+  MyClientToDistDispatcher(CContainer * pModule, int numThreads = 1);
   virtual ~MyClientToDistDispatcher();
 
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
@@ -629,10 +629,10 @@ private:
 };
 
 
-class MyClientToDistConnector: public CConnectorBase
+class MyClientToDistConnector: public CParentConn
 {
 public:
-  MyClientToDistConnector(CDispatchBase * _dispatcher, CHandlerDirector * _manager);
+  MyClientToDistConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager);
   virtual int make_svc_handler(CParentHandler *& sh);
   virtual const char * name() const;
   void dist_server_addr(const char * addr);
@@ -660,7 +660,7 @@ private:
   char m_y;
 };
 
-class MyClientToDistModule: public CMod
+class MyClientToDistModule: public CContainer
 {
 public:
   MyClientToDistModule(CApp * app);
@@ -763,10 +763,10 @@ private:
   long m_timer_out_timer_id;
 };
 
-class MyClientToMiddleConnector: public CConnectorBase
+class MyClientToMiddleConnector: public CParentConn
 {
 public:
-  MyClientToMiddleConnector(CDispatchBase * _dispatcher, CHandlerDirector * _manager);
+  MyClientToMiddleConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager);
   virtual int make_svc_handler(CParentHandler *& sh);
   virtual const char * name() const;
   void finish();
@@ -814,11 +814,11 @@ public:
   MyHttp1991Handler(CHandlerDirector * xptr = NULL);
 };
 
-class MyHttp1991Acceptor: public CAcceptorBase
+class MyHttp1991Acceptor: public CParentAcc
 {
 public:
   enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
-  MyHttp1991Acceptor(CDispatchBase * _dispatcher, CHandlerDirector * manager);
+  MyHttp1991Acceptor(CParentScheduler * _dispatcher, CHandlerDirector * manager);
   virtual int make_svc_handler(CParentHandler *& sh);
   virtual const char * name() const;
 };

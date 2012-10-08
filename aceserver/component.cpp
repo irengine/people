@@ -391,7 +391,7 @@ truefalse CCheckSums::root_path(CONST text * p)
 {
   if (unlikely(!p || !*p))
   {
-    C_FATAL("MyFileMD5s::base_dir(empty p)\n");
+    C_FATAL("CCheckSums::root_path(null p)\n");
     return false;
   }
 
@@ -791,8 +791,6 @@ DVOID CBaseFileReader::close()
   m_fn.free();
 }
 
-
-//MyWrappedArchiveReader//
 
 truefalse CCompFileReader::open(CONST text * filename)
 {
@@ -1463,10 +1461,10 @@ CFormatProcBase::CFormatProcBase(CParentHandler * handler): baseclass(handler)
 
 CONST text * CFormatProcBase::name() CONST
 {
-  return "MyBasePacketProcessor";
+  return "CFormatProcBase";
 }
 
-DVOID CFormatProcBase::get_sinfo(CMemProt & info) CONST
+DVOID CFormatProcBase::get_sinfo(CMemProt & v_x) CONST
 {
   CONST text * str_id = m_term_sn.to_str();
   if (!*str_id)
@@ -1477,7 +1475,7 @@ DVOID CFormatProcBase::get_sinfo(CMemProt & info) CONST
   ss[2] = ", client_id=";
   ss[3] = m_term_sn.to_str();
   ss[4] = ")";
-  info.inits(ss, 5);
+  v_x.inits(ss, 5);
 }
 
 ni CFormatProcBase::at_start()
@@ -1637,8 +1635,6 @@ CMB * CParentServerProc::i_create_mb_ver_reply(CTermVerReply::SUBCMD x, ni more_
 }
 
 
-//MyBaseClientProcessor//
-
 CParentClientProc::CParentClientProc(CParentHandler * handler) : CFormatProcBase(handler)
 {
   m_sn_check_ok = false;
@@ -1651,7 +1647,7 @@ CParentClientProc::~CParentClientProc()
 
 CONST text * CParentClientProc::name() CONST
 {
-  return "MyBaseClientProcessor";
+  return "CParentClientProc";
 }
 
 truefalse CParentClientProc::term_sn_check_done() CONST
@@ -1682,8 +1678,8 @@ ni CParentClientProc::at_start()
   if (g_is_test)
   {
     ni pending_count = m_handler->handler_director()->waiting_count();
-    if (pending_count > 0 &&  pending_count <= CConnectorBase::ONCE_COUNT / 2)
-      m_handler->connector()->connect_ready();
+    if (pending_count > 0 &&  pending_count <= CParentConn::ONCE_COUNT / 2)
+      m_handler->connector()->on_can_connect();
   }
   return 0;
 }
@@ -1693,8 +1689,8 @@ DVOID CParentClientProc::at_finish()
   if (g_is_test)
   {
     ni pending_count = m_handler->handler_director()->waiting_count();
-    if (pending_count > 0 &&  pending_count <= CConnectorBase::ONCE_COUNT / 2)
-      m_handler->connector()->connect_ready();
+    if (pending_count > 0 &&  pending_count <= CParentConn::ONCE_COUNT / 2)
+      m_handler->connector()->on_can_connect();
   }
 }
 
@@ -2093,9 +2089,8 @@ ni CParentHandler::handle_close (ACE_HANDLE handle, ACE_Reactor_Mask close_mask)
   return 0;
 }
 
-ni CParentHandler::handle_output (ACE_HANDLE fd)
+ni CParentHandler::handle_output (ACE_HANDLE)
 {
-  ACE_UNUSED_ARG(fd);
   CMB *mb;
   ACE_Time_Value t (ACE_Time_Value::zero);
   while (-1 != this->getq(mb, &t))
@@ -2128,68 +2123,67 @@ CParentHandler::~CParentHandler()
 
 
 
-CAcceptorBase::CAcceptorBase(CDispatchBase * _dispatcher, CHandlerDirector * _manager):
-    m_dispatcher(_dispatcher), m_director(_manager)
+CParentAcc::CParentAcc(CParentScheduler * p1, CHandlerDirector * p2): m_scheduler(p1), m_director(p2)
 {
   m_tcp_port = 0;
-  m_container = m_dispatcher->container();
+  m_container = m_scheduler->container();
   m_reaper_id = -1;
 }
 
-CAcceptorBase::~CAcceptorBase()
+CParentAcc::~CParentAcc()
 {
   if (m_director)
     delete m_director;
 }
 
-CMod * CAcceptorBase::container() CONST
+CContainer * CParentAcc::container() CONST
 {
   return m_container;
 }
 
-CDispatchBase * CAcceptorBase::dispatcher() CONST
+CParentScheduler * CParentAcc::scheduler() CONST
 {
-  return m_dispatcher;
+  return m_scheduler;
 }
 
-CHandlerDirector * CAcceptorBase::director() CONST
+CHandlerDirector * CParentAcc::director() CONST
 {
   return m_director;
 }
 
-truefalse CAcceptorBase::before_begin()
+truefalse CParentAcc::before_begin()
 {
   return true;
 }
 
-DVOID CAcceptorBase::before_finish()
+DVOID CParentAcc::before_finish()
 {
 
 }
 
-ni CAcceptorBase::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *act)
+ni CParentAcc::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *m)
 {
-  if (long(act) == TID_reap_broken)
+  if (long(m) == TID_reap_broken)
     m_director->delete_broken(m_reap_interval);
   return 0;
 }
 
-ni CAcceptorBase::start()
+ni CParentAcc::begin()
 {
   if (m_tcp_port <= 0)
   {
-    C_FATAL(ACE_TEXT ("attempt to listen on invalid port %d\n"), m_tcp_port);
+    C_FATAL("bad listen port %d\n", m_tcp_port);
     return -1;
   }
-  ACE_INET_Addr port_to_listen (m_tcp_port);
+  ACE_INET_Addr l_addr (m_tcp_port);
   m_director->up();
 
-  ni ret = baseclass::open (port_to_listen, m_dispatcher->reactor(), ACE_NONBLOCK);
-  if (ret == 0)
-    C_INFO(ACE_TEXT ("%s listening on port %d... OK\n"), container()->name(), m_tcp_port);
-  else if (ret < 0)
+  ni l_x = baseclass::open (l_addr, m_scheduler->reactor(), ACE_NONBLOCK);
+  if (l_x == 0)
+    C_INFO("%s listening on port %d... OK\n", container()->name(), m_tcp_port);
+  else if (l_x < 0)
   {
-    C_ERROR(ACE_TEXT ("%s acceptor.open on port %d failed!\n"), container()->name(), m_tcp_port);
+    C_ERROR("%s acceptor.open on port %d failed!\n", container()->name(), m_tcp_port);
     return -1;
   }
 
@@ -2210,7 +2204,7 @@ ni CAcceptorBase::start()
   return 0;
 }
 
-ni CAcceptorBase::stop()
+ni CParentAcc::end()
 {
   before_finish();
   m_director->down();
@@ -2220,120 +2214,117 @@ ni CAcceptorBase::stop()
   return 0;
 }
 
-DVOID CAcceptorBase::i_print()
+DVOID CParentAcc::i_print()
 {
   m_director->print_all();
 }
 
-DVOID CAcceptorBase::print_info()
+DVOID CParentAcc::print_info()
 {
-  ACE_DEBUG((LM_INFO, "      +++ acceptor dump: %s start\n", name()));
+  ACE_DEBUG((LM_INFO, "      +++ Acc: %s start\n", name()));
   i_print();
-  ACE_DEBUG((LM_INFO, "      +++ acceptor dump: %s end\n", name()));
+  ACE_DEBUG((LM_INFO, "      +++ Acc: %s end\n", name()));
 }
 
-CONST text * CAcceptorBase::name() CONST
+CONST text * CParentAcc::name() CONST
 {
-  return "MyBaseAcceptor";
+  return "CParentAcc";
 }
 
 
-//MyBaseAcceptor//
-
-CConnectorBase::CConnectorBase(CDispatchBase * _dispatcher, CHandlerDirector * _manager):
-        m_dispatcher(_dispatcher), m_connection_manager(_manager)
+CParentConn::CParentConn(CParentScheduler * p1, CHandlerDirector * p2): m_scheduler(p1), m_director(p2)
 {
-  m_tcp_port = 0;
-  m_num_connection = 1;
-  m_reconnect_interval = 0;
-  m_reconnect_retry_count = 0;
-  m_reconnect_timer_id = -1;
-  m_module = m_dispatcher->container();
-  m_idle_time_as_dead = 0; //in minutes
-  m_idle_connection_timer_id = -1;
+  m_port_of_ip = 0;
+  m_conn_count = 1;
+  m_retry_delay = 0;
+  m_retry_num = 0;
+  m_retry_tid = -1;
+  m_container = m_scheduler->container();
+  m_no_activity_delay = 0;
+  m_no_activity_tid = -1;
 }
 
-CConnectorBase::~CConnectorBase()
+CParentConn::~CParentConn()
 {
-  if (m_connection_manager)
-    delete m_connection_manager;
+  if (m_director)
+    delete m_director;
 }
 
-CMod * CConnectorBase::container() CONST
+CContainer * CParentConn::container() CONST
 {
-  return m_module;
+  return m_container;
 }
 
-CHandlerDirector * CConnectorBase::director() CONST
+CHandlerDirector * CParentConn::director() CONST
 {
-  return m_connection_manager;
+  return m_director;
 }
 
-CDispatchBase * CConnectorBase::dispatcher() CONST
+CParentScheduler * CParentConn::scheduler() CONST
 {
-  return m_dispatcher;
+  return m_scheduler;
 }
 
-DVOID CConnectorBase::tcp_addr(CONST text * addr)
+DVOID CParentConn::tcp_addr(CONST text * addr)
 {
-  m_tcp_addr = (addr? addr:"");
+  m_remote_ip = (addr? addr:"");
 }
 
-truefalse CConnectorBase::before_reconnect()
+truefalse CParentConn::before_reconnect()
 {
   return true;
 }
 
-ni CConnectorBase::handle_timeout(CONST ACE_Time_Value &current_time, CONST DVOID *act)
+ni CParentConn::handle_timeout(CONST ACE_Time_Value &current_time, CONST DVOID *act)
 {
   ACE_UNUSED_ARG(current_time);
-  if (long(act) == TIMER_ID_reconnect && m_reconnect_interval > 0)
+  if (long(act) == TID_retry && m_retry_delay > 0)
   {
-    if (m_connection_manager->active_count() < m_num_connection)
+    if (m_director->active_count() < m_conn_count)
     {
       if (g_is_test)
       {
-        if (m_remain_to_connect > 0)
+        if (m_unfinished_count > 0)
           return 0;
       }
       if (before_reconnect())
       {
-        m_reconnect_retry_count++;
-        do_connect(m_num_connection - m_connection_manager->active_count(), true);
+        m_retry_num++;
+        i_socket_connect(m_conn_count - m_director->active_count(), true);
       }
     }
-  } else if (long(act) == TIMER_ID_check_dead_connection && m_idle_time_as_dead > 0)
-    m_connection_manager->delete_broken(m_idle_time_as_dead);
+  } else if (long(act) == TID_reap_broken && m_no_activity_delay > 0)
+    m_director->delete_broken(m_no_activity_delay);
 
   return 0;
 }
 
-truefalse CConnectorBase::before_begin()
+truefalse CParentConn::before_begin()
 {
   return true;
 }
 
-DVOID CConnectorBase::before_finish()
+DVOID CParentConn::before_finish()
 {
 
 }
 
-ni CConnectorBase::start()
+ni CParentConn::begin()
 {
-  m_connection_manager->up();
+  m_director->up();
   if (g_is_test)
-    m_remain_to_connect = 0;
-  if (open(m_dispatcher->reactor(), ACE_NONBLOCK) == -1)
+    m_unfinished_count = 0;
+  if (open(m_scheduler->reactor(), ACE_NONBLOCK) == -1)
     return -1;
-  m_reconnect_retry_count = 0;
+  m_retry_num = 0;
 
-  if (m_tcp_port <= 0)
+  if (m_port_of_ip <= 0)
   {
-    C_FATAL(ACE_TEXT ("attempt to connect to an invalid port %d @%s\n"), m_tcp_port, name());
+    C_FATAL(ACE_TEXT ("attempt to connect to an invalid port %d @%s\n"), m_port_of_ip, name());
     return -1;
   }
 
-  if (m_tcp_addr.length() == 0)
+  if (m_remote_ip.length() == 0)
   {
     C_FATAL(ACE_TEXT ("attempt to connect to an NULL host from @%s\n"), name());
     return -1;
@@ -2341,23 +2332,23 @@ ni CConnectorBase::start()
 
   if (before_reconnect())
   {
-    m_reconnect_retry_count++;
-    do_connect(m_num_connection, true);
+    m_retry_num++;
+    i_socket_connect(m_conn_count, true);
   }
 
-  if (m_reconnect_interval > 0)
+  if (m_retry_delay > 0)
   {
-    ACE_Time_Value interval (m_reconnect_interval * 60);
-    m_reconnect_timer_id = reactor()->schedule_timer (this, (void*)TIMER_ID_reconnect, interval, interval);
-    if (m_reconnect_timer_id < 0)
+    ACE_Time_Value interval (m_retry_delay * 60);
+    m_retry_tid = reactor()->schedule_timer (this, (void*)TID_retry, interval, interval);
+    if (m_retry_tid < 0)
       C_ERROR(ACE_TEXT("%s setup reconnect timer failed, %s\n"), name(), (CONST char*)CSysError());
   }
 
-  if (m_idle_time_as_dead > 0)
+  if (m_no_activity_delay > 0)
   {
-    ACE_Time_Value tv( m_idle_time_as_dead * 60);
-    m_idle_connection_timer_id = reactor()->schedule_timer(this, (void*)TIMER_ID_check_dead_connection, tv, tv);
-    if (m_idle_connection_timer_id < 0)
+    ACE_Time_Value tv( m_no_activity_delay * 60);
+    m_no_activity_tid = reactor()->schedule_timer(this, (void*)TID_reap_broken, tv, tv);
+    if (m_no_activity_tid < 0)
     {
       C_ERROR("can not setup dead connection timer @%s\n", name());
       return -1;
@@ -2370,152 +2361,149 @@ ni CConnectorBase::start()
   return 0; //
 }
 
-DVOID CConnectorBase::i_print()
+DVOID CParentConn::i_print()
 {
-  m_connection_manager->print_all();
+  m_director->print_all();
 }
 
-DVOID CConnectorBase::print_data()
+DVOID CParentConn::print_data()
 {
-  ACE_DEBUG((LM_INFO, "      +++ connector dump: %s start\n", name()));
+  ACE_DEBUG((LM_INFO, "      +++ Conn: %s start\n", name()));
   i_print();
-  ACE_DEBUG((LM_INFO, "      +++ connector dump: %s end\n", name()));
+  ACE_DEBUG((LM_INFO, "      +++ Conn: %s end\n", name()));
 }
 
-CONST text * CConnectorBase::name() CONST
+CONST text * CParentConn::name() CONST
 {
-  return "MyBaseConnector";
+  return "CParentConn";
 }
 
-ni CConnectorBase::stop()
+ni CParentConn::end()
 {
   before_finish();
-  if (m_reconnect_timer_id >= 0)
-    reactor()->cancel_timer(m_reconnect_timer_id);
-  if (m_idle_connection_timer_id >= 0)
-    reactor()->cancel_timer(m_idle_connection_timer_id);
-  m_connection_manager->down();
+  if (m_retry_tid >= 0)
+    reactor()->cancel_timer(m_retry_tid);
+  if (m_no_activity_tid >= 0)
+    reactor()->cancel_timer(m_no_activity_tid);
+  m_director->down();
   close();
   return 0;
 }
 
-ni CConnectorBase::connect_ready()
+ni CParentConn::on_can_connect()
 {
   if (g_is_test)
-    return do_connect(0, false);
+    return i_socket_connect(0, false);
   else
     return 0;
 }
 
-DVOID CConnectorBase::reset_retry_count()
+DVOID CParentConn::reset_retry_count()
 {
-  m_reconnect_retry_count = 0;
+  m_retry_num = 0;
 }
 
-ni CConnectorBase::do_connect(ni count, truefalse bNew)
+ni CParentConn::i_socket_connect(ni v_num, truefalse is_new)
 {
   if (g_is_test)
   {
-    if (unlikely(count <= 0 && m_remain_to_connect == 0))
+    if (unlikely(v_num <= 0 && m_unfinished_count == 0))
       return 0;
 
-    if (unlikely(count > m_num_connection))
+    if (unlikely(v_num > m_conn_count))
     {
-      C_FATAL(ACE_TEXT("invalid connect count = %d, maximum allowed connections = %d"), count, m_num_connection);
+      C_FATAL("bad con num = %d > max (=%d)", v_num, m_conn_count);
       return -1;
     }
 
-    if (m_connection_manager->waiting_count() >= ONCE_COUNT / 2)
+    if (m_director->waiting_count() >= ONCE_COUNT / 2)
       return 0;
 
-    truefalse b_remain_connect = m_remain_to_connect > 0;
-    if (b_remain_connect && bNew)
+    truefalse l_x = m_unfinished_count > 0;
+    if (l_x && is_new)
       return 0;
-    ni true_count;
-    if (b_remain_connect)
-      true_count = std::min(m_remain_to_connect, (ONCE_COUNT - m_connection_manager->waiting_count()));
+    ni actual_number;
+    if (l_x)
+      actual_number = std::min(m_unfinished_count, (ONCE_COUNT - m_director->waiting_count()));
     else
-      true_count = std::min(count, (ni)ONCE_COUNT);
+      actual_number = std::min(v_num, (ni)ONCE_COUNT);
 
-    if (true_count <= 0)
+    if (actual_number <= 0)
       return 0;
 
-    ACE_INET_Addr port_to_connect(m_tcp_port, m_tcp_addr.c_str());
-    CParentHandler * handler = NULL;
-    ni ok_count = 0, pending_count = 0;
+    ACE_INET_Addr port_to_connect(m_port_of_ip, m_remote_ip.c_str());
+    CParentHandler * l_h = NULL;
+    ni num_done = 0, num_waiting = 0;
 
     ACE_Time_Value timeout(60);
     ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
 
-    for (ni i = 1; i <= true_count; ++i)
+    for (ni i = 1; i <= actual_number; ++i)
     {
-      handler = NULL;
-      ni ret_i = connect(handler, port_to_connect, synch_options);
-  //    C_DEBUG("connect result = %d, handler = %X\n", ret_i, handler);
-      if (ret_i == 0)
+      l_h = NULL;
+      ni l_y = connect(l_h, port_to_connect, synch_options);
+      if (l_y == 0)
       {
-        ++ok_count;
+        ++num_done;
       }
-      else if (ret_i == -1)
+      else if (l_y == -1)
       {
         if (errno == EWOULDBLOCK)
         {
-          pending_count++;
-          m_connection_manager->add(handler, CHandlerDirector::HWaiting);
+          num_waiting++;
+          m_director->add(l_h, CHandlerDirector::HWaiting);
         }
       }
     }
 
-    if (b_remain_connect)
-      m_remain_to_connect -= true_count;
-    else if (bNew)
-      m_remain_to_connect = count - true_count;
+    if (l_x)
+      m_unfinished_count -= actual_number;
+    else if (is_new)
+      m_unfinished_count = v_num - actual_number;
 
-    C_INFO(ACE_TEXT("%s connecting to %s:%d (total=%d, ok=%d, failed=%d, pending=%d)... \n"), name(),
-        m_tcp_addr.c_str(), m_tcp_port, true_count, ok_count, true_count - ok_count- pending_count, pending_count);
+    C_INFO("%s connecting to %s:%d (all=%d, done=%d, failed=%d, waiting=%d)... \n", name(),
+        m_remote_ip.c_str(), m_port_of_ip, actual_number, num_done, actual_number - num_done- num_waiting, num_waiting);
 
-    return ok_count + pending_count > 0;
+    return num_done + num_waiting > 0;
   } else
   {
-    ACE_INET_Addr port_to_connect(m_tcp_port, m_tcp_addr.c_str());
-    CParentHandler * handler = NULL;
-    ACE_Time_Value timeout(60);
-    ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
-    C_INFO(ACE_TEXT("%s connecting to %s:%d ...\n"), name(), m_tcp_addr.c_str(), m_tcp_port);
-    if (connect(handler, port_to_connect, synch_options) == -1)
+    ACE_INET_Addr l_addr(m_port_of_ip, m_remote_ip.c_str());
+    CParentHandler * l_h = NULL;
+    ACE_Time_Value tv(60);
+    ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, tv);
+    C_INFO("%s connecting to %s:%d ...\n", name(), m_remote_ip.c_str(), m_port_of_ip);
+    if (connect(l_h, l_addr, synch_options) == -1)
     {
       if (errno == EWOULDBLOCK)
-        m_connection_manager->add(handler, CHandlerDirector::HWaiting);
+        m_director->add(l_h, CHandlerDirector::HWaiting);
     }
     return 0;
   }
 }
 
 
-//MyBaseService//
-
-CTaskBase::CTaskBase(CMod * module, ni numThreads):
-    m_mod(module), m_threads_count(numThreads)
+CTaskBase::CTaskBase(CContainer * module, ni numThreads):
+    m_container(module), m_num_threads(numThreads)
 {
 
 }
 
-CMod * CTaskBase::module_x() CONST
+CContainer * CTaskBase::container() CONST
 {
-  return m_mod;
+  return m_container;
 }
 
-ni CTaskBase::start()
+ni CTaskBase::begin()
 {
   if (open(NULL) == -1)
     return -1;
   if (msg_queue()->deactivated())
     msg_queue()->activate();
   msg_queue()->flush();
-  return activate (THR_NEW_LWP, m_threads_count);
+  return activate (THR_NEW_LWP, m_num_threads);
 }
 
-ni CTaskBase::stop()
+ni CTaskBase::end()
 {
   msg_queue()->deactivate();
   msg_queue()->flush();
@@ -2533,21 +2521,21 @@ DVOID CTaskBase::i_print()
 
 }
 
-truefalse CTaskBase::do_add_task(DVOID * p, ni task_type)
+truefalse CTaskBase::add_new(DVOID * p, ni type_of_cmd)
 {
   if (unlikely(!p))
     return true;
 
   CMB * mb = CCacheX::instance()->get_mb(sizeof(ni) + sizeof(DVOID *));
-  *((ni*)mb->base()) = task_type;
+  *((ni*)mb->base()) = type_of_cmd;
   *(text **)(mb->base() + sizeof(ni)) = (char*)p;
 
-  text buff[100];
-  snprintf(buff, 100, "command packet (%d) to %s", task_type, name());
-  return c_tools_mb_putq(this, mb, buff);
+  text tmp[100];
+  snprintf(tmp, 100, "cmd pkt (%d) to %s", type_of_cmd, name());
+  return c_tools_mb_putq(this, mb, tmp);
 }
 
-DVOID * CTaskBase::get_task(CMB * mb, ni & task_type) CONST
+DVOID * CTaskBase::task_convert(CMB * mb, ni & task_type) CONST
 {
   if (unlikely(mb->capacity() != sizeof(DVOID *) + sizeof(ni)))
     return NULL;
@@ -2559,37 +2547,34 @@ DVOID * CTaskBase::get_task(CMB * mb, ni & task_type) CONST
 
 CONST text * CTaskBase::name() CONST
 {
-  return "MyBaseService";
+  return "CTaskBase";
 }
 
 
-//MyBaseDispatcher//
-
-CDispatchBase::CDispatchBase(CMod * pModule, ni numThreads):
-    m_container(pModule), m_numThreads(numThreads), m_numBatchSend(50)
+CParentScheduler::CParentScheduler(CContainer * p, ni v_threads): m_container(p), m_post_batch_count(50), m_thread_count(v_threads)
 {
   m_reactor = NULL;
-  m_clock_interval = 0;
-  m_init_done = false;
+  m_delay_clock = 0;
+  m_finished_init = false;
 }
 
-CDispatchBase::~CDispatchBase()
+CParentScheduler::~CParentScheduler()
 {
   if (m_reactor)
     delete m_reactor;
 }
 
-ni CDispatchBase::open (DVOID *)
+ni CParentScheduler::open (DVOID *)
 {
   m_reactor = new ACE_Reactor(new ACE_Dev_Poll_Reactor(ACE::max_handles()), true);
   reactor(m_reactor);
 
-  if (m_clock_interval > 0)
+  if (m_delay_clock > 0)
   {
-    ACE_Time_Value interval(m_clock_interval);
-    if (m_reactor->schedule_timer(this, (CONST void*)TIMER_ID_BASE, interval, interval) < 0)
+    ACE_Time_Value interval(m_delay_clock);
+    if (m_reactor->schedule_timer(this, (CONST void*)TID, interval, interval) < 0)
     {
-      C_ERROR("setup timer failed %s %s\n", name(), (CONST char*)CSysError());
+      C_ERROR("can not setup timer %s %s\n", name(), (CONST char*)CSysError());
       return -1;
     }
   }
@@ -2597,128 +2582,128 @@ ni CDispatchBase::open (DVOID *)
   return 0;
 }
 
-DVOID CDispatchBase::add_connector(CConnectorBase * _connector)
+DVOID CParentScheduler::conn_add(CParentConn * p)
 {
-  if (!_connector)
+  if (!p)
   {
-    C_FATAL("MyBaseDispatcher::add_connector NULL _connector\n");
+    C_FATAL("NULL param\n");
     return;
   }
-  m_connectors.push_back(_connector);
+  m_conns.push_back(p);
 }
 
-DVOID CDispatchBase::add_acceptor(CAcceptorBase * _acceptor)
+DVOID CParentScheduler::acc_add(CParentAcc * p)
 {
-  if (!_acceptor)
+  if (!p)
   {
-    C_FATAL("MyBaseDispatcher::add_acceptor NULL _acceptor\n");
+    C_FATAL("NULL param\n");
     return;
   }
-  m_acceptors.push_back(_acceptor);
+  m_accs.push_back(p);
 }
 
-truefalse CDispatchBase::before_begin()
+truefalse CParentScheduler::before_begin()
 {
   return true;
 }
 
-ni CDispatchBase::start()
+ni CParentScheduler::begin()
 {
-  return activate (THR_NEW_LWP, m_numThreads);
+  return activate (THR_NEW_LWP, m_thread_count);
 }
 
-truefalse CDispatchBase::do_schedule_work()
+truefalse CParentScheduler::do_schedule_work()
 {
   return true;
 }
 
-DVOID CDispatchBase::before_finish()
+DVOID CParentScheduler::before_finish()
 {
 
 }
 
-DVOID CDispatchBase::before_finish_stage_1()
+DVOID CParentScheduler::before_finish_stage_1()
 {
 
 }
 
-ni CDispatchBase::stop()
+ni CParentScheduler::end()
 {
   wait();
   return 0;
 }
 
-CONST text * CDispatchBase::name() CONST
+CONST text * CParentScheduler::name() CONST
 {
-  return "MyBaseDispatcher";
+  return "CParentScheduler";
 }
 
-DVOID CDispatchBase::dump_info()
+DVOID CParentScheduler::print_data()
 {
-  ACE_DEBUG((LM_INFO, "    --- dispatcher dump: %s start\n", name()));
+  ACE_DEBUG((LM_INFO, "    --- scheduler: %s start\n", name()));
   i_print();
-  std::for_each(m_connectors.begin(), m_connectors.end(), std::mem_fun(&CConnectorBase::print_data));
-  std::for_each(m_acceptors.begin(), m_acceptors.end(), std::mem_fun(&CAcceptorBase::print_info));
-  ACE_DEBUG((LM_INFO, "    --- dispatcher dump: %s end\n", name()));
+  std::for_each(m_conns.begin(), m_conns.end(), std::mem_fun(&CParentConn::print_data));
+  std::for_each(m_accs.begin(), m_accs.end(), std::mem_fun(&CParentAcc::print_info));
+  ACE_DEBUG((LM_INFO, "    --- scheduler: %s end\n", name()));
 }
 
-DVOID CDispatchBase::i_print()
+DVOID CParentScheduler::i_print()
 {
 
 }
 
-CMod * CDispatchBase::container() CONST
+CContainer * CParentScheduler::container() CONST
 {
   return m_container;
 }
 
-truefalse CDispatchBase::do_start_i()
+truefalse CParentScheduler::i_begin()
 {
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, 0);
-  if (!m_init_done)
+  if (!m_finished_init)
   {
-    m_init_done = true;
+    m_finished_init = true;
     if (open(NULL) == -1)
       return false;
     msg_queue()->flush();
     if (!before_begin())
       return false;
-    std::for_each(m_connectors.begin(), m_connectors.end(), std::mem_fun(&CConnectorBase::start));
-    std::for_each(m_acceptors.begin(), m_acceptors.end(), std::mem_fun(&CAcceptorBase::start));
+    std::for_each(m_conns.begin(), m_conns.end(), std::mem_fun(&CParentConn::begin));
+    std::for_each(m_accs.begin(), m_accs.end(), std::mem_fun(&CParentAcc::begin));
   }
   return true;
 }
 
-DVOID CDispatchBase::do_stop_i()
+DVOID CParentScheduler::i_end()
 {
   ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
   if (!m_reactor) //reuse m_reactor as cleanup flag
     return;
   before_finish_stage_1();
   msg_queue()->flush();
-  if (m_reactor && m_clock_interval > 0)
+  if (m_reactor && m_delay_clock > 0)
     m_reactor->cancel_timer(this);
-  std::for_each(m_connectors.begin(), m_connectors.end(), std::mem_fun(&CConnectorBase::stop));
-  std::for_each(m_acceptors.begin(), m_acceptors.end(), std::mem_fun(&CAcceptorBase::stop));
-  std::for_each(m_connectors.begin(), m_connectors.end(), CObjDeletor());
-  std::for_each(m_acceptors.begin(), m_acceptors.end(), CObjDeletor());
+  std::for_each(m_conns.begin(), m_conns.end(), std::mem_fun(&CParentConn::end));
+  std::for_each(m_accs.begin(), m_accs.end(), std::mem_fun(&CParentAcc::end));
+  std::for_each(m_conns.begin(), m_conns.end(), CObjDeletor());
+  std::for_each(m_accs.begin(), m_accs.end(), CObjDeletor());
   if (m_reactor)
     m_reactor->close();
-  m_connectors.clear();
-  m_acceptors.clear();
+  m_conns.clear();
+  m_accs.clear();
   before_finish();
   delete m_reactor;
   m_reactor = NULL;
 }
 
-ni CDispatchBase::svc()
+ni CParentScheduler::svc()
 {
-  C_INFO(ACE_TEXT ("running %s::svc()\n"), name());
+  C_INFO("Start %s::svc()\n", name());
 
-  if (!do_start_i())
+  if (!i_begin())
     return -1;
 
-  while (m_container->running_with_app())
+  while (m_container->working_app())
   {
     ACE_Time_Value timeout(2);
     ni ret = reactor()->handle_events(&timeout);
@@ -2726,121 +2711,118 @@ ni CDispatchBase::svc()
     {
       if (errno == EINTR)
         continue;
-      C_INFO(ACE_TEXT ("exiting %s::svc() due to %s\n"), name(), (CONST char*)CSysError());
+      C_INFO("exiting %s::svc() because %s\n", name(), (CONST char*)CSysError());
       break;
     }
     if (!do_schedule_work())
       break;
-    //C_DEBUG("    returning from reactor()->handle_events()\n");
   }
 
-  C_INFO(ACE_TEXT ("exiting %s::svc()\n"), name());
-  do_stop_i();
+  C_INFO("exiting %s::svc()\n", name());
+  i_end();
   return 0;
 }
 
 
-//MyBaseModule//
-
-CMod::CMod(CApp * app): m_app(app), m_running(false)
+CContainer::CContainer(CApp * p): m_app(p), m_is_working(false)
 {
 
 }
 
-CMod::~CMod()
+CContainer::~CContainer()
 {
-  stop();
+  end();
 }
 
-truefalse CMod::running() CONST
+truefalse CContainer::working() CONST
 {
-  return m_running;
+  return m_is_working;
 }
 
-CApp * CMod::app() CONST
+CApp * CContainer::app() CONST
 {
   return m_app;
 }
 
-truefalse CMod::running_with_app() CONST
+truefalse CContainer::working_app() CONST
 {
-  return (m_running && m_app->running());
+  return (m_is_working && m_app->running());
 }
 
-truefalse CMod::before_begin()
+truefalse CContainer::before_begin()
 {
   return true;
 }
 
-DVOID CMod::before_finish()
+DVOID CContainer::before_finish()
 {
 
 }
 
 
-ni CMod::start()
+ni CContainer::begin()
 {
-  if (m_running)
+  if (m_is_working)
     return 0;
 
   if (!before_begin())
     return -1;
-  m_running = true;
-  std::for_each(m_tasks.begin(), m_tasks.end(), std::mem_fun(&CTaskBase::start));
-  std::for_each(m_dispatchs.begin(), m_dispatchs.end(), std::mem_fun(&CDispatchBase::start));
+  m_is_working = true;
+  std::for_each(m_tasks.begin(), m_tasks.end(), std::mem_fun(&CTaskBase::begin));
+  std::for_each(m_schedulers.begin(), m_schedulers.end(), std::mem_fun(&CParentScheduler::begin));
   return 0;
 }
 
-ni CMod::stop()
+ni CContainer::end()
 {
-  if (!m_running)
+  if (!m_is_working)
     return 0;
-  m_running = false;
-  std::for_each(m_tasks.begin(), m_tasks.end(), std::mem_fun(&CTaskBase::stop));
-  std::for_each(m_dispatchs.begin(), m_dispatchs.end(), std::mem_fun(&CDispatchBase::stop));
+  m_is_working = false;
+  std::for_each(m_tasks.begin(), m_tasks.end(), std::mem_fun(&CTaskBase::end));
+  std::for_each(m_schedulers.begin(), m_schedulers.end(), std::mem_fun(&CParentScheduler::end));
   std::for_each(m_tasks.begin(), m_tasks.end(), CObjDeletor());
-  std::for_each(m_dispatchs.begin(), m_dispatchs.end(), CObjDeletor());
+  std::for_each(m_schedulers.begin(), m_schedulers.end(), CObjDeletor());
   m_tasks.clear();
-  m_dispatchs.clear();
+  m_schedulers.clear();
   before_finish();
   return 0;
 }
 
-CONST text * CMod::name() CONST
+CONST text * CContainer::name() CONST
 {
-  return "MyBaseModule";
+  return "CContainer";
 }
 
-DVOID CMod::print_all()
+DVOID CContainer::print_all()
 {
-  ACE_DEBUG((LM_INFO, "  *** component: %s begin\n", name()));
+  ACE_DEBUG((LM_INFO, "  *** container: %s begin\n", name()));
   i_print();
-  std::for_each(m_dispatchs.begin(), m_dispatchs.end(), std::mem_fun(&CDispatchBase::dump_info));
+  std::for_each(m_schedulers.begin(), m_schedulers.end(), std::mem_fun(&CParentScheduler::print_data));
   std::for_each(m_tasks.begin(), m_tasks.end(), std::mem_fun(&CTaskBase::print_all));
-  ACE_DEBUG((LM_INFO, "  *** component: %s finish\n", name()));
+  ACE_DEBUG((LM_INFO, "  *** container: %s finish\n", name()));
 }
 
-DVOID CMod::i_print()
+DVOID CContainer::i_print()
 {
 
 }
 
-DVOID CMod::add_task(CTaskBase * _service)
+DVOID CContainer::add_task(CTaskBase * _service)
 {
   if (!_service)
   {
-    C_FATAL("MyBaseModule::add_service() NULL _service\n");
+    C_FATAL("NULL param\n");
     return;
   }
   m_tasks.push_back(_service);
 }
 
-DVOID CMod::add_dispatch(CDispatchBase * _dispatcher)
+DVOID CContainer::add_scheduler(CParentScheduler * p)
 {
-  if (!_dispatcher)
+  if (!p)
   {
-    C_FATAL("MyBaseModule::add_dispatcher() NULL _dispatcher\n");
+    C_FATAL("NULL param\n");
     return;
   }
-  m_dispatchs.push_back(_dispatcher);
+  m_schedulers.push_back(p);
 }

@@ -3533,7 +3533,7 @@ PREPARE_MEMORY_POOL(MyClientToDistHandler);
 
 //MyClientToDistService//
 
-MyClientToDistService::MyClientToDistService(CMod * module, int numThreads):
+MyClientToDistService::MyClientToDistService(CContainer * module, int numThreads):
     CTaskBase(module, numThreads)
 {
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
@@ -3549,7 +3549,7 @@ int MyClientToDistService::svc()
     void * p;
     {
       CMBProt guard(mb);
-      p = get_task(mb, task_type);
+      p = task_convert(mb, task_type);
     }
 
     if (unlikely(!p))
@@ -3585,7 +3585,7 @@ bool MyClientToDistService::add_md5_task(MyDistInfoMD5 * p)
     delete p;
     return true;
   }
-  return do_add_task(p, TASK_MD5);
+  return add_new(p, TASK_MD5);
 }
 
 bool MyClientToDistService::add_extract_task(MyDistInfoFtp * p)
@@ -3596,7 +3596,7 @@ bool MyClientToDistService::add_extract_task(MyDistInfoFtp * p)
     delete p;
     return true;
   }
-  return do_add_task(p, TASK_EXTRACT);
+  return add_new(p, TASK_EXTRACT);
 }
 
 bool MyClientToDistService::add_rev_task(const char * p)
@@ -3608,21 +3608,21 @@ bool MyClientToDistService::add_rev_task(const char * p)
     delete []p;
     return true;
   }
-  return do_add_task((void*)p, TASK_REV);
+  return add_new((void*)p, TASK_REV);
 }
 
 void MyClientToDistService::return_back(MyDistInfoFtp * dist_info)
 {
   if (unlikely(!dist_info))
     return;
-  ((MyClientToDistModule*)module_x())->dist_info_ftps().add(dist_info);
+  ((MyClientToDistModule*)container())->dist_info_ftps().add(dist_info);
 }
 
 void MyClientToDistService::return_back_md5(MyDistInfoMD5 * p)
 {
   if (unlikely(!p))
       return;
-  ((MyClientToDistModule*)module_x())->dist_info_md5s().add(p);
+  ((MyClientToDistModule*)container())->dist_info_md5s().add(p);
 }
 
 
@@ -3707,7 +3707,7 @@ void MyClientToDistService::do_extract_task(MyDistInfoFtp * dist_info)
 
 //MyClientFtpService//
 
-MyClientFtpService::MyClientFtpService(CMod * module, int numThreads):
+MyClientFtpService::MyClientFtpService(CContainer * module, int numThreads):
     CTaskBase(module, numThreads)
 {
 
@@ -3721,7 +3721,7 @@ int MyClientFtpService::svc()
     C_INFO(ACE_TEXT ("running %s::svc()\n"), name());
     bprinted = true;
   }
-  std::string server_addr = ((MyClientToDistModule*)module_x())->server_addr_list().rnd();
+  std::string server_addr = ((MyClientToDistModule*)container())->server_addr_list().rnd();
   int failed_count = 0;
 
   while (MyClientAppX::instance()->running())
@@ -3733,7 +3733,7 @@ int MyClientFtpService::svc()
         ACE_OS::sleep(3);
     }
 
-    MyDistInfoFtp * p = ((MyClientToDistModule*)module_x())->dist_info_ftps().get();
+    MyDistInfoFtp * p = ((MyClientToDistModule*)container())->dist_info_ftps().get();
     if (!p)
       ACE_OS::sleep(3);
     else
@@ -3765,11 +3765,11 @@ void MyClientFtpService::do_ftp_task(MyDistInfoFtp * dist_info, std::string & se
       if (++ failed_count > 3)
       {
         failed_count = 0;
-        const char * p = ((MyClientToDistModule*)module_x())->server_addr_list().next_ftp();
+        const char * p = ((MyClientToDistModule*)container())->server_addr_list().next_ftp();
         if (p)
           server_addr = p;
         else
-          server_addr = ((MyClientToDistModule*)module_x())->server_addr_list().begin_ftp();
+          server_addr = ((MyClientToDistModule*)container())->server_addr_list().begin_ftp();
       }
       return;
     } else
@@ -3786,7 +3786,7 @@ const char * MyClientFtpService::name() const
 
 bool MyClientFtpService::add_ftp_task(MyDistInfoFtp * p)
 {
-  return do_add_task(p, TASK_FTP);
+  return add_new(p, TASK_FTP);
 }
 
 
@@ -3861,7 +3861,7 @@ void MyClientFtpService::return_back(MyDistInfoFtp * dist_info)
 {
   if (unlikely(!dist_info))
     return;
-  ((MyClientToDistModule*)module_x())->dist_info_ftps().add(dist_info);
+  ((MyClientToDistModule*)container())->dist_info_ftps().add(dist_info);
 }
 
 MyDistInfoFtp * MyClientFtpService::get_dist_info_ftp(ACE_Message_Block * mb) const
@@ -3874,13 +3874,13 @@ MyDistInfoFtp * MyClientFtpService::get_dist_info_ftp(ACE_Message_Block * mb) co
 
 //MyClientToDistConnector//
 
-MyClientToDistConnector::MyClientToDistConnector(CDispatchBase * _dispatcher, CHandlerDirector * _manager):
-    CConnectorBase(_dispatcher, _manager)
+MyClientToDistConnector::MyClientToDistConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
+    CParentConn(_dispatcher, _manager)
 {
-  m_tcp_port = CCfgX::instance()->ping_port;
-  m_reconnect_interval = RECONNECT_INTERVAL;
+  m_port_of_ip = CCfgX::instance()->ping_port;
+  m_retry_delay = RECONNECT_INTERVAL;
   if (g_is_test)
-    m_num_connection = MyClientAppX::instance()->term_SNs().number();
+    m_conn_count = MyClientAppX::instance()->term_SNs().number();
   m_last_connect_time = 0;
 }
 
@@ -3892,7 +3892,7 @@ const char * MyClientToDistConnector::name() const
 void MyClientToDistConnector::dist_server_addr(const char * addr)
 {
   if (likely(addr != NULL))
-    m_tcp_addr = addr;
+    m_remote_ip = addr;
 }
 
 time_t MyClientToDistConnector::reset_last_connect_time()
@@ -3904,7 +3904,7 @@ time_t MyClientToDistConnector::reset_last_connect_time()
 
 int MyClientToDistConnector::make_svc_handler(CParentHandler *& sh)
 {
-  sh = new MyClientToDistHandler(m_connection_manager);
+  sh = new MyClientToDistHandler(m_director);
   if (!sh)
   {
     C_ERROR("can not alloc MyClientToDistHandler from %s\n", name());
@@ -3920,10 +3920,10 @@ bool MyClientToDistConnector::before_reconnect()
 {
   if (m_last_connect_time == 0)
     m_last_connect_time = time(NULL);
-  if (m_reconnect_retry_count <= 5)
+  if (m_retry_num <= 5)
     return true;
 
-  MyDistServerAddrList & addr_list = ((MyClientToDistModule*)(m_module))->server_addr_list();
+  MyDistServerAddrList & addr_list = ((MyClientToDistModule*)(m_container))->server_addr_list();
   const char * new_addr = addr_list.next();
   if (!new_addr || !*new_addr)
     new_addr = addr_list.begin();
@@ -3932,9 +3932,9 @@ bool MyClientToDistConnector::before_reconnect()
     if (ACE_OS::strcmp("127.0.0.1", new_addr) == 0)
       new_addr = CCfgX::instance()->middle_addr.c_str();
     C_INFO("maximum connect to %s:%d retry count reached , now trying next addr %s:%d...\n",
-        m_tcp_addr.c_str(), m_tcp_port, new_addr, m_tcp_port);
-    m_tcp_addr = new_addr;
-    m_reconnect_retry_count = 1;
+        m_remote_ip.c_str(), m_port_of_ip, new_addr, m_port_of_ip);
+    m_remote_ip = new_addr;
+    m_retry_num = 1;
   }
   return true;
 }
@@ -4038,13 +4038,13 @@ void MyBufferedMBs::on_reply(uuid_t uuid)
 
 //MyClientToDistDispatcher//
 
-MyClientToDistDispatcher::MyClientToDistDispatcher(CMod * pModule, int numThreads):
-    CDispatchBase(pModule, numThreads)
+MyClientToDistDispatcher::MyClientToDistDispatcher(CContainer * pModule, int numThreads):
+    CParentScheduler(pModule, numThreads)
 {
   m_connector = NULL;
   m_middle_connector = NULL;
   m_http1991_acceptor = NULL;
-  m_clock_interval = FTP_CHECK_INTERVAL * 60;
+  m_delay_clock = FTP_CHECK_INTERVAL * 60;
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
@@ -4056,11 +4056,11 @@ MyClientToDistDispatcher::~MyClientToDistDispatcher()
 bool MyClientToDistDispatcher::before_begin()
 {
   m_middle_connector = new MyClientToMiddleConnector(this, new CHandlerDirector());
-  add_connector(m_middle_connector);
+  conn_add(m_middle_connector);
   if (!g_is_test)
   {
     m_http1991_acceptor = new MyHttp1991Acceptor(this, new CHandlerDirector());
-    add_acceptor(m_http1991_acceptor);
+    acc_add(m_http1991_acceptor);
 
     ACE_Time_Value interval(WATCH_DOG_INTERVAL * 60);
     if (reactor()->schedule_timer(this, (const void*)TIMER_ID_WATCH_DOG, interval, interval) < 0)
@@ -4117,14 +4117,14 @@ void MyClientToDistDispatcher::ask_for_server_addr_list_done(bool success)
   C_INFO("starting connection to dist server from addr list...\n");
   if (!m_connector)
     m_connector = new MyClientToDistConnector(this, new CHandlerDirector());
-  add_connector(m_connector);
+  conn_add(m_connector);
   m_buffered_mbs.connection_manager(m_connector->director());
 
   const char * addr = addr_list.begin();
   if (ACE_OS::strcmp("127.0.0.1", addr) == 0)
     addr = CCfgX::instance()->middle_addr.c_str();
   m_connector->dist_server_addr(addr);
-  m_connector->start();
+  m_connector->begin();
 }
 
 void MyClientToDistDispatcher::start_watch_dog()
@@ -4245,7 +4245,7 @@ ACE_Message_Block * MyHwAlarm::make_hardware_alarm_mb()
 
 //MyClientToDistModule//
 
-MyClientToDistModule::MyClientToDistModule(CApp * app): CMod(app)
+MyClientToDistModule::MyClientToDistModule(CApp * app): CContainer(app)
 {
   if (g_is_test)
   {
@@ -4351,7 +4351,7 @@ void MyClientToDistModule::ask_for_server_addr_list_done(bool success)
     add_task(m_client_ftp_service = new MyClientFtpService(this, CCfgX::instance()->download_threads));
   else
     add_task(m_client_ftp_service = new MyClientFtpService(this, 1));
-  m_client_ftp_service->start();
+  m_client_ftp_service->begin();
   if (!g_is_test)
   {
     MyClientAppX::instance()->check_prev_extract_task(MyClientAppX::instance()->client_id());
@@ -4427,7 +4427,7 @@ ACE_Message_Block * MyClientToDistModule::get_vlc_infos(const char *) const
 bool MyClientToDistModule::before_begin()
 {
   add_task(m_service = new MyClientToDistService(this, 1));
-  add_dispatch(m_dispatcher = new MyClientToDistDispatcher(this));
+  add_scheduler(m_dispatcher = new MyClientToDistDispatcher(this));
   return true;
 }
 
@@ -4642,12 +4642,12 @@ PREPARE_MEMORY_POOL(MyClientToMiddleHandler);
 
 //MyClientToMiddleConnector//
 
-MyClientToMiddleConnector::MyClientToMiddleConnector(CDispatchBase * _dispatcher, CHandlerDirector * _manager):
-    CConnectorBase(_dispatcher, _manager)
+MyClientToMiddleConnector::MyClientToMiddleConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
+    CParentConn(_dispatcher, _manager)
 {
-  m_tcp_port = CCfgX::instance()->pre_client_port;
-  m_tcp_addr = CCfgX::instance()->middle_addr;
-  m_reconnect_interval = RECONNECT_INTERVAL;
+  m_port_of_ip = CCfgX::instance()->pre_client_port;
+  m_remote_ip = CCfgX::instance()->middle_addr;
+  m_retry_delay = RECONNECT_INTERVAL;
   m_retried_count = 0;
 }
 
@@ -4658,23 +4658,23 @@ const char * MyClientToMiddleConnector::name() const
 
 void MyClientToMiddleConnector::finish()
 {
-  m_reconnect_interval = 0;
-  m_idle_time_as_dead = 0;
-  if (m_reconnect_timer_id >= 0)
+  m_retry_delay = 0;
+  m_no_activity_delay = 0;
+  if (m_retry_tid >= 0)
   {
-    reactor()->cancel_timer(m_reconnect_timer_id);
-    m_reconnect_timer_id = -1;
+    reactor()->cancel_timer(m_retry_tid);
+    m_retry_tid = -1;
   }
-  if (m_idle_connection_timer_id >= 0)
+  if (m_no_activity_tid >= 0)
   {
-    reactor()->cancel_timer(m_idle_connection_timer_id);
-    m_idle_connection_timer_id = -1;
+    reactor()->cancel_timer(m_no_activity_tid);
+    m_no_activity_tid = -1;
   }
 }
 
 int MyClientToMiddleConnector::make_svc_handler(CParentHandler *& sh)
 {
-  sh = new MyClientToMiddleHandler(m_connection_manager);
+  sh = new MyClientToMiddleHandler(m_director);
   if (!sh)
   {
     C_ERROR("can not alloc MyClientToMiddleHandler from %s\n", name());
@@ -4944,8 +4944,8 @@ MyHttp1991Handler::MyHttp1991Handler(CHandlerDirector * xptr)
 
 //MyHttp1991Acceptor//
 
-MyHttp1991Acceptor::MyHttp1991Acceptor(CDispatchBase * _dispatcher, CHandlerDirector * _manager):
-    CAcceptorBase(_dispatcher, _manager)
+MyHttp1991Acceptor::MyHttp1991Acceptor(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
+    CParentAcc(_dispatcher, _manager)
 {
   m_tcp_port = 1991;
   m_reap_interval = IDLE_TIME_AS_DEAD;

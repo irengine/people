@@ -696,7 +696,7 @@ PREPARE_MEMORY_POOL(MyLocationHandler);
 
 //MyLocationService//
 
-MyLocationService::MyLocationService(CMod * module, ni numThreads):
+MyLocationService::MyLocationService(CContainer * module, ni numThreads):
     CTaskBase(module, numThreads)
 {
 
@@ -719,8 +719,8 @@ ni MyLocationService::svc()
 
 //MyLocationAcceptor//
 
-MyLocationAcceptor::MyLocationAcceptor(CDispatchBase * _dispatcher, CHandlerDirector * _manager):
-    CAcceptorBase(_dispatcher, _manager)
+MyLocationAcceptor::MyLocationAcceptor(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
+    CParentAcc(_dispatcher, _manager)
 {
   m_tcp_port = CCfgX::instance()->pre_client_port;
   m_reap_interval = IDLE_TIME_AS_DEAD;
@@ -747,8 +747,8 @@ CONST text * MyLocationAcceptor::name() CONST
 
 //MyLocationDispatcher//
 
-MyLocationDispatcher::MyLocationDispatcher(CMod * _module, ni numThreads):
-    CDispatchBase(_module, numThreads)
+MyLocationDispatcher::MyLocationDispatcher(CContainer * _module, ni numThreads):
+    CParentScheduler(_module, numThreads)
 {
   m_acceptor = NULL;
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
@@ -758,7 +758,7 @@ truefalse MyLocationDispatcher::before_begin()
 {
   if (!m_acceptor)
     m_acceptor = new MyLocationAcceptor(this, new CHandlerDirector());
-  add_acceptor(m_acceptor);
+  acc_add(m_acceptor);
   return true;
 }
 
@@ -774,7 +774,7 @@ CONST text * MyLocationDispatcher::name() CONST
 
 //MyLocationModule//
 
-MyLocationModule::MyLocationModule(CApp * app): CMod(app)
+MyLocationModule::MyLocationModule(CApp * app): CContainer(app)
 {
   m_service = NULL;
   m_dispatcher = NULL;
@@ -794,7 +794,7 @@ MyDistLoads * MyLocationModule::dist_loads()
 truefalse MyLocationModule::before_begin()
 {
   add_task(m_service = new MyLocationService(this, 1));
-  add_dispatch(m_dispatcher = new MyLocationDispatcher(this));
+  add_scheduler(m_dispatcher = new MyLocationDispatcher(this));
   return true;
 }
 
@@ -966,8 +966,8 @@ PREPARE_MEMORY_POOL(MyHttpHandler);
 
 //MyHttpAcceptor//
 
-MyHttpAcceptor::MyHttpAcceptor(CDispatchBase * _dispatcher, CHandlerDirector * _manager):
-    CAcceptorBase(_dispatcher, _manager)
+MyHttpAcceptor::MyHttpAcceptor(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
+    CParentAcc(_dispatcher, _manager)
 {
   m_tcp_port = CCfgX::instance()->http_port;
   m_reap_interval = IDLE_TIME_AS_DEAD;
@@ -994,7 +994,7 @@ CONST text * MyHttpAcceptor::name() CONST
 
 //MyHttpService//
 
-MyHttpService::MyHttpService(CMod * module, ni numThreads)
+MyHttpService::MyHttpService(CContainer * module, ni numThreads)
   : CTaskBase(module, numThreads)
 {
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
@@ -1140,13 +1140,13 @@ truefalse MyHttpService::do_handle_packet(CMB * mb, MyHttpDistRequest & http_dis
   http_dist_request.password = password;
   MyDB & db = CRunnerX::instance()->db();
 
-  if (unlikely(!module_x()->running_with_app()))
+  if (unlikely(!container()->working_app()))
     return false;
 
   if (!do_compress(http_dist_request))
     return false;
 
-  if (unlikely(!module_x()->running_with_app()))
+  if (unlikely(!container()->working_app()))
     return false;
 
   CMemProt md5_result;
@@ -1157,7 +1157,7 @@ truefalse MyHttpService::do_handle_packet(CMB * mb, MyHttpDistRequest & http_dis
       return false;
   }
 
-  if (unlikely(!module_x()->running_with_app()))
+  if (unlikely(!container()->working_app()))
     return false;
 
   CMemProt mbz_md5_result;
@@ -1185,7 +1185,7 @@ truefalse MyHttpService::do_handle_packet(CMB * mb, MyHttpDistRequest & http_dis
     return false;
   }
 
-  if (unlikely(!module_x()->running_with_app()))
+  if (unlikely(!container()->working_app()))
     return false;
 
   if (!db.dist_info_update_status())
@@ -1301,8 +1301,8 @@ truefalse MyHttpService::notify_dist_servers()
 
 //MyHttpDispatcher//
 
-MyHttpDispatcher::MyHttpDispatcher(CMod * pModule, ni numThreads):
-    CDispatchBase(pModule, numThreads)
+MyHttpDispatcher::MyHttpDispatcher(CContainer * pModule, ni numThreads):
+    CParentScheduler(pModule, numThreads)
 {
   m_acceptor = NULL;
 }
@@ -1321,14 +1321,14 @@ truefalse MyHttpDispatcher::before_begin()
 {
   if (!m_acceptor)
     m_acceptor = new MyHttpAcceptor(this, new CHandlerDirector());
-  add_acceptor(m_acceptor);
+  acc_add(m_acceptor);
   return true;
 }
 
 
 //MyHttpModule//
 
-MyHttpModule::MyHttpModule(CApp * app): CMod(app)
+MyHttpModule::MyHttpModule(CApp * app): CContainer(app)
 {
   m_dispatcher = NULL;
   m_service = NULL;
@@ -1352,7 +1352,7 @@ MyHttpService * MyHttpModule::http_service()
 truefalse MyHttpModule::before_begin()
 {
   add_task(m_service = new MyHttpService(this, 1));
-  add_dispatch(m_dispatcher = new MyHttpDispatcher(this));
+  add_scheduler(m_dispatcher = new MyHttpDispatcher(this));
   return true;
 }
 
@@ -1492,8 +1492,8 @@ PREPARE_MEMORY_POOL(MyDistLoadHandler);
 
 //MyDistLoadAcceptor//
 
-MyDistLoadAcceptor::MyDistLoadAcceptor(CDispatchBase * _dispatcher, CHandlerDirector * _manager):
-    CAcceptorBase(_dispatcher, _manager)
+MyDistLoadAcceptor::MyDistLoadAcceptor(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
+    CParentAcc(_dispatcher, _manager)
 {
   m_tcp_port = CCfgX::instance()->server_port;
   m_reap_interval = IDLE_TIME_AS_DEAD;
@@ -1521,8 +1521,8 @@ CONST text * MyDistLoadAcceptor::name() CONST
 
 //MyDistLoadDispatcher//
 
-MyDistLoadDispatcher::MyDistLoadDispatcher(CMod * pModule, ni numThreads):
-    CDispatchBase(pModule, numThreads)
+MyDistLoadDispatcher::MyDistLoadDispatcher(CContainer * pModule, ni numThreads):
+    CParentScheduler(pModule, numThreads)
 {
   m_acceptor = NULL;
   m_bs_connector = NULL;
@@ -1574,10 +1574,10 @@ truefalse MyDistLoadDispatcher::before_begin()
 {
   if (!m_acceptor)
     m_acceptor = new MyDistLoadAcceptor(this, new CHandlerDirector());
-  add_acceptor(m_acceptor);
+  acc_add(m_acceptor);
   if (!m_bs_connector)
     m_bs_connector = new MyMiddleToBSConnector(this, new CHandlerDirector());
-  add_connector(m_bs_connector);
+  conn_add(m_bs_connector);
 
   ACE_Time_Value interval(ni(MyDistLoads::DEAD_TIME * 60 / CApp::CLOCK_TIME / 2));
   if (reactor()->schedule_timer(this, 0, interval, interval) == -1)
@@ -1607,7 +1607,7 @@ truefalse MyDistLoadDispatcher::do_schedule_work()
 
 //MyDistLoadModule//
 
-MyDistLoadModule::MyDistLoadModule(CApp * app): CMod(app)
+MyDistLoadModule::MyDistLoadModule(CApp * app): CContainer(app)
 {
   m_dispatcher = NULL;
 }
@@ -1629,7 +1629,7 @@ MyDistLoadDispatcher * MyDistLoadModule::dispatcher() CONST
 
 truefalse MyDistLoadModule::before_begin()
 {
-  add_dispatch(m_dispatcher = new MyDistLoadDispatcher(this));
+  add_scheduler(m_dispatcher = new MyDistLoadDispatcher(this));
   return true;
 }
 
@@ -1733,12 +1733,12 @@ PREPARE_MEMORY_POOL(MyMiddleToBSHandler);
 
 //MyMiddleToBSConnector//
 
-MyMiddleToBSConnector::MyMiddleToBSConnector(CDispatchBase * _dispatcher, CHandlerDirector * _manager):
-    CConnectorBase(_dispatcher, _manager)
+MyMiddleToBSConnector::MyMiddleToBSConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
+    CParentConn(_dispatcher, _manager)
 {
-  m_tcp_port = CCfgX::instance()->bs_port;
-  m_reconnect_interval = RECONNECT_INTERVAL;
-  m_tcp_addr = CCfgX::instance()->bs_addr;
+  m_port_of_ip = CCfgX::instance()->bs_port;
+  m_retry_delay = RECONNECT_INTERVAL;
+  m_remote_ip = CCfgX::instance()->bs_addr;
 }
 
 CONST text * MyMiddleToBSConnector::name() CONST
@@ -1748,7 +1748,7 @@ CONST text * MyMiddleToBSConnector::name() CONST
 
 ni MyMiddleToBSConnector::make_svc_handler(CParentHandler *& sh)
 {
-  sh = new MyMiddleToBSHandler(m_connection_manager);
+  sh = new MyMiddleToBSHandler(m_director);
   if (!sh)
   {
     C_ERROR("can not alloc MyMiddleToBSHandler from %s\n", name());
@@ -3427,7 +3427,7 @@ PREPARE_MEMORY_POOL(MyHeartBeatHandler);
 
 //MyHeartBeatService//
 
-MyHeartBeatService::MyHeartBeatService(CMod * module, ni numThreads):
+MyHeartBeatService::MyHeartBeatService(CContainer * module, ni numThreads):
     CTaskBase(module, numThreads)
 {
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
@@ -3605,9 +3605,9 @@ DVOID MyHeartBeatService::do_ftp_file_reply(CMB * mb)
   {
     text buff[32];
     c_tools_convert_time_to_text(buff, 32, true);
-    ((MyHeartBeatModule *)module_x())->ftp_feedback_submitter().add(dist_id, ftype, client_id.to_str(), step, ok, buff);
+    ((MyHeartBeatModule *)container())->ftp_feedback_submitter().add(dist_id, ftype, client_id.to_str(), step, ok, buff);
     if (step == '3' && ok == '1')
-      ((MyHeartBeatModule *)module_x())->ftp_feedback_submitter().add(dist_id, ftype, client_id.to_str(), '4', ok, buff);
+      ((MyHeartBeatModule *)container())->ftp_feedback_submitter().add(dist_id, ftype, client_id.to_str(), '4', ok, buff);
   }
   if (recv_status == '9')
     return;
@@ -3661,8 +3661,8 @@ DVOID MyHeartBeatService::do_file_md5_reply(CMB * mb)
 
 //MyHeartBeatAcceptor//
 
-MyHeartBeatAcceptor::MyHeartBeatAcceptor(CDispatchBase * _dispatcher, CHandlerDirector * _manager):
-    CAcceptorBase(_dispatcher, _manager)
+MyHeartBeatAcceptor::MyHeartBeatAcceptor(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
+    CParentAcc(_dispatcher, _manager)
 {
   m_tcp_port = CCfgX::instance()->ping_port;
   m_reap_interval = IDLE_TIME_AS_DEAD;
@@ -3689,11 +3689,11 @@ CONST text * MyHeartBeatAcceptor::name() CONST
 
 //MyHeartBeatDispatcher//
 
-MyHeartBeatDispatcher::MyHeartBeatDispatcher(CMod * pModule, ni numThreads):
-    CDispatchBase(pModule, numThreads)
+MyHeartBeatDispatcher::MyHeartBeatDispatcher(CContainer * pModule, ni numThreads):
+    CParentScheduler(pModule, numThreads)
 {
   m_acceptor = NULL;
-  m_clock_interval = CLOCK_INTERVAL;
+  m_delay_clock = CLOCK_INTERVAL;
   msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
@@ -3711,7 +3711,7 @@ ni MyHeartBeatDispatcher::handle_timeout(CONST ACE_Time_Value &tv, CONST DVOID *
 {
   ACE_UNUSED_ARG(tv);
   ACE_UNUSED_ARG(act);
-  if ((long)act == CDispatchBase::TIMER_ID_BASE)
+  if ((long)act == CParentScheduler::TID)
   {
     CMB *mb;
     ACE_Time_Value nowait(ACE_Time_Value::zero);
@@ -3785,7 +3785,7 @@ truefalse MyHeartBeatDispatcher::before_begin()
 {
   if (!m_acceptor)
     m_acceptor = new MyHeartBeatAcceptor(this, new CHandlerDirector());
-  add_acceptor(m_acceptor);
+  acc_add(m_acceptor);
 
   {
     ACE_Time_Value interval(CLOCK_TICK_HEART_BEAT);
@@ -3838,7 +3838,7 @@ truefalse MyHeartBeatDispatcher::before_begin()
 
 //MyHeartBeatModule//
 
-MyHeartBeatModule::MyHeartBeatModule(CApp * app): CMod(app)
+MyHeartBeatModule::MyHeartBeatModule(CApp * app): CContainer(app)
 {
   m_service = NULL;
   m_dispatcher = NULL;
@@ -3905,7 +3905,7 @@ CONST text * MyHeartBeatModule::name() CONST
 truefalse MyHeartBeatModule::before_begin()
 {
   add_task(m_service = new MyHeartBeatService(this, 1));
-  add_dispatch(m_dispatcher = new MyHeartBeatDispatcher(this));
+  add_scheduler(m_dispatcher = new MyHeartBeatDispatcher(this));
   return true;
 }
 
@@ -4060,12 +4060,12 @@ PREPARE_MEMORY_POOL(MyDistToBSHandler);
 
 //MyDistToBSConnector//
 
-MyDistToBSConnector::MyDistToBSConnector(CDispatchBase * _dispatcher, CHandlerDirector * _manager):
-    CConnectorBase(_dispatcher, _manager)
+MyDistToBSConnector::MyDistToBSConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
+    CParentConn(_dispatcher, _manager)
 {
-  m_tcp_port = CCfgX::instance()->bs_port;
-  m_reconnect_interval = RECONNECT_INTERVAL;
-  m_tcp_addr = CCfgX::instance()->bs_addr;
+  m_port_of_ip = CCfgX::instance()->bs_port;
+  m_retry_delay = RECONNECT_INTERVAL;
+  m_remote_ip = CCfgX::instance()->bs_addr;
 }
 
 CONST text * MyDistToBSConnector::name() CONST
@@ -4075,7 +4075,7 @@ CONST text * MyDistToBSConnector::name() CONST
 
 ni MyDistToBSConnector::make_svc_handler(CParentHandler *& sh)
 {
-  sh = new MyDistToBSHandler(m_connection_manager);
+  sh = new MyDistToBSHandler(m_director);
   if (!sh)
   {
     C_ERROR("can not alloc MyDistToBSHandler from %s\n", name());
@@ -4325,12 +4325,12 @@ PREPARE_MEMORY_POOL(MyDistToMiddleHandler);
 
 //MyDistToMiddleConnector//
 
-MyDistToMiddleConnector::MyDistToMiddleConnector(CDispatchBase * _dispatcher, CHandlerDirector * _manager):
-    CConnectorBase(_dispatcher, _manager)
+MyDistToMiddleConnector::MyDistToMiddleConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
+    CParentConn(_dispatcher, _manager)
 {
-  m_tcp_port = CCfgX::instance()->server_port;
-  m_reconnect_interval = RECONNECT_INTERVAL;
-  m_tcp_addr = CCfgX::instance()->middle_addr;
+  m_port_of_ip = CCfgX::instance()->server_port;
+  m_retry_delay = RECONNECT_INTERVAL;
+  m_remote_ip = CCfgX::instance()->middle_addr;
 }
 
 CONST text * MyDistToMiddleConnector::name() CONST
@@ -4340,7 +4340,7 @@ CONST text * MyDistToMiddleConnector::name() CONST
 
 ni MyDistToMiddleConnector::make_svc_handler(CParentHandler *& sh)
 {
-  sh = new MyDistToMiddleHandler(m_connection_manager);
+  sh = new MyDistToMiddleHandler(m_director);
   if (!sh)
   {
     C_ERROR("can not alloc MyDistToMiddleHandler from %s\n", name());
@@ -4355,8 +4355,8 @@ ni MyDistToMiddleConnector::make_svc_handler(CParentHandler *& sh)
 
 //MyDistToMiddleDispatcher//
 
-MyDistToMiddleDispatcher::MyDistToMiddleDispatcher(CMod * pModule, ni numThreads):
-    CDispatchBase(pModule, numThreads)
+MyDistToMiddleDispatcher::MyDistToMiddleDispatcher(CContainer * pModule, ni numThreads):
+    CParentScheduler(pModule, numThreads)
 {
   m_connector = NULL;
   m_bs_connector = NULL;
@@ -4383,10 +4383,10 @@ truefalse MyDistToMiddleDispatcher::before_begin()
 {
   if (!m_connector)
     m_connector = new MyDistToMiddleConnector(this, new CHandlerDirector());
-  add_connector(m_connector);
+  conn_add(m_connector);
   if (!m_bs_connector)
     m_bs_connector = new MyDistToBSConnector(this, new CHandlerDirector());
-  add_connector(m_bs_connector);
+  conn_add(m_bs_connector);
   return true;
 }
 
@@ -4433,7 +4433,7 @@ DVOID MyDistToMiddleDispatcher::before_finish()
 
 //MyDistToMiddleModule//
 
-MyDistToMiddleModule::MyDistToMiddleModule(CApp * app): CMod(app)
+MyDistToMiddleModule::MyDistToMiddleModule(CApp * app): CContainer(app)
 {
   m_dispatcher = NULL;
 }
@@ -4460,7 +4460,7 @@ DVOID MyDistToMiddleModule::send_to_middle(CMB * mb)
 
 truefalse MyDistToMiddleModule::before_begin()
 {
-  add_dispatch(m_dispatcher = new MyDistToMiddleDispatcher(this));
+  add_scheduler(m_dispatcher = new MyDistToMiddleDispatcher(this));
   return true;
 }
 
