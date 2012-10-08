@@ -292,8 +292,8 @@ private:
 };
 
 
-class MyHttpModule;
-class MyHttpAcceptor;
+class CBsReqContainer;
+class CBsReqAcc;
 
 class CBsReqProc: public CParentFormattedProc<ni>
 {
@@ -327,26 +327,25 @@ class CBsReqTask: public CTaskBase
 {
 public:
   CBsReqTask(CContainer *, ni = 1);
-
   virtual ni svc();
   virtual CONST text * name() CONST;
 
 private:
   enum { MQ_MAX = 5 * 1024 * 1024 };
 
-  truefalse handle_packet(CMB * mb);
-  truefalse do_handle_packet(CMB * mb, CBsDistReq & );
-  truefalse do_handle_packet2(CMB * mb);
-  truefalse parse_request(CMB * mb, CBsDistReq & );
-  truefalse do_compress(CBsDistReq & );
-  truefalse do_calc_md5(CBsDistReq &);
-  truefalse notify_dist_servers();
+  truefalse process_mb(CMB * mb);
+  truefalse process_mb_i(CMB * mb, CBsDistReq & );
+  truefalse process_mb_i2(CMB * mb);
+  truefalse analyze_cmd(CMB * mb, CBsDistReq & );
+  truefalse process_comp(CBsDistReq & );
+  truefalse compute_checksum(CBsDistReq &);
+  truefalse tell_dists();
 };
 
-class MyHttpDispatcher: public CParentScheduler
+class CBsReqScheduler: public CParentScheduler
 {
 public:
-  MyHttpDispatcher(CContainer * pModule, ni numThreads = 1);
+  CBsReqScheduler(CContainer *, ni = 1);
   virtual CONST text * name() CONST;
 
 protected:
@@ -354,85 +353,85 @@ protected:
   virtual truefalse before_begin();
 
 private:
-  MyHttpAcceptor * m_acceptor;
+  CBsReqAcc * m_acc;
 };
 
-class MyHttpAcceptor: public CParentAcc
+class CBsReqAcc: public CParentAcc
 {
 public:
-  enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
+  enum { BROKEN_DELAY = 5 }; //m
 
-  MyHttpAcceptor(CParentScheduler * _dispatcher, CHandlerDirector * manager);
+  CBsReqAcc(CParentScheduler *, CHandlerDirector *);
   virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 };
 
 
-class MyHttpModule: public CContainer
+class CBsReqContainer: public CContainer
 {
 public:
-  MyHttpModule(CApp * app);
-  virtual ~MyHttpModule();
+  CBsReqContainer(CApp * app);
+  virtual ~CBsReqContainer();
   virtual CONST text * name() CONST;
-  CBsReqTask * http_service();
+  CBsReqTask * bs_req_task();
 
 protected:
   virtual truefalse before_begin();
   virtual DVOID before_finish();
 
 private:
-  CBsReqTask *m_service;
-  MyHttpDispatcher * m_dispatcher;
+  CBsReqTask * m_bs_req_task;
+  CBsReqScheduler * m_scheduler;
 };
 
 
-class MyDistLoadModule;
-class MyDistLoadAcceptor;
+class CBalanceContainer;
+class CBalanceAcc;
 class MyMiddleToBSConnector;
 
-class MyDistLoadProcessor: public CParentServerProc
+class CBalanceProc: public CParentServerProc
 {
 public:
   typedef CParentServerProc baseclass;
 
-  MyDistLoadProcessor(CParentHandler * handler);
-  virtual ~MyDistLoadProcessor();
+  CBalanceProc(CParentHandler *);
+  virtual ~CBalanceProc();
   virtual CONST text * name() CONST;
   virtual truefalse term_sn_check_done() CONST;
   virtual CProc::OUTPUT at_head_arrival();
-  DVOID dist_loads(CBalanceDatas * dist_loads);
+  DVOID balance_datas(CBalanceDatas *);
 
 protected:
   virtual CProc::OUTPUT do_read_data(CMB * mb);
 
 private:
-  enum { MSG_QUEUE_MAX_SIZE = 1024 * 1024 };
+  enum { MQ_MAX = 1024 * 1024 };
 
-  CProc::OUTPUT do_version_check(CMB * mb);
-  CProc::OUTPUT do_load_balance(CMB * mb);
+  CProc::OUTPUT term_ver_validate(CMB * mb);
+  CProc::OUTPUT handle_balance(CMB * mb);
 
   truefalse m_term_sn_check_done;
-  CBalanceDatas * m_dist_loads;
+  CBalanceDatas * m_balance_datas;
 };
 
 
-class MyDistLoadHandler: public CParentHandler
+class CBalanceHandler: public CParentHandler
 {
 public:
-  MyDistLoadHandler(CHandlerDirector * xptr = NULL);
-  DVOID dist_loads(CBalanceDatas * dist_loads);
+  CBalanceHandler(CHandlerDirector * = NULL);
+  DVOID balance_datas(CBalanceDatas *);
 
-  DECLARE_MEMORY_POOL__NOTHROW(MyDistLoadHandler, ACE_Thread_Mutex);
+  DECLARE_MEMORY_POOL__NOTHROW(CBalanceHandler, ACE_Thread_Mutex);
 };
 
-class MyDistLoadDispatcher: public CParentScheduler
+class CBalanceScheduler: public CParentScheduler
 {
 public:
-  MyDistLoadDispatcher(CContainer * pModule, ni numThreads = 1);
-  ~MyDistLoadDispatcher();
+  CBalanceScheduler(CContainer *, ni = 1);
+  ~CBalanceScheduler();
   virtual CONST text * name() CONST;
-  virtual ni handle_timeout(CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
-  DVOID send_to_bs(CMB * mb);
+  virtual ni handle_timeout(CONST ACE_Time_Value &, CONST DVOID * = 0);
+  DVOID post_bs(CMB * mb);
 
 protected:
   virtual DVOID before_finish();
@@ -440,38 +439,38 @@ protected:
   virtual truefalse do_schedule_work();
 
 private:
-  enum { MSG_QUEUE_MAX_SIZE = 1024 * 1024 };
+  enum { MQ_MAX = 1024 * 1024 };
 
-  MyDistLoadAcceptor * m_acceptor;
-  MyMiddleToBSConnector * m_bs_connector;
-  ACE_Message_Queue<ACE_MT_SYNCH> m_to_bs_queue;
+  CBalanceAcc * m_acc;
+  MyMiddleToBSConnector * m_bs_conn;
+  ACE_Message_Queue<ACE_MT_SYNCH> m_bs_mq;
 };
 
-class MyDistLoadAcceptor: public CParentAcc
+class CBalanceAcc: public CParentAcc
 {
 public:
-  enum { IDLE_TIME_AS_DEAD = 15 }; //in minutes
-  MyDistLoadAcceptor(CParentScheduler * _dispatcher, CHandlerDirector * manager);
+  enum { REAP_DELAY = 15 }; //m
+  CBalanceAcc(CParentScheduler *, CHandlerDirector *);
 
   virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 };
 
 
-class MyDistLoadModule: public CContainer
+class CBalanceContainer: public CContainer
 {
 public:
-  MyDistLoadModule(CApp * app);
-  virtual ~MyDistLoadModule();
+  CBalanceContainer(CApp *);
+  virtual ~CBalanceContainer();
   virtual CONST text * name() CONST;
-  MyDistLoadDispatcher * dispatcher() CONST;
+  CBalanceScheduler * scheduler() CONST;
 
 protected:
   virtual truefalse before_begin();
   virtual DVOID before_finish();
 
 private:
-  MyDistLoadDispatcher * m_dispatcher;
+  CBalanceScheduler * m_scheduler;
 };
 
 
@@ -496,7 +495,7 @@ public:
   MyMiddleToBSHandler(CHandlerDirector * xptr = NULL);
   virtual ni handle_timeout (CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
   DVOID checker_update();
-  MyDistLoadModule * module_x() CONST;
+  CBalanceContainer * module_x() CONST;
   DECLARE_MEMORY_POOL__NOTHROW(MyMiddleToBSHandler, ACE_Thread_Mutex);
 
 protected:

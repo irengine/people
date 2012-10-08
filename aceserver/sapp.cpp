@@ -35,12 +35,12 @@ MyHeartBeatModule * CRunner::ping_component() CONST
   return m_ping_component;
 }
 
-MyDistLoadModule * CRunner::dist_load_module() CONST
+CBalanceContainer * CRunner::dist_load_module() CONST
 {
   return m_dist_load_module;
 }
 
-MyHttpModule * CRunner::http_module() CONST
+CBsReqContainer * CRunner::http_module() CONST
 {
   return m_http_module;
 }
@@ -152,11 +152,11 @@ DVOID CRunner::print_caches()
     CApp::print_pool("MyHttpProcessor", l_get, l_put, l_peak, l_fail, sizeof(CBsReqProc), blocks);
   }
 
-  if (MyDistLoadHandler::mem_block())
+  if (CBalanceHandler::mem_block())
   {
-    blocks = MyDistLoadHandler::mem_block()->blocks();
-    MyDistLoadHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyDistLoadHandler", l_get, l_put, l_peak, l_fail, sizeof(MyDistLoadHandler), blocks);
+    blocks = CBalanceHandler::mem_block()->blocks();
+    CBalanceHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyDistLoadHandler", l_get, l_put, l_peak, l_fail, sizeof(CBalanceHandler), blocks);
   }
 
   if (MyMiddleToBSHandler::mem_block())
@@ -201,8 +201,8 @@ truefalse CRunner::do_init()
   if (cfg->middle())
   {
     add_component(m_location_module = new CPositionContainer(this));
-    add_component(m_dist_load_module = new MyDistLoadModule(this));
-    add_component(m_http_module = new MyHttpModule(this));
+    add_component(m_dist_load_module = new CBalanceContainer(this));
+    add_component(m_http_module = new CBsReqContainer(this));
   }
   return true;
 }
@@ -227,7 +227,7 @@ truefalse CRunner::initialize(CONST text * v_dir, CCfg::CAppMode v_m)
   }
   if (l_p->middle())
   {
-    MyDistLoadHandler::mem_block_start(50);
+    CBalanceHandler::mem_block_start(50);
     CPositionHandler::mem_block_start(1000);
     CPositionProc::mem_block_start(1000);
     CBsReqProc::mem_block_start(20);
@@ -251,7 +251,7 @@ DVOID CRunner::cleanup()
   MyHeartBeatProcessor::mem_block_end();
   CPositionHandler::mem_block_end();
   CPositionProc::mem_block_end();
-  MyDistLoadHandler::mem_block_end();
+  CBalanceHandler::mem_block_end();
   CBsReqHandler::mem_block_end();
   CBsReqProc::mem_block_end();
   MyDistToMiddleHandler::mem_block_end();

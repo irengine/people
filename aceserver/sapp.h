@@ -16,8 +16,8 @@ public:
 
   CTermSNs & termSNs();
   MyHeartBeatModule * ping_component() CONST;
-  MyDistLoadModule * dist_load_module() CONST;
-  MyHttpModule * http_module() CONST;
+  CBalanceContainer * dist_load_module() CONST;
+  CBsReqContainer * http_module() CONST;
   CPositionContainer * location_module() CONST;
   MyDistToMiddleModule * dist_to_middle_module() CONST;
   MyDB & db();
@@ -36,8 +36,8 @@ protected:
 private:
   MyHeartBeatModule * m_ping_component;
   CPositionContainer * m_location_module;
-  MyDistLoadModule * m_dist_load_module;
-  MyHttpModule     * m_http_module;
+  CBalanceContainer * m_dist_load_module;
+  CBsReqContainer     * m_http_module;
   MyDistToMiddleModule * m_dist_to_middle_module;
   CTermSNs m_term_SNs;
   MyDB  m_db;

@@ -846,7 +846,7 @@ truefalse CBsReqProc::handle_req()
     return false;
   }
   if (likely(l_m == 1 || l_m == 3))
-    l_ret = (c_tools_mb_putq(CRunnerX::instance()->http_module()->http_service(), m_mb,
+    l_ret = (c_tools_mb_putq(CRunnerX::instance()->http_module()->bs_req_task(), m_mb,
               "CBsReqProc::handle_req"));
   m_mb = NULL;
   return l_ret;
@@ -915,19 +915,18 @@ CBsReqHandler::CBsReqHandler(CHandlerDirector * p): CParentHandler(p)
 PREPARE_MEMORY_POOL(CBsReqHandler);
 
 
-MyHttpAcceptor::MyHttpAcceptor(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
-    CParentAcc(_dispatcher, _manager)
+CBsReqAcc::CBsReqAcc(CParentScheduler * p1, CHandlerDirector * p2): CParentAcc(p1, p2)
 {
   m_tcp_port = CCfgX::instance()->http_port;
-  m_reap_interval = IDLE_TIME_AS_DEAD;
+  m_reap_interval = BROKEN_DELAY;
 }
 
-ni MyHttpAcceptor::make_svc_handler(CParentHandler *& sh)
+ni CBsReqAcc::make_svc_handler(CParentHandler *& sh)
 {
   sh = new CBsReqHandler(m_director);
   if (!sh)
   {
-    C_ERROR("not enough memory to create MyHttpHandler object\n");
+    C_ERROR("oom\n");
     return -1;
   }
   sh->container((void*)this);
@@ -935,9 +934,9 @@ ni MyHttpAcceptor::make_svc_handler(CParentHandler *& sh)
   return 0;
 }
 
-CONST text * MyHttpAcceptor::name() CONST
+CONST text * CBsReqAcc::name() CONST
 {
-  return "MyHttpAcceptor";
+  return "CBsReqAcc";
 }
 
 
@@ -951,7 +950,7 @@ ni CBsReqTask::svc()
   C_INFO("Start %s::svc()\n", name());
   for (CMB * mb; getq(mb) != -1; )
   {
-    handle_packet(mb);
+    process_mb(mb);
     mb->release();
   }
   C_INFO("exiting %s::svc()\n", name());
@@ -960,170 +959,169 @@ ni CBsReqTask::svc()
 
 CONST text * CBsReqTask::name() CONST
 {
-  return "MyHttpService";
+  return "CBsReqTask";
 }
 
-truefalse CBsReqTask::parse_request(CMB * mb, CBsDistReq &http_dist_request)
+truefalse CBsReqTask::analyze_cmd(CMB * mb, CBsDistReq & v_bs_req)
 {
   CONST text CONST_header[] = "http://127.0.0.1:10092/file?";
   CONST ni CONST_header_len = sizeof(CONST_header) / sizeof(text) - 1;
-  ni mb_len = mb->length();
-  memmove(mb->base(), mb->base() + 4, mb_len - 4);
-  mb->base()[mb_len - 4] = 0;
+  ni l_x = mb->length();
+  memmove(mb->base(), mb->base() + 4, l_x - 4);
+  mb->base()[l_x - 4] = 0;
   if (unlikely((ni)(mb->length()) <= CONST_header_len + 10))
   {
-    C_ERROR("bad http request, packet too short\n", CONST_header);
+    C_ERROR("invalid bs req: too short\n");
     return false;
   }
 
-  text * packet = mb->base();
-  if (memcmp(packet, CONST_header, CONST_header_len) != 0)
+  text * l_ptr = mb->base();
+  if (memcmp(l_ptr, CONST_header, CONST_header_len) != 0)
   {
-    C_ERROR("bad http packet, no match header of (%s) found\n", CONST_header);
+    C_ERROR("invalid bs req: no %s\n", CONST_header);
     return false;
   }
 
-  packet += CONST_header_len;
+  l_ptr += CONST_header_len;
   CONST text CONST_separator = '&';
 
   CONST text * CONST_acode = "acode=";
-  if (!c_tools_locate_key_result(packet, CONST_acode, http_dist_request.acode, CONST_separator))
+  if (!c_tools_locate_key_result(l_ptr, CONST_acode, v_bs_req.acode, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", CONST_acode);
+    C_ERROR("invalid bs req: no %s\n", CONST_acode);
     return false;
   }
 
   CONST text * CONST_ftype = "ftype=";
-  if (!c_tools_locate_key_result(packet, CONST_ftype, http_dist_request.ftype, CONST_separator))
+  if (!c_tools_locate_key_result(l_ptr, CONST_ftype, v_bs_req.ftype, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", CONST_ftype);
+    C_ERROR("invalid bs req: no %s\n", CONST_ftype);
     return false;
   }
 
   CONST text * CONST_fdir = "fdir=";
-  if (!c_tools_locate_key_result(packet, CONST_fdir, http_dist_request.fdir, CONST_separator))
+  if (!c_tools_locate_key_result(l_ptr, CONST_fdir, v_bs_req.fdir, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", CONST_fdir);
+    C_ERROR("invalid bs req: no %s\n", CONST_fdir);
     return false;
   }
 
   CONST text * CONST_findex = "findex=";
-  if (!c_tools_locate_key_result(packet, CONST_findex, http_dist_request.findex, CONST_separator))
+  if (!c_tools_locate_key_result(l_ptr, CONST_findex, v_bs_req.findex, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", CONST_findex);
+    C_ERROR("invalid bs req: no %s\n", CONST_findex);
     return false;
   }
 
   CONST text * CONST_adir = "adir=";
-  if (!c_tools_locate_key_result(packet, CONST_adir, http_dist_request.adir, CONST_separator))
+  if (!c_tools_locate_key_result(l_ptr, CONST_adir, v_bs_req.adir, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", CONST_adir);
+    C_ERROR("invalid bs req: no %s\n", CONST_adir);
     return false;
   }
 
   CONST text * CONST_aindex = "aindex=";
-  if (!c_tools_locate_key_result(packet, CONST_aindex, http_dist_request.aindex, CONST_separator))
+  if (!c_tools_locate_key_result(l_ptr, CONST_aindex, v_bs_req.aindex, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", CONST_aindex);
+    C_ERROR("invalid bs req: no %s\n", CONST_aindex);
     return false;
   }
 
   CONST text * CONST_ver = "ver=";
-  if (!c_tools_locate_key_result(packet, CONST_ver, http_dist_request.ver, CONST_separator))
+  if (!c_tools_locate_key_result(l_ptr, CONST_ver, v_bs_req.ver, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", CONST_ver);
+    C_ERROR("invalid bs req: no %s\n", CONST_ver);
     return false;
   }
 
   CONST text * CONST_type = "type=";
-  if (!c_tools_locate_key_result(packet, CONST_type, http_dist_request.type, CONST_separator))
+  if (!c_tools_locate_key_result(l_ptr, CONST_type, v_bs_req.type, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", CONST_type);
+    C_ERROR("invalid bs req: no %s\n", CONST_type);
     return false;
   }
 
   return true;
 }
 
-truefalse CBsReqTask::handle_packet(CMB * _mb)
+truefalse CBsReqTask::process_mb(CMB * v_mb)
 {
-  if ((_mb->self_flags() & 0x2000) == 0)
+  if ((v_mb->self_flags() & 0x2000) == 0)
   {
-    CBsDistReq http_dist_request;
-    truefalse result = do_handle_packet(_mb, http_dist_request);
-    if (unlikely(!result && !http_dist_request.is_ok(true)))
+    CBsDistReq l_bs_req;
+    truefalse l_ret = process_mb_i(v_mb, l_bs_req);
+    if (unlikely(!l_ret && !l_bs_req.is_ok(true)))
       return false;
-    ni total_len;
-    text buff[32];
-    c_tools_convert_time_to_text(buff, 32, true);
-    total_len = strlen(buff) + strlen(http_dist_request.ver) + 8;
-    CMB * mb = CCacheX::instance()->get_mb_bs(total_len, CONST_BS_DIST_FEEDBACK_CMD);
-    text * dest = mb->base() + CBSData::DATA_OFFSET;
-    sprintf(dest, "%s#%c##1#%c#%s", http_dist_request.ver, *http_dist_request.ftype,
-        result? '1':'0', buff);
-    dest[total_len] = CBSData::END_MARK;
-    CRunnerX::instance()->dist_load_module()->dispatcher()->send_to_bs(mb);
+    ni l_all;
+    text tmp[32];
+    c_tools_convert_time_to_text(tmp, 32, true);
+    l_all = strlen(tmp) + strlen(l_bs_req.ver) + 8;
+    CMB * mb = CCacheX::instance()->get_mb_bs(l_all, CONST_BS_DIST_FEEDBACK_CMD);
+    text * l_ptr = mb->base() + CBSData::DATA_OFFSET;
+    sprintf(l_ptr, "%s#%c##1#%c#%s", l_bs_req.ver, *l_bs_req.ftype,
+        l_ret? '1':'0', tmp);
+    l_ptr[l_all] = CBSData::END_MARK;
+    CRunnerX::instance()->dist_load_module()->scheduler()->post_bs(mb);
 
-    return result;
+    return l_ret;
   } else
   {
-    return do_handle_packet2(_mb);
+    return process_mb_i2(v_mb);
   }
 }
 
-truefalse CBsReqTask::do_handle_packet(CMB * mb, CBsDistReq & http_dist_request)
+truefalse CBsReqTask::process_mb_i(CMB * mb, CBsDistReq & v_bs_req)
 {
-  if (!parse_request(mb, http_dist_request))
+  if (!analyze_cmd(mb, v_bs_req))
     return false;
 
-  if (!http_dist_request.is_ok(true))
+  if (!v_bs_req.is_ok(true))
     return false;
 
-  text password[12];
-  c_tools_create_rnd_text(password, 12);
-  http_dist_request.password = password;
-  MyDB & db = CRunnerX::instance()->db();
+  text key[12];
+  c_tools_create_rnd_text(key, 12);
+  v_bs_req.password = key;
+  MyDB & l_database = CRunnerX::instance()->db();
 
   if (unlikely(!container()->working_app()))
     return false;
 
-  if (!do_compress(http_dist_request))
+  if (!process_comp(v_bs_req))
     return false;
 
   if (unlikely(!container()->working_app()))
     return false;
 
-  CMemProt md5_result;
+  CMemProt l_cs;
   {
-    CChecksumComputer calc;
+    CChecksumComputer l_cs_computer;
     ni md5_len;
-    if (!calc.compute(http_dist_request, md5_result, md5_len))
+    if (!l_cs_computer.compute(v_bs_req, l_cs, md5_len))
       return false;
   }
 
   if (unlikely(!container()->working_app()))
     return false;
 
-  CMemProt mbz_md5_result;
-//  if (http_dist_request.need_mbz_md5()) //generate all in one.mbz md5 anyway
+  CMemProt l_single_cs;
   {
-    if (!CChecksumComputer::compute_single_cs(http_dist_request.ver, mbz_md5_result))
+    if (!CChecksumComputer::compute_single_cs(v_bs_req.ver, l_single_cs))
       return false;
   }
 
-  if (!db.ping_db_server())
+  if (!l_database.ping_db_server())
   {
-    C_ERROR("no connection to db, aborting processing of dist %s\n", http_dist_request.ver);
+    C_ERROR("lost db con, no more proc of dist %s\n", v_bs_req.ver);
     return false;
   }
 
-  if (!db.save_dist(http_dist_request, md5_result.get_ptr(), mbz_md5_result.get_ptr()))
+  if (!l_database.save_dist(v_bs_req, l_cs.get_ptr(), l_single_cs.get_ptr()))
   {
     C_ERROR("can not save_dist to db\n");
     return false;
   }
 
-  if (!db.save_dist_clients(http_dist_request.acode, http_dist_request.adir, http_dist_request.ver))
+  if (!l_database.save_dist_clients(v_bs_req.acode, v_bs_req.adir, v_bs_req.ver))
   {
     C_ERROR("can not save_dist_clients to db\n");
     return false;
@@ -1132,210 +1130,201 @@ truefalse CBsReqTask::do_handle_packet(CMB * mb, CBsDistReq & http_dist_request)
   if (unlikely(!container()->working_app()))
     return false;
 
-  if (!db.dist_info_update_status())
+  if (!l_database.dist_info_update_status())
   {
     C_ERROR("call to dist_info_update_status() failed\n");
     return false;
   }
 
-  db.remove_orphan_dist_info();
+  l_database.remove_orphan_dist_info();
 
-  notify_dist_servers();
+  tell_dists();
 
-  CObsoleteDirDeleter path_remover;
-  if (db.get_dist_ids(path_remover))
-    path_remover.work(CCfgX::instance()->bz_files_path.c_str());
+  CObsoleteDirDeleter x;
+  if (l_database.get_dist_ids(x))
+    x.work(CCfgX::instance()->bz_files_path.c_str());
 
   return true;
 }
 
-truefalse CBsReqTask::do_handle_packet2(CMB * mb)
+truefalse CBsReqTask::process_mb_i2(CMB * mb)
 {
   CONST text CONST_header[] = "http://127.0.0.1:10092/task?";
   CONST ni CONST_header_len = sizeof(CONST_header) / sizeof(text) - 1;
-  ni mb_len = mb->length();
-  memmove(mb->base(), mb->base() + 4, mb_len - 4);
-  mb->base()[mb_len - 4] = 0;
+  ni l_m = mb->length();
+  memmove(mb->base(), mb->base() + 4, l_m - 4);
+  mb->base()[l_m - 4] = 0;
   if (unlikely((ni)(mb->length()) <= CONST_header_len + 10))
   {
-    C_ERROR("bad http request, packet too short\n", CONST_header);
+    C_ERROR("invalid bs req too short\n");
     return false;
   }
 
-  text * packet = mb->base();
-  if (memcmp(packet, CONST_header, CONST_header_len) != 0)
+  text * l_ptr = mb->base();
+  if (memcmp(l_ptr, CONST_header, CONST_header_len) != 0)
   {
-    C_ERROR("bad http packet, no match header of (%s) found\n", CONST_header);
+    C_ERROR("invalid bs req: no (%s)\n", CONST_header);
     return false;
   }
 
-  packet += CONST_header_len;
+  l_ptr += CONST_header_len;
   CONST text CONST_separator = '&';
 
   CONST text * CONST_ver = "ver=";
   text * ver = 0;
-  if (!c_tools_locate_key_result(packet, CONST_ver, ver, CONST_separator))
+  if (!c_tools_locate_key_result(l_ptr, CONST_ver, ver, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", CONST_ver);
+    C_ERROR("invalid bs req: no %s\n", CONST_ver);
     return false;
   }
 
 
   CONST text * CONST_cmd = "cmd=";
   text * cmd = 0;
-  if (!c_tools_locate_key_result(packet, CONST_cmd, cmd, CONST_separator))
+  if (!c_tools_locate_key_result(l_ptr, CONST_cmd, cmd, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", CONST_cmd);
+    C_ERROR("invalid bs req: no %s\n", CONST_cmd);
     return false;
   }
 
   CONST text * CONST_backid = "backid=";
   text * backid = 0;
-  if (!c_tools_locate_key_result(packet, CONST_backid, backid, CONST_separator))
+  if (!c_tools_locate_key_result(l_ptr, CONST_backid, backid, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", CONST_backid);
+    C_ERROR("invalid bs req: no %s\n", CONST_backid);
     return false;
   }
 
   CONST text * CONST_acode = "acode=";
   text * acode = 0;
-  if (!c_tools_locate_key_result(packet, CONST_acode, acode, CONST_separator))
+  if (!c_tools_locate_key_result(l_ptr, CONST_acode, acode, CONST_separator))
   {
-    C_ERROR("can not find tag %s at http packet\n", CONST_acode);
+    C_ERROR("invalid bs req: no %s\n", CONST_acode);
     return false;
   }
 
-  MyDB & db = CRunnerX::instance()->db();
-  if (!db.ping_db_server())
+  MyDB & l_database = CRunnerX::instance()->db();
+  if (!l_database.ping_db_server())
   {
-    C_ERROR("no connection to db, aborting processing\n");
+    C_ERROR("lost db con\n");
     return false;
   }
 
-  db.save_sr(backid, cmd, acode);
-  if (!db.dist_info_update_status())
+  l_database.save_sr(backid, cmd, acode);
+  if (!l_database.dist_info_update_status())
   {
     C_ERROR("call to dist_info_update_status() failed\n");
     return false;
   }
 
-  notify_dist_servers();
+  tell_dists();
   return true;
 }
 
-truefalse CBsReqTask::do_compress(CBsDistReq & http_dist_request)
+truefalse CBsReqTask::process_comp(CBsDistReq & v_x)
 {
-  CCompFactory compressor;
-  return compressor.do_comp(http_dist_request);
+  CCompFactory l_x;
+  return l_x.do_comp(v_x);
 }
 
-truefalse CBsReqTask::do_calc_md5(CBsDistReq & http_dist_request)
+truefalse CBsReqTask::compute_checksum(CBsDistReq & v_x)
 {
-  CChecksumComputer calc;
-  CMemProt md5_result;
-  ni md5_len;
-  return calc.compute(http_dist_request, md5_result, md5_len);
+  CChecksumComputer obj;
+  CMemProt prot;
+  ni l_x;
+  return obj.compute(v_x, prot, l_x);
 }
 
-truefalse CBsReqTask::notify_dist_servers()
+truefalse CBsReqTask::tell_dists()
 {
   CMB * mb = CCacheX::instance()->get_mb_cmd(0, CCmdHeader::PT_HAVE_DIST_TASK);
-  return c_tools_mb_putq(CRunnerX::instance()->dist_load_module()->dispatcher(), mb, "dist task notification to target queue");
+  return c_tools_mb_putq(CRunnerX::instance()->dist_load_module()->scheduler(), mb, "dist work");
 }
 
-//MyHttpDispatcher//
 
-MyHttpDispatcher::MyHttpDispatcher(CContainer * pModule, ni numThreads):
-    CParentScheduler(pModule, numThreads)
+
+CBsReqScheduler::CBsReqScheduler(CContainer * p, ni m): CParentScheduler(p, m)
 {
-  m_acceptor = NULL;
+  m_acc = NULL;
 }
 
-CONST text * MyHttpDispatcher::name() CONST
+CONST text * CBsReqScheduler::name() CONST
 {
-  return "MyHttpDispatcher";
+  return "CBsReqScheduler";
 }
 
-DVOID MyHttpDispatcher::before_finish()
+DVOID CBsReqScheduler::before_finish()
 {
-  m_acceptor = NULL;
+  m_acc = NULL;
 }
 
-truefalse MyHttpDispatcher::before_begin()
+truefalse CBsReqScheduler::before_begin()
 {
-  if (!m_acceptor)
-    m_acceptor = new MyHttpAcceptor(this, new CHandlerDirector());
-  acc_add(m_acceptor);
+  if (!m_acc)
+    m_acc = new CBsReqAcc(this, new CHandlerDirector());
+  acc_add(m_acc);
   return true;
 }
 
 
-//MyHttpModule//
-
-MyHttpModule::MyHttpModule(CApp * app): CContainer(app)
+CBsReqContainer::CBsReqContainer(CApp * ptr): CContainer(ptr)
 {
-  m_dispatcher = NULL;
-  m_service = NULL;
+  m_scheduler = NULL;
+  m_bs_req_task = NULL;
 }
 
-MyHttpModule::~MyHttpModule()
+CBsReqContainer::~CBsReqContainer()
 {
 
 }
 
-CONST text * MyHttpModule::name() CONST
+CONST text * CBsReqContainer::name() CONST
 {
-  return "MyHttpModule";
+  return "CBsReqContainer";
 }
 
-CBsReqTask * MyHttpModule::http_service()
+CBsReqTask * CBsReqContainer::bs_req_task()
 {
-  return m_service;
+  return m_bs_req_task;
 }
 
-truefalse MyHttpModule::before_begin()
+truefalse CBsReqContainer::before_begin()
 {
-  add_task(m_service = new CBsReqTask(this, 1));
-  add_scheduler(m_dispatcher = new MyHttpDispatcher(this));
+  add_task(m_bs_req_task = new CBsReqTask(this, 1));
+  add_scheduler(m_scheduler = new CBsReqScheduler(this));
   return true;
 }
 
-DVOID MyHttpModule::before_finish()
+DVOID CBsReqContainer::before_finish()
 {
-  m_dispatcher = NULL;
-  m_service = NULL;
+  m_scheduler = NULL;
+  m_bs_req_task = NULL;
 }
 
 
-//============================//
-//DistLoad module stuff begins here
-//============================//
-
-//MyDistLoadProcessor//
-
-MyDistLoadProcessor::MyDistLoadProcessor(CParentHandler * handler): CParentServerProc(handler)
+CBalanceProc::CBalanceProc(CParentHandler * p): CParentServerProc(p)
 {
   m_term_sn_check_done = false;
-  m_dist_loads = NULL;
-  m_handler->msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
+  m_balance_datas = NULL;
+  m_handler->msg_queue()->high_water_mark(MQ_MAX);
 }
 
-MyDistLoadProcessor::~MyDistLoadProcessor()
+CBalanceProc::~CBalanceProc()
 {
 
 }
 
-CONST text * MyDistLoadProcessor::name() CONST
+CONST text * CBalanceProc::name() CONST
 {
-  return "MyDistLoadProcessor";
+  return "CBalanceProc";
 }
 
-DVOID MyDistLoadProcessor::dist_loads(CBalanceDatas * dist_loads)
+DVOID CBalanceProc::balance_datas(CBalanceDatas * ptr)
 {
-  m_dist_loads = dist_loads;
+  m_balance_datas = ptr;
 }
 
-CProc::OUTPUT MyDistLoadProcessor::at_head_arrival()
+CProc::OUTPUT CBalanceProc::at_head_arrival()
 {
   if (baseclass::at_head_arrival() == OP_FAIL)
     return OP_FAIL;
@@ -1344,9 +1333,9 @@ CProc::OUTPUT MyDistLoadProcessor::at_head_arrival()
   {
     if (!c_packet_check_term_ver_req(&m_data_head))
     {
-      CMemProt info;
-      get_sinfo(info);
-      C_ERROR("bad client version check req packet received from %s\n", info.get_ptr());
+      CMemProt l_x;
+      get_sinfo(l_x);
+      C_ERROR("bad client version check req packet received from %s\n", l_x.get_ptr());
       return OP_FAIL;
     }
     return OP_OK;
@@ -1356,237 +1345,224 @@ CProc::OUTPUT MyDistLoadProcessor::at_head_arrival()
   {
     if (!c_packet_check_load_balance_req(&m_data_head))
     {
-      CMemProt info;
-      get_sinfo(info);
-      C_ERROR("bad load_balance packet received from %s\n", info.get_ptr());
+      CMemProt l_x;
+      get_sinfo(l_x);
+      C_ERROR("bad load_balance packet received from %s\n", l_x.get_ptr());
       return OP_FAIL;
     }
     return OP_OK;
   }
 
-  C_ERROR(ACE_TEXT("unexpected packet header received @MyDistLoadProcessor.at_head_arrival, cmd = %d\n"),
-      m_data_head.cmd);
+  C_ERROR("get unknown header @CBalanceProc.at_head_arrival, cmd = %d\n", m_data_head.cmd);
   return OP_FAIL;
 }
 
-CProc::OUTPUT MyDistLoadProcessor::do_read_data(CMB * mb)
+CProc::OUTPUT CBalanceProc::do_read_data(CMB * mb)
 {
   CParentServerProc::do_read_data(mb);
-  CMBProt guard(mb);
+  CMBProt prot(mb);
 
-  CCmdHeader * header = (CCmdHeader *)mb->base();
-  if (header->cmd == CCmdHeader::PT_VER_REQ)
-    return do_version_check(mb);
+  CCmdHeader * l_ptr = (CCmdHeader *)mb->base();
+  if (l_ptr->cmd == CCmdHeader::PT_VER_REQ)
+    return term_ver_validate(mb);
 
-  if (header->cmd == CCmdHeader::PT_LOAD_BALANCE_REQ)
-    return do_load_balance(mb);
+  if (l_ptr->cmd == CCmdHeader::PT_LOAD_BALANCE_REQ)
+    return handle_balance(mb);
 
-  C_ERROR("unsupported command received @MyDistLoadProcessor::do_read_data, command = %d\n",
-      header->cmd);
+  C_ERROR("get unknown cmd @CBalanceProc::do_read_data, command = %d\n",
+      l_ptr->cmd);
   return OP_FAIL;
 }
 
-CProc::OUTPUT MyDistLoadProcessor::do_version_check(CMB * mb)
+CProc::OUTPUT CBalanceProc::term_ver_validate(CMB * mb)
 {
   CTerminalVerReq * p = (CTerminalVerReq *) mb->base();
   m_term_sn = "DistServer";
-  truefalse result = (p->term_sn == CCfgX::instance()->skey.c_str());
-  if (!result)
+  truefalse l_x = (p->term_sn == CCfgX::instance()->skey.c_str());
+  if (!l_x)
   {
-    CMemProt info;
-    get_sinfo(info);
-    C_ERROR("bad load_balance version check (bad key) received from %s\n", info.get_ptr());
+    CMemProt x;
+    get_sinfo(x);
+    C_ERROR("bad load_balance version check (bad key) received from %s\n", x.get_ptr());
     return OP_FAIL;
   }
   m_term_sn_check_done = true;
 
-  CMB * reply_mb = i_create_mb_ver_reply(CTermVerReply::SC_OK);
-  return (m_handler->post_packet(reply_mb) < 0 ? OP_FAIL: OP_OK);
+  CMB * mb2 = i_create_mb_ver_reply(CTermVerReply::SC_OK);
+  return (m_handler->post_packet(mb2) < 0 ? OP_FAIL: OP_OK);
 }
 
-truefalse MyDistLoadProcessor::term_sn_check_done() CONST
+truefalse CBalanceProc::term_sn_check_done() CONST
 {
   return m_term_sn_check_done;
 }
 
-CProc::OUTPUT MyDistLoadProcessor::do_load_balance(CMB * mb)
+CProc::OUTPUT CBalanceProc::handle_balance(CMB * mb)
 {
-  CLoadBalanceReq * br = (CLoadBalanceReq *)mb->base();
+  CLoadBalanceReq * l_x = (CLoadBalanceReq *)mb->base();
   CBalanceData dl;
-  dl.set_load(br->load);
-  dl.set_ip(br->ip);
-  m_dist_loads->refresh(dl);
+  dl.set_load(l_x->load);
+  dl.set_ip(l_x->ip);
+  m_balance_datas->refresh(dl);
   return OP_OK;
 }
 
 
 
-MyDistLoadHandler::MyDistLoadHandler(CHandlerDirector * xptr): CParentHandler(xptr)
+CBalanceHandler::CBalanceHandler(CHandlerDirector * p): CParentHandler(p)
 {
-  m_proc = new MyDistLoadProcessor(this);
+  m_proc = new CBalanceProc(this);
 }
 
-DVOID MyDistLoadHandler::dist_loads(CBalanceDatas * dist_loads)
+DVOID CBalanceHandler::balance_datas(CBalanceDatas * p)
 {
-  ((MyDistLoadProcessor*)m_proc)->dist_loads(dist_loads);
+  ((CBalanceProc*)m_proc)->balance_datas(p);
 }
 
-PREPARE_MEMORY_POOL(MyDistLoadHandler);
+PREPARE_MEMORY_POOL(CBalanceHandler);
 
-//MyDistLoadAcceptor//
 
-MyDistLoadAcceptor::MyDistLoadAcceptor(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
-    CParentAcc(_dispatcher, _manager)
+
+CBalanceAcc::CBalanceAcc(CParentScheduler * p1, CHandlerDirector * p2): CParentAcc(p1, p2)
 {
   m_tcp_port = CCfgX::instance()->server_port;
-  m_reap_interval = IDLE_TIME_AS_DEAD;
+  m_reap_interval = REAP_DELAY;
 }
 
-ni MyDistLoadAcceptor::make_svc_handler(CParentHandler *& sh)
+ni CBalanceAcc::make_svc_handler(CParentHandler *& sh)
 {
-  sh = new MyDistLoadHandler(m_director);
+  sh = new CBalanceHandler(m_director);
   if (!sh)
   {
-    C_ERROR("not enough memory to create MyDistLoadHandler object\n");
+    C_ERROR("oom\n");
     return -1;
   }
   sh->container((void*)this);
   sh->reactor(reactor());
-  ((MyDistLoadHandler*)sh)->dist_loads(CRunnerX::instance()->location_module()->balance_datas());
+  ((CBalanceHandler*)sh)->balance_datas(CRunnerX::instance()->location_module()->balance_datas());
   return 0;
 }
 
-CONST text * MyDistLoadAcceptor::name() CONST
+CONST text * CBalanceAcc::name() CONST
 {
-  return "MyDistLoadAcceptor";
+  return "CBalanceAcc";
 }
 
 
-//MyDistLoadDispatcher//
-
-MyDistLoadDispatcher::MyDistLoadDispatcher(CContainer * pModule, ni numThreads):
-    CParentScheduler(pModule, numThreads)
+CBalanceScheduler::CBalanceScheduler(CContainer * p, ni m): CParentScheduler(p, m)
 {
-  m_acceptor = NULL;
-  m_bs_connector = NULL;
-  msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
+  m_acc = NULL;
+  m_bs_conn = NULL;
+  msg_queue()->high_water_mark(MQ_MAX);
 }
 
-MyDistLoadDispatcher::~MyDistLoadDispatcher()
+CBalanceScheduler::~CBalanceScheduler()
 {
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  ni i = 0;
-  for (CMB * mb; m_to_bs_queue.dequeue(mb, &tv) != -1; )
+  ACE_Time_Value l_x(ACE_Time_Value::zero);
+  ni l_m = 0;
+  for (CMB * mb; m_bs_mq.dequeue(mb, &l_x) != -1; )
   {
-    ++i;
-    mb->release();
-  }
-  if (i > 0)
-    C_INFO("releasing %d mb on %s::termination\n", i, name());
-}
-
-CONST text * MyDistLoadDispatcher::name() CONST
-{
-  return "MyDistLoadDispatcher";
-}
-
-DVOID MyDistLoadDispatcher::send_to_bs(CMB * mb)
-{
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (m_to_bs_queue.enqueue(mb, &tv) < 0)
-  {
-    C_ERROR("MyDistLoadDispatcher::send_to_bs() failed, %s\n", (CONST char*)CSysError());
+    ++l_m;
     mb->release();
   }
 }
 
-ni MyDistLoadDispatcher::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
+CONST text * CBalanceScheduler::name() CONST
+{
+  return "CBalanceScheduler";
+}
+
+DVOID CBalanceScheduler::post_bs(CMB * mb)
+{
+  ACE_Time_Value l_x(ACE_Time_Value::zero);
+  if (m_bs_mq.enqueue(mb, &l_x) < 0)
+  {
+    C_ERROR("post to bs failed, %s\n", (CONST char*)CSysError());
+    mb->release();
+  }
+}
+
+ni CBalanceScheduler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
 {
   CRunnerX::instance()->location_module()->balance_datas()->check_broken();
   return 0;
 }
 
-DVOID MyDistLoadDispatcher::before_finish()
+DVOID CBalanceScheduler::before_finish()
 {
-  m_acceptor = NULL;
-  m_bs_connector = NULL;
+  m_acc = NULL;
+  m_bs_conn = NULL;
   reactor()->cancel_timer(this);
 }
 
-truefalse MyDistLoadDispatcher::before_begin()
+truefalse CBalanceScheduler::before_begin()
 {
-  if (!m_acceptor)
-    m_acceptor = new MyDistLoadAcceptor(this, new CHandlerDirector());
-  acc_add(m_acceptor);
-  if (!m_bs_connector)
-    m_bs_connector = new MyMiddleToBSConnector(this, new CHandlerDirector());
-  conn_add(m_bs_connector);
+  if (!m_acc)
+    m_acc = new CBalanceAcc(this, new CHandlerDirector());
+  acc_add(m_acc);
+  if (!m_bs_conn)
+    m_bs_conn = new MyMiddleToBSConnector(this, new CHandlerDirector());
+  conn_add(m_bs_conn);
 
-  ACE_Time_Value interval(ni(CBalanceDatas::BROKEN_INTERVAL * 60 / CApp::CLOCK_TIME / 2));
-  if (reactor()->schedule_timer(this, 0, interval, interval) == -1)
+  ACE_Time_Value l_x(ni(CBalanceDatas::BROKEN_INTERVAL * 60 / CApp::CLOCK_TIME / 2));
+  if (reactor()->schedule_timer(this, 0, l_x, l_x) == -1)
   {
-    C_ERROR("can not setup dist load server scan timer\n");
+    C_ERROR("fail to setup timer: balance check\n");
     return false;
   }
   return true;
 }
 
-truefalse MyDistLoadDispatcher::do_schedule_work()
+truefalse CBalanceScheduler::do_schedule_work()
 {
   ACE_Time_Value tv(ACE_Time_Value::zero);
   CMB * mb;
-  CONST ni CONST_max_count = 10;
+  CONST ni CONST_peak_num = 10;
   ni i = 0;
-  while (++i < CONST_max_count && this->getq(mb, &tv) != -1)
-    m_acceptor->director()->post_all(mb);
+  while (++i < CONST_peak_num && this->getq(mb, &tv) != -1)
+    m_acc->director()->post_all(mb);
 
   i = 0;
-  while (++i < CONST_max_count && m_to_bs_queue.dequeue(mb, &tv) != -1)
-    m_bs_connector->director()->post_all(mb);
+  while (++i < CONST_peak_num && m_bs_mq.dequeue(mb, &tv) != -1)
+    m_bs_conn->director()->post_all(mb);
 
   return true;
 }
 
 
-//MyDistLoadModule//
-
-MyDistLoadModule::MyDistLoadModule(CApp * app): CContainer(app)
+CBalanceContainer::CBalanceContainer(CApp * ptr): CContainer(ptr)
 {
-  m_dispatcher = NULL;
+  m_scheduler = NULL;
 }
 
-MyDistLoadModule::~MyDistLoadModule()
+CBalanceContainer::~CBalanceContainer()
 {
 
 }
 
-CONST text * MyDistLoadModule::name() CONST
+CONST text * CBalanceContainer::name() CONST
 {
-  return "MyDistLoadModule";
+  return "CBalanceContainer";
 }
 
-MyDistLoadDispatcher * MyDistLoadModule::dispatcher() CONST
+CBalanceScheduler * CBalanceContainer::scheduler() CONST
 {
-  return m_dispatcher;
+  return m_scheduler;
 }
 
-truefalse MyDistLoadModule::before_begin()
+truefalse CBalanceContainer::before_begin()
 {
-  add_scheduler(m_dispatcher = new MyDistLoadDispatcher(this));
+  add_scheduler(m_scheduler = new CBalanceScheduler(this));
   return true;
 }
 
-DVOID MyDistLoadModule::before_finish()
+DVOID CBalanceContainer::before_finish()
 {
-  m_dispatcher = NULL;
+  m_scheduler = NULL;
 }
 
 
-/////////////////////////////////////
-//middle to BS
-/////////////////////////////////////
-
-//MyMiddleToBSProcessor//
+//m->bs
 
 MyMiddleToBSProcessor::MyMiddleToBSProcessor(CParentHandler * handler): baseclass(handler)
 {
@@ -1616,9 +1592,9 @@ MyMiddleToBSHandler::MyMiddleToBSHandler(CHandlerDirector * xptr): CParentHandle
   m_proc = new MyMiddleToBSProcessor(this);
 }
 
-MyDistLoadModule * MyMiddleToBSHandler::module_x() CONST
+CBalanceContainer * MyMiddleToBSHandler::module_x() CONST
 {
-  return (MyDistLoadModule *)connector()->container();
+  return (CBalanceContainer *)connector()->container();
 }
 
 DVOID MyMiddleToBSHandler::checker_update()
