@@ -446,7 +446,7 @@ private:
 class CProc
 {
 public:
-  enum OUTPUT  { OP_FAIL = -1, OP_OK = 0, OP_CONTINUE, OP_DONE };
+  enum OUTPUT  { OP_FAIL = -1, OP_OK = 0, OP_GO_ON, OP_DONE };
 
   CProc(CParentHandler *);
   virtual ~CProc();
@@ -524,7 +524,7 @@ public:
     if (m_subsequent_data_pos < (ni)sizeof( m_data_head))
       return 0;
 
-    ni l_y = read_req_body();
+    ni l_y = read_data_remain();
     if (l_y < 0)
       return -1;
     else if (l_y > 0)
@@ -557,36 +557,36 @@ protected:
     switch(l_o)
     {
     case CProc::OP_FAIL:
-    case CProc::OP_CONTINUE:
+    case CProc::OP_GO_ON:
       return -1;
     case CProc::OP_DONE:
-      if (packet_length() != sizeof( m_data_head))
+      if (data_len() != sizeof( m_data_head))
       {
-        C_FATAL("got ER_OK_FINISHED for packet header with more data remain to process.\n");
+        C_FATAL("OP_DONE data\n");
         return -1;
       }
       if (m_handler->handler_director())
-        m_handler->handler_director()->on_data_get(sizeof( m_data_head));
+        m_handler->handler_director()->on_data_get(sizeof(m_data_head));
       m_subsequent_data_pos = 0;
       return 1;
     case CProc::OP_OK:
       return 0;
     default:
-      C_FATAL("unexpected MyVeryBasePacketProcessor::EVENT_RESULT value = %d.\n", l_o);
+      C_FATAL("unknown CPROC::OP_XXX = %d.\n", l_o);
       return -1;
     }
   }
 
-  ni read_req_body()
+  ni read_data_remain()
   {
     if (!m_mb)
     {
-      m_mb = CCacheX::instance()->get_mb(packet_length());
+      m_mb = CCacheX::instance()->get_mb(data_len());
       if (!m_mb)
         return -1;
-      if (copy_header_to_mb(m_mb,  m_data_head) < 0)
+      if (move_data_head_to(m_mb,  m_data_head) < 0)
       {
-        C_ERROR("Message block copy header: m_current_block.copy() failed\n");
+        C_ERROR("mb copy head failed\n");
         return -1;
       }
     }
@@ -608,16 +608,16 @@ protected:
     return ret;
   }
 
-  ni copy_header_to_mb(CMB * mb, CONST T & header)
+  ni move_data_head_to(CMB * mb, CONST T & h)
   {
-    return mb->copy((CONST char*)&header, sizeof(T));
+    return mb->copy((CONST char*)&h, sizeof(T));
   }
 
-  virtual ni packet_length() = 0;
+  virtual ni data_len() = 0;
 
   virtual CProc::OUTPUT at_head_arrival()
   {
-    return OP_CONTINUE;
+    return OP_GO_ON;
   }
 
   CProc::OUTPUT read_data(CMB * mb)
@@ -654,74 +654,74 @@ public:
   virtual CONST text * name() CONST;
 
 protected:
-  virtual ni packet_length();
+  virtual ni data_len();
   virtual CProc::OUTPUT at_head_arrival();
   virtual CProc::OUTPUT do_read_data(CMB * mb);
-  CMB * make_version_check_request_mb(CONST ni extra = 0);
+  CMB * create_login_mb(CONST ni x = 0);
 
-  enum { PEER_ADDR_LEN = INET_ADDRSTRLEN };
-  text m_peer_addr[PEER_ADDR_LEN];
+  enum { IP_LEN = INET_ADDRSTRLEN };
+  text m_remote_ip[IP_LEN];
 };
 
 class CBSProceBase: public CParentFormattedProc<CBSData>
 {
 public:
   typedef CParentFormattedProc<CBSData> baseclass;
-  CBSProceBase(CParentHandler * handler);
+  CBSProceBase(CParentHandler * h);
 
 protected:
-  virtual ni packet_length();
+  virtual ni data_len();
 
   virtual CProc::OUTPUT at_head_arrival();
   virtual CProc::OUTPUT do_read_data(CMB * mb);
 };
 
-class CServerProcBase: public CFormatProcBase
+class CParentServerProc: public CFormatProcBase
 {
 public:
   typedef CFormatProcBase baseclass;
-  CServerProcBase(CParentHandler * handler);
-  virtual ~CServerProcBase();
+  CParentServerProc(CParentHandler * h);
+  virtual ~CParentServerProc();
   virtual CONST text * name() CONST;
-  virtual truefalse ok_to_send(CMB * mb) CONST;
+  virtual truefalse ok_to_post(CMB * mb) CONST;
   virtual truefalse term_sn_check_done() CONST;
 
 protected:
   virtual CProc::OUTPUT at_head_arrival();
-  CProc::OUTPUT do_version_check_common(CMB * mb, CTermSNs & term_SNs);
-  CMB * make_version_check_reply_mb(CTermVerReply::SUBCMD code, ni extra_len = 0);
+  CProc::OUTPUT i_is_ver_ok(CMB * mb, CTermSNs & term_SNs);
+  CMB * i_create_mb_ver_reply(CTermVerReply::SUBCMD x, ni = 0);
 
-  CTermVer m_client_version;
+  CTermVer m_term_ver;
 };
 
-class CClientProcBase: public CFormatProcBase
+class CParentClientProc: public CFormatProcBase
 {
 public:
   typedef CFormatProcBase baseclass;
 
-  CClientProcBase(CParentHandler * handler);
-  virtual ~CClientProcBase();
+  CParentClientProc(CParentHandler * h);
+  virtual ~CParentClientProc();
   virtual CONST text * name() CONST;
   virtual truefalse term_sn_check_done() CONST;
   virtual ni at_start();
   virtual DVOID at_finish();
-  virtual truefalse ok_to_send(CMB * mb) CONST;
+  virtual truefalse ok_to_post(CMB * mb) CONST;
 
 protected:
   virtual CProc::OUTPUT at_head_arrival();
-  DVOID client_verified(truefalse _verified);
+  DVOID sn_check_ok(truefalse _is_ok);
 
 private:
-  truefalse m_client_verified;
+  truefalse m_sn_check_ok;
 };
 
 class CSockBridge: public ACE_SOCK_ACCEPTOR
 {
 public:
   typedef ACE_SOCK_ACCEPTOR baseclass;
-  ni open (CONST ACE_Addr &local_sap, ni reuse_addr=0, ni protocol_family=PF_UNSPEC, ni backlog= 128, ni protocol=0)
+  ni open (CONST ACE_Addr & l, ni r = 0, ni f = PF_UNSPEC, ni b = 128, ni p = 0)
   {
-    return baseclass::open(local_sap, reuse_addr, protocol_family, backlog, protocol);
+    return baseclass::open(l, r, f, b, p);
   }
 };
 
@@ -729,11 +729,11 @@ class CAcceptorBase: public ACE_Acceptor<CParentHandler, CSockBridge>
 {
 public:
   typedef ACE_Acceptor<CParentHandler, CSockBridge>  baseclass;
-  CAcceptorBase(CDispatchBase * _dispatcher, CHandlerDirector * _manager);
+  CAcceptorBase(CDispatchBase *, CHandlerDirector *);
   virtual ~CAcceptorBase();
-  virtual ni handle_timeout (CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
-  CMod * module_x() CONST;
-  CHandlerDirector * connection_manager() CONST;
+  virtual ni handle_timeout (CONST ACE_Time_Value &, CONST DVOID * = 0);
+  CMod * container() CONST;
+  CHandlerDirector * director() CONST;
   CDispatchBase * dispatcher() CONST;
 
   ni start();
@@ -742,23 +742,17 @@ public:
   virtual CONST text * name() CONST;
 
 protected:
-  enum
-  {
-    TIMER_ID_check_dead_connection = 1,
-    TIMER_ID_reserved_1,
-    TIMER_ID_reserved_2,
-    TIMER_ID_reserved_3,
-  };
+  enum { TID_reap_broken = 1, TID1, TID2, TID3 };
   virtual DVOID i_print();
   virtual truefalse before_begin();
   virtual DVOID before_finish();
 
   CDispatchBase * m_dispatcher;
-  CMod * m_module;
-  CHandlerDirector * m_connection_manager;
+  CMod * m_container;
+  CHandlerDirector * m_director;
   ni m_tcp_port;
-  ni m_idle_time_as_dead; //in minutes
-  ni m_idle_connection_timer_id;
+  ni m_reap_interval; //min
+  ni m_reaper_id;
 };
 
 
@@ -766,20 +760,20 @@ class CConnectorBase: public ACE_Connector<CParentHandler, ACE_SOCK_CONNECTOR>
 {
 public:
   typedef ACE_Connector<CParentHandler, ACE_SOCK_CONNECTOR> baseclass;
-  enum { BATCH_CONNECT_NUM = 100 };
+  enum { ONCE_COUNT = 100 };
 
   CConnectorBase(CDispatchBase * _dispatcher, CHandlerDirector * _manager);
   virtual ~CConnectorBase();
 
   virtual ni handle_timeout (CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
 
-  CMod * module_x() CONST;
-  CHandlerDirector * connection_manager() CONST;
+  CMod * container() CONST;
+  CHandlerDirector * director() CONST;
   CDispatchBase * dispatcher() CONST;
-  DVOID tcp_addr(CONST text * addr);
+  DVOID tcp_addr(CONST text *);
   ni start();
   ni stop();
-  DVOID dump_info();
+  DVOID print_data();
   virtual CONST text * name() CONST;
   ni connect_ready();
   DVOID reset_retry_count();
@@ -846,7 +840,7 @@ public:
   virtual ni svc();
   ni start();
   ni stop();
-  CMod * module_x() CONST;
+  CMod * container() CONST;
   DVOID dump_info();
   virtual CONST text * name() CONST;
 
@@ -863,7 +857,7 @@ protected:
   DVOID add_acceptor(CAcceptorBase * _acceptor);
   virtual DVOID i_print();
 
-  CMod * m_mod;
+  CMod * m_container;
   ni m_clock_interval;
   CConnectors m_connectors;
   CAcceptors m_acceptors;

@@ -1458,7 +1458,7 @@ int32_t CProc::term_sn_loc() CONST
 
 CFormatProcBase::CFormatProcBase(CParentHandler * handler): baseclass(handler)
 {
-  m_peer_addr[0] = 0;
+  m_remote_ip[0] = 0;
 }
 
 CONST text * CFormatProcBase::name() CONST
@@ -1473,7 +1473,7 @@ DVOID CFormatProcBase::get_sinfo(CMemProt & info) CONST
     str_id = "NULL";
   CONST text * ss[5];
   ss[0] = "(remote addr=";
-  ss[1] = m_peer_addr;
+  ss[1] = m_remote_ip;
   ss[2] = ", client_id=";
   ss[3] = m_term_sn.to_str();
   ss[4] = ")";
@@ -1484,20 +1484,20 @@ ni CFormatProcBase::at_start()
 {
   ACE_INET_Addr peer_addr;
   if (m_handler->peer().get_remote_addr(peer_addr) == 0)
-    peer_addr.get_host_addr((char*)m_peer_addr, PEER_ADDR_LEN);
-  if (m_peer_addr[0] == 0)
-    ACE_OS::strsncpy((char*)m_peer_addr, "unknown", PEER_ADDR_LEN);
+    peer_addr.get_host_addr((char*)m_remote_ip, IP_LEN);
+  if (m_remote_ip[0] == 0)
+    ACE_OS::strsncpy((char*)m_remote_ip, "unknown", IP_LEN);
   return 0;
 }
 
-ni CFormatProcBase::packet_length()
+ni CFormatProcBase::data_len()
 {
   return m_data_head.size;
 }
 
 CProc::OUTPUT CFormatProcBase::at_head_arrival()
 {
-  return OP_CONTINUE;
+  return OP_GO_ON;
 }
 
 CProc::OUTPUT CFormatProcBase::do_read_data(CMB * mb)
@@ -1507,16 +1507,16 @@ CProc::OUTPUT CFormatProcBase::do_read_data(CMB * mb)
   return OP_OK;
 }
 
-CMB * CFormatProcBase::make_version_check_request_mb(CONST ni extra)
+CMB * CFormatProcBase::create_login_mb(CONST ni x)
 {
-  CMB * mb = CCacheX::instance()->get_mb_cmd_direct(sizeof(CTerminalVerReq) + extra, CCmdHeader::PT_VER_REQ);
+  CMB * mb = CCacheX::instance()->get_mb_cmd_direct(sizeof(CTerminalVerReq) + x, CCmdHeader::PT_VER_REQ);
   return mb;
 }
 
 
-//MyBSBasePacketProcessor//
 
-CBSProceBase::CBSProceBase(CParentHandler * handler): baseclass(handler)
+
+CBSProceBase::CBSProceBase(CParentHandler * h): baseclass(h)
 {
 
 }
@@ -1528,93 +1528,91 @@ CProc::OUTPUT CBSProceBase::at_head_arrival()
 
 CProc::OUTPUT CBSProceBase::do_read_data(CMB * mb)
 {
-  CBSData * bspacket = (CBSData *) mb->base();
-  if (!bspacket->fix_data())
+  CBSData * p = (CBSData *) mb->base();
+  if (!p->fix_data())
   {
-    C_ERROR("bad packet recieved from bs, no tail terminator\n");
+    C_ERROR("bad data from bs, no tail\n");
     return OP_FAIL;
   }
   return OP_OK;
 }
 
-ni CBSProceBase::packet_length()
+ni CBSProceBase::data_len()
 {
   return m_data_head.data_len();
 }
 
 
-//MyBaseServerProcessor//
 
-CServerProcBase::CServerProcBase(CParentHandler * handler) : CFormatProcBase(handler)
+CParentServerProc::CParentServerProc(CParentHandler * h) : CFormatProcBase(h)
 {
 
 }
 
-CServerProcBase::~CServerProcBase()
+CParentServerProc::~CParentServerProc()
 {
 
 }
 
-CONST text * CServerProcBase::name() CONST
+CONST text * CParentServerProc::name() CONST
 {
-  return "MyBaseServerProcessor";
+  return "CParentServerProc";
 }
 
-truefalse CServerProcBase::term_sn_check_done() CONST
+truefalse CParentServerProc::term_sn_check_done() CONST
 {
   return !m_term_sn.empty();
 }
 
-truefalse CServerProcBase::ok_to_send(CMB * mb) CONST
+truefalse CParentServerProc::ok_to_post(CMB *) CONST
 {
-  ACE_UNUSED_ARG(mb);
   return term_sn_check_done();
 }
 
-CProc::OUTPUT CServerProcBase::at_head_arrival()
+CProc::OUTPUT CParentServerProc::at_head_arrival()
 {
-  CProc::OUTPUT result = baseclass::at_head_arrival();
-  if (result != OP_CONTINUE)
-    return result;
+  CProc::OUTPUT r = baseclass::at_head_arrival();
+  if (r != OP_GO_ON)
+    return r;
 
-  truefalse bVerified = term_sn_check_done();
-  truefalse bVersionCheck = (m_data_head.cmd == CCmdHeader::PT_VER_REQ);
-  if (bVerified == bVersionCheck)
+  truefalse l_sn_Ok = term_sn_check_done();
+  truefalse l_ver_ok = (m_data_head.cmd == CCmdHeader::PT_VER_REQ);
+  if (l_sn_Ok == l_ver_ok)
   {
-    CMemProt info;
-    get_sinfo(info);
-    C_ERROR(ACE_TEXT("Bad request received (cmd = %d, verified = %d, request version check = %d) from %s, \n"),
-        m_data_head.cmd, bVerified, bVersionCheck, info.get_ptr());
+    CMemProt l_x;
+    get_sinfo(l_x);
+    C_ERROR("Get bad data(cmd = %d, verified = %d, version ok = %d) from %s\n",
+        m_data_head.cmd, l_sn_Ok, l_ver_ok, l_x.get_ptr());
     return OP_FAIL;
   }
 
-  return OP_CONTINUE;
+  return OP_GO_ON;
 }
 
-CProc::OUTPUT CServerProcBase::do_version_check_common(CMB * mb, CTermSNs & term_SNs)
+CProc::OUTPUT CParentServerProc::i_is_ver_ok(CMB * mb, CTermSNs & term_SNs)
 {
-  CTerminalVerReq * vcr = (CTerminalVerReq *) mb->base();
-  vcr->fix_data();
+  CTerminalVerReq * l_header = (CTerminalVerReq *) mb->base();
+  l_header->fix_data();
   CMB * reply_mb = NULL;
-  m_client_version.init(vcr->term_ver_major, vcr->term_ver_minor);
-  ni client_id_index = term_SNs.find_location(vcr->term_sn);
-  truefalse valid = false;
+  m_term_ver.init(l_header->term_ver_major, l_header->term_ver_minor);
+  ni m = term_SNs.find_location(l_header->term_sn);
+  truefalse l_ok = false;
 
-  m_term_loc = client_id_index;
-  m_term_sn = vcr->term_sn;
+  m_term_loc = m;
+  m_term_sn = l_header->term_sn;
   m_term_sn_len = strlen(m_term_sn.to_str());
 
-  if (client_id_index >= 0)
+  if (m >= 0)
   {
-    CTermData client_info;
-    if (term_SNs.get_termData(client_id_index, client_info))
-      valid = ! client_info.invalid;
+    CTermData term_data;
+    if (term_SNs.get_termData(m, term_data))
+      l_ok = ! term_data.invalid;
   }
-  if (!valid)
+  if (!l_ok)
   {
     m_mark_down = true;
-    C_WARNING(ACE_TEXT("closing connection due to invalid client_id = %s\n"), vcr->term_sn.to_str());
-    reply_mb = make_version_check_reply_mb(CTermVerReply::SC_ACCESS_DENIED);
+    C_WARNING("terminate client because bad sn = %s\n", l_header->term_sn.to_str());
+    reply_mb = i_create_mb_ver_reply(CTermVerReply::SC_ACCESS_DENIED);
   }
 
   if (m_mark_down)
@@ -1625,58 +1623,57 @@ CProc::OUTPUT CServerProcBase::do_version_check_common(CMB * mb, CTermSNs & term
       return OP_OK;
   }
 
-  m_handler->handler_director()->sn_at_location(m_handler, client_id_index, m_handler->term_SNs());
-  return OP_CONTINUE;
+  m_handler->handler_director()->sn_at_location(m_handler, m, m_handler->term_SNs());
+  return OP_GO_ON;
 }
 
-CMB * CServerProcBase::make_version_check_reply_mb
-   (CTermVerReply::SUBCMD code, ni extra_len)
+CMB * CParentServerProc::i_create_mb_ver_reply(CTermVerReply::SUBCMD x, ni more_space)
 {
-  ni total_len = sizeof(CTermVerReply) + extra_len;
-  CMB * mb = CCacheX::instance()->get_mb_cmd_direct(total_len, CCmdHeader::PT_VER_REPLY);
-  CTermVerReply * vcr = (CTermVerReply *) mb->base();
-  vcr->ret_subcmd = code;
+  ni l_x = sizeof(CTermVerReply) + more_space;
+  CMB * mb = CCacheX::instance()->get_mb_cmd_direct(l_x, CCmdHeader::PT_VER_REPLY);
+  CTermVerReply * l_header = (CTermVerReply *) mb->base();
+  l_header->ret_subcmd = x;
   return mb;
 }
 
 
 //MyBaseClientProcessor//
 
-CClientProcBase::CClientProcBase(CParentHandler * handler) : CFormatProcBase(handler)
+CParentClientProc::CParentClientProc(CParentHandler * handler) : CFormatProcBase(handler)
 {
-  m_client_verified = false;
+  m_sn_check_ok = false;
 }
 
-CClientProcBase::~CClientProcBase()
+CParentClientProc::~CParentClientProc()
 {
 
 }
 
-CONST text * CClientProcBase::name() CONST
+CONST text * CParentClientProc::name() CONST
 {
   return "MyBaseClientProcessor";
 }
 
-truefalse CClientProcBase::term_sn_check_done() CONST
+truefalse CParentClientProc::term_sn_check_done() CONST
 {
-  return m_client_verified;
+  return m_sn_check_ok;
 }
 
-DVOID CClientProcBase::client_verified(truefalse _verified)
+DVOID CParentClientProc::sn_check_ok(truefalse bOK)
 {
-  m_client_verified = _verified;
+  m_sn_check_ok = bOK;
 }
 
-truefalse CClientProcBase::ok_to_send(CMB * mb) CONST
+truefalse CParentClientProc::ok_to_post(CMB * mb) CONST
 {
-  CCmdHeader * dph = (CCmdHeader*) mb->base();
-  truefalse is_request = dph->cmd == CCmdHeader::PT_VER_REQ;
-  truefalse client_verified = term_sn_check_done();
-  return is_request != client_verified;
+  CCmdHeader * l_header = (CCmdHeader*) mb->base();
+  truefalse bVerReq = l_header->cmd == CCmdHeader::PT_VER_REQ;
+  truefalse sn_check_done = term_sn_check_done();
+  return bVerReq != sn_check_done;
 }
 
 
-ni CClientProcBase::at_start()
+ni CParentClientProc::at_start()
 {
 
   if (baseclass::at_start() < 0)
@@ -1685,26 +1682,26 @@ ni CClientProcBase::at_start()
   if (g_is_test)
   {
     ni pending_count = m_handler->handler_director()->waiting_count();
-    if (pending_count > 0 &&  pending_count <= CConnectorBase::BATCH_CONNECT_NUM / 2)
+    if (pending_count > 0 &&  pending_count <= CConnectorBase::ONCE_COUNT / 2)
       m_handler->connector()->connect_ready();
   }
   return 0;
 }
 
-DVOID CClientProcBase::at_finish()
+DVOID CParentClientProc::at_finish()
 {
   if (g_is_test)
   {
     ni pending_count = m_handler->handler_director()->waiting_count();
-    if (pending_count > 0 &&  pending_count <= CConnectorBase::BATCH_CONNECT_NUM / 2)
+    if (pending_count > 0 &&  pending_count <= CConnectorBase::ONCE_COUNT / 2)
       m_handler->connector()->connect_ready();
   }
 }
 
-CProc::OUTPUT CClientProcBase::at_head_arrival()
+CProc::OUTPUT CParentClientProc::at_head_arrival()
 {
   CProc::OUTPUT result = baseclass::at_head_arrival();
-  if (result != OP_CONTINUE)
+  if (result != OP_GO_ON)
     return result;
 
   truefalse bVerified = term_sn_check_done();
@@ -1718,7 +1715,7 @@ CProc::OUTPUT CClientProcBase::at_head_arrival()
     return OP_FAIL;
   }
 
-  return OP_CONTINUE;
+  return OP_GO_ON;
 }
 
 
@@ -2132,22 +2129,22 @@ CParentHandler::~CParentHandler()
 
 
 CAcceptorBase::CAcceptorBase(CDispatchBase * _dispatcher, CHandlerDirector * _manager):
-    m_dispatcher(_dispatcher), m_connection_manager(_manager)
+    m_dispatcher(_dispatcher), m_director(_manager)
 {
   m_tcp_port = 0;
-  m_module = m_dispatcher->module_x();
-  m_idle_connection_timer_id = -1;
+  m_container = m_dispatcher->container();
+  m_reaper_id = -1;
 }
 
 CAcceptorBase::~CAcceptorBase()
 {
-  if (m_connection_manager)
-    delete m_connection_manager;
+  if (m_director)
+    delete m_director;
 }
 
-CMod * CAcceptorBase::module_x() CONST
+CMod * CAcceptorBase::container() CONST
 {
-  return m_module;
+  return m_container;
 }
 
 CDispatchBase * CAcceptorBase::dispatcher() CONST
@@ -2155,9 +2152,9 @@ CDispatchBase * CAcceptorBase::dispatcher() CONST
   return m_dispatcher;
 }
 
-CHandlerDirector * CAcceptorBase::connection_manager() CONST
+CHandlerDirector * CAcceptorBase::director() CONST
 {
-  return m_connection_manager;
+  return m_director;
 }
 
 truefalse CAcceptorBase::before_begin()
@@ -2172,8 +2169,8 @@ DVOID CAcceptorBase::before_finish()
 
 ni CAcceptorBase::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *act)
 {
-  if (long(act) == TIMER_ID_check_dead_connection)
-    m_connection_manager->delete_broken(m_idle_time_as_dead);
+  if (long(act) == TID_reap_broken)
+    m_director->delete_broken(m_reap_interval);
   return 0;
 }
 
@@ -2185,22 +2182,22 @@ ni CAcceptorBase::start()
     return -1;
   }
   ACE_INET_Addr port_to_listen (m_tcp_port);
-  m_connection_manager->up();
+  m_director->up();
 
   ni ret = baseclass::open (port_to_listen, m_dispatcher->reactor(), ACE_NONBLOCK);
   if (ret == 0)
-    C_INFO(ACE_TEXT ("%s listening on port %d... OK\n"), module_x()->name(), m_tcp_port);
+    C_INFO(ACE_TEXT ("%s listening on port %d... OK\n"), container()->name(), m_tcp_port);
   else if (ret < 0)
   {
-    C_ERROR(ACE_TEXT ("%s acceptor.open on port %d failed!\n"), module_x()->name(), m_tcp_port);
+    C_ERROR(ACE_TEXT ("%s acceptor.open on port %d failed!\n"), container()->name(), m_tcp_port);
     return -1;
   }
 
-  if (m_idle_time_as_dead > 0)
+  if (m_reap_interval > 0)
   {
-    ACE_Time_Value tv( m_idle_time_as_dead * 60);
-    m_idle_connection_timer_id = reactor()->schedule_timer(this, (void*)TIMER_ID_check_dead_connection, tv, tv);
-    if (m_idle_connection_timer_id < 0)
+    ACE_Time_Value tv( m_reap_interval * 60);
+    m_reaper_id = reactor()->schedule_timer(this, (void*)TID_reap_broken, tv, tv);
+    if (m_reaper_id < 0)
     {
       C_ERROR("can not setup dead connection timer @%s\n", name());
       return -1;
@@ -2216,16 +2213,16 @@ ni CAcceptorBase::start()
 ni CAcceptorBase::stop()
 {
   before_finish();
-  m_connection_manager->down();
-  if (m_idle_connection_timer_id >= 0)
-    reactor()->cancel_timer(m_idle_connection_timer_id);
+  m_director->down();
+  if (m_reaper_id >= 0)
+    reactor()->cancel_timer(m_reaper_id);
   close();
   return 0;
 }
 
 DVOID CAcceptorBase::i_print()
 {
-  m_connection_manager->print_all();
+  m_director->print_all();
 }
 
 DVOID CAcceptorBase::print_info()
@@ -2251,7 +2248,7 @@ CConnectorBase::CConnectorBase(CDispatchBase * _dispatcher, CHandlerDirector * _
   m_reconnect_interval = 0;
   m_reconnect_retry_count = 0;
   m_reconnect_timer_id = -1;
-  m_module = m_dispatcher->module_x();
+  m_module = m_dispatcher->container();
   m_idle_time_as_dead = 0; //in minutes
   m_idle_connection_timer_id = -1;
 }
@@ -2262,12 +2259,12 @@ CConnectorBase::~CConnectorBase()
     delete m_connection_manager;
 }
 
-CMod * CConnectorBase::module_x() CONST
+CMod * CConnectorBase::container() CONST
 {
   return m_module;
 }
 
-CHandlerDirector * CConnectorBase::connection_manager() CONST
+CHandlerDirector * CConnectorBase::director() CONST
 {
   return m_connection_manager;
 }
@@ -2378,7 +2375,7 @@ DVOID CConnectorBase::i_print()
   m_connection_manager->print_all();
 }
 
-DVOID CConnectorBase::dump_info()
+DVOID CConnectorBase::print_data()
 {
   ACE_DEBUG((LM_INFO, "      +++ connector dump: %s start\n", name()));
   i_print();
@@ -2428,7 +2425,7 @@ ni CConnectorBase::do_connect(ni count, truefalse bNew)
       return -1;
     }
 
-    if (m_connection_manager->waiting_count() >= BATCH_CONNECT_NUM / 2)
+    if (m_connection_manager->waiting_count() >= ONCE_COUNT / 2)
       return 0;
 
     truefalse b_remain_connect = m_remain_to_connect > 0;
@@ -2436,9 +2433,9 @@ ni CConnectorBase::do_connect(ni count, truefalse bNew)
       return 0;
     ni true_count;
     if (b_remain_connect)
-      true_count = std::min(m_remain_to_connect, (BATCH_CONNECT_NUM - m_connection_manager->waiting_count()));
+      true_count = std::min(m_remain_to_connect, (ONCE_COUNT - m_connection_manager->waiting_count()));
     else
-      true_count = std::min(count, (ni)BATCH_CONNECT_NUM);
+      true_count = std::min(count, (ni)ONCE_COUNT);
 
     if (true_count <= 0)
       return 0;
@@ -2569,7 +2566,7 @@ CONST text * CTaskBase::name() CONST
 //MyBaseDispatcher//
 
 CDispatchBase::CDispatchBase(CMod * pModule, ni numThreads):
-    m_mod(pModule), m_numThreads(numThreads), m_numBatchSend(50)
+    m_container(pModule), m_numThreads(numThreads), m_numBatchSend(50)
 {
   m_reactor = NULL;
   m_clock_interval = 0;
@@ -2660,7 +2657,7 @@ DVOID CDispatchBase::dump_info()
 {
   ACE_DEBUG((LM_INFO, "    --- dispatcher dump: %s start\n", name()));
   i_print();
-  std::for_each(m_connectors.begin(), m_connectors.end(), std::mem_fun(&CConnectorBase::dump_info));
+  std::for_each(m_connectors.begin(), m_connectors.end(), std::mem_fun(&CConnectorBase::print_data));
   std::for_each(m_acceptors.begin(), m_acceptors.end(), std::mem_fun(&CAcceptorBase::print_info));
   ACE_DEBUG((LM_INFO, "    --- dispatcher dump: %s end\n", name()));
 }
@@ -2670,9 +2667,9 @@ DVOID CDispatchBase::i_print()
 
 }
 
-CMod * CDispatchBase::module_x() CONST
+CMod * CDispatchBase::container() CONST
 {
-  return m_mod;
+  return m_container;
 }
 
 truefalse CDispatchBase::do_start_i()
@@ -2721,7 +2718,7 @@ ni CDispatchBase::svc()
   if (!do_start_i())
     return -1;
 
-  while (m_mod->running_with_app())
+  while (m_container->running_with_app())
   {
     ACE_Time_Value timeout(2);
     ni ret = reactor()->handle_events(&timeout);

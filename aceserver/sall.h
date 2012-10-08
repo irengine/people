@@ -233,7 +233,7 @@ private:
   MyPathList m_path_list;
 };
 
-class MyLocationProcessor: public CServerProcBase
+class MyLocationProcessor: public CParentServerProc
 {
 public:
   MyLocationProcessor(CParentHandler * handler);
@@ -329,7 +329,7 @@ public:
   DECLARE_MEMORY_POOL__NOTHROW(MyHttpProcessor, ACE_Thread_Mutex);
 
 protected:
-  virtual ni packet_length();
+  virtual ni data_len();
   virtual CProc::OUTPUT at_head_arrival();
   virtual CProc::OUTPUT do_read_data(CMB * mb);
 
@@ -418,10 +418,10 @@ class MyDistLoadModule;
 class MyDistLoadAcceptor;
 class MyMiddleToBSConnector;
 
-class MyDistLoadProcessor: public CServerProcBase
+class MyDistLoadProcessor: public CParentServerProc
 {
 public:
-  typedef CServerProcBase baseclass;
+  typedef CParentServerProc baseclass;
 
   MyDistLoadProcessor(CParentHandler * handler);
   virtual ~MyDistLoadProcessor();
@@ -718,10 +718,10 @@ private:
   time_t m_last_end;
 };
 
-class MyHeartBeatProcessor: public CServerProcBase
+class MyHeartBeatProcessor: public CParentServerProc
 {
 public:
-  typedef CServerProcBase baseclass;
+  typedef CParentServerProc baseclass;
 
   MyHeartBeatProcessor(CParentHandler * handler);
   virtual CProc::OUTPUT at_head_arrival();
@@ -1110,10 +1110,10 @@ protected:
 class MyDistToMiddleModule;
 class MyDistToMiddleConnector;
 
-class MyDistToMiddleProcessor: public CClientProcBase
+class MyDistToMiddleProcessor: public CParentClientProc
 {
 public:
-  typedef CClientProcBase baseclass;
+  typedef CParentClientProc baseclass;
 
   MyDistToMiddleProcessor(CParentHandler * handler);
   virtual CProc::OUTPUT at_head_arrival();

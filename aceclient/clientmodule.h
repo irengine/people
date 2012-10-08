@@ -396,10 +396,10 @@ private:
   char m_now[24];
 };
 
-class MyClientToDistProcessor: public CClientProcBase
+class MyClientToDistProcessor: public CParentClientProc
 {
 public:
-  typedef CClientProcBase super;
+  typedef CParentClientProc super;
 
   MyClientToDistProcessor(CParentHandler * handler);
   virtual const char * name() const;
@@ -725,10 +725,10 @@ private:
 //client to middle
 /////////////////////////////////////
 
-class MyClientToMiddleProcessor: public CClientProcBase
+class MyClientToMiddleProcessor: public CParentClientProc
 {
 public:
-  typedef CClientProcBase super;
+  typedef CParentClientProc super;
 
   MyClientToMiddleProcessor(CParentHandler * handler);
   virtual const char * name() const;

@@ -615,7 +615,7 @@ DVOID MyUnusedPathRemover::check_path(CONST text * path)
 
 MyDistLoads * MyLocationProcessor::m_dist_loads = NULL;
 
-MyLocationProcessor::MyLocationProcessor(CParentHandler * handler): CServerProcBase(handler)
+MyLocationProcessor::MyLocationProcessor(CParentHandler * handler): CParentServerProc(handler)
 {
 
 }
@@ -627,7 +627,7 @@ CONST text * MyLocationProcessor::name() CONST
 
 CProc::OUTPUT MyLocationProcessor::at_head_arrival()
 {
-  if (CServerProcBase::at_head_arrival() == OP_FAIL)
+  if (CParentServerProc::at_head_arrival() == OP_FAIL)
     return OP_FAIL;
 
   if (m_data_head.cmd == CCmdHeader::PT_VER_REQ)
@@ -645,7 +645,7 @@ CProc::OUTPUT MyLocationProcessor::at_head_arrival()
 
 CProc::OUTPUT MyLocationProcessor::do_read_data(CMB * mb)
 {
-  CServerProcBase::do_read_data(mb);
+  CParentServerProc::do_read_data(mb);
 
   CCmdHeader * header = (CCmdHeader *)mb->base();
   if (header->cmd == CCmdHeader::PT_VER_REQ)
@@ -670,7 +670,7 @@ CProc::OUTPUT MyLocationProcessor::do_version_check(CMB * mb)
 
   text server_list[MyDistLoads::SERVER_LIST_LENGTH];
   ni len = m_dist_loads->get_server_list(server_list, MyDistLoads::SERVER_LIST_LENGTH); //double copy
-  CMB * reply_mb = make_version_check_reply_mb(CTermVerReply::SC_SERVER_LIST, len);
+  CMB * reply_mb = i_create_mb_ver_reply(CTermVerReply::SC_SERVER_LIST, len);
 
   CTermVerReply *reply = (CTermVerReply *)reply_mb->base();
   if (likely(len > 0))
@@ -723,12 +723,12 @@ MyLocationAcceptor::MyLocationAcceptor(CDispatchBase * _dispatcher, CHandlerDire
     CAcceptorBase(_dispatcher, _manager)
 {
   m_tcp_port = CCfgX::instance()->pre_client_port;
-  m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
+  m_reap_interval = IDLE_TIME_AS_DEAD;
 }
 
 ni MyLocationAcceptor::make_svc_handler(CParentHandler *& sh)
 {
-  sh = new MyLocationHandler(m_connection_manager);
+  sh = new MyLocationHandler(m_director);
   if (!sh)
   {
     C_ERROR("can not alloc MyLocationHandler from %s\n", name());
@@ -830,14 +830,14 @@ CONST text * MyHttpProcessor::name() CONST
   return "MyHttpProcessor";
 }
 
-ni MyHttpProcessor::packet_length()
+ni MyHttpProcessor::data_len()
 {
   return m_data_head;
 }
 
 CProc::OUTPUT MyHttpProcessor::at_head_arrival()
 {
-  ni len = packet_length();
+  ni len = data_len();
   if (len > 1024 * 1024 || len <= 32)
   {
     C_ERROR("got an invalid http packet with size = %d\n", len);
@@ -970,12 +970,12 @@ MyHttpAcceptor::MyHttpAcceptor(CDispatchBase * _dispatcher, CHandlerDirector * _
     CAcceptorBase(_dispatcher, _manager)
 {
   m_tcp_port = CCfgX::instance()->http_port;
-  m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
+  m_reap_interval = IDLE_TIME_AS_DEAD;
 }
 
 ni MyHttpAcceptor::make_svc_handler(CParentHandler *& sh)
 {
-  sh = new MyHttpHandler(m_connection_manager);
+  sh = new MyHttpHandler(m_director);
   if (!sh)
   {
     C_ERROR("not enough memory to create MyHttpHandler object\n");
@@ -1369,7 +1369,7 @@ DVOID MyHttpModule::before_finish()
 
 //MyDistLoadProcessor//
 
-MyDistLoadProcessor::MyDistLoadProcessor(CParentHandler * handler): CServerProcBase(handler)
+MyDistLoadProcessor::MyDistLoadProcessor(CParentHandler * handler): CParentServerProc(handler)
 {
   m_term_sn_check_done = false;
   m_dist_loads = NULL;
@@ -1427,7 +1427,7 @@ CProc::OUTPUT MyDistLoadProcessor::at_head_arrival()
 
 CProc::OUTPUT MyDistLoadProcessor::do_read_data(CMB * mb)
 {
-  CServerProcBase::do_read_data(mb);
+  CParentServerProc::do_read_data(mb);
   CMBProt guard(mb);
 
   CCmdHeader * header = (CCmdHeader *)mb->base();
@@ -1456,7 +1456,7 @@ CProc::OUTPUT MyDistLoadProcessor::do_version_check(CMB * mb)
   }
   m_term_sn_check_done = true;
 
-  CMB * reply_mb = make_version_check_reply_mb(CTermVerReply::SC_OK);
+  CMB * reply_mb = i_create_mb_ver_reply(CTermVerReply::SC_OK);
   return (m_handler->post_packet(reply_mb) < 0 ? OP_FAIL: OP_OK);
 }
 
@@ -1496,12 +1496,12 @@ MyDistLoadAcceptor::MyDistLoadAcceptor(CDispatchBase * _dispatcher, CHandlerDire
     CAcceptorBase(_dispatcher, _manager)
 {
   m_tcp_port = CCfgX::instance()->server_port;
-  m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
+  m_reap_interval = IDLE_TIME_AS_DEAD;
 }
 
 ni MyDistLoadAcceptor::make_svc_handler(CParentHandler *& sh)
 {
-  sh = new MyDistLoadHandler(m_connection_manager);
+  sh = new MyDistLoadHandler(m_director);
   if (!sh)
   {
     C_ERROR("not enough memory to create MyDistLoadHandler object\n");
@@ -1595,11 +1595,11 @@ truefalse MyDistLoadDispatcher::do_schedule_work()
   CONST ni CONST_max_count = 10;
   ni i = 0;
   while (++i < CONST_max_count && this->getq(mb, &tv) != -1)
-    m_acceptor->connection_manager()->post_all(mb);
+    m_acceptor->director()->post_all(mb);
 
   i = 0;
   while (++i < CONST_max_count && m_to_bs_queue.dequeue(mb, &tv) != -1)
-    m_bs_connector->connection_manager()->post_all(mb);
+    m_bs_connector->director()->post_all(mb);
 
   return true;
 }
@@ -1675,7 +1675,7 @@ MyMiddleToBSHandler::MyMiddleToBSHandler(CHandlerDirector * xptr): CParentHandle
 
 MyDistLoadModule * MyMiddleToBSHandler::module_x() CONST
 {
-  return (MyDistLoadModule *)connector()->module_x();
+  return (MyDistLoadModule *)connector()->container();
 }
 
 DVOID MyMiddleToBSHandler::checker_update()
@@ -2481,7 +2481,7 @@ MyHWAlarmSubmitter * MyHeartBeatProcessor::m_hardware_alarm_submitter = NULL;
 MyVLCSubmitter * MyHeartBeatProcessor::m_vlc_submitter = NULL;
 MyVLCEmptySubmitter * MyHeartBeatProcessor::m_vlc_empty_submitter = NULL;
 
-MyHeartBeatProcessor::MyHeartBeatProcessor(CParentHandler * handler): CServerProcBase(handler)
+MyHeartBeatProcessor::MyHeartBeatProcessor(CParentHandler * handler): CParentServerProc(handler)
 {
   m_handler->msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
   m_hw_ver[0] = 0;
@@ -2679,7 +2679,7 @@ CProc::OUTPUT MyHeartBeatProcessor::at_head_arrival()
 
 CProc::OUTPUT MyHeartBeatProcessor::do_read_data(CMB * mb)
 {
-  CServerProcBase::do_read_data(mb);
+  CParentServerProc::do_read_data(mb);
 
   {
     CMemProt info;
@@ -2750,7 +2750,7 @@ CProc::OUTPUT MyHeartBeatProcessor::do_version_check(CMB * mb)
   {
     CTerminalVerReq * vc = (CTerminalVerReq *)mb->base();
     if (vc->uuid[0] != 0)
-      memcpy(m_peer_addr, vc->uuid, 16);
+      memcpy(m_remote_ip, vc->uuid, 16);
   }
 
   ACE_OS::strsncpy(m_hw_ver, ((CTerminalVerReq*)mb->base())->hw_ver, 12);
@@ -2761,26 +2761,26 @@ CProc::OUTPUT MyHeartBeatProcessor::do_version_check(CMB * mb)
     get_sinfo(info);
     C_WARNING(ACE_TEXT("client version check packet led/lcd driver version empty: %s\n"), info.get_ptr());
   }
-  CProc::OUTPUT ret = do_version_check_common(mb, term_SNs);
+  CProc::OUTPUT ret = i_is_ver_ok(mb, term_SNs);
 
-  m_ip_ver_submitter->add_data(m_term_sn.to_str(), m_term_sn_len, m_peer_addr, m_client_version.to_text(), m_hw_ver);
+  m_ip_ver_submitter->add_data(m_term_sn.to_str(), m_term_sn_len, m_remote_ip, m_term_ver.to_text(), m_hw_ver);
 
-  if (ret != OP_CONTINUE)
+  if (ret != OP_GO_ON)
     return ret;
 
   CTermData client_info;
   term_SNs.get_termData(m_term_loc, client_info);
 
   CMB * reply_mb;
-  if (m_client_version < CCfgX::instance()->client_ver_min)
+  if (m_term_ver < CCfgX::instance()->client_ver_min)
   {
-    reply_mb = make_version_check_reply_mb(CTermVerReply::SC_NOT_MATCH, client_info.download_auth_len + 2);
+    reply_mb = i_create_mb_ver_reply(CTermVerReply::SC_NOT_MATCH, client_info.download_auth_len + 2);
     m_mark_down = true;
   }
-  else if (m_client_version < CCfgX::instance()->client_ver_now)
-    reply_mb = make_version_check_reply_mb(CTermVerReply::SC_OK_UP, client_info.download_auth_len + 2);
+  else if (m_term_ver < CCfgX::instance()->client_ver_now)
+    reply_mb = i_create_mb_ver_reply(CTermVerReply::SC_OK_UP, client_info.download_auth_len + 2);
   else
-    reply_mb = make_version_check_reply_mb(CTermVerReply::SC_OK, client_info.download_auth_len + 2);
+    reply_mb = i_create_mb_ver_reply(CTermVerReply::SC_OK, client_info.download_auth_len + 2);
 
   if (!m_mark_down)
   {
@@ -2861,7 +2861,7 @@ CProc::OUTPUT MyHeartBeatProcessor::do_ftp_reply(CMB * mb)
 CProc::OUTPUT MyHeartBeatProcessor::do_ip_ver_req(CMB * mb)
 {
   CMBProt guard(mb);
-  m_ip_ver_submitter->add_data(m_term_sn.to_str(), m_term_sn_len, m_peer_addr, m_client_version.to_text(), m_hw_ver);
+  m_ip_ver_submitter->add_data(m_term_sn.to_str(), m_term_sn_len, m_remote_ip, m_term_ver.to_text(), m_hw_ver);
   return OP_OK;
 }
 
@@ -3665,12 +3665,12 @@ MyHeartBeatAcceptor::MyHeartBeatAcceptor(CDispatchBase * _dispatcher, CHandlerDi
     CAcceptorBase(_dispatcher, _manager)
 {
   m_tcp_port = CCfgX::instance()->ping_port;
-  m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
+  m_reap_interval = IDLE_TIME_AS_DEAD;
 }
 
 ni MyHeartBeatAcceptor::make_svc_handler(CParentHandler *& sh)
 {
-  sh = new MyHeartBeatHandler(m_connection_manager);
+  sh = new MyHeartBeatHandler(m_director);
   if (!sh)
   {
     C_ERROR("can not alloc MyHeartBeatHandler from %s\n", name());
@@ -3724,7 +3724,7 @@ ni MyHeartBeatDispatcher::handle_timeout(CONST ACE_Time_Value &tv, CONST DVOID *
         continue;
       }
       ni index = ((CCmdHeader*)mb->base())->signature;
-      CParentHandler * handler = m_acceptor->connection_manager()->locate(index);
+      CParentHandler * handler = m_acceptor->director()->locate(index);
       if (!handler)
       {
 //        C_WARNING("can not send data to client since connection is lost @ %s::handle_timeout\n", name());
@@ -3869,9 +3869,9 @@ MyHeartBeatService * MyHeartBeatModule::service() CONST
 
 ni MyHeartBeatModule::num_active_clients() CONST
 {
-  if (unlikely(!m_dispatcher || !m_dispatcher->acceptor() || !m_dispatcher->acceptor()->connection_manager()))
+  if (unlikely(!m_dispatcher || !m_dispatcher->acceptor() || !m_dispatcher->acceptor()->director()))
     return 0xFFFFFF;
-  return m_dispatcher->acceptor()->connection_manager()->active_count();
+  return m_dispatcher->acceptor()->director()->active_count();
 }
 
 MyFtpFeedbackSubmitter & MyHeartBeatModule::ftp_feedback_submitter()
@@ -4002,7 +4002,7 @@ MyDistToBSHandler::MyDistToBSHandler(CHandlerDirector * xptr): CParentHandler(xp
 
 MyDistToMiddleModule * MyDistToBSHandler::module_x() CONST
 {
-  return (MyDistToMiddleModule *)connector()->module_x();
+  return (MyDistToMiddleModule *)connector()->container();
 }
 
 DVOID MyDistToBSHandler::checker_update()
@@ -4094,7 +4094,7 @@ ni MyDistToBSConnector::make_svc_handler(CParentHandler *& sh)
 //MyDistToMiddleProcessor//
 
 
-MyDistToMiddleProcessor::MyDistToMiddleProcessor(CParentHandler * handler): CClientProcBase(handler)
+MyDistToMiddleProcessor::MyDistToMiddleProcessor(CParentHandler * handler): CParentClientProc(handler)
 {
   m_version_check_reply_done = false;
   m_local_addr[0] = 0;
@@ -4116,7 +4116,7 @@ ni MyDistToMiddleProcessor::at_start()
 CProc::OUTPUT MyDistToMiddleProcessor::at_head_arrival()
 {
   CProc::OUTPUT result = baseclass::at_head_arrival();
-  if (result != OP_CONTINUE)
+  if (result != OP_GO_ON)
     return OP_FAIL;
 
   truefalse bVersionCheckReply = m_data_head.cmd == CCmdHeader::PT_VER_REPLY; //m_version_check_reply_done
@@ -4174,7 +4174,7 @@ CProc::OUTPUT MyDistToMiddleProcessor::do_read_data(CMB * mb)
     if (result == OP_OK)
     {
       ((MyDistToMiddleHandler*)m_handler)->setup_timer();
-      client_verified(true);
+      sn_check_ok(true);
     }
     return result;
   }
@@ -4261,7 +4261,7 @@ CProc::OUTPUT MyDistToMiddleProcessor::do_remote_cmd_task(CMB * mb)
 
 ni MyDistToMiddleProcessor::send_version_check_req()
 {
-  CMB * mb = make_version_check_request_mb();
+  CMB * mb = create_login_mb();
   CTerminalVerReq * proc = (CTerminalVerReq *)mb->base();
   proc->term_ver_major = 1;
   proc->term_ver_minor = 0;
@@ -4291,7 +4291,7 @@ DVOID MyDistToMiddleHandler::setup_timer()
 
 MyDistToMiddleModule * MyDistToMiddleHandler::module_x() CONST
 {
-  return (MyDistToMiddleModule *)connector()->module_x();
+  return (MyDistToMiddleModule *)connector()->container();
 }
 
 ni MyDistToMiddleHandler::at_start()
@@ -4397,12 +4397,12 @@ truefalse MyDistToMiddleDispatcher::do_schedule_work()
   CONST ni CONST_max_count = 10;
   ni i = 0;
   while (++i < CONST_max_count && this->getq(mb, &tv) != -1)
-    m_connector->connection_manager()->post_all(mb);
+    m_connector->director()->post_all(mb);
 
   tv = ACE_Time_Value::zero;
   i = 0;
   while (++i < CONST_max_count && m_to_bs_queue.dequeue(mb, &tv) != -1)
-    m_bs_connector->connection_manager()->post_all(mb);
+    m_bs_connector->director()->post_all(mb);
 
   return true;
 }

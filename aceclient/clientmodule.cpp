@@ -2495,7 +2495,7 @@ int MyIpVerReply::heart_beat_interval()
 
 //MyClientToDistProcessor//
 
-MyClientToDistProcessor::MyClientToDistProcessor(CParentHandler * handler): CClientProcBase(handler)
+MyClientToDistProcessor::MyClientToDistProcessor(CParentHandler * handler): CParentClientProc(handler)
 {
   m_version_check_reply_done = false;
   m_handler->msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
@@ -2543,7 +2543,7 @@ CProc::OUTPUT MyClientToDistProcessor::at_head_arrival()
     C_DEBUG("get dist packet header: command = %d, len = %d\n", m_data_head.cmd, m_data_head.size);
 
   CProc::OUTPUT result = super::at_head_arrival();
-  if (result != OP_CONTINUE)
+  if (result != OP_GO_ON)
     return OP_FAIL;
 
   bool bVersionCheckReply = m_data_head.cmd == CCmdHeader::PT_VER_REPLY; //m_version_check_reply_done
@@ -2671,7 +2671,7 @@ CProc::OUTPUT MyClientToDistProcessor::do_read_data(ACE_Message_Block * mb)
 
     if (result == OP_OK)
     {
-      client_verified(true);
+      sn_check_ok(true);
       ((MyClientToDistHandler*)m_handler)->setup_timer();
 
       if (g_is_test && m_term_loc != 0)
@@ -2985,7 +2985,7 @@ CProc::OUTPUT MyClientToDistProcessor::do_version_check_reply(ACE_Message_Block 
   case CTermVerReply::SC_OK:
     if (!g_is_test || m_term_loc == 0)
       C_INFO("handshake response from dist server: OK\n");
-    client_verified(true);
+    sn_check_ok(true);
     if (vcr->size > (int)sizeof(CTermVerReply) + 1)
     {
       MyServerID::save(m_term_sn.to_str(), (int)(u_int8_t)vcr->data[0]);
@@ -2998,7 +2998,7 @@ CProc::OUTPUT MyClientToDistProcessor::do_version_check_reply(ACE_Message_Block 
     return CProc::OP_OK;
 
   case CTermVerReply::SC_OK_UP:
-    client_verified(true);
+    sn_check_ok(true);
     if (vcr->size > (int)sizeof(CTermVerReply) + 1)
     {
       MyServerID::save(m_term_sn.to_str(), (int)(u_int8_t)vcr->data[0]);
@@ -3043,16 +3043,16 @@ CProc::OUTPUT MyClientToDistProcessor::do_version_check_reply(ACE_Message_Block 
 int MyClientToDistProcessor::send_version_check_req()
 {
   ACE_INET_Addr addr;
-  char my_addr[PEER_ADDR_LEN];
-  ACE_OS::memset(my_addr, 0, PEER_ADDR_LEN);
+  char my_addr[IP_LEN];
+  ACE_OS::memset(my_addr, 0, IP_LEN);
   if (m_handler->peer().get_local_addr(addr) == 0)
-    addr.get_host_addr((char*)my_addr, PEER_ADDR_LEN);
+    addr.get_host_addr((char*)my_addr, IP_LEN);
   const char * hw_ver = MyClientAppX::instance()->client_to_dist_module()->hw_ver();
   int len = ACE_OS::strlen(hw_ver) + 1;
-  ACE_Message_Block * mb = make_version_check_request_mb(len);
+  ACE_Message_Block * mb = create_login_mb(len);
   CTerminalVerReq * proc = (CTerminalVerReq *)mb->base();
   if (my_addr[0] != 0)
-    ACE_OS::memcpy(proc->uuid, my_addr, PEER_ADDR_LEN);
+    ACE_OS::memcpy(proc->uuid, my_addr, IP_LEN);
   proc->term_ver_major = const_client_version_major;
   proc->term_ver_minor = const_client_version_minor;
   proc->term_sn = m_term_sn;
@@ -3443,7 +3443,7 @@ bool MyClientToDistHandler::setup_click_send_timer()
 
 MyClientToDistModule * MyClientToDistHandler::module_x() const
 {
-  return (MyClientToDistModule *)connector()->module_x();
+  return (MyClientToDistModule *)connector()->container();
 }
 
 int MyClientToDistHandler::at_start()
@@ -4082,10 +4082,10 @@ int MyClientToDistDispatcher::handle_timeout(const ACE_Time_Value &, const void 
 {
   if ((long)act == (long)TIMER_ID_BASE)
   {
-    ((MyClientToDistModule*)module_x())->check_ftp_timed_task();
+    ((MyClientToDistModule*)container())->check_ftp_timed_task();
     if (!g_is_test)
     {
-      if (m_connector == NULL || m_connector->connection_manager()->active_count() == 0)
+      if (m_connector == NULL || m_connector->director()->active_count() == 0)
         MyConnectIni::update_connect_status(MyConnectIni::CS_DISCONNECTED);
       else
         m_buffered_mbs.check_timeout();
@@ -4101,7 +4101,7 @@ int MyClientToDistDispatcher::handle_timeout(const ACE_Time_Value &, const void 
 void MyClientToDistDispatcher::ask_for_server_addr_list_done(bool success)
 {
   m_middle_connector->finish();
-  MyDistServerAddrList & addr_list = ((MyClientToDistModule*)m_mod)->server_addr_list();
+  MyDistServerAddrList & addr_list = ((MyClientToDistModule*)m_container)->server_addr_list();
   if (!success)
   {
     C_INFO("failed to get any dist server addr from middle server, trying local cache...\n");
@@ -4118,7 +4118,7 @@ void MyClientToDistDispatcher::ask_for_server_addr_list_done(bool success)
   if (!m_connector)
     m_connector = new MyClientToDistConnector(this, new CHandlerDirector());
   add_connector(m_connector);
-  m_buffered_mbs.connection_manager(m_connector->connection_manager());
+  m_buffered_mbs.connection_manager(m_connector->director());
 
   const char * addr = addr_list.begin();
   if (ACE_OS::strcmp("127.0.0.1", addr) == 0)
@@ -4129,7 +4129,7 @@ void MyClientToDistDispatcher::ask_for_server_addr_list_done(bool success)
 
 void MyClientToDistDispatcher::start_watch_dog()
 {
-  ((MyClientToDistModule*)module_x())->watch_dog().start();
+  ((MyClientToDistModule*)container())->watch_dog().start();
 }
 
 void MyClientToDistDispatcher::on_ack(uuid_t uuid)
@@ -4151,7 +4151,7 @@ void MyClientToDistDispatcher::before_finish()
 
 void MyClientToDistDispatcher::check_watch_dog()
 {
-  if (((MyClientToDistModule*)module_x())->watch_dog().expired())
+  if (((MyClientToDistModule*)container())->watch_dog().expired())
     MyClientAppX::instance()->opera_launcher().relaunch();
 }
 
@@ -4169,7 +4169,7 @@ bool MyClientToDistDispatcher::do_schedule_work()
       if (g_is_test)
       {
         int index = ((CCmdHeader*)mb->base())->signature;
-        CParentHandler * handler = m_connector->connection_manager()->locate(index);
+        CParentHandler * handler = m_connector->director()->locate(index);
         if (!handler)
         {
           C_WARNING("can not send data to client since connection is lost @ %s::do_schedule_work\n", name());
@@ -4193,8 +4193,8 @@ bool MyClientToDistDispatcher::do_schedule_work()
               add_to_buffered_mbs(mb);
           }
         }
-        if (m_connector && m_connector->connection_manager())
-          m_connector->connection_manager()->post_one(mb);
+        if (m_connector && m_connector->director())
+          m_connector->director()->post_one(mb);
         else
           mb->release();
       }
@@ -4461,7 +4461,7 @@ void MyClientToDistModule::check_prev_download_task()
 
 //MyClientToMiddleProcessor//
 
-MyClientToMiddleProcessor::MyClientToMiddleProcessor(CParentHandler * handler): CClientProcBase(handler)
+MyClientToMiddleProcessor::MyClientToMiddleProcessor(CParentHandler * handler): CParentClientProc(handler)
 {
 
 }
@@ -4506,7 +4506,7 @@ int MyClientToMiddleProcessor::at_start()
 CProc::OUTPUT MyClientToMiddleProcessor::at_head_arrival()
 {
   CProc::OUTPUT result = super::at_head_arrival();
-  if (result != OP_CONTINUE)
+  if (result != OP_GO_ON)
     return OP_FAIL;
 
   bool bVersionCheckReply = m_data_head.cmd == CCmdHeader::PT_VER_REPLY;
@@ -4588,7 +4588,7 @@ void MyClientToMiddleProcessor::do_handle_server_list(ACE_Message_Block * mb)
 
 int MyClientToMiddleProcessor::send_version_check_req()
 {
-  ACE_Message_Block * mb = make_version_check_request_mb();
+  ACE_Message_Block * mb = create_login_mb();
   CTerminalVerReq * proc = (CTerminalVerReq *)mb->base();
   proc->term_ver_major = const_client_version_major;
   proc->term_ver_minor = const_client_version_minor;
@@ -4617,7 +4617,7 @@ void MyClientToMiddleHandler::setup_timer()
 
 MyClientToDistModule * MyClientToMiddleHandler::module_x() const
 {
-  return (MyClientToDistModule *)connector()->module_x();
+  return (MyClientToDistModule *)connector()->container();
 }
 
 int MyClientToMiddleHandler::at_start()
@@ -4948,12 +4948,12 @@ MyHttp1991Acceptor::MyHttp1991Acceptor(CDispatchBase * _dispatcher, CHandlerDire
     CAcceptorBase(_dispatcher, _manager)
 {
   m_tcp_port = 1991;
-  m_idle_time_as_dead = IDLE_TIME_AS_DEAD;
+  m_reap_interval = IDLE_TIME_AS_DEAD;
 }
 
 int MyHttp1991Acceptor::make_svc_handler(CParentHandler *& sh)
 {
-  sh = new MyHttp1991Handler(m_connection_manager);
+  sh = new MyHttp1991Handler(m_director);
   if (!sh)
   {
     C_ERROR("can not alloc MyHttp1991Handler from %s\n", name());
