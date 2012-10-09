@@ -16,13 +16,13 @@ public:
 
   CTermSNs & termSNs();
   CPingContainer * ping_component() CONST;
-  CBalanceContainer * dist_load_module() CONST;
-  CBsReqContainer * http_module() CONST;
-  CPositionContainer * location_module() CONST;
-  CD2MContainer * dist_to_middle_module() CONST;
-  CPG & db();
+  CBalanceContainer * balance_container() CONST;
+  CBsReqContainer * bs_req_container() CONST;
+  CPositionContainer * position_container() CONST;
+  CD2MContainer * d2m_container() CONST;
+  CPG & pg();
 
-  SF truefalse initialize(CONST text * hdir = NULL, CCfg::CAppMode m = CCfg::AM_UNKNOWN);
+  SF truefalse initialize(CONST text * hpath = NULL, CCfg::CAppMode m = CCfg::AM_UNKNOWN);
   SF DVOID cleanup();
   SF DVOID print_caches();
   truefalse post_dist_task(CMB * mb);
@@ -34,13 +34,13 @@ protected:
   virtual DVOID i_print();
 
 private:
-  CPingContainer * m_ping_component;
-  CPositionContainer * m_location_module;
-  CBalanceContainer * m_dist_load_module;
-  CBsReqContainer     * m_http_module;
-  CD2MContainer * m_dist_to_middle_module;
+  CPingContainer * m_ping_container;
+  CPositionContainer * m_position_container;
+  CBalanceContainer * m_balance_container;
+  CBsReqContainer     * m_bs_req_container;
+  CD2MContainer * m_d2m_container;
   CTermSNs m_term_SNs;
-  CPG  m_db;
+  CPG  m_pg;
 };
 
 typedef ACE_Unmanaged_Singleton<CRunner, ACE_Null_Mutex> CRunnerX;

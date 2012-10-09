@@ -9,15 +9,13 @@ std::string current_ver()
 }
 
 
-//MyServerApp//
-
 CRunner::CRunner()
 {
-  m_ping_component = NULL;
-  m_location_module = NULL;
-  m_dist_load_module = NULL;
-  m_http_module = NULL;
-  m_dist_to_middle_module = NULL;
+  m_bs_req_container = NULL;
+  m_d2m_container = NULL;
+  m_ping_container = NULL;
+  m_position_container = NULL;
+  m_balance_container = NULL;
 }
 
 CRunner::~CRunner()
@@ -32,32 +30,32 @@ CTermSNs & CRunner::termSNs()
 
 CPingContainer * CRunner::ping_component() CONST
 {
-  return m_ping_component;
+  return m_ping_container;
 }
 
-CBalanceContainer * CRunner::dist_load_module() CONST
+CBalanceContainer * CRunner::balance_container() CONST
 {
-  return m_dist_load_module;
+  return m_balance_container;
 }
 
-CBsReqContainer * CRunner::http_module() CONST
+CBsReqContainer * CRunner::bs_req_container() CONST
 {
-  return m_http_module;
+  return m_bs_req_container;
 }
 
-CPositionContainer * CRunner::location_module() CONST
+CPositionContainer * CRunner::position_container() CONST
 {
-  return m_location_module;
+  return m_position_container;
 }
 
-CD2MContainer * CRunner::dist_to_middle_module() CONST
+CD2MContainer * CRunner::d2m_container() CONST
 {
-  return m_dist_to_middle_module;
+  return m_d2m_container;
 }
 
-CPG & CRunner::db()
+CPG & CRunner::pg()
 {
-  return m_db;
+  return m_pg;
 }
 
 truefalse CRunner::post_dist_task(CMB * mb)
@@ -70,12 +68,11 @@ truefalse CRunner::post_dist_task(CMB * mb)
     return false;
   }
 
-  return c_tools_mb_putq(m_ping_component->service(), mb, "to service's queue");
+  return c_tools_mb_putq(m_ping_container->service(), mb, "post dist task");
 }
 
 truefalse CRunner::before_begin()
 {
-
   return true;
 }
 
@@ -93,77 +90,77 @@ DVOID CRunner::print_caches()
     ACE_DEBUG((LM_INFO, "    Cache Disabled\n"));
     goto _exit_;
   }
-  ni blocks;
+  ni l_chunks;
   //d
   if (CPingHandler::mem_block())
   {
-    blocks = CPingHandler::mem_block()->blocks();
+    l_chunks = CPingHandler::mem_block()->blocks();
     CPingHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyHeartBeatHandler", l_get, l_put, l_peak, l_fail, sizeof(CPingHandler), blocks);
+    CApp::print_pool("MyHeartBeatHandler", l_get, l_put, l_peak, l_fail, sizeof(CPingHandler), l_chunks);
   }
 
   if (CPingProc::mem_block())
   {
-    blocks = CPingProc::mem_block()->blocks();
+    l_chunks = CPingProc::mem_block()->blocks();
     CPingProc::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyHeartBeatProcessor", l_get, l_put, l_peak, l_fail, sizeof(CPingProc), blocks);
+    CApp::print_pool("MyHeartBeatProcessor", l_get, l_put, l_peak, l_fail, sizeof(CPingProc), l_chunks);
   }
 
   if (CD2BsHandler::mem_block())
   {
-    blocks = CD2BsHandler::mem_block()->blocks();
+    l_chunks = CD2BsHandler::mem_block()->blocks();
     CD2BsHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyDistToBSHandler", l_get, l_put, l_peak, l_fail, sizeof(CD2BsHandler), blocks);
+    CApp::print_pool("MyDistToBSHandler", l_get, l_put, l_peak, l_fail, sizeof(CD2BsHandler), l_chunks);
   }
 
   if (CD2MHandler::mem_block())
   {
-    blocks = CD2MHandler::mem_block()->blocks();
+    l_chunks = CD2MHandler::mem_block()->blocks();
     CD2MHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyDistToMiddleHandler", l_get, l_put, l_peak, l_fail, sizeof(CD2MHandler), blocks);
+    CApp::print_pool("MyDistToMiddleHandler", l_get, l_put, l_peak, l_fail, sizeof(CD2MHandler), l_chunks);
   }
 
   //m
   if (CPositionHandler::mem_block())
   {
-    blocks = CPositionHandler::mem_block()->blocks();
+    l_chunks = CPositionHandler::mem_block()->blocks();
     CPositionHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyLocationHandler", l_get, l_put, l_peak, l_fail, sizeof(CPositionHandler), blocks);
+    CApp::print_pool("MyLocationHandler", l_get, l_put, l_peak, l_fail, sizeof(CPositionHandler), l_chunks);
   }
 
   if (CPositionProc::mem_block())
   {
-    blocks = CPositionProc::mem_block()->blocks();
+    l_chunks = CPositionProc::mem_block()->blocks();
     CPositionProc::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyLocationProcessor", l_get, l_put, l_peak, l_fail, sizeof(CPositionProc), blocks);
+    CApp::print_pool("MyLocationProcessor", l_get, l_put, l_peak, l_fail, sizeof(CPositionProc), l_chunks);
   }
 
   if (CBsReqHandler::mem_block())
   {
-    blocks = CBsReqHandler::mem_block()->blocks();
+    l_chunks = CBsReqHandler::mem_block()->blocks();
     CBsReqHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyHttpHandler", l_get, l_put, l_peak, l_fail, sizeof(CBsReqHandler), blocks);
+    CApp::print_pool("MyHttpHandler", l_get, l_put, l_peak, l_fail, sizeof(CBsReqHandler), l_chunks);
   }
 
   if (CBsReqProc::mem_block())
   {
-    blocks = CBsReqProc::mem_block()->blocks();
+    l_chunks = CBsReqProc::mem_block()->blocks();
     CBsReqProc::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyHttpProcessor", l_get, l_put, l_peak, l_fail, sizeof(CBsReqProc), blocks);
+    CApp::print_pool("MyHttpProcessor", l_get, l_put, l_peak, l_fail, sizeof(CBsReqProc), l_chunks);
   }
 
   if (CBalanceHandler::mem_block())
   {
-    blocks = CBalanceHandler::mem_block()->blocks();
+    l_chunks = CBalanceHandler::mem_block()->blocks();
     CBalanceHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyDistLoadHandler", l_get, l_put, l_peak, l_fail, sizeof(CBalanceHandler), blocks);
+    CApp::print_pool("MyDistLoadHandler", l_get, l_put, l_peak, l_fail, sizeof(CBalanceHandler), l_chunks);
   }
 
   if (CM2BsHandler::mem_block())
   {
-    blocks = CM2BsHandler::mem_block()->blocks();
+    l_chunks = CM2BsHandler::mem_block()->blocks();
     CM2BsHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyMiddleToBSHandler", l_get, l_put, l_peak, l_fail, sizeof(CM2BsHandler), blocks);
+    CApp::print_pool("MyMiddleToBSHandler", l_get, l_put, l_peak, l_fail, sizeof(CM2BsHandler), l_chunks);
   }
 
   CCacheX::instance()->print_info();
@@ -179,37 +176,37 @@ DVOID CRunner::i_print()
 
 truefalse CRunner::do_init()
 {
-  CCfg * cfg = CCfgX::instance();
+  CCfg * l_obj = CCfgX::instance();
   g_term_sns = &m_term_SNs;
 
-  if (!m_db.login_to_db())
+  if (!m_pg.login_to_db())
   {
     C_FATAL("fail to connect to database. quitting...\n");
     return false;
   }
-  if (!m_db.load_term_SNs(&m_term_SNs))
+  if (!m_pg.load_term_SNs(&m_term_SNs))
   {
     C_FATAL("fail to get term sn from db. quitting...\n");
     return false;
   }
 
-  if (cfg->dist())
+  if (l_obj->dist())
   {
-    add_component(m_ping_component = new CPingContainer(this));
-    add_component(m_dist_to_middle_module = new CD2MContainer(this));
+    add_component(m_ping_container = new CPingContainer(this));
+    add_component(m_d2m_container = new CD2MContainer(this));
   }
-  if (cfg->middle())
+  if (l_obj->middle())
   {
-    add_component(m_location_module = new CPositionContainer(this));
-    add_component(m_dist_load_module = new CBalanceContainer(this));
-    add_component(m_http_module = new CBsReqContainer(this));
+    add_component(m_position_container = new CPositionContainer(this));
+    add_component(m_balance_container = new CBalanceContainer(this));
+    add_component(m_bs_req_container = new CBsReqContainer(this));
   }
   return true;
 }
 
 truefalse CRunner::initialize(CONST text * v_dir, CCfg::CAppMode v_m)
 {
-  CRunner * app = CRunnerX::instance();
+  CRunner * l_runner = CRunnerX::instance();
   CCfg* l_p = CCfgX::instance();
   if (!CCfgX::instance()->readall(v_dir, v_m))
   {
@@ -236,17 +233,17 @@ truefalse CRunner::initialize(CONST text * v_dir, CCfg::CAppMode v_m)
     CM2BsProc::mem_block_start(20);
   }
   CCacheX::instance()->prepare(l_p);
-  app->init_log();
-  return app->delayed_init();
+  l_runner->init_log();
+  return l_runner->delayed_init();
 }
 
 DVOID CRunner::cleanup()
 {
-  C_INFO(ACE_TEXT("shutdown server...\n"));
-  CRunnerX::close();  //this comes before the releasing of memory pool
+  C_INFO("closing app...\n");
+  CRunnerX::close();
   g_term_sns = NULL;
   CCfgX::close();
-  print_caches(); //only mem pool info, other objects should gone by now
+  print_caches();
   CPingHandler::mem_block_end();
   CPingProc::mem_block_end();
   CPositionHandler::mem_block_end();
@@ -264,17 +261,17 @@ DVOID CRunner::cleanup()
 
 int main(ni argc, CONST text * argv[])
 {
-  ACE_Sig_Action no_sigpipe ((ACE_SignalHandler) SIG_IGN);
-  ACE_Sig_Action original_action;
-  no_sigpipe.register_action (SIGPIPE, &original_action);
-  truefalse ret;
+  ACE_Sig_Action l_x ((ACE_SignalHandler) SIG_IGN);
+  ACE_Sig_Action l_y;
+  l_x.register_action (SIGPIPE, &l_y);
+  truefalse l_z;
 
   if (argc == 3 && strcmp(argv[1], "-home") == 0 && argv[2][0] == '/')
-    ret = CRunner::initialize(argv[2], CCfg::AM_UNKNOWN);
+    l_z = CRunner::initialize(argv[2], CCfg::AM_UNKNOWN);
   else
-    ret = CRunner::initialize(NULL, CCfg::AM_UNKNOWN);
+    l_z = CRunner::initialize(NULL, CCfg::AM_UNKNOWN);
 
-  if (ret)
+  if (l_z)
     CRunnerX::instance()->begin();
   CRunner::cleanup();
   return 0;

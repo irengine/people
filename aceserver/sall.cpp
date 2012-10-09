@@ -158,7 +158,7 @@ CBsDistData * CBsDistDatas::alloc_data(CONST text * did)
 
 truefalse CBsDistDatas::need_reload()
 {
-  return (!CRunnerX::instance()->db().is_dist_data_new(*this));
+  return (!CRunnerX::instance()->pg().is_dist_data_new(*this));
 }
 
 DVOID CBsDistDatas::alloc_spaces(CONST ni m)
@@ -846,7 +846,7 @@ truefalse CBsReqProc::handle_req()
     return false;
   }
   if (likely(l_m == 1 || l_m == 3))
-    l_ret = (c_tools_mb_putq(CRunnerX::instance()->http_module()->bs_req_task(), m_mb,
+    l_ret = (c_tools_mb_putq(CRunnerX::instance()->bs_req_container()->bs_req_task(), m_mb,
               "CBsReqProc::handle_req"));
   m_mb = NULL;
   return l_ret;
@@ -893,7 +893,7 @@ truefalse CBsReqProc::handle_prio(CMB * mb)
   }
 
 
-  CPG & db = CRunnerX::instance()->db();
+  CPG & db = CRunnerX::instance()->pg();
   if (!db.check_online())
   {
     C_ERROR("no connection to db, quitting\n");
@@ -1061,7 +1061,7 @@ truefalse CBsReqTask::process_mb(CMB * v_mb)
     sprintf(l_ptr, "%s#%c##1#%c#%s", l_bs_req.ver, *l_bs_req.ftype,
         l_ret? '1':'0', tmp);
     l_ptr[l_all] = CBSData::END_MARK;
-    CRunnerX::instance()->dist_load_module()->scheduler()->post_bs(mb);
+    CRunnerX::instance()->balance_container()->scheduler()->post_bs(mb);
 
     return l_ret;
   } else
@@ -1081,7 +1081,7 @@ truefalse CBsReqTask::process_mb_i(CMB * mb, CBsDistReq & v_bs_req)
   text key[12];
   c_tools_create_rnd_text(key, 12);
   v_bs_req.password = key;
-  CPG & l_database = CRunnerX::instance()->db();
+  CPG & l_database = CRunnerX::instance()->pg();
 
   if (unlikely(!container()->working_app()))
     return false;
@@ -1203,7 +1203,7 @@ truefalse CBsReqTask::process_mb_i2(CMB * mb)
     return false;
   }
 
-  CPG & l_database = CRunnerX::instance()->db();
+  CPG & l_database = CRunnerX::instance()->pg();
   if (!l_database.check_online())
   {
     C_ERROR("lost db con\n");
@@ -1238,7 +1238,7 @@ truefalse CBsReqTask::compute_checksum(CBsDistReq & v_x)
 truefalse CBsReqTask::tell_dists()
 {
   CMB * mb = CCacheX::instance()->get_mb_cmd(0, CCmdHeader::PT_HAVE_DIST_TASK);
-  return c_tools_mb_putq(CRunnerX::instance()->dist_load_module()->scheduler(), mb, "dist work");
+  return c_tools_mb_putq(CRunnerX::instance()->balance_container()->scheduler(), mb, "dist work");
 }
 
 
@@ -1439,7 +1439,7 @@ ni CBalanceAcc::make_svc_handler(CParentHandler *& sh)
   }
   sh->container((void*)this);
   sh->reactor(reactor());
-  ((CBalanceHandler*)sh)->balance_datas(CRunnerX::instance()->location_module()->balance_datas());
+  ((CBalanceHandler*)sh)->balance_datas(CRunnerX::instance()->position_container()->balance_datas());
   return 0;
 }
 
@@ -1484,7 +1484,7 @@ DVOID CBalanceScheduler::post_bs(CMB * mb)
 
 ni CBalanceScheduler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
 {
-  CRunnerX::instance()->location_module()->balance_datas()->check_broken();
+  CRunnerX::instance()->position_container()->balance_datas()->check_broken();
   return 0;
 }
 
@@ -1731,7 +1731,7 @@ DVOID CDistTermItem::set_checksum(CONST text * v_cs)
 DVOID CDistTermItem::post_subs(truefalse ok)
 {
   CMB * mb = create_mb_of_download_sub(ok);
-  CRunnerX::instance()->dist_to_middle_module()->post_bs(mb);
+  CRunnerX::instance()->d2m_container()->post_bs(mb);
 }
 
 DVOID CDistTermItem::control_pause_stop(CONST text )
@@ -1763,7 +1763,7 @@ DVOID CDistTermItem::download_checksum_feedback(CONST text * cs_s)
   if (!checksum.get_ptr() || !checksum.get_ptr()[0])
   {
     set_checksum(cs_s);
-    CRunnerX::instance()->db().write_task_term_cs(term_sn(), dist_data->ver.get_ptr(), cs_s, 2);
+    CRunnerX::instance()->pg().write_task_term_cs(term_sn(), dist_data->ver.get_ptr(), cs_s, 2);
   }
 
   on_conditon2();
@@ -1815,7 +1815,7 @@ truefalse CDistTermItem::on_conditon0()
   {
     if(post_cs())
     {
-      CRunnerX::instance()->db().write_task_term_item_condition(*this, 1);
+      CRunnerX::instance()->pg().write_task_term_item_condition(*this, 1);
       set_condition(1);
     }
     return true;
@@ -1823,7 +1823,7 @@ truefalse CDistTermItem::on_conditon0()
 
   if (post_download())
   {
-    CRunnerX::instance()->db().write_task_term_item_condition(*this, 3);
+    CRunnerX::instance()->pg().write_task_term_item_condition(*this, 3);
     set_condition(3);
   }
   return true;
@@ -1847,12 +1847,12 @@ truefalse CDistTermItem::on_conditon2()
       cmp_fn.init(CCompFactory::single_fn());
       cmp_checksum.init(dist_data->mbz_md5.get_ptr());
     }
-    CRunnerX::instance()->db().write_task_term_mbz(term_sn(), dist_data->ver.get_ptr(), cmp_fn.get_ptr(), cmp_checksum.get_ptr());
+    CRunnerX::instance()->pg().write_task_term_mbz(term_sn(), dist_data->ver.get_ptr(), cmp_fn.get_ptr(), cmp_checksum.get_ptr());
   }
 
   if (post_download())
   {
-    CRunnerX::instance()->db().write_task_term_item_condition(*this, 3);
+    CRunnerX::instance()->pg().write_task_term_item_condition(*this, 3);
     set_condition(3);
   }
   return true;
@@ -2100,7 +2100,7 @@ DVOID CTermStation::destruct_term_item(CDistTermItem * v_item)
 {
   m_stations->at_del_term_item(v_item, false);
   m_items.remove(v_item);
-  CRunnerX::instance()->db().destruct_task_term(m_term_sn.to_str(), v_item->dist_data->ver.get_ptr());
+  CRunnerX::instance()->pg().destruct_task_term(m_term_sn.to_str(), v_item->dist_data->ver.get_ptr());
   CPoolObjectDeletor prot;
   prot(v_item);
 }
@@ -2125,7 +2125,7 @@ truefalse CTermStation::work()
     for (l_x = m_items.begin(); l_x != m_items.end(); ++l_x)
       m_stations->at_del_term_item(*l_x, false);
     reset();
-    CRunnerX::instance()->db().read_task_terms(m_stations, this);
+    CRunnerX::instance()->pg().read_task_terms(m_stations, this);
     C_DEBUG("fetching term(%s) from database\n", m_term_sn.to_str());
   }
 
@@ -2288,7 +2288,7 @@ truefalse CSpreader::do_jobs(truefalse v_query_db)
   if (v_query_db)
   {
     m_datas.alloc_spaces(0);
-    return (CRunnerX::instance()->db().read_tasks(m_datas) < 0)? false:true;
+    return (CRunnerX::instance()->pg().read_tasks(m_datas) < 0)? false:true;
   }
 
   return true;
@@ -2299,7 +2299,7 @@ truefalse CSpreader::do_term_stations(truefalse v_query_db)
   if (v_query_db)
   {
     m_stations.reset();
-    if (!CRunnerX::instance()->db().read_task_terms(&m_stations, NULL))
+    if (!CRunnerX::instance()->pg().read_task_terms(&m_stations, NULL))
       return false;
   }
 
@@ -2316,7 +2316,7 @@ DVOID CSpreader::at_download_cmd_feedback(CONST text * v_term_sn, CONST text * v
   if (v_condition <= 3)
   {
     l_item->set_condition(v_condition);
-    CRunnerX::instance()->db().write_task_term_condition(v_term_sn, v_did, v_condition);
+    CRunnerX::instance()->pg().write_task_term_condition(v_term_sn, v_did, v_condition);
   }
   else
   {
@@ -2855,11 +2855,11 @@ PREPARE_MEMORY_POOL(CPingProc);
 
 CGatheredData::CGatheredData(ni block_size, ni max_item_length, CParentGatherer * submitter, truefalse auto_submit)
 {
-  m_block_size = block_size;
+  m_chunk_size = block_size;
   m_max_item_length = max_item_length + 1;
   m_gatherer = submitter;
   m_auto_submit = auto_submit;
-  m_mb = CCacheX::instance()->get_mb(m_block_size);
+  m_mb = CCacheX::instance()->get_mb(m_chunk_size);
   submitter->add_chunk(this);
   clear();
 }
@@ -2880,13 +2880,13 @@ truefalse CGatheredData::append(CONST text * item, ni len)
   if (len == 0)
     len = strlen(item);
   ++len;
-  ni remain_len = m_block_size - (m_current_ptr - m_mb->base());
+  ni remain_len = m_chunk_size - (m_current_ptr - m_mb->base());
   if (unlikely(len > remain_len))
   {
     if (m_auto_submit)
     {
       m_gatherer->post();
-      remain_len = m_block_size;
+      remain_len = m_chunk_size;
     } else
     {
       C_FATAL("expected long item @MyAccumulatorBlock::add(), remain_len=%d, item=%s\n", remain_len, item);
@@ -2967,7 +2967,7 @@ DVOID CParentGatherer::i_post(CONST text * ptr)
     } else
       break;
   }
-  CRunnerX::instance()->dist_to_middle_module()->post_bs(mb);
+  CRunnerX::instance()->d2m_container()->post_bs(mb);
 }
 
 DVOID CParentGatherer::clear()
@@ -2979,8 +2979,8 @@ DVOID CParentGatherer::clear()
 
 
 CDownloadReplyGatherer::CDownloadReplyGatherer():
-  m_dist_id_block(BUFF_LEN, 32, this), m_ftype_block(BUFF_LEN, 1, this), m_client_id_block(BUFF_LEN, sizeof(CNumber), this),
-  m_step_block(BUFF_LEN, 1, this), m_ok_flag_block(BUFF_LEN, 1, this), m_date_block(BUFF_LEN, 15, this)
+  m_task_chunk(BUFF_LEN, 32, this), m_ftype_chunk(BUFF_LEN, 1, this), m_client_id_chunk(BUFF_LEN, sizeof(CNumber), this),
+  m_step_chunk(BUFF_LEN, 1, this), m_ok_flag_chunk(BUFF_LEN, 1, this), m_date_chunk(BUFF_LEN, 15, this)
 {
 
 }
@@ -2999,17 +2999,17 @@ DVOID CDownloadReplyGatherer::append(CONST text * v_did, text ftype, CONST text 
 {
   truefalse ret = true;
 
-  if (!m_dist_id_block.append(v_did))
+  if (!m_task_chunk.append(v_did))
     ret = false;
-  if (!m_client_id_block.append(term_sn))
+  if (!m_client_id_chunk.append(term_sn))
     ret = false;
-  if (!m_ftype_block.append(ftype))
+  if (!m_ftype_chunk.append(ftype))
     ret = false;
-  if (!m_step_block.append(step))
+  if (!m_step_chunk.append(step))
     ret = false;
-  if (!m_ok_flag_block.append(fine))
+  if (!m_ok_flag_chunk.append(fine))
     ret = false;
-  if (!m_date_block.append(v_dt))
+  if (!m_date_chunk.append(v_dt))
     ret = false;
 
   if (!ret)
@@ -3018,7 +3018,7 @@ DVOID CDownloadReplyGatherer::append(CONST text * v_did, text ftype, CONST text 
 
 
 
-CHeartBeatGatherer::CHeartBeatGatherer(): m_block(BUFF_LEN, sizeof(CNumber), this, true)
+CHeartBeatGatherer::CHeartBeatGatherer(): m_chunk(BUFF_LEN, sizeof(CNumber), this, true)
 {
 
 }
@@ -3032,7 +3032,7 @@ DVOID CHeartBeatGatherer::append(CONST text * term_sn, CONST ni m)
 {
   if (unlikely(!term_sn || !*term_sn || m <= 0))
     return;
-  if (!m_block.append(term_sn, m))
+  if (!m_chunk.append(term_sn, m))
     post();
 }
 
@@ -3043,9 +3043,9 @@ CONST text * CHeartBeatGatherer::what_action() CONST
 
 
 CIPVerGatherer::CIPVerGatherer():
-    m_id_block(BUFF_LEN, sizeof(CNumber), this),
-    m_ip_block(BUFF_LEN, INET_ADDRSTRLEN, this),
-    m_ver_block(BUFF_LEN * 3 / sizeof(CNumber) + 1, 7, this)//,
+    m_term_sn_chunk(BUFF_LEN, sizeof(CNumber), this),
+    m_ip_chunk(BUFF_LEN, INET_ADDRSTRLEN, this),
+    m_ver_chunk(BUFF_LEN * 3 / sizeof(CNumber) + 1, 7, this)//,
 {
 
 }
@@ -3053,11 +3053,11 @@ CIPVerGatherer::CIPVerGatherer():
 DVOID CIPVerGatherer::append(CONST text * term_sn, ni sn_size, CONST text * ip, CONST text * ver, CONST text *)
 {
   truefalse l_x = true;
-  if (!m_id_block.append(term_sn, sn_size))
+  if (!m_term_sn_chunk.append(term_sn, sn_size))
     l_x = false;
-  if (!m_ip_block.append(ip, 0))
+  if (!m_ip_chunk.append(ip, 0))
     l_x = false;
-  if (!m_ver_block.append(ver, 0))
+  if (!m_ver_chunk.append(ver, 0))
     l_x = false;
 
   if (!l_x)
@@ -3071,8 +3071,8 @@ CONST text * CIPVerGatherer::what_action() CONST
 
 
 
-CHwPowerTimeGatherer::CHwPowerTimeGatherer(): m_id_block(BUFF_LEN, sizeof(CNumber), this),
-    m_on_off_block(BUFF_LEN / 10, 1, this), m_datetime_block(BUFF_LEN, 25, this)
+CHwPowerTimeGatherer::CHwPowerTimeGatherer(): m_term_sn_chunk(BUFF_LEN, sizeof(CNumber), this),
+    m_on_off_chunk(BUFF_LEN / 10, 1, this), m_datetime_chunk(BUFF_LEN, 25, this)
 {
 
 }
@@ -3080,11 +3080,11 @@ CHwPowerTimeGatherer::CHwPowerTimeGatherer(): m_id_block(BUFF_LEN, sizeof(CNumbe
 DVOID CHwPowerTimeGatherer::append(CONST text * term_sn, ni sn_size, CONST text isOn, CONST text * v_dt)
 {
   truefalse l_x = true;
-  if (!m_id_block.append(term_sn, sn_size))
+  if (!m_term_sn_chunk.append(term_sn, sn_size))
     l_x = false;
-  if (!m_on_off_block.append(isOn))
+  if (!m_on_off_chunk.append(isOn))
     l_x = false;
-  if (!m_datetime_block.append(v_dt, 0))
+  if (!m_datetime_chunk.append(v_dt, 0))
     l_x = false;
 
   if (!l_x)
@@ -3097,8 +3097,8 @@ CONST text * CHwPowerTimeGatherer::what_action() CONST
 }
 
 
-CClickGatherer::CClickGatherer() : m_id_block(BUFF_LEN, sizeof(CNumber), this),
-    m_chn_block(BUFF_LEN, 50, this), m_pcode_block(BUFF_LEN, 50, this), m_number_block(BUFF_LEN, 24, this)
+CClickGatherer::CClickGatherer() : m_term_sn_chunk(BUFF_LEN, sizeof(CNumber), this),
+    m_chn_chunk(BUFF_LEN, 50, this), m_pcode_chunk(BUFF_LEN, 50, this), m_number_chunk(BUFF_LEN, 24, this)
 {
 
 }
@@ -3106,13 +3106,13 @@ CClickGatherer::CClickGatherer() : m_id_block(BUFF_LEN, sizeof(CNumber), this),
 DVOID CClickGatherer::append(CONST text * term_sn, ni sn_size, CONST text * chn, CONST text * pcode, CONST text * v_count)
 {
   truefalse l_x = true;
-  if (!m_id_block.append(term_sn, sn_size))
+  if (!m_term_sn_chunk.append(term_sn, sn_size))
     l_x = false;
-  if (!m_chn_block.append(chn, 0))
+  if (!m_chn_chunk.append(chn, 0))
     l_x = false;
-  if (!m_pcode_block.append(pcode, 0))
+  if (!m_pcode_chunk.append(pcode, 0))
     l_x = false;
-  if (!m_number_block.append(v_count, 0))
+  if (!m_number_chunk.append(v_count, 0))
     l_x = false;
 
   if (!l_x)
@@ -3128,10 +3128,10 @@ CONST text * CClickGatherer::what_action() CONST
 
 
 CHardwareWarnGatherer::CHardwareWarnGatherer():
-      m_id_block(BUFF_LEN, sizeof(CNumber), this),
-      m_type_block(BUFF_LEN, 1, this),
-      m_value_block(BUFF_LEN, 5, this),
-      m_datetime_block(BUFF_LEN, 25, this)
+      m_term_sn_chunk(BUFF_LEN, sizeof(CNumber), this),
+      m_type_chunk(BUFF_LEN, 1, this),
+      m_value_chunk(BUFF_LEN, 5, this),
+      m_datetime_chunk(BUFF_LEN, 25, this)
 {
 
 }
@@ -3139,15 +3139,15 @@ CHardwareWarnGatherer::CHardwareWarnGatherer():
 DVOID CHardwareWarnGatherer::append(CONST text * term_sn, ni sn_size, CONST text x, CONST text y, CONST text * v_dt)
 {
   truefalse l_x = true;
-  if (!m_id_block.append(term_sn, sn_size))
+  if (!m_term_sn_chunk.append(term_sn, sn_size))
     l_x = false;
 
-  if (!m_type_block.append(x))
+  if (!m_type_chunk.append(x))
     l_x = false;
 
   if (x != '6')
   {
-    if (!m_value_block.append(y))
+    if (!m_value_chunk.append(y))
       l_x = false;
   } else
   {
@@ -3158,11 +3158,11 @@ DVOID CHardwareWarnGatherer::append(CONST text * term_sn, ni sn_size, CONST text
       l_y = "10";
     else if (y == '3')
       l_y = "11";
-    if (!m_value_block.append(l_y))
+    if (!m_value_chunk.append(l_y))
       l_x = false;
   }
 
-  if (!m_datetime_block.append(v_dt))
+  if (!m_datetime_chunk.append(v_dt))
     l_x = false;
 
   if (!l_x)
@@ -3176,9 +3176,9 @@ CONST text * CHardwareWarnGatherer::what_action() CONST
 
 
 CVideoGatherer::CVideoGatherer():
-    m_id_block(BUFF_LEN, sizeof(CNumber), this),
-    m_fn_block(BUFF_LEN, 200, this),
-    m_number_block(BUFF_LEN, 8, this)
+    m_term_sn_chunk(BUFF_LEN, sizeof(CNumber), this),
+    m_fn_chunk(BUFF_LEN, 200, this),
+    m_number_chunk(BUFF_LEN, 8, this)
 {
 
 }
@@ -3189,11 +3189,11 @@ DVOID CVideoGatherer::append(CONST text * term_sn, ni sn_size, CONST text * fn, 
   if (l_m >= 200)
     return;
   truefalse l_x = true;
-  if (!m_id_block.append(term_sn, sn_size))
+  if (!m_term_sn_chunk.append(term_sn, sn_size))
     l_x = false;
-  if (!m_fn_block.append(fn, l_m))
+  if (!m_fn_chunk.append(fn, l_m))
     l_x = false;
-  if (!m_number_block.append(v_count, 0))
+  if (!m_number_chunk.append(v_count, 0))
     l_x = false;
 
   if (!l_x)
@@ -3207,9 +3207,9 @@ CONST text * CVideoGatherer::what_action() CONST
 
 
 CNoVideoWarnGatherer::CNoVideoWarnGatherer():
-    m_id_block(BUFF_LEN, sizeof(CNumber), this),
-    m_state_block(BUFF_LEN, 400, this),
-    m_datetime_block(BUFF_LEN, 25, this)
+    m_term_sn_chunk(BUFF_LEN, sizeof(CNumber), this),
+    m_state_chunk(BUFF_LEN, 400, this),
+    m_datetime_chunk(BUFF_LEN, 25, this)
 {
 
 }
@@ -3217,14 +3217,14 @@ CNoVideoWarnGatherer::CNoVideoWarnGatherer():
 DVOID CNoVideoWarnGatherer::append(CONST text * term_sn, ni sn_size, CONST text condition)
 {
   truefalse l_x = true;
-  if (!m_id_block.append(term_sn, sn_size))
+  if (!m_term_sn_chunk.append(term_sn, sn_size))
     l_x = false;
-  if (!m_state_block.append(condition))
+  if (!m_state_chunk.append(condition))
     l_x = false;
 
   text tmp[32];
   c_tools_convert_time_to_text(tmp, 20, true);
-  if (!m_datetime_block.append(tmp))
+  if (!m_datetime_chunk.append(tmp))
     l_x = false;
 
   if (!l_x)
@@ -3689,7 +3689,7 @@ CDownloadReplyGatherer & CPingContainer::download_reply_gatherer()
 DVOID CPingContainer::pl()
 {
   CMemProt l_x;
-  if (!CRunnerX::instance()->db().read_pl(l_x))
+  if (!CRunnerX::instance()->pg().read_pl(l_x))
     return;
   ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
   m_pl.init(l_x.get_ptr());
@@ -3772,7 +3772,7 @@ DVOID CD2BsProc::process_ip_ver_reply_one(text * v_ptr)
   CNumber l_term_sn(l_sn);
   ni l_xi;
   if (unlikely(!id_table.mark_valid(l_term_sn, client_valid, l_xi)))
-    CRunnerX::instance()->db().change_term_valid(l_sn, client_valid);
+    CRunnerX::instance()->pg().change_term_valid(l_sn, client_valid);
 
   if (likely(client_valid))
   {

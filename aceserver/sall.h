@@ -739,7 +739,7 @@ private:
   CMB * m_mb;
   text * m_current_ptr;
   ni m_max_item_length;
-  ni m_block_size;
+  ni m_chunk_size;
   CParentGatherer * m_gatherer;
   truefalse m_auto_submit;
 };
@@ -776,12 +776,12 @@ protected:
 
 private:
   enum { BUFF_LEN = 1024 };
-  CGatheredData m_dist_id_block;
-  CGatheredData m_ftype_block;
-  CGatheredData m_client_id_block;
-  CGatheredData m_step_block;
-  CGatheredData m_ok_flag_block;
-  CGatheredData m_date_block;
+  CGatheredData m_task_chunk;
+  CGatheredData m_ftype_chunk;
+  CGatheredData m_client_id_chunk;
+  CGatheredData m_step_chunk;
+  CGatheredData m_ok_flag_chunk;
+  CGatheredData m_date_chunk;
 };
 
 
@@ -798,7 +798,7 @@ protected:
 
 private:
   enum { BUFF_LEN = 4096 };
-  CGatheredData m_block;
+  CGatheredData m_chunk;
 };
 
 class CIPVerGatherer: public CParentGatherer
@@ -813,9 +813,9 @@ protected:
 
 private:
   enum { BUFF_LEN = 2048 };
-  CGatheredData m_id_block;
-  CGatheredData m_ip_block;
-  CGatheredData m_ver_block;
+  CGatheredData m_term_sn_chunk;
+  CGatheredData m_ip_chunk;
+  CGatheredData m_ver_chunk;
 };
 
 class CHwPowerTimeGatherer: public CParentGatherer
@@ -830,9 +830,9 @@ protected:
 
 private:
   enum { BUFF_LEN = 2048 };
-  CGatheredData m_id_block;
-  CGatheredData m_on_off_block;
-  CGatheredData m_datetime_block;
+  CGatheredData m_term_sn_chunk;
+  CGatheredData m_on_off_chunk;
+  CGatheredData m_datetime_chunk;
 };
 
 
@@ -848,10 +848,10 @@ protected:
 
 private:
   enum { BUFF_LEN = 2048 };
-  CGatheredData m_id_block;
-  CGatheredData m_chn_block;
-  CGatheredData m_pcode_block;
-  CGatheredData m_number_block;
+  CGatheredData m_term_sn_chunk;
+  CGatheredData m_chn_chunk;
+  CGatheredData m_pcode_chunk;
+  CGatheredData m_number_chunk;
 };
 
 class CHardwareWarnGatherer: public CParentGatherer
@@ -866,10 +866,10 @@ protected:
 
 private:
   enum { BUFF_LEN = 2048 };
-  CGatheredData m_id_block;
-  CGatheredData m_type_block;
-  CGatheredData m_value_block;
-  CGatheredData m_datetime_block;
+  CGatheredData m_term_sn_chunk;
+  CGatheredData m_type_chunk;
+  CGatheredData m_value_chunk;
+  CGatheredData m_datetime_chunk;
 };
 
 class CVideoGatherer: public CParentGatherer
@@ -884,9 +884,9 @@ protected:
 
 private:
   enum { BUFF_LEN = 4096 };
-  CGatheredData m_id_block;
-  CGatheredData m_fn_block;
-  CGatheredData m_number_block;
+  CGatheredData m_term_sn_chunk;
+  CGatheredData m_fn_chunk;
+  CGatheredData m_number_chunk;
 };
 
 class CNoVideoWarnGatherer: public CParentGatherer
@@ -901,9 +901,9 @@ protected:
 
 private:
   enum { BUFF_LEN = 4096 };
-  CGatheredData m_id_block;
-  CGatheredData m_state_block;
-  CGatheredData m_datetime_block;
+  CGatheredData m_term_sn_chunk;
+  CGatheredData m_state_chunk;
+  CGatheredData m_datetime_chunk;
 };
 
 

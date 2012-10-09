@@ -2679,7 +2679,7 @@ truefalse CParentScheduler::i_begin()
 DVOID CParentScheduler::i_end()
 {
   ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
-  if (!m_reactor) //reuse m_reactor as cleanup flag
+  if (!m_reactor)
     return;
   before_finish_stage_1();
   msg_queue()->flush();
