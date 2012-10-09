@@ -5,7 +5,7 @@
 #include "app.h"
 #include "sall.h"
 
-class MyHeartBeatModule;
+class CPingContainer;
 class CPositionContainer;
 
 class CRunner: public CApp
@@ -15,11 +15,11 @@ public:
   virtual ~CRunner();
 
   CTermSNs & termSNs();
-  MyHeartBeatModule * ping_component() CONST;
+  CPingContainer * ping_component() CONST;
   CBalanceContainer * dist_load_module() CONST;
   CBsReqContainer * http_module() CONST;
   CPositionContainer * location_module() CONST;
-  MyDistToMiddleModule * dist_to_middle_module() CONST;
+  CD2MContainer * dist_to_middle_module() CONST;
   MyDB & db();
 
   SF truefalse initialize(CONST text * hdir = NULL, CCfg::CAppMode m = CCfg::AM_UNKNOWN);
@@ -34,11 +34,11 @@ protected:
   virtual DVOID i_print();
 
 private:
-  MyHeartBeatModule * m_ping_component;
+  CPingContainer * m_ping_component;
   CPositionContainer * m_location_module;
   CBalanceContainer * m_dist_load_module;
   CBsReqContainer     * m_http_module;
-  MyDistToMiddleModule * m_dist_to_middle_module;
+  CD2MContainer * m_dist_to_middle_module;
   CTermSNs m_term_SNs;
   MyDB  m_db;
 };

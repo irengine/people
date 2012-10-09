@@ -30,7 +30,7 @@ CTermSNs & CRunner::termSNs()
   return m_term_SNs;
 }
 
-MyHeartBeatModule * CRunner::ping_component() CONST
+CPingContainer * CRunner::ping_component() CONST
 {
   return m_ping_component;
 }
@@ -50,7 +50,7 @@ CPositionContainer * CRunner::location_module() CONST
   return m_location_module;
 }
 
-MyDistToMiddleModule * CRunner::dist_to_middle_module() CONST
+CD2MContainer * CRunner::dist_to_middle_module() CONST
 {
   return m_dist_to_middle_module;
 }
@@ -102,25 +102,25 @@ DVOID CRunner::print_caches()
     CApp::print_pool("MyHeartBeatHandler", l_get, l_put, l_peak, l_fail, sizeof(MyHeartBeatHandler), blocks);
   }
 
-  if (MyHeartBeatProcessor::mem_block())
+  if (CPingProc::mem_block())
   {
-    blocks = MyHeartBeatProcessor::mem_block()->blocks();
-    MyHeartBeatProcessor::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyHeartBeatProcessor", l_get, l_put, l_peak, l_fail, sizeof(MyHeartBeatProcessor), blocks);
+    blocks = CPingProc::mem_block()->blocks();
+    CPingProc::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyHeartBeatProcessor", l_get, l_put, l_peak, l_fail, sizeof(CPingProc), blocks);
   }
 
-  if (MyDistToBSHandler::mem_block())
+  if (CD2BsHandler::mem_block())
   {
-    blocks = MyDistToBSHandler::mem_block()->blocks();
-    MyDistToBSHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyDistToBSHandler", l_get, l_put, l_peak, l_fail, sizeof(MyDistToBSHandler), blocks);
+    blocks = CD2BsHandler::mem_block()->blocks();
+    CD2BsHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyDistToBSHandler", l_get, l_put, l_peak, l_fail, sizeof(CD2BsHandler), blocks);
   }
 
-  if (MyDistToMiddleHandler::mem_block())
+  if (CD2MHandler::mem_block())
   {
-    blocks = MyDistToMiddleHandler::mem_block()->blocks();
-    MyDistToMiddleHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyDistToMiddleHandler", l_get, l_put, l_peak, l_fail, sizeof(MyDistToMiddleHandler), blocks);
+    blocks = CD2MHandler::mem_block()->blocks();
+    CD2MHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyDistToMiddleHandler", l_get, l_put, l_peak, l_fail, sizeof(CD2MHandler), blocks);
   }
 
   //m
@@ -187,7 +187,7 @@ truefalse CRunner::do_init()
     C_FATAL("fail to connect to database. quitting...\n");
     return false;
   }
-  if (!m_db.get_client_ids(&m_term_SNs))
+  if (!m_db.load_term_SNs(&m_term_SNs))
   {
     C_FATAL("fail to get term sn from db. quitting...\n");
     return false;
@@ -195,8 +195,8 @@ truefalse CRunner::do_init()
 
   if (cfg->dist())
   {
-    add_component(m_ping_component = new MyHeartBeatModule(this));
-    add_component(m_dist_to_middle_module = new MyDistToMiddleModule(this));
+    add_component(m_ping_component = new CPingContainer(this));
+    add_component(m_dist_to_middle_module = new CD2MContainer(this));
   }
   if (cfg->middle())
   {
@@ -220,10 +220,10 @@ truefalse CRunner::initialize(CONST text * v_dir, CCfg::CAppMode v_m)
     CApp::demon();
   if (l_p->dist())
   {
-    MyHeartBeatProcessor::mem_block_start(l_p->client_peak);
+    CPingProc::mem_block_start(l_p->client_peak);
     MyHeartBeatHandler::mem_block_start(l_p->client_peak);
-    MyDistToMiddleHandler::mem_block_start(20);
-    MyDistToBSHandler::mem_block_start(20);
+    CD2MHandler::mem_block_start(20);
+    CD2BsHandler::mem_block_start(20);
   }
   if (l_p->middle())
   {
@@ -248,14 +248,14 @@ DVOID CRunner::cleanup()
   CCfgX::close();
   print_caches(); //only mem pool info, other objects should gone by now
   MyHeartBeatHandler::mem_block_end();
-  MyHeartBeatProcessor::mem_block_end();
+  CPingProc::mem_block_end();
   CPositionHandler::mem_block_end();
   CPositionProc::mem_block_end();
   CBalanceHandler::mem_block_end();
   CBsReqHandler::mem_block_end();
   CBsReqProc::mem_block_end();
-  MyDistToMiddleHandler::mem_block_end();
-  MyDistToBSHandler::mem_block_end();
+  CD2MHandler::mem_block_end();
+  CD2BsHandler::mem_block_end();
   CM2BsHandler::mem_block_end();
   CM2BsProc::mem_block_end();
   CCacheX::close();

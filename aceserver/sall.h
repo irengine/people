@@ -519,17 +519,17 @@ protected:
 
 
 //dst
-class MyHeartBeatModule;
-class MyPingSubmitter;
-class MyIPVerSubmitter;
-class MyFtpFeedbackSubmitter;
-class MyAdvClickSubmitter;
-class MyPcOnOffSubmitter;
-class MyHWAlarmSubmitter;
-class MyVLCSubmitter;
-class MyVLCEmptySubmitter;
-class MyHeartBeatAcceptor;
-class MyDistClients;
+class CPingContainer;
+class CHeartBeatGatherer;
+class CIPVerGatherer;
+class CDownloadReplyGatherer;
+class CClickGatherer;
+class CHwPowerTimeGatherer;
+class CHardwareWarnGatherer;
+class CVideoGatherer;
+class CNoVideoWarnGatherer;
+class CPingAcc;
+class CTermStations;
 class CTermStation;
 
 class CDistTermItem
@@ -566,7 +566,7 @@ private:
   truefalse create_cmp_file();
   ni  calc_common_header_len();
   DVOID format_common_header(text *);
-  CMB * create_mb_of_download_sub(truefalse bok);
+  CMB * create_mb_of_download_sub(truefalse fine);
   truefalse on_conditon0();
   truefalse on_conditon1();
   truefalse on_conditon2();
@@ -583,7 +583,7 @@ class CTermStation
 public:
   typedef std::list<CDistTermItem *, CCppAllocator<CDistTermItem *> > CDistTermItems;
 
-  CTermStation(MyDistClients *, CONST text *);
+  CTermStation(CTermStations *, CONST text *);
   ~CTermStation();
 
   CDistTermItem * generate_term_item(CBsDistData *);
@@ -596,122 +596,113 @@ public:
   ni term_position() CONST;
 
 private:
-  CDistTermItems m_dist_items;
-  MyDistClients * m_dist_clients;
+  CDistTermItems m_items;
+  CTermStations * m_stations;
   CNumber m_term_sn;
   ni m_term_position;
 };
 
-class MyClientMapKey
+class CTermQuickFinder
 {
 public:
-  MyClientMapKey(CONST text * _dist_id, CONST text * _client_id);
-  truefalse operator == (CONST MyClientMapKey & rhs) CONST;
+  CTermQuickFinder(CONST text * did, CONST text * term_sn);
+  truefalse operator == (CONST CTermQuickFinder &) CONST;
 
-  CONST text * dist_id;
-  CONST text * client_id;
+  CONST text * did;
+  CONST text * term_sn;
 };
 
-class MyClientMapHash
+class CTermHasher
 {
 public:
-  size_t operator()(CONST MyClientMapKey & x) CONST
+  size_t operator()(CONST CTermQuickFinder & x) CONST
   {
-    return c_tools_text_hash(x.client_id) ^ c_tools_text_hash(x.dist_id);
+    return c_tools_text_hash(x.term_sn) ^ c_tools_text_hash(x.did);
   }
 };
 
-class MyDistClients
+class CTermStations
 {
 public:
-  typedef std::list<CTermStation *, CCppAllocator<CTermStation *> > MyDistClientOneList;
-  typedef std::tr1::unordered_map<MyClientMapKey,
-                                  CDistTermItem *,
-                                  MyClientMapHash,
-                                  std::equal_to<MyClientMapKey>,
-                                  CCppAllocator <std::pair<const MyClientMapKey, CDistTermItem *>>
-                                > MyDistClientMap;
-  typedef std::tr1::unordered_map<const text *,
-                                  CTermStation *,
-                                  CTextHashGenerator,
-                                  CTextEqual,
+  typedef std::list<CTermStation *, CCppAllocator<CTermStation *> > CTermStationList;
+  typedef std::tr1::unordered_map<CTermQuickFinder, CDistTermItem *, CTermHasher, std::equal_to<CTermQuickFinder>,
+                                  CCppAllocator <std::pair<const CTermQuickFinder, CDistTermItem *>>
+                                > CDistTermItemMap;
+  typedef std::tr1::unordered_map<const text *, CTermStation *, CTextHashGenerator, CTextEqual,
                                   CCppAllocator <std::pair<const text *, CTermStation *>>
-                                > MyDistClientOneMap;
+                                > CTermStationMap;
 
+  CTermStations(CBsDistDatas *);
+  ~CTermStations();
+  CBsDistData * search_dist_data(CONST text *);
+  DVOID reset();
+  DVOID work();
+  DVOID at_new_term_item(CDistTermItem *);
+  DVOID at_del_term_item(CDistTermItem *, truefalse done);
+  CDistTermItem * search_term_item(CONST text *, CONST text *);
+  CTermStation *  search_term_station(CONST text *);
+  CTermStation *  generate_term_station(CONST text *);
+  DVOID destruct_term_station(CTermStation *);
 
-  MyDistClients(CBsDistDatas * dist_infos);
-  ~MyDistClients();
-
-  CBsDistData * find_dist_info(CONST text * dist_id);
-  DVOID clear();
-  DVOID dist_files();
-  DVOID on_create_dist_client(CDistTermItem * dc);
-  DVOID on_remove_dist_client(CDistTermItem * dc, truefalse finished);
-  CDistTermItem * find_dist_client(CONST text * client_id, CONST text * dist_id);
-  CTermStation * find_client_one(CONST text * client_id);
-  CTermStation * create_client_one(CONST text * client_id);
-  DVOID delete_client_one(CTermStation * dco);
-
-  MyDistClientOneList dist_clients;
-  time_t db_time;
+  CTermStationList term_stations;
+  time_t database_ts;
 
 private:
 
-  CBsDistDatas * m_dist_infos;
-  MyDistClientMap m_dist_clients_map;
-  MyDistClientOneMap m_dist_client_ones_map;
-  ni m_dist_client_finished;
+  CBsDistDatas *   m_datas;
+  CDistTermItemMap m_term_items;
+  CTermStationMap  m_term_stations;
+  ni m_term_station_done;
 };
 
-class MyClientFileDistributor
+class CSpreader
 {
 public:
-  MyClientFileDistributor();
-
-  truefalse distribute(truefalse check_reload);
-  DVOID dist_ftp_file_reply(CONST text * client_id, CONST text * dist_id, ni _status, truefalse ok);
-  DVOID dist_ftp_md5_reply(CONST text * client_id, CONST text * dist_id, CONST text * md5list);
-  DVOID psp(CONST text * client_id, CONST text * dist_id, text c);
+  CSpreader();
+  truefalse work(truefalse);
+  DVOID at_download_cmd_feedback(CONST text *, CONST text *, ni, truefalse);
+  DVOID at_download_checksum_feedback(CONST text *, CONST text *, CONST text *);
+  DVOID control_pause_stop(CONST text *, CONST text *, text);
 
 private:
-  enum { IDLE_TIME = 5 }; //in minutes
+  enum { Vacation_Delay = 5 }; //m
 
-  truefalse check_dist_info(truefalse reload);
-  truefalse check_dist_clients(truefalse reload);
+  truefalse do_jobs(truefalse);
+  truefalse do_term_stations(truefalse);
 
-  CBsDistDatas m_dist_infos;
-  MyDistClients m_dist_clients;
-  time_t m_last_begin;
-  time_t m_last_end;
+  CBsDistDatas m_datas;
+  CTermStations m_stations;
+  time_t m_prev_start;
+  time_t m_prev_stop;
 };
 
-class MyHeartBeatProcessor: public CParentServerProc
+class CPingProc: public CParentServerProc
 {
 public:
   typedef CParentServerProc baseclass;
 
-  MyHeartBeatProcessor(CParentHandler * handler);
+  CPingProc(CParentHandler *);
   virtual CProc::OUTPUT at_head_arrival();
   virtual CONST text * name() CONST;
 
-  SF MyPingSubmitter * m_heart_beat_submitter;
-  SF MyIPVerSubmitter * m_ip_ver_submitter;
-  SF MyFtpFeedbackSubmitter * m_ftp_feedback_submitter;
-  SF MyAdvClickSubmitter * m_adv_click_submitter;
-  SF MyPcOnOffSubmitter * m_pc_on_off_submitter;
-  SF MyHWAlarmSubmitter * m_hardware_alarm_submitter;
-  SF MyVLCSubmitter * m_vlc_submitter;
-  SF MyVLCEmptySubmitter * m_vlc_empty_submitter;
+  SF CHeartBeatGatherer * m_heart_beat_submitter;
+  SF CIPVerGatherer * m_ip_ver_submitter;
+  SF CDownloadReplyGatherer * m_ftp_feedback_submitter;
+  SF CClickGatherer * m_adv_click_submitter;
+  SF CHwPowerTimeGatherer * m_pc_on_off_submitter;
+  SF CHardwareWarnGatherer * m_hardware_alarm_submitter;
+  SF CVideoGatherer * m_vlc_submitter;
+  SF CNoVideoWarnGatherer * m_vlc_empty_submitter;
 
-  DECLARE_MEMORY_POOL__NOTHROW(MyHeartBeatProcessor, ACE_Thread_Mutex);
+  DECLARE_MEMORY_POOL__NOTHROW(CPingProc, ACE_Thread_Mutex);
 
 protected:
   virtual CProc::OUTPUT do_read_data(CMB * mb);
 
 private:
-  enum { MSG_QUEUE_MAX_SIZE = 2 * 1024 * 1024 };
+  enum { MQ_PEAK = 2 * 1024 * 1024 };
 
-  DVOID do_ping();
+  DVOID handle_heart_beat();
   CProc::OUTPUT do_version_check(CMB * mb);
   CProc::OUTPUT do_md5_file_list(CMB * mb);
   CProc::OUTPUT do_ftp_reply(CMB * mb);
@@ -728,193 +719,191 @@ private:
   text m_hw_ver[12];
 };
 
-class MyBaseSubmitter;
+class CParentGatherer;
 
-class MyAccumulatorBlock
+class CGatheredData
 {
 public:
-  MyAccumulatorBlock(ni block_size, ni max_item_length, MyBaseSubmitter * submitter, truefalse auto_submit = false);
-  ~MyAccumulatorBlock();
+  CGatheredData(ni block_size, ni max_item_length, CParentGatherer * submitter, truefalse auto_submit = false);
+  ~CGatheredData();
 
-  DVOID reset();
-  truefalse add(CONST text * item, ni len = 0);
-  truefalse add(text c);
+  DVOID clear();
+  truefalse append(CONST text * item, ni len = 0);
+  truefalse append(text c);
   CONST text * data();
   ni data_len() CONST;
 
 private:
-  enum {ITEM_SEPARATOR = ';' };
+  enum { ITEM_SEPARATOR = ';' };
 
   CMB * m_mb;
   text * m_current_ptr;
   ni m_max_item_length;
   ni m_block_size;
-  MyBaseSubmitter * m_submitter;
+  CParentGatherer * m_gatherer;
   truefalse m_auto_submit;
 };
 
-class MyBaseSubmitter
+class CParentGatherer
 {
 public:
-  virtual ~MyBaseSubmitter();
+  virtual ~CParentGatherer();
 
-  DVOID submit();
-  DVOID add_block(MyAccumulatorBlock * block);
-  DVOID check_time_out();
+  DVOID post();
+  DVOID add_chunk(CGatheredData *);
+  DVOID post_if_needed();
 
 protected:
-  typedef std::list<MyAccumulatorBlock * > MyBlockList;
+  typedef std::list<CGatheredData * > CGatheredDatas;
 
-  DVOID reset();
-  DVOID do_submit(CONST text * cmd);
+  DVOID clear();
+  DVOID i_post(CONST text *);
   virtual CONST text * get_command() CONST = 0;
 
-  MyBlockList m_blocks;
+  CGatheredDatas m_chunks;
 };
 
-class MyFtpFeedbackSubmitter: public MyBaseSubmitter
+class CDownloadReplyGatherer: public CParentGatherer
 {
 public:
-  MyFtpFeedbackSubmitter();
-  virtual ~MyFtpFeedbackSubmitter();
+  CDownloadReplyGatherer();
+  virtual ~CDownloadReplyGatherer();
 
-  DVOID add(CONST text * dist_id, text ftype, CONST text *client_id, text step, text ok_flag, CONST text * date);
+  DVOID append(CONST text *, text, CONST text *, text, text, CONST text *);
 
 protected:
   virtual CONST text * get_command() CONST;
 
 private:
-  enum { BLOCK_SIZE = 1024 };
-  MyAccumulatorBlock m_dist_id_block;
-  MyAccumulatorBlock m_ftype_block;
-  MyAccumulatorBlock m_client_id_block;
-  MyAccumulatorBlock m_step_block;
-  MyAccumulatorBlock m_ok_flag_block;
-  MyAccumulatorBlock m_date_block;
+  enum { BUFF_LEN = 1024 };
+  CGatheredData m_dist_id_block;
+  CGatheredData m_ftype_block;
+  CGatheredData m_client_id_block;
+  CGatheredData m_step_block;
+  CGatheredData m_ok_flag_block;
+  CGatheredData m_date_block;
 };
 
 
-class MyPingSubmitter: public MyBaseSubmitter
+class CHeartBeatGatherer: public CParentGatherer
 {
 public:
-  enum {ID_SEPARATOR = ';' };
-  MyPingSubmitter();
-  ~MyPingSubmitter();
-  DVOID add_ping(CONST text * client_id, CONST ni len);
+  enum { ITEM_MARK = ';' };
+  CHeartBeatGatherer();
+  ~CHeartBeatGatherer();
+  DVOID append(CONST text *, CONST ni);
 
 protected:
   virtual CONST text * get_command() CONST;
 
 private:
-  enum { BLOCK_SIZE = 4096 };
-  MyAccumulatorBlock m_block;
+  enum { BUFF_LEN = 4096 };
+  CGatheredData m_block;
 };
 
-class MyIPVerSubmitter: public MyBaseSubmitter
+class CIPVerGatherer: public CParentGatherer
 {
 public:
-  enum {ID_SEPARATOR = ';' };
-  MyIPVerSubmitter();
-  DVOID add_data(CONST text * client_id, ni id_len, CONST text * ip, CONST text * ver, CONST text * hwver);
+  enum { ITEM_MARK = ';' };
+  CIPVerGatherer();
+  DVOID append(CONST text *, ni, CONST text *, CONST text *, CONST text *);
 
 protected:
   virtual CONST text * get_command() CONST;
 
 private:
-  enum { BLOCK_SIZE = 2048 };
-  MyAccumulatorBlock m_id_block;
-  MyAccumulatorBlock m_ip_block;
-  MyAccumulatorBlock m_ver_block;
-//  MyAccumulatorBlock m_hw_ver1_block;
-//  MyAccumulatorBlock m_hw_ver2_block;
+  enum { BUFF_LEN = 2048 };
+  CGatheredData m_id_block;
+  CGatheredData m_ip_block;
+  CGatheredData m_ver_block;
 };
 
-class MyPcOnOffSubmitter: public MyBaseSubmitter
+class CHwPowerTimeGatherer: public CParentGatherer
 {
 public:
-  enum {ID_SEPARATOR = ';' };
-  MyPcOnOffSubmitter();
-  DVOID add_data(CONST text * client_id, ni id_len, CONST text c_on, CONST text * datetime);
+  enum { ITEM_MARK = ';' };
+  CHwPowerTimeGatherer();
+  DVOID append(CONST text *, ni, CONST text, CONST text *);
 
 protected:
   virtual CONST text * get_command() CONST;
 
 private:
-  enum { BLOCK_SIZE = 2048 };
-  MyAccumulatorBlock m_id_block;
-  MyAccumulatorBlock m_on_off_block;
-  MyAccumulatorBlock m_datetime_block;
+  enum { BUFF_LEN = 2048 };
+  CGatheredData m_id_block;
+  CGatheredData m_on_off_block;
+  CGatheredData m_datetime_block;
 };
 
 
-class MyAdvClickSubmitter: public MyBaseSubmitter
+class CClickGatherer: public CParentGatherer
 {
 public:
-  enum {ID_SEPARATOR = ';' };
-  MyAdvClickSubmitter();
-  DVOID add_data(CONST text * client_id, ni id_len, CONST text * chn, CONST text * pcode, CONST text * number);
+  enum { ITEM_MARK = ';' };
+  CClickGatherer();
+  DVOID append(CONST text *, ni, CONST text *, CONST text *, CONST text *);
 
 protected:
   virtual CONST text * get_command() CONST;
 
 private:
-  enum { BLOCK_SIZE = 2048 };
-  MyAccumulatorBlock m_id_block;
-  MyAccumulatorBlock m_chn_block;
-  MyAccumulatorBlock m_pcode_block;
-  MyAccumulatorBlock m_number_block;
+  enum { BUFF_LEN = 2048 };
+  CGatheredData m_id_block;
+  CGatheredData m_chn_block;
+  CGatheredData m_pcode_block;
+  CGatheredData m_number_block;
 };
 
-class MyHWAlarmSubmitter: public MyBaseSubmitter
+class CHardwareWarnGatherer: public CParentGatherer
 {
 public:
-  enum {ID_SEPARATOR = ';' };
-  MyHWAlarmSubmitter();
-  DVOID add_data(CONST text * client_id, ni id_len, CONST text x, CONST text y, CONST text * datetime);
+  enum { ITEM_MARK = ';' };
+  CHardwareWarnGatherer();
+  DVOID append(CONST text *, ni, CONST text, CONST text, CONST text *);
 
 protected:
   virtual CONST text * get_command() CONST;
 
 private:
-  enum { BLOCK_SIZE = 2048 };
-  MyAccumulatorBlock m_id_block;
-  MyAccumulatorBlock m_type_block;
-  MyAccumulatorBlock m_value_block;
-  MyAccumulatorBlock m_datetime_block;
+  enum { BUFF_LEN = 2048 };
+  CGatheredData m_id_block;
+  CGatheredData m_type_block;
+  CGatheredData m_value_block;
+  CGatheredData m_datetime_block;
 };
 
-class MyVLCSubmitter: public MyBaseSubmitter
+class CVideoGatherer: public CParentGatherer
 {
 public:
-  enum {ID_SEPARATOR = ';' };
-  MyVLCSubmitter();
-  DVOID add_data(CONST text * client_id, ni id_len, CONST text * fn, CONST text * number);
+  enum { ITEM_MARK = ';' };
+  CVideoGatherer();
+  DVOID append(CONST text *, ni, CONST text *, CONST text *);
 
 protected:
   virtual CONST text * get_command() CONST;
 
 private:
-  enum { BLOCK_SIZE = 4096 };
-  MyAccumulatorBlock m_id_block;
-  MyAccumulatorBlock m_fn_block;
-  MyAccumulatorBlock m_number_block;
+  enum { BUFF_LEN = 4096 };
+  CGatheredData m_id_block;
+  CGatheredData m_fn_block;
+  CGatheredData m_number_block;
 };
 
-class MyVLCEmptySubmitter: public MyBaseSubmitter
+class CNoVideoWarnGatherer: public CParentGatherer
 {
 public:
-  enum {ID_SEPARATOR = ';' };
-  MyVLCEmptySubmitter();
-  DVOID add_data(CONST text * client_id, ni id_len, CONST text state);
+  enum { ITEM_MARK = ';' };
+  CNoVideoWarnGatherer();
+  DVOID append(CONST text *, ni, CONST text);
 
 protected:
   virtual CONST text * get_command() CONST;
 
 private:
-  enum { BLOCK_SIZE = 4096 };
-  MyAccumulatorBlock m_id_block;
-  MyAccumulatorBlock m_state_block;
-  MyAccumulatorBlock m_datetime_block;
+  enum { BUFF_LEN = 4096 };
+  CGatheredData m_id_block;
+  CGatheredData m_state_block;
+  CGatheredData m_datetime_block;
 };
 
 
@@ -945,17 +934,17 @@ private:
   DVOID do_file_md5_reply(CMB * mb);
   DVOID do_psp(CMB * mb);
 
-  MyClientFileDistributor m_distributor;
+  CSpreader m_distributor;
   ACE_Message_Queue<ACE_MT_SYNCH> m_queue2;
 };
 
-class MyHeartBeatDispatcher: public CParentScheduler
+class CPingScheduler: public CParentScheduler
 {
 public:
-  MyHeartBeatDispatcher(CContainer * pModule, ni numThreads = 1);
+  CPingScheduler(CContainer *, ni = 1);
   virtual CONST text * name() CONST;
-  virtual ni handle_timeout (CONST ACE_Time_Value &tv, CONST DVOID *act);
-  MyHeartBeatAcceptor * acceptor() CONST;
+  virtual ni handle_timeout (CONST ACE_Time_Value &, CONST DVOID *);
+  CPingAcc * acc() CONST;
 
 protected:
   virtual DVOID before_finish();
@@ -963,174 +952,170 @@ protected:
   virtual truefalse before_begin();
 
 private:
-  enum { CLOCK_INTERVAL = 3 }; //seconds
-  enum { MSG_QUEUE_MAX_SIZE = 60 * 1024 * 1024 };
-  enum { TIMER_ID_HEART_BEAT = 2, TIMER_ID_IP_VER, TIMER_ID_DIST_SERVICE, TIMER_ID_FTP_FEEDBACK, TIMER_ID_ADV_CLICK };
-  enum { CLOCK_TICK_HEART_BEAT = 15, //seconds
-         CLOCK_TICK_IP_VER = 10, //seconds
-         CLOCK_TICK_FTP_FEEDBACK = 15, //seconds
-         CLOCK_TICK_ADV_CLICK = 2, //in minutes
-         CLOCK_TICK_DIST_SERVICE = 2 //minutes
+  enum { TIMER_VALUE_PING = 15, //s
+         TIMER_VALUE_IP_VER = 10, //s
+         TIMER_VALUE_DOWNLOAD_REPLY = 15, //s
+         TIMER_VALUE_CLICK = 2, //m
+         TIMER_VALUE_DIST_TASK = 2 //m
        };
-  MyHeartBeatAcceptor * m_acceptor;
+  enum { TIMER_DELAY_VALUE = 3 }; //s
+  enum { MQ_PEAK = 60 * 1024 * 1024 };
+  enum { TID_PING = 2, TID_IPVER, TID_DIST_TASK, TID_DOWNLOAD_REPLY, TID_CLICK };
+
+  CPingAcc * m_acc;
 };
 
-class MyHeartBeatAcceptor: public CParentAcc
+class CPingAcc: public CParentAcc
 {
 public:
-  enum { IDLE_TIME_AS_DEAD = 15 }; //in minutes
-  MyHeartBeatAcceptor(CParentScheduler * _dispatcher, CHandlerDirector * manager);
+  enum { REAP_TIMEOUT = 15 }; //m
+  CPingAcc(CParentScheduler *, CHandlerDirector *);
   virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 };
 
 
-class MyHeartBeatModule: public CContainer
+class CPingContainer: public CContainer
 {
 public:
-  MyHeartBeatModule(CApp * app);
-  virtual ~MyHeartBeatModule();
-  MyHeartBeatDispatcher * dispatcher() CONST;
+  CPingContainer(CApp *);
+  virtual ~CPingContainer();
+  CPingScheduler * scheduler() CONST;
   virtual CONST text * name() CONST;
   MyHeartBeatService * service() CONST;
-  ni num_active_clients() CONST;
-  MyFtpFeedbackSubmitter & ftp_feedback_submitter();
+  ni connected_count() CONST;
+  CDownloadReplyGatherer & download_reply_gatherer();
   DVOID pl();
-  truefalse get_pl(CMemProt & value);
+  truefalse get_pl(CMemProt &);
 
 protected:
   virtual truefalse before_begin();
   virtual DVOID before_finish();
 
 private:
-  MyPingSubmitter m_ping_sumbitter;
-  MyIPVerSubmitter m_ip_ver_submitter;
-  MyFtpFeedbackSubmitter m_ftp_feedback_submitter;
-  MyAdvClickSubmitter m_adv_click_submitter;
-  MyPcOnOffSubmitter m_pc_on_off_submitter;
-  MyHWAlarmSubmitter m_hardware_alarm_submitter;
-  MyVLCSubmitter m_vlc_submitter;
-  MyVLCEmptySubmitter m_vlc_empty_submitter;
+  CHeartBeatGatherer m_heart_beat_gatherer;
+  CIPVerGatherer m_ipver_gatherer;
+  CDownloadReplyGatherer m_download_reply_gatherer;
+  CClickGatherer m_click_gatherer;
+  CHwPowerTimeGatherer m_hw_power_gatherer;
+  CHardwareWarnGatherer m_hw_warn_gatherer;
+  CVideoGatherer m_video_gatherer;
+  CNoVideoWarnGatherer m_no_video_warn_gatherer;
   MyHeartBeatService * m_service;
-  MyHeartBeatDispatcher * m_dispatcher;
+  CPingScheduler * m_schduler;
   ACE_Thread_Mutex m_mutex;
   CMemProt m_pl;
 };
 
 
-/////////////////////////////////////
-//dist to BS
-/////////////////////////////////////
+//d2bs
 
-class MyDistToMiddleModule;
+class CD2MContainer;
 
-class MyDistToBSProcessor: public CBSProceBase
+class CD2BsProc: public CBSProceBase
 {
 public:
   typedef CBSProceBase baseclass;
-  MyDistToBSProcessor(CParentHandler * handler);
+  CD2BsProc(CParentHandler *);
   virtual CONST text * name() CONST;
 
 protected:
   virtual CProc::OUTPUT do_read_data(CMB * mb);
 
 private:
-  enum { MSG_QUEUE_MAX_SIZE = 2 * 1024 * 1024 };
+  enum { MQ_PEAK = 2 * 1024 * 1024 };
 
   DVOID process_ip_ver_reply(CBSData * bspacket);
   DVOID process_ip_ver_reply_one(text * item);
 };
 
-class MyDistToBSHandler: public CParentHandler
+class CD2BsHandler: public CParentHandler
 {
 public:
-  MyDistToBSHandler(CHandlerDirector * xptr = NULL);
-  MyDistToMiddleModule * module_x() CONST;
-  virtual ni handle_timeout (CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
-  DVOID checker_update();
-  DECLARE_MEMORY_POOL__NOTHROW(MyDistToBSHandler, ACE_Thread_Mutex);
+  CD2BsHandler(CHandlerDirector * = NULL);
+  CD2MContainer * container() CONST;
+  virtual ni handle_timeout (CONST ACE_Time_Value &, CONST DVOID * = 0);
+  DVOID refresh();
+  DECLARE_MEMORY_POOL__NOTHROW(CD2BsHandler, ACE_Thread_Mutex);
 
 protected:
   virtual DVOID at_finish();
   virtual ni  at_start();
 
 private:
-  CActValidator m_checker;
+  CActValidator m_validator;
 };
 
-class MyDistToBSConnector: public CParentConn
+class CD2BsConn: public CParentConn
 {
 public:
-  MyDistToBSConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager);
+  CD2BsConn(CParentScheduler *, CHandlerDirector *);
   virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 
 protected:
-  enum { RECONNECT_INTERVAL = 1 }; //time in minutes
+  enum { RETRY_DELAY = 1 }; //m
 };
 
 
-/////////////////////////////////////
-//dist to middle module
-/////////////////////////////////////
+//d2m
+class CD2MContainer;
+class CD2MConn;
 
-class MyDistToMiddleModule;
-class MyDistToMiddleConnector;
-
-class MyDistToMiddleProcessor: public CParentClientProc
+class CD2MProc: public CParentClientProc
 {
 public:
   typedef CParentClientProc baseclass;
 
-  MyDistToMiddleProcessor(CParentHandler * handler);
+  CD2MProc(CParentHandler *);
   virtual CProc::OUTPUT at_head_arrival();
   virtual ni at_start();
-  ni send_server_load();
+  ni post_balance();
 
 protected:
   virtual CProc::OUTPUT do_read_data(CMB * mb);
 
 private:
-  enum { IP_ADDR_LENGTH = INET_ADDRSTRLEN };
-  enum { MSG_QUEUE_MAX_SIZE = 512 * 1024 };
+  enum { IP_SIZE = INET_ADDRSTRLEN };
+  enum { MQ_PEAK = 512 * 1024 };
 
-  ni send_version_check_req();
-  CProc::OUTPUT do_version_check_reply(CMB * mb);
-  CProc::OUTPUT do_have_dist_task(CMB * mb);
-  CProc::OUTPUT do_remote_cmd_task(CMB * mb);
+  ni post_ver_mb();
+  CProc::OUTPUT handle_ver_reply(CMB *);
+  CProc::OUTPUT handle_has_dist(CMB *);
+  CProc::OUTPUT handle_rmt_command(CMB *);
 
-  truefalse m_version_check_reply_done;
-  text m_local_addr[IP_ADDR_LENGTH];
+  truefalse m_ver_reply_finished;
+  text m_self_ip[IP_SIZE];
 };
 
-class MyDistToMiddleHandler: public CParentHandler
+class CD2MHandler: public CParentHandler
 {
 public:
-  MyDistToMiddleHandler(CHandlerDirector * xptr = NULL);
-  virtual ni handle_timeout (CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
-  DVOID setup_timer();
-  MyDistToMiddleModule * module_x() CONST;
-  DECLARE_MEMORY_POOL__NOTHROW(MyDistToMiddleHandler, ACE_Thread_Mutex);
+  CD2MHandler(CHandlerDirector * = NULL);
+  virtual ni handle_timeout (CONST ACE_Time_Value &, CONST DVOID * = 0);
+  DVOID init_timer();
+  CD2MContainer * container() CONST;
+  DECLARE_MEMORY_POOL__NOTHROW(CD2MHandler, ACE_Thread_Mutex);
 
 protected:
   virtual DVOID at_finish();
   virtual ni  at_start();
 
 private:
-  enum { LOAD_BALANCE_REQ_TIMER = 1 };
-  enum { LOAD_BALANCE_REQ_INTERVAL = 2 }; //in minutes
-  long m_load_balance_req_timer_id;
+  enum { BALANCE_TIMER = 1 };
+  enum { BALANCE_DELAY = 2 };
+  long m_tid;
 };
 
-class MyDistToMiddleDispatcher: public CParentScheduler
+class CD2MSchduler: public CParentScheduler
 {
 public:
-  MyDistToMiddleDispatcher(CContainer * pModule, ni numThreads = 1);
-  virtual ~MyDistToMiddleDispatcher();
+  CD2MSchduler(CContainer *, ni = 1);
+  virtual ~CD2MSchduler();
 
   virtual CONST text * name() CONST;
-  DVOID send_to_bs(CMB * mb);
-  DVOID send_to_middle(CMB * mb);
+  DVOID post_bs(CMB *);
+  DVOID post_pre(CMB *);
 
 protected:
   virtual DVOID before_finish();
@@ -1139,40 +1124,40 @@ protected:
   virtual DVOID before_finish_stage_1();
 
 private:
-  enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
+  enum { MQ_PEAK = 5 * 1024 * 1024 };
 
-  MyDistToMiddleConnector * m_connector;
-  MyDistToBSConnector * m_bs_connector;
-  ACE_Message_Queue<ACE_MT_SYNCH> m_to_bs_queue;
+  CD2MConn * m_conn;
+  CD2BsConn * m_2_bs_conn;
+  ACE_Message_Queue<ACE_MT_SYNCH> m_2_bs_mq;
 };
 
 
-class MyDistToMiddleConnector: public CParentConn
+class CD2MConn: public CParentConn
 {
 public:
-  MyDistToMiddleConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager);
-  virtual ni make_svc_handler(CParentHandler *& sh);
+  CD2MConn(CParentScheduler *, CHandlerDirector *);
+  virtual ni make_svc_handler(CParentHandler *&);
   virtual CONST text * name() CONST;
 
 protected:
-  enum { RECONNECT_INTERVAL = 3 }; //time in minutes
+  enum { RETRY_DELAY = 3 }; //m
 };
 
-class MyDistToMiddleModule: public CContainer
+class CD2MContainer: public CContainer
 {
 public:
-  MyDistToMiddleModule(CApp * app);
-  virtual ~MyDistToMiddleModule();
+  CD2MContainer(CApp *);
+  virtual ~CD2MContainer();
   virtual CONST text * name() CONST;
-  DVOID send_to_bs(CMB * mb);
-  DVOID send_to_middle(CMB * mb);
+  DVOID post_bs(CMB *);
+  DVOID post_pre(CMB *);
 
 protected:
   virtual truefalse before_begin();
   virtual DVOID before_finish();
 
 private:
-  MyDistToMiddleDispatcher *m_dispatcher;
+  CD2MSchduler * m_scheduler;
 };
 
 
@@ -1184,9 +1169,9 @@ public:
   SF time_t get_time_init(CONST text * s);
 
   truefalse connect();
-  truefalse check_db_connection();
-  truefalse ping_db_server();
-  truefalse get_client_ids(CTermSNs * idtable);
+  truefalse validate_db_online();
+  truefalse check_online();
+  truefalse load_term_SNs(CTermSNs *);
   truefalse save_client_id(CONST text * s);
   truefalse save_dist(CBsDistReq & http_dist_request, CONST text * md5, CONST text * mbz_md5);
   truefalse save_sr(text * dist_id, CONST text * cmd, text * idlist);
@@ -1195,13 +1180,11 @@ public:
   truefalse save_dist_cmp_done(CONST text *dist_id);
   ni  load_dist_infos(CBsDistDatas & infos);
   truefalse load_pl(CMemProt & value);
-//  truefalse dist_take_cmp_ownership(MyHttpDistInfo * info);
-//  truefalse dist_take_md5_ownership(MyHttpDistInfo * info);
   truefalse dist_mark_cmp_done(CONST text * dist_id);
   truefalse dist_mark_md5_done(CONST text * dist_id);
   truefalse save_dist_md5(CONST text * dist_id, CONST text * md5, ni md5_len);
   truefalse save_dist_ftp_md5(CONST text * dist_id, CONST text * md5);
-  truefalse load_dist_clients(MyDistClients * dist_clients, CTermStation * _dc_one);
+  truefalse load_dist_clients(CTermStations * dist_clients, CTermStation * _dc_one);
   truefalse set_dist_client_status(CDistTermItem & dist_client, ni new_status);
   truefalse set_dist_client_status(CONST text * client_id, CONST text * dist_id, ni new_status);
   truefalse set_dist_client_md5(CONST text * client_id, CONST text * dist_id, CONST text * md5, ni new_status);
