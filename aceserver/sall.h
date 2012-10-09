@@ -387,7 +387,7 @@ private:
 
 class CBalanceContainer;
 class CBalanceAcc;
-class MyMiddleToBSConnector;
+class CM2BsConn;
 
 class CBalanceProc: public CParentServerProc
 {
@@ -442,7 +442,7 @@ private:
   enum { MQ_MAX = 1024 * 1024 };
 
   CBalanceAcc * m_acc;
-  MyMiddleToBSConnector * m_bs_conn;
+  CM2BsConn * m_bs_conn;
   ACE_Message_Queue<ACE_MT_SYNCH> m_bs_mq;
 };
 
@@ -475,50 +475,50 @@ private:
 
 
 
-class MyMiddleToBSProcessor: public CBSProceBase
+class CM2BsProc: public CBSProceBase
 {
 public:
   typedef CBSProceBase baseclass;
 
-  MyMiddleToBSProcessor(CParentHandler * handler);
+  CM2BsProc(CParentHandler *);
   virtual CONST text * name() CONST;
 
-  DECLARE_MEMORY_POOL__NOTHROW(MyMiddleToBSProcessor, ACE_Thread_Mutex);
+  DECLARE_MEMORY_POOL__NOTHROW(CM2BsProc, ACE_Thread_Mutex);
 
 protected:
   virtual CProc::OUTPUT do_read_data(CMB * mb);
 };
 
-class MyMiddleToBSHandler: public CParentHandler
+class CM2BsHandler: public CParentHandler
 {
 public:
-  MyMiddleToBSHandler(CHandlerDirector * xptr = NULL);
-  virtual ni handle_timeout (CONST ACE_Time_Value &current_time, CONST DVOID *act = 0);
+  CM2BsHandler(CHandlerDirector * = NULL);
+  virtual ni handle_timeout (CONST ACE_Time_Value &, CONST DVOID * = 0);
   DVOID checker_update();
-  CBalanceContainer * module_x() CONST;
-  DECLARE_MEMORY_POOL__NOTHROW(MyMiddleToBSHandler, ACE_Thread_Mutex);
+  CBalanceContainer * container() CONST;
+  DECLARE_MEMORY_POOL__NOTHROW(CM2BsHandler, ACE_Thread_Mutex);
 
 protected:
   virtual DVOID at_finish();
   virtual ni  at_start();
 
 private:
-  CActValidator m_checker;
+  CActValidator m_validator;
 };
 
-class MyMiddleToBSConnector: public CParentConn
+class CM2BsConn: public CParentConn
 {
 public:
-  MyMiddleToBSConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager);
+  CM2BsConn(CParentScheduler *, CHandlerDirector *);
   virtual ni make_svc_handler(CParentHandler *& sh);
   virtual CONST text * name() CONST;
 
 protected:
-  enum { RECONNECT_INTERVAL = 1 }; //time in minutes
+  enum { RETRY_DELAY = 1 }; //m
 };
 
 
-//dist cmp
+//dst
 class MyHeartBeatModule;
 class MyPingSubmitter;
 class MyIPVerSubmitter;
@@ -530,76 +530,76 @@ class MyVLCSubmitter;
 class MyVLCEmptySubmitter;
 class MyHeartBeatAcceptor;
 class MyDistClients;
-class MyDistClientOne;
+class CTermStation;
 
-class MyDistClient
+class CDistTermItem
 {
 public:
-  MyDistClient(CBsDistData * _dist_info, MyDistClientOne * dist_one);
-  truefalse check_valid() CONST;
-  truefalse dist_file();
-  DVOID delete_self();
-  truefalse active();
-  DVOID update_status(ni _status);
-  DVOID update_md5_list(CONST text * _md5);
-  DVOID dist_ftp_md5_reply(CONST text * md5list);
-  CONST text * client_id() CONST;
-  ni client_id_index() CONST;
-  DVOID send_fb_detail(truefalse ok);
-  DVOID psp(CONST text c);
+  CDistTermItem(CBsDistData *, CTermStation *);
+  DVOID download_checksum_feedback(CONST text *);
+  CONST text * term_sn() CONST;
+  ni term_position() CONST;
+  DVOID post_subs(truefalse ok);
+  DVOID control_pause_stop(CONST text c);
+  truefalse is_ok() CONST;
+  truefalse work();
+  DVOID destruct_me();
+  truefalse connected();
+  DVOID set_condition(ni);
+  DVOID set_checksum(CONST text *);
 
-  CBsDistData * dist_info;
-  MyDistClientOne * dist_one;
-  ni status;
+  CBsDistData * dist_data;
+  CTermStation * term_station;
+  ni condition;
+  CMemProt cmp_fn;
+  CMemProt cmp_checksum;
   CMemProt adir;
-  CMemProt md5;
-  CMemProt mbz_file;
-  CMemProt mbz_md5;
-  time_t last_update;
+  CMemProt checksum;
+  time_t prev_access;
 
 private:
-  enum { MD5_REPLY_TIME_OUT = 15, FTP_REPLY_TIME_OUT = 5 }; //in minutes
+  enum { CS_FEEDBACK_TV = 15, DOWNLOAD_FEEDBACK_TV = 5 }; //m
 
-  truefalse do_stage_0();
-  truefalse do_stage_1();
-  truefalse do_stage_2();
-  truefalse do_stage_3();
-  truefalse do_stage_4();
-  truefalse do_stage_5();
-  truefalse do_stage_6();
-  truefalse do_stage_7();
-  truefalse do_stage_8();
-  truefalse send_md5();
-  truefalse send_ftp();
-  truefalse send_psp(CONST text c);
-  truefalse generate_diff_mbz();
-  ni  dist_out_leading_length();
-  DVOID dist_out_leading_data(text * data);
-  CMB * make_ftp_fb_detail_mb(truefalse bok);
+  truefalse post_cs();
+  truefalse post_download();
+  truefalse post_pause_stop(CONST text c);
+  truefalse create_cmp_file();
+  ni  calc_common_header_len();
+  DVOID format_common_header(text *);
+  CMB * create_mb_of_download_sub(truefalse bok);
+  truefalse on_conditon0();
+  truefalse on_conditon1();
+  truefalse on_conditon2();
+  truefalse on_conditon3();
+  truefalse on_conditon4();
+  truefalse on_conditon5();
+  truefalse on_conditon6();
+  truefalse on_conditon7();
+  truefalse on_conditon8();
 };
 
-class MyDistClientOne
+class CTermStation
 {
 public:
-  typedef std::list<MyDistClient *, CCppAllocator<MyDistClient *> > MyDistClientOneList;
+  typedef std::list<CDistTermItem *, CCppAllocator<CDistTermItem *> > CDistTermItems;
 
-  MyDistClientOne(MyDistClients * dist_clients, CONST text * client_id);
-  ~MyDistClientOne();
+  CTermStation(MyDistClients *, CONST text *);
+  ~CTermStation();
 
-  MyDistClient * create_dist_client(CBsDistData * _dist_info);
-  DVOID delete_dist_client(MyDistClient * dc);
-  truefalse active();
-  truefalse is_client_id(CONST text * _client_id) CONST;
-  DVOID clear();
-  truefalse dist_files();
-  CONST text * client_id() CONST;
-  ni client_id_index() CONST;
+  CDistTermItem * generate_term_item(CBsDistData *);
+  DVOID destruct_term_item(CDistTermItem *);
+  truefalse connected();
+  truefalse check_term_sn(CONST text *) CONST;
+  DVOID reset();
+  truefalse work();
+  CONST text * term_sn() CONST;
+  ni term_position() CONST;
 
 private:
-  MyDistClientOneList m_client_ones;
+  CDistTermItems m_dist_items;
   MyDistClients * m_dist_clients;
-  CNumber m_client_id;
-  ni m_client_id_index;
+  CNumber m_term_sn;
+  ni m_term_position;
 };
 
 class MyClientMapKey
@@ -624,18 +624,18 @@ public:
 class MyDistClients
 {
 public:
-  typedef std::list<MyDistClientOne *, CCppAllocator<MyDistClientOne *> > MyDistClientOneList;
+  typedef std::list<CTermStation *, CCppAllocator<CTermStation *> > MyDistClientOneList;
   typedef std::tr1::unordered_map<MyClientMapKey,
-                                  MyDistClient *,
+                                  CDistTermItem *,
                                   MyClientMapHash,
                                   std::equal_to<MyClientMapKey>,
-                                  CCppAllocator <std::pair<const MyClientMapKey, MyDistClient *>>
+                                  CCppAllocator <std::pair<const MyClientMapKey, CDistTermItem *>>
                                 > MyDistClientMap;
   typedef std::tr1::unordered_map<const text *,
-                                  MyDistClientOne *,
+                                  CTermStation *,
                                   CTextHashGenerator,
                                   CTextEqual,
-                                  CCppAllocator <std::pair<const text *, MyDistClientOne *>>
+                                  CCppAllocator <std::pair<const text *, CTermStation *>>
                                 > MyDistClientOneMap;
 
 
@@ -645,12 +645,12 @@ public:
   CBsDistData * find_dist_info(CONST text * dist_id);
   DVOID clear();
   DVOID dist_files();
-  DVOID on_create_dist_client(MyDistClient * dc);
-  DVOID on_remove_dist_client(MyDistClient * dc, truefalse finished);
-  MyDistClient * find_dist_client(CONST text * client_id, CONST text * dist_id);
-  MyDistClientOne * find_client_one(CONST text * client_id);
-  MyDistClientOne * create_client_one(CONST text * client_id);
-  DVOID delete_client_one(MyDistClientOne * dco);
+  DVOID on_create_dist_client(CDistTermItem * dc);
+  DVOID on_remove_dist_client(CDistTermItem * dc, truefalse finished);
+  CDistTermItem * find_dist_client(CONST text * client_id, CONST text * dist_id);
+  CTermStation * find_client_one(CONST text * client_id);
+  CTermStation * create_client_one(CONST text * client_id);
+  DVOID delete_client_one(CTermStation * dco);
 
   MyDistClientOneList dist_clients;
   time_t db_time;
@@ -1201,8 +1201,8 @@ public:
   truefalse dist_mark_md5_done(CONST text * dist_id);
   truefalse save_dist_md5(CONST text * dist_id, CONST text * md5, ni md5_len);
   truefalse save_dist_ftp_md5(CONST text * dist_id, CONST text * md5);
-  truefalse load_dist_clients(MyDistClients * dist_clients, MyDistClientOne * _dc_one);
-  truefalse set_dist_client_status(MyDistClient & dist_client, ni new_status);
+  truefalse load_dist_clients(MyDistClients * dist_clients, CTermStation * _dc_one);
+  truefalse set_dist_client_status(CDistTermItem & dist_client, ni new_status);
   truefalse set_dist_client_status(CONST text * client_id, CONST text * dist_id, ni new_status);
   truefalse set_dist_client_md5(CONST text * client_id, CONST text * dist_id, CONST text * md5, ni new_status);
   truefalse set_dist_client_mbz(CONST text * client_id, CONST text * dist_id, CONST text * mbz, CONST text * mbz_md5);

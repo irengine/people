@@ -159,11 +159,11 @@ DVOID CRunner::print_caches()
     CApp::print_pool("MyDistLoadHandler", l_get, l_put, l_peak, l_fail, sizeof(CBalanceHandler), blocks);
   }
 
-  if (MyMiddleToBSHandler::mem_block())
+  if (CM2BsHandler::mem_block())
   {
-    blocks = MyMiddleToBSHandler::mem_block()->blocks();
-    MyMiddleToBSHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyMiddleToBSHandler", l_get, l_put, l_peak, l_fail, sizeof(MyMiddleToBSHandler), blocks);
+    blocks = CM2BsHandler::mem_block()->blocks();
+    CM2BsHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyMiddleToBSHandler", l_get, l_put, l_peak, l_fail, sizeof(CM2BsHandler), blocks);
   }
 
   CCacheX::instance()->print_info();
@@ -232,8 +232,8 @@ truefalse CRunner::initialize(CONST text * v_dir, CCfg::CAppMode v_m)
     CPositionProc::mem_block_start(1000);
     CBsReqProc::mem_block_start(20);
     CBsReqHandler::mem_block_start(20);
-    MyMiddleToBSHandler::mem_block_start(20);
-    MyMiddleToBSProcessor::mem_block_start(20);
+    CM2BsHandler::mem_block_start(20);
+    CM2BsProc::mem_block_start(20);
   }
   CCacheX::instance()->prepare(l_p);
   app->init_log();
@@ -256,8 +256,8 @@ DVOID CRunner::cleanup()
   CBsReqProc::mem_block_end();
   MyDistToMiddleHandler::mem_block_end();
   MyDistToBSHandler::mem_block_end();
-  MyMiddleToBSHandler::mem_block_end();
-  MyMiddleToBSProcessor::mem_block_end();
+  CM2BsHandler::mem_block_end();
+  CM2BsProc::mem_block_end();
   CCacheX::close();
 }
 

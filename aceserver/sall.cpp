@@ -1501,7 +1501,7 @@ truefalse CBalanceScheduler::before_begin()
     m_acc = new CBalanceAcc(this, new CHandlerDirector());
   acc_add(m_acc);
   if (!m_bs_conn)
-    m_bs_conn = new MyMiddleToBSConnector(this, new CHandlerDirector());
+    m_bs_conn = new CM2BsConn(this, new CHandlerDirector());
   conn_add(m_bs_conn);
 
   ACE_Time_Value l_x(ni(CBalanceDatas::BROKEN_INTERVAL * 60 / CApp::CLOCK_TIME / 2));
@@ -1562,49 +1562,47 @@ DVOID CBalanceContainer::before_finish()
 }
 
 
-//m->bs
+//m2bs
 
-MyMiddleToBSProcessor::MyMiddleToBSProcessor(CParentHandler * handler): baseclass(handler)
+CM2BsProc::CM2BsProc(CParentHandler * handler): baseclass(handler)
 {
 
 }
 
-CONST text * MyMiddleToBSProcessor::name() CONST
+CONST text * CM2BsProc::name() CONST
 {
-  return "MyMiddleToBSProcessor";
+  return "CM2BsProc";
 }
 
-CProc::OUTPUT MyMiddleToBSProcessor::do_read_data(CMB * mb)
+CProc::OUTPUT CM2BsProc::do_read_data(CMB * mb)
 {
   if (mb)
     mb->release();
-  ((MyMiddleToBSHandler*)m_handler)->checker_update();
+  ((CM2BsHandler*)m_handler)->checker_update();
   return OP_OK;
 }
 
-PREPARE_MEMORY_POOL(MyMiddleToBSProcessor);
+PREPARE_MEMORY_POOL(CM2BsProc);
 
 
-//MyMiddleToBSHandler//
-
-MyMiddleToBSHandler::MyMiddleToBSHandler(CHandlerDirector * xptr): CParentHandler(xptr)
+CM2BsHandler::CM2BsHandler(CHandlerDirector * xptr): CParentHandler(xptr)
 {
-  m_proc = new MyMiddleToBSProcessor(this);
+  m_proc = new CM2BsProc(this);
 }
 
-CBalanceContainer * MyMiddleToBSHandler::module_x() CONST
+CBalanceContainer * CM2BsHandler::container() CONST
 {
   return (CBalanceContainer *)connector()->container();
 }
 
-DVOID MyMiddleToBSHandler::checker_update()
+DVOID CM2BsHandler::checker_update()
 {
-  m_checker.refresh();
+  m_validator.refresh();
 }
 
-ni MyMiddleToBSHandler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
+ni CM2BsHandler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
 {
-  if (m_checker.overdue())
+  if (m_validator.overdue())
   {
     C_ERROR("no data received from bs @MyMiddleToBSHandler ...\n");
     return -1;
@@ -1618,7 +1616,7 @@ ni MyMiddleToBSHandler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
   return 0;
 }
 
-ni MyMiddleToBSHandler::at_start()
+ni CM2BsHandler::at_start()
 {
   ACE_Time_Value interval(30);
   if (reactor()->schedule_timer(this, (void*)0, interval, interval) < 0)
@@ -1636,41 +1634,38 @@ ni MyMiddleToBSHandler::at_start()
     if (post_packet(mb) < 0)
       return -1;
   }
-  m_checker.refresh();
+  m_validator.refresh();
 
   return 0;
 }
 
 
-DVOID MyMiddleToBSHandler::at_finish()
+DVOID CM2BsHandler::at_finish()
 {
 
 }
 
-PREPARE_MEMORY_POOL(MyMiddleToBSHandler);
+PREPARE_MEMORY_POOL(CM2BsHandler);
 
 
-//MyMiddleToBSConnector//
-
-MyMiddleToBSConnector::MyMiddleToBSConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
-    CParentConn(_dispatcher, _manager)
+CM2BsConn::CM2BsConn(CParentScheduler * p1, CHandlerDirector * p2): CParentConn(p1, p2)
 {
   m_port_of_ip = CCfgX::instance()->bs_port;
-  m_retry_delay = RECONNECT_INTERVAL;
+  m_retry_delay = RETRY_DELAY;
   m_remote_ip = CCfgX::instance()->bs_addr;
 }
 
-CONST text * MyMiddleToBSConnector::name() CONST
+CONST text * CM2BsConn::name() CONST
 {
-  return "MyMiddleToBSConnector";
+  return "CM2BsConn";
 }
 
-ni MyMiddleToBSConnector::make_svc_handler(CParentHandler *& sh)
+ni CM2BsConn::make_svc_handler(CParentHandler *& sh)
 {
-  sh = new MyMiddleToBSHandler(m_director);
+  sh = new CM2BsHandler(m_director);
   if (!sh)
   {
-    C_ERROR("can not alloc MyMiddleToBSHandler from %s\n", name());
+    C_ERROR("oom %s\n", name());
     return -1;
   }
   sh->container((void*)this);
@@ -1678,510 +1673,476 @@ ni MyMiddleToBSConnector::make_svc_handler(CParentHandler *& sh)
   return 0;
 }
 
-//!//dist component
-
-//MyDistClient//
-
-MyDistClient::MyDistClient(CBsDistData * _dist_info, MyDistClientOne * _dist_one)
+//dst
+CDistTermItem::CDistTermItem(CBsDistData * p1, CTermStation * p2)
 {
-  dist_info = _dist_info;
-  status = -1;
-  last_update = 0;
-  dist_one = _dist_one;
+  dist_data = p1;
+  condition = -1;
+  prev_access = 0;
+  term_station = p2;
 }
 
-truefalse MyDistClient::check_valid() CONST
+truefalse CDistTermItem::is_ok() CONST
 {
-  return ((dist_info != NULL) && (status >= 0 && status <= 4));
+  return ((dist_data != NULL) && (condition >= 0 && condition <= 4));
 }
 
-truefalse MyDistClient::active()
+truefalse CDistTermItem::connected()
 {
-  return dist_one->active();
+  return term_station->connected();
 }
 
-CONST text * MyDistClient::client_id() CONST
+CONST text * CDistTermItem::term_sn() CONST
 {
-  return dist_one->client_id();
+  return term_station->term_sn();
 }
 
-ni MyDistClient::client_id_index() CONST
+ni CDistTermItem::term_position() CONST
 {
-  return dist_one->client_id_index();
+  return term_station->term_position();
 }
 
-DVOID MyDistClient::update_status(ni _status)
+DVOID CDistTermItem::set_condition(ni m)
 {
-  if (_status > status)
-    status = _status;
+  if (m > condition)
+    condition = m;
 }
 
-DVOID MyDistClient::delete_self()
+DVOID CDistTermItem::destruct_me()
 {
-  dist_one->delete_dist_client(this);
+  term_station->destruct_term_item(this);
 }
 
-DVOID MyDistClient::update_md5_list(CONST text * _md5)
+DVOID CDistTermItem::set_checksum(CONST text * v_cs)
 {
-  if (unlikely(!dist_info->have_checksum()))
+  if (unlikely(!dist_data->have_checksum()))
   {
-    C_WARNING("got unexpected md5 reply packet on client_id(%s) dist_id(%s)\n",
-        client_id(), dist_info->ver.get_ptr());
+    C_WARNING("recv cs reply term_sn(%s) did(%s)\n", term_sn(), dist_data->ver.get_ptr());
     return;
   }
 
-  if (unlikely(md5.get_ptr() && md5.get_ptr()[0]))
+  if (unlikely(checksum.get_ptr() && checksum.get_ptr()[0]))
     return;
 
-  md5.init(_md5);
-  update_status(2);
+  checksum.init(v_cs);
+  set_condition(2);
 }
 
-DVOID MyDistClient::send_fb_detail(truefalse ok)
+DVOID CDistTermItem::post_subs(truefalse ok)
 {
-  CMB * mb = make_ftp_fb_detail_mb(ok);
+  CMB * mb = create_mb_of_download_sub(ok);
   CRunnerX::instance()->dist_to_middle_module()->send_to_bs(mb);
 }
 
-DVOID MyDistClient::psp(CONST text /*c*/)
+DVOID CDistTermItem::control_pause_stop(CONST text )
 {
-  delete_self();
-/*  if (c == '0')
-    update_status(6);
-  else
-    update_status(8);
-*/
+  destruct_me();
 }
 
-DVOID MyDistClient::dist_ftp_md5_reply(CONST text * md5list)
+DVOID CDistTermItem::download_checksum_feedback(CONST text * cs_s)
 {
-  if (unlikely(*md5list == 0))
+  if (unlikely(*cs_s == 0))
   {
-    text buff[50];
-    c_tools_convert_time_to_text(buff, 50, true);
+    text tmp[50];
+    c_tools_convert_time_to_text(tmp, 50, true);
     CRunnerX::instance()->ping_component()->ftp_feedback_submitter().add(
-        dist_info->ver.get_ptr(),
-        dist_info->ftype[0],
-        client_id(),
-        '2', '1', buff);
+        dist_data->ver.get_ptr(), dist_data->ftype[0], term_sn(), '2', '1', tmp);
 
     CRunnerX::instance()->ping_component()->ftp_feedback_submitter().add(
-        dist_info->ver.get_ptr(),
-        dist_info->ftype[0],
-        client_id(),
-        '3', '1', buff);
+        dist_data->ver.get_ptr(), dist_data->ftype[0], term_sn(), '3', '1', tmp);
 
     CRunnerX::instance()->ping_component()->ftp_feedback_submitter().add(
-        dist_info->ver.get_ptr(),
-        dist_info->ftype[0],
-        client_id(),
-        '4', '1', buff);
+        dist_data->ver.get_ptr(), dist_data->ftype[0], term_sn(), '4', '1', tmp);
 
-    send_fb_detail(true);
+    post_subs(true);
 
-    dist_one->delete_dist_client(this);
-//    MyServerAppX::instance()->db().set_dist_client_status(*this, 5);
-//    update_status(5);
+    term_station->destruct_term_item(this);
     return;
   }
 
-  if (!md5.get_ptr() || !md5.get_ptr()[0])
+  if (!checksum.get_ptr() || !checksum.get_ptr()[0])
   {
-    update_md5_list(md5list);
-    CRunnerX::instance()->db().set_dist_client_md5(client_id(), dist_info->ver.get_ptr(), md5list, 2);
+    set_checksum(cs_s);
+    CRunnerX::instance()->db().set_dist_client_md5(term_sn(), dist_data->ver.get_ptr(), cs_s, 2);
   }
 
-  do_stage_2();
+  on_conditon2();
 }
 
-truefalse MyDistClient::dist_file()
+truefalse CDistTermItem::work()
 {
-  if (!active())
+  if (!connected())
     return true;
 
-  switch (status)
+  switch (condition)
   {
   case 0:
-    return do_stage_0();
+    return on_conditon0();
 
   case 1:
-    return do_stage_1();
+    return on_conditon1();
 
   case 2:
-    return do_stage_2();
+    return on_conditon2();
 
   case 3:
-    return do_stage_3();
+    return on_conditon3();
 
   case 4:
-    return do_stage_4();
+    return on_conditon4();
 
   case 5:
-    return do_stage_5();
+    return on_conditon5();
 
   case 6:
-    return do_stage_6();
+    return on_conditon6();
 
   case 7:
-    return do_stage_7();
+    return on_conditon7();
 
   case 8:
-    return do_stage_8();
+    return on_conditon8();
 
   default:
-    C_ERROR("unexpected status value = %d @MyDistClient::dist_file\n", status);
+    C_ERROR("bad condtion (=%d)\n", condition);
     return false;
   }
 }
 
-truefalse MyDistClient::do_stage_0()
+truefalse CDistTermItem::on_conditon0()
 {
-  if (dist_info->have_checksum())
+  if (dist_data->have_checksum())
   {
-    if(send_md5())
+    if(post_cs())
     {
       CRunnerX::instance()->db().set_dist_client_status(*this, 1);
-      update_status(1);
+      set_condition(1);
     }
     return true;
   }
 
-  if (send_ftp())
+  if (post_download())
   {
     CRunnerX::instance()->db().set_dist_client_status(*this, 3);
-    update_status(3);
+    set_condition(3);
   }
   return true;
 }
 
-truefalse MyDistClient::do_stage_1()
+truefalse CDistTermItem::on_conditon1()
 {
-  time_t now = time(NULL);
-  if (now > last_update + MD5_REPLY_TIME_OUT * 60)
-    send_md5();
+  time_t t = time(NULL);
+  if (t > prev_access + CS_FEEDBACK_TV * 60)
+    post_cs();
 
   return true;
 }
 
-truefalse MyDistClient::do_stage_2()
+truefalse CDistTermItem::on_conditon2()
 {
-  if (!mbz_file.get_ptr() || !mbz_file.get_ptr()[0])
+  if (!cmp_fn.get_ptr() || !cmp_fn.get_ptr()[0])
   {
-    if ((dist_info->md5_opt_len > 0 && (ni)strlen(md5.get_ptr()) >= dist_info->md5_opt_len) || !generate_diff_mbz())
+    if ((dist_data->md5_opt_len > 0 && (ni)strlen(checksum.get_ptr()) >= dist_data->md5_opt_len) || !create_cmp_file())
     {
-      mbz_file.init(CCompFactory::single_fn());
-      mbz_md5.init(dist_info->mbz_md5.get_ptr());
+      cmp_fn.init(CCompFactory::single_fn());
+      cmp_checksum.init(dist_data->mbz_md5.get_ptr());
     }
-    CRunnerX::instance()->db().set_dist_client_mbz(client_id(), dist_info->ver.get_ptr(), mbz_file.get_ptr(), mbz_md5.get_ptr());
+    CRunnerX::instance()->db().set_dist_client_mbz(term_sn(), dist_data->ver.get_ptr(), cmp_fn.get_ptr(), cmp_checksum.get_ptr());
   }
 
-  if (send_ftp())
+  if (post_download())
   {
     CRunnerX::instance()->db().set_dist_client_status(*this, 3);
-    update_status(3);
+    set_condition(3);
   }
   return true;
 }
 
-truefalse MyDistClient::do_stage_3()
+truefalse CDistTermItem::on_conditon3()
 {
-  time_t now = time(NULL);
-  if (now > last_update + FTP_REPLY_TIME_OUT * 60)
-    send_ftp();
+  time_t t = time(NULL);
+  if (t > prev_access + DOWNLOAD_FEEDBACK_TV * 60)
+    post_download();
 
   return true;
 }
 
-truefalse MyDistClient::do_stage_4()
+truefalse CDistTermItem::on_conditon4()
 {
   return false;
 }
 
-truefalse MyDistClient::do_stage_5()
+truefalse CDistTermItem::on_conditon5()
 {
-//  time_t now = time(NULL);
-//  if (now > last_update + 5 * 60)
-    send_psp('0');
+  post_pause_stop('0');
   return true;
 }
 
-truefalse MyDistClient::do_stage_6()
+truefalse CDistTermItem::on_conditon6()
 {
   return false;
 }
 
-truefalse MyDistClient::do_stage_7()
+truefalse CDistTermItem::on_conditon7()
 {
-//  time_t now = time(NULL);
-//  if (now > last_update + 5 * 60)
-    send_psp('1');
+  post_pause_stop('1');
   return true;
 }
 
-truefalse MyDistClient::do_stage_8()
+truefalse CDistTermItem::on_conditon8()
 {
   return false;
 }
 
 
-ni MyDistClient::dist_out_leading_length()
+ni CDistTermItem::calc_common_header_len()
 {
-  ni adir_len = adir.get_ptr() ? strlen(adir.get_ptr()) : (ni)CCmdHeader::ITEM_NULL_SIZE;
-  ni aindex_len = dist_info->aindex_len > 0 ? dist_info->aindex_len : (ni)CCmdHeader::ITEM_NULL_SIZE;
-  return dist_info->ver_len + dist_info->findex_len + aindex_len + adir_len + 4 + 2 + 2;
+  ni l_x1 = adir.get_ptr() ? strlen(adir.get_ptr()) : (ni)CCmdHeader::ITEM_NULL_SIZE;
+  ni l_x2 = dist_data->aindex_len > 0 ? dist_data->aindex_len : (ni)CCmdHeader::ITEM_NULL_SIZE;
+  return dist_data->ver_len + dist_data->findex_len + l_x2 + l_x1 + 4 + 2 + 2;
 }
 
-DVOID MyDistClient::dist_out_leading_data(text * data)
+DVOID CDistTermItem::format_common_header(text * v_ptr)
 {
-  sprintf(data, "%s%c%s%c%s%c%s%c%c%c%c%c",
-      dist_info->ver.get_ptr(), CCmdHeader::ITEM_SEPARATOR,
-      dist_info->findex.get_ptr(), CCmdHeader::ITEM_SEPARATOR,
+  sprintf(v_ptr, "%s%c%s%c%s%c%s%c%c%c%c%c",
+      dist_data->ver.get_ptr(), CCmdHeader::ITEM_SEPARATOR,
+      dist_data->findex.get_ptr(), CCmdHeader::ITEM_SEPARATOR,
       adir.get_ptr()? adir.get_ptr(): Item_NULL, CCmdHeader::ITEM_SEPARATOR,
-      dist_info->aindex.get_ptr()? dist_info->aindex.get_ptr(): Item_NULL, CCmdHeader::ITEM_SEPARATOR,
-      dist_info->ftype[0], CCmdHeader::ITEM_SEPARATOR,
-      dist_info->type[0], CCmdHeader::FINISH_SEPARATOR);
+      dist_data->aindex.get_ptr()? dist_data->aindex.get_ptr(): Item_NULL, CCmdHeader::ITEM_SEPARATOR,
+      dist_data->ftype[0], CCmdHeader::ITEM_SEPARATOR,
+      dist_data->type[0], CCmdHeader::FINISH_SEPARATOR);
 }
 
-CMB * MyDistClient::make_ftp_fb_detail_mb(truefalse bok)
+CMB * CDistTermItem::create_mb_of_download_sub(truefalse fine)
 {
-  CMemProt md5_new;
-  text buff[32];
-  c_tools_convert_time_to_text(buff, 32, true);
-  CONST text * detail_files;
-  if (c_tell_type_multi(dist_info->type[0]))
+  CMemProt l_cs;
+  text tmp[32];
+  c_tools_convert_time_to_text(tmp, 32, true);
+  CONST text * l_x;
+  if (c_tell_type_multi(dist_data->type[0]))
   {
-    if (!md5.get_ptr())
-      detail_files = "";
+    if (!checksum.get_ptr())
+      l_x = "";
     else
     {
-      md5_new.init(md5.get_ptr());
-      c_tools_text_replace(md5_new.get_ptr(), CCmdHeader::ITEM_SEPARATOR, ':');
-      ni len = strlen(md5_new.get_ptr());
-      if (md5_new.get_ptr()[len - 1] == ':')
-        md5_new.get_ptr()[len - 1] = 0;
-      detail_files = md5_new.get_ptr();
+      l_cs.init(checksum.get_ptr());
+      c_tools_text_replace(l_cs.get_ptr(), CCmdHeader::ITEM_SEPARATOR, ':');
+      ni len = strlen(l_cs.get_ptr());
+      if (l_cs.get_ptr()[len - 1] == ':')
+        l_cs.get_ptr()[len - 1] = 0;
+      l_x = l_cs.get_ptr();
     }
   }
   else
-    detail_files = dist_info->findex.get_ptr();
+    l_x = dist_data->findex.get_ptr();
 
-  ni total_len = strlen(dist_one->client_id()) + strlen(dist_info->ver.get_ptr()) +
-      strlen(buff) + strlen(dist_info->findex.get_ptr()) + strlen(detail_files) +
-      10;
-  //batNO, fileKindCode, agentCode, indexName, fileName, type,flag, date
-  CMB * mb = CCacheX::instance()->get_mb_bs(total_len, CONST_BS_DIST_FBDETAIL_CMD);
-  text * dest = mb->base() + CBSData::DATA_OFFSET;
-  sprintf(dest, "%s#%c#%s#%s#%s#%c#%c#%s",
-      dist_info->ver.get_ptr(),
-      dist_info->ftype[0],
-      dist_one->client_id(),
-      dist_info->findex.get_ptr(),
-      detail_files,
-      dist_info->type[0],
-      bok? '1': '0',
-      buff);
-  dest[total_len] = CBSData::END_MARK;
+  ni l_m = strlen(term_station->term_sn()) + strlen(dist_data->ver.get_ptr()) +
+      strlen(tmp) + strlen(dist_data->findex.get_ptr()) + strlen(l_x) + 10;
+  CMB * mb = CCacheX::instance()->get_mb_bs(l_m, CONST_BS_DIST_FBDETAIL_CMD);
+  text * l_ptr = mb->base() + CBSData::DATA_OFFSET;
+  sprintf(l_ptr, "%s#%c#%s#%s#%s#%c#%c#%s", dist_data->ver.get_ptr(),
+      dist_data->ftype[0], term_station->term_sn(), dist_data->findex.get_ptr(),
+      l_x, dist_data->type[0], fine? '1': '0', tmp);
+  l_ptr[l_m] = CBSData::END_MARK;
   return mb;
 }
 
-truefalse MyDistClient::send_md5()
+truefalse CDistTermItem::post_cs()
 {
-  if (!dist_info->md5.get_ptr() || !dist_info->md5.get_ptr()[0] || dist_info->md5_len <= 0)
+  if (!dist_data->md5.get_ptr() || !dist_data->md5.get_ptr()[0] || dist_data->md5_len <= 0)
     return false;
 
-  ni md5_len = dist_info->md5_len + 1;
-  ni data_len = dist_out_leading_length() + md5_len;
-  CMB * mb = CCacheX::instance()->get_mb_cmd(data_len, CCmdHeader::PT_FILE_MD5_LIST);
-  CCmdExt * md5_packet = (CCmdExt *)mb->base();
-  md5_packet->signature = client_id_index();
-  dist_out_leading_data(md5_packet->data);
-  memcpy(md5_packet->data + data_len - md5_len, dist_info->md5.get_ptr(), md5_len);
+  ni l_cs_size = dist_data->md5_len + 1;
+  ni l_m = calc_common_header_len() + l_cs_size;
+  CMB * mb = CCacheX::instance()->get_mb_cmd(l_m, CCmdHeader::PT_FILE_MD5_LIST);
+  CCmdExt * l_ptr = (CCmdExt *)mb->base();
+  l_ptr->signature = term_position();
+  format_common_header(l_ptr->data);
+  memcpy(l_ptr->data + l_m - l_cs_size, dist_data->md5.get_ptr(), l_cs_size);
 
-  last_update = time(NULL);
+  prev_access = time(NULL);
 
-  return c_tools_mb_putq(CRunnerX::instance()->ping_component()->dispatcher(), mb, "file md5 list to dispatcher's queue");
+  return c_tools_mb_putq(CRunnerX::instance()->ping_component()->dispatcher(), mb, "checksum");
 }
 
-truefalse MyDistClient::generate_diff_mbz()
+truefalse CDistTermItem::create_cmp_file()
 {
-  CMemProt destdir;
-  CMemProt composite_dir;
-  CMemProt mdestfile;
-  destdir.init(CCfgX::instance()->bz_files_path.c_str(), "/", dist_info->ver.get_ptr());
-  composite_dir.init(destdir.get_ptr(), "/", CCompFactory::dir_of_composite());
-  mdestfile.init(composite_dir.get_ptr(), "/", client_id(), ".mbz");
-  CCompUniter compositor;
-  if (!compositor.begin(mdestfile.get_ptr()))
+  CMemProt l_to_dir;
+  CMemProt l_cmp_path;
+  CMemProt l_to_fn;
+  l_to_dir.init(CCfgX::instance()->bz_files_path.c_str(), "/", dist_data->ver.get_ptr());
+  l_cmp_path.init(l_to_dir.get_ptr(), "/", CCompFactory::dir_of_composite());
+  l_to_fn.init(l_cmp_path.get_ptr(), "/", term_sn(), ".mbz");
+  CCompUniter l_uniter;
+  if (!l_uniter.begin(l_to_fn.get_ptr()))
     return false;
-  CMemProt md5_copy;
-  md5_copy.init(md5.get_ptr());
+  CMemProt l_cs2;
+  l_cs2.init(checksum.get_ptr());
   text separators[2] = { CCmdHeader::ITEM_SEPARATOR, 0 };
-  CTextDelimiter tokenizer(md5_copy.get_ptr(), separators);
-  text * token;
-  CMemProt filename;
-  while ((token =tokenizer.get()) != NULL)
+  CTextDelimiter l_delimiter(l_cs2.get_ptr(), separators);
+  text * l_tag;
+  CMemProt l_fn;
+  while ((l_tag =l_delimiter.get()) != NULL)
   {
-    filename.init(destdir.get_ptr(), "/", token, ".mbz");
-    if (!compositor.append(filename.get_ptr()))
+    l_fn.init(l_to_dir.get_ptr(), "/", l_tag, ".mbz");
+    if (!l_uniter.append(l_fn.get_ptr()))
     {
-      CSysFS::remove(mdestfile.get_ptr());
+      CSysFS::remove(l_to_fn.get_ptr());
       return false;
     }
   }
 
-  CMemProt md5_result;
-  if (!c_tools_tally_md5(mdestfile.get_ptr(), md5_result))
+  CMemProt l_cs;
+  if (!c_tools_tally_md5(l_to_fn.get_ptr(), l_cs))
   {
-    C_ERROR("failed to calculate md5 for file %s\n", mdestfile.get_ptr());
-    CSysFS::remove(mdestfile.get_ptr());
+    C_ERROR("can not compute cs: %s\n", l_to_fn.get_ptr());
+    CSysFS::remove(l_to_fn.get_ptr());
     return false;
   }
 
-  mbz_file.init(mdestfile.get_ptr() + strlen(destdir.get_ptr()) + 1);
-  mbz_md5.init(md5_result.get_ptr());
+  cmp_fn.init(l_to_fn.get_ptr() + strlen(l_to_dir.get_ptr()) + 1);
+  cmp_checksum.init(l_cs.get_ptr());
   return true;
 }
 
-truefalse MyDistClient::send_psp(CONST text c)
+truefalse CDistTermItem::post_pause_stop(CONST text c)
 {
-  ni data_len = dist_info->ver_len + 2;
-  CMB * mb = CCacheX::instance()->get_mb_cmd(data_len, CCmdHeader::PT_PSP);
-  CCmdExt * dpe = (CCmdExt *)mb->base();
-  dpe->signature = client_id_index();
-  dpe->data[0] = c;
-  memcpy(dpe->data + 1, dist_info->ver.get_ptr(), data_len - 1);
-  last_update = time(NULL);
-  return c_tools_mb_putq(CRunnerX::instance()->ping_component()->dispatcher(), mb, "psp to dispatcher's queue");
+  ni l_m = dist_data->ver_len + 2;
+  CMB * mb = CCacheX::instance()->get_mb_cmd(l_m, CCmdHeader::PT_PSP);
+  CCmdExt * l_ptr = (CCmdExt *)mb->base();
+  l_ptr->signature = term_position();
+  l_ptr->data[0] = c;
+  memcpy(l_ptr->data + 1, dist_data->ver.get_ptr(), l_m - 1);
+  prev_access = time(NULL);
+  return c_tools_mb_putq(CRunnerX::instance()->ping_component()->dispatcher(), mb, "psp");
 }
 
-truefalse MyDistClient::send_ftp()
+truefalse CDistTermItem::post_download()
 {
-  CONST text * ftp_file_name;
-  CONST text * _mbz_md5;
+  CONST text * download_fn;
+  CONST text * l_cmp_cs;
 
-  if (!dist_info->have_checksum())
+  if (!dist_data->have_checksum())
   {
-    ftp_file_name = CCompFactory::single_fn();
-    _mbz_md5 = dist_info->mbz_md5.get_ptr();
+    download_fn = CCompFactory::single_fn();
+    l_cmp_cs = dist_data->mbz_md5.get_ptr();
   } else
   {
-    ftp_file_name = mbz_file.get_ptr();
-    _mbz_md5 = mbz_md5.get_ptr();
+    download_fn = cmp_fn.get_ptr();
+    l_cmp_cs = cmp_checksum.get_ptr();
   }
 
-  ni _mbz_md5_len = strlen(_mbz_md5) + 1;
-  ni leading_length = dist_out_leading_length();
-  ni ftp_file_name_len = strlen(ftp_file_name) + 1;
-  ni data_len = leading_length + ftp_file_name_len + dist_info->password_len + 1 + _mbz_md5_len;
-  CMB * mb = CCacheX::instance()->get_mb_cmd(data_len, CCmdHeader::PT_FTP_FILE);
-  CCmdExt * packet = (CCmdExt *)mb->base();
-  packet->signature = client_id_index();
-  dist_out_leading_data(packet->data);
-  text * ptr = packet->data + leading_length;
-  memcpy(ptr, ftp_file_name, ftp_file_name_len);
-  ptr += ftp_file_name_len;
-  *(ptr - 1) = CCmdHeader::ITEM_SEPARATOR;
-  memcpy(ptr, _mbz_md5, _mbz_md5_len);
-  ptr += _mbz_md5_len;
-  *(ptr - 1) = CCmdHeader::FINISH_SEPARATOR;
-  memcpy(ptr, dist_info->password.get_ptr(), dist_info->password_len + 1);
+  ni l_m = strlen(l_cmp_cs) + 1;
+  ni l_header_size = calc_common_header_len();
+  ni l_download_fn_size = strlen(download_fn) + 1;
+  ni l_n = l_header_size + l_download_fn_size + dist_data->password_len + 1 + l_m;
+  CMB * mb = CCacheX::instance()->get_mb_cmd(l_n, CCmdHeader::PT_FTP_FILE);
+  CCmdExt * l_ptr = (CCmdExt *)mb->base();
+  l_ptr->signature = term_position();
+  format_common_header(l_ptr->data);
+  text * l_ptr2 = l_ptr->data + l_header_size;
+  memcpy(l_ptr2, download_fn, l_download_fn_size);
+  l_ptr2 += l_download_fn_size;
+  *(l_ptr2 - 1) = CCmdHeader::ITEM_SEPARATOR;
+  memcpy(l_ptr2, l_cmp_cs, l_m);
+  l_ptr2 += l_m;
+  *(l_ptr2 - 1) = CCmdHeader::FINISH_SEPARATOR;
+  memcpy(l_ptr2, dist_data->password.get_ptr(), dist_data->password_len + 1);
 
-  last_update = time(NULL);
+  prev_access = time(NULL);
 
-  return c_tools_mb_putq(CRunnerX::instance()->ping_component()->dispatcher(), mb, "file md5 list to dispatcher's queue");
+  return c_tools_mb_putq(CRunnerX::instance()->ping_component()->dispatcher(), mb, "checksums");
 }
 
 
-//MyDistClientOne//
 
-MyDistClientOne::MyDistClientOne(MyDistClients * dist_clients, CONST text * client_id): m_client_id(client_id)
+
+CTermStation::CTermStation(MyDistClients * p1, CONST text * p2): m_term_sn(p2)
 {
-  m_dist_clients = dist_clients;
-  m_client_id_index = -1;
+  m_dist_clients = p1;
+  m_term_position = -1;
 }
 
-MyDistClientOne::~MyDistClientOne()
+CTermStation::~CTermStation()
 {
-  clear();
+  reset();
 }
 
-CONST text * MyDistClientOne::client_id() CONST
+CONST text * CTermStation::term_sn() CONST
 {
-  return m_client_id.to_str();
+  return m_term_sn.to_str();
 }
 
-ni MyDistClientOne::client_id_index() CONST
+ni CTermStation::term_position() CONST
 {
-  return m_client_id_index;
+  return m_term_position;
 }
 
-truefalse MyDistClientOne::active()
+truefalse CTermStation::connected()
 {
-  truefalse switched;
-  return g_term_sns->connected(m_client_id, m_client_id_index, switched);
+  truefalse change;
+  return g_term_sns->connected(m_term_sn, m_term_position, change);
 }
 
-truefalse MyDistClientOne::is_client_id(CONST text * _client_id) CONST
+truefalse CTermStation::check_term_sn(CONST text * v_term_sn) CONST
 {
-  return strcmp(m_client_id.to_str(), _client_id) == 0;
+  return strcmp(m_term_sn.to_str(), v_term_sn) == 0;
 }
 
-MyDistClient * MyDistClientOne::create_dist_client(CBsDistData * _dist_info)
+CDistTermItem * CTermStation::generate_term_item(CBsDistData * v_data)
 {
-  DVOID * p = CCacheX::instance()->get_raw(sizeof(MyDistClient));
-  MyDistClient * result = new (p) MyDistClient(_dist_info, this);
-  m_client_ones.push_back(result);
-  m_dist_clients->on_create_dist_client(result);
-  return result;
+  DVOID * p = CCacheX::instance()->get_raw(sizeof(CDistTermItem));
+  CDistTermItem * l_ptr = new (p) CDistTermItem(v_data, this);
+  m_dist_items.push_back(l_ptr);
+  m_dist_clients->on_create_dist_client(l_ptr);
+  return l_ptr;
 }
 
-DVOID MyDistClientOne::delete_dist_client(MyDistClient * dc)
+DVOID CTermStation::destruct_term_item(CDistTermItem * v_item)
 {
-  m_dist_clients->on_remove_dist_client(dc, false);
-  m_client_ones.remove(dc);
-  CRunnerX::instance()->db().delete_dist_client(m_client_id.to_str(), dc->dist_info->ver.get_ptr());
-  CPoolObjectDeletor dlt;
-  dlt(dc);
-//  if (m_client_ones.empty())
-//    m_dist_clients->delete_client_one(this);
+  m_dist_clients->on_remove_dist_client(v_item, false);
+  m_dist_items.remove(v_item);
+  CRunnerX::instance()->db().delete_dist_client(m_term_sn.to_str(), v_item->dist_data->ver.get_ptr());
+  CPoolObjectDeletor prot;
+  prot(v_item);
 }
 
-DVOID MyDistClientOne::clear()
+DVOID CTermStation::reset()
 {
-  std::for_each(m_client_ones.begin(), m_client_ones.end(), CPoolObjectDeletor());
-  m_client_ones.clear();
+  std::for_each(m_dist_items.begin(), m_dist_items.end(), CPoolObjectDeletor());
+  m_dist_items.clear();
 }
 
-truefalse MyDistClientOne::dist_files()
+truefalse CTermStation::work()
 {
-  truefalse switched;
-  if (!g_term_sns->connected(m_client_id, m_client_id_index, switched))
-    return !m_client_ones.empty();
+  truefalse change;
+  if (!g_term_sns->connected(m_term_sn, m_term_position, change))
+    return !m_dist_items.empty();
 
-  MyDistClientOneList::iterator it;
+  CDistTermItems::iterator l_x;
 
-  if (unlikely(switched))
+  if (unlikely(change))
   {
-    g_term_sns->server_changed(m_client_id_index, false);
-    for (it = m_client_ones.begin(); it != m_client_ones.end(); ++it)
-      m_dist_clients->on_remove_dist_client(*it, false);
-    clear();
+    g_term_sns->server_changed(m_term_position, false);
+    for (l_x = m_dist_items.begin(); l_x != m_dist_items.end(); ++l_x)
+      m_dist_clients->on_remove_dist_client(*l_x, false);
+    reset();
     CRunnerX::instance()->db().load_dist_clients(m_dist_clients, this);
-    C_DEBUG("reloading client one db for client id (%s)\n", m_client_id.to_str());
+    C_DEBUG("reloading client one db for client id (%s)\n", m_term_sn.to_str());
   }
 
-  for (it = m_client_ones.begin(); it != m_client_ones.end(); )
+  for (l_x = m_dist_items.begin(); l_x != m_dist_items.end(); )
   {
-    if (!(*it)->dist_file())
+    if (!(*l_x)->work())
     {
-      m_dist_clients->on_remove_dist_client(*it, true);
-      CPoolObjectDeletor dlt;
-      dlt(*it);
-      it = m_client_ones.erase(it);
+      m_dist_clients->on_remove_dist_client(*l_x, true);
+      CPoolObjectDeletor prot;
+      prot(*l_x);
+      l_x = m_dist_items.erase(l_x);
     } else
-      ++it;
+      ++l_x;
   }
-  return !m_client_ones.empty();
+  return !m_dist_items.empty();
 }
 
 
@@ -2223,17 +2184,17 @@ DVOID MyDistClients::clear()
   db_time = 0;
 }
 
-DVOID MyDistClients::on_create_dist_client(MyDistClient * dc)
+DVOID MyDistClients::on_create_dist_client(CDistTermItem * dc)
 {
-  m_dist_clients_map.insert(std::pair<const MyClientMapKey, MyDistClient *>
-     (MyClientMapKey(dc->dist_info->ver.get_ptr(), dc->client_id()), dc));
+  m_dist_clients_map.insert(std::pair<const MyClientMapKey, CDistTermItem *>
+     (MyClientMapKey(dc->dist_data->ver.get_ptr(), dc->term_sn()), dc));
 }
 
-DVOID MyDistClients::on_remove_dist_client(MyDistClient * dc, truefalse finished)
+DVOID MyDistClients::on_remove_dist_client(CDistTermItem * dc, truefalse finished)
 {
   if (finished)
     ++m_dist_client_finished;
-  m_dist_clients_map.erase(MyClientMapKey(dc->dist_info->ver.get_ptr(), dc->client_id()));
+  m_dist_clients_map.erase(MyClientMapKey(dc->dist_data->ver.get_ptr(), dc->term_sn()));
 }
 
 CBsDistData * MyDistClients::find_dist_info(CONST text * dist_id)
@@ -2242,7 +2203,7 @@ CBsDistData * MyDistClients::find_dist_info(CONST text * dist_id)
   return m_dist_infos->search(dist_id);
 }
 
-MyDistClient * MyDistClients::find_dist_client(CONST text * client_id, CONST text * dist_id)
+CDistTermItem * MyDistClients::find_dist_client(CONST text * client_id, CONST text * dist_id)
 {
   MyDistClientMap::iterator it;
   it = m_dist_clients_map.find(MyClientMapKey(dist_id, client_id));
@@ -2252,7 +2213,7 @@ MyDistClient * MyDistClients::find_dist_client(CONST text * client_id, CONST tex
     return it->second;
 }
 
-MyDistClientOne * MyDistClients::find_client_one(CONST text * client_id)
+CTermStation * MyDistClients::find_client_one(CONST text * client_id)
 {
   MyDistClientOneMap::iterator it;
   it = m_dist_client_ones_map.find(client_id);
@@ -2262,18 +2223,18 @@ MyDistClientOne * MyDistClients::find_client_one(CONST text * client_id)
     return it->second;
 }
 
-MyDistClientOne * MyDistClients::create_client_one(CONST text * client_id)
+CTermStation * MyDistClients::create_client_one(CONST text * client_id)
 {
-  DVOID * p = CCacheX::instance()->get_raw(sizeof(MyDistClientOne));
-  MyDistClientOne * result = new (p) MyDistClientOne(this, client_id);
+  DVOID * p = CCacheX::instance()->get_raw(sizeof(CTermStation));
+  CTermStation * result = new (p) CTermStation(this, client_id);
   dist_clients.push_back(result);
-  m_dist_client_ones_map.insert(std::pair<const text *, MyDistClientOne *>(result->client_id(), result));
+  m_dist_client_ones_map.insert(std::pair<const text *, CTermStation *>(result->term_sn(), result));
   return result;
 }
 
-DVOID MyDistClients::delete_client_one(MyDistClientOne * dco)
+DVOID MyDistClients::delete_client_one(CTermStation * dco)
 {
-  m_dist_client_ones_map.erase(dco->client_id());
+  m_dist_client_ones_map.erase(dco->term_sn());
   CPoolObjectDeletor dlt;
   dlt(dco);
 }
@@ -2284,9 +2245,9 @@ DVOID MyDistClients::dist_files()
   MyDistClientOneList::iterator it;
   for (it = dist_clients.begin(); it != dist_clients.end(); )
   {
-    if (!(*it)->dist_files())
+    if (!(*it)->work())
     {
-      m_dist_client_ones_map.erase((*it)->client_id());
+      m_dist_client_ones_map.erase((*it)->term_sn());
       CPoolObjectDeletor dlt;
       dlt(*it);
       it = dist_clients.erase(it);
@@ -2358,34 +2319,34 @@ truefalse MyClientFileDistributor::check_dist_clients(truefalse reload)
 
 DVOID MyClientFileDistributor::dist_ftp_file_reply(CONST text * client_id, CONST text * dist_id, ni _status, truefalse ok)
 {
-  MyDistClient * dc = m_dist_clients.find_dist_client(client_id, dist_id);
+  CDistTermItem * dc = m_dist_clients.find_dist_client(client_id, dist_id);
   if (unlikely(dc == NULL))
     return;
 
   if (_status <= 3)
   {
-    dc->update_status(_status);
+    dc->set_condition(_status);
     CRunnerX::instance()->db().set_dist_client_status(client_id, dist_id, _status);
   }
   else
   {
-    dc->send_fb_detail(ok);
-    dc->delete_self();
+    dc->post_subs(ok);
+    dc->destruct_me();
   }
 }
 
 DVOID MyClientFileDistributor::dist_ftp_md5_reply(CONST text * client_id, CONST text * dist_id, CONST text * md5list)
 {
-  MyDistClient * dc = m_dist_clients.find_dist_client(client_id, dist_id);
+  CDistTermItem * dc = m_dist_clients.find_dist_client(client_id, dist_id);
   if (likely(dc != NULL))
-    dc->dist_ftp_md5_reply(md5list);
+    dc->download_checksum_feedback(md5list);
 }
 
 DVOID MyClientFileDistributor::psp(CONST text * client_id, CONST text * dist_id, text c)
 {
-  MyDistClient * dc = m_dist_clients.find_dist_client(client_id, dist_id);
+  CDistTermItem * dc = m_dist_clients.find_dist_client(client_id, dist_id);
   if (likely(dc != NULL))
-    dc->psp(c);
+    dc->control_pause_stop(c);
 }
 
 
@@ -3489,28 +3450,28 @@ DVOID MyHeartBeatService::do_ftp_file_reply(CMB * mb)
 
   if (recv_status == '2')
   {
-    C_DEBUG("ftp command received client_id(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
+    C_DEBUG("ftp command received term_sn(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
     status = 4;
   } else if (recv_status == '3')
   {
     status = 5;
     step = '3';
-    C_DEBUG("ftp download completed client_id(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
+    C_DEBUG("ftp download completed term_sn(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
   } else if (recv_status == '4')
   {
     status = 5;
-    C_DEBUG("dist extract completed client_id(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
+    C_DEBUG("dist extract completed term_sn(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
   } else if (recv_status == '5')
   {
     status = 5;
-    C_DEBUG("dist extract failed client_id(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
+    C_DEBUG("dist extract failed term_sn(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
   } else if (recv_status == '9')
   {
-    C_DEBUG("dist download started client_id(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
+    C_DEBUG("dist download started term_sn(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
     step = '2';
   } else if (recv_status == '7')
   {
-    C_DEBUG("dist download failed client_id(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
+    C_DEBUG("dist download failed term_sn(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
     step = '3';
     status = 5;
   }
@@ -3570,7 +3531,7 @@ DVOID MyHeartBeatService::do_file_md5_reply(CMB * mb)
   }
   *md5list ++ = 0;
   CONST text * dist_id = dpe->data;
-//  C_DEBUG("file md5 list from client_id(%s) dist_id(%s): %s\n", client_id.as_string(),
+//  C_DEBUG("file md5 list from term_sn(%s) dist_id(%s): %s\n", client_id.as_string(),
 //      dist_id, (*md5list? md5list: "(empty)"));
   C_DEBUG("file md5 list from client_id(%s) dist_id(%s): len = %d\n", client_id.to_str(), dist_id, strlen(md5list));
 
@@ -4580,7 +4541,7 @@ truefalse MyDB::get_client_ids(CTermSNs * id_table)
 {
   C_ASSERT_RETURN(id_table != NULL, "null id_table @MyDB::get_client_ids\n", false);
 
-  CONST text * CONST_select_sql_template = "select client_id, client_password, client_expired, auto_seq "
+  CONST text * CONST_select_sql_template = "select term_sn, client_password, client_expired, auto_seq "
                                            "from tb_clients where auto_seq > %d order by auto_seq";
   text select_sql[1024];
   snprintf(select_sql, 1024 - 1, CONST_select_sql_template, id_table->prev_no());
@@ -4620,7 +4581,7 @@ truefalse MyDB::save_client_id(CONST text * s)
   if (id.to_str()[0] == 0)
     return false;
 
-  CONST text * insert_sql_template = "insert into tb_clients(client_id) values('%s')";
+  CONST text * insert_sql_template = "insert into tb_clients(term_sn) values('%s')";
   text insert_sql[1024];
   snprintf(insert_sql, 1024, insert_sql_template, id.to_str());
 
@@ -4995,7 +4956,7 @@ truefalse MyDB::save_dist_ftp_md5(CONST text * dist_id, CONST text * md5)
   return exec_command(sql);
 }
 
-truefalse MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne * _dc_one)
+truefalse MyDB::load_dist_clients(MyDistClients * dist_clients, CTermStation * _dc_one)
 {
   C_ASSERT_RETURN(dist_clients != NULL, "null dist_clients @MyDB::load_dist_clients\n", false);
 
@@ -5012,7 +4973,7 @@ truefalse MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne 
     CONST_select_sql = CONST_select_sql_1;
   else
   {
-    snprintf(sql, 512, CONST_select_sql_2, _dc_one->client_id());
+    snprintf(sql, 512, CONST_select_sql_2, _dc_one->term_sn());
     CONST_select_sql = sql;
   }
 
@@ -5035,7 +4996,7 @@ truefalse MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne 
   ni count = PQntuples(pres);
   ni field_count = PQnfields(pres);
   ni count_added = 0;
-  MyDistClientOne * dc_one;
+  CTermStation * dc_one;
 
   if (count == 0)
     goto __exit__;
@@ -5059,11 +5020,11 @@ truefalse MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne 
     if (!_dc_one)
     {
       CONST text * client_id = PQgetvalue(pres, i, 1);
-      if (unlikely(!dc_one->is_client_id(client_id)))
+      if (unlikely(!dc_one->check_term_sn(client_id)))
         dc_one = dist_clients->create_client_one(client_id);
     }
 
-    MyDistClient * dc = dc_one->create_dist_client(info);
+    CDistTermItem * dc = dc_one->generate_term_item(info);
 
     CONST text * md5 = NULL;
     for (ni j = 0; j < field_count; ++j)
@@ -5073,21 +5034,21 @@ truefalse MyDB::load_dist_clients(MyDistClients * dist_clients, MyDistClientOne 
         continue;
 
       if (j == 2)
-        dc->status = atoi(fvalue);
+        dc->condition = atoi(fvalue);
       else if (j == 3)
         dc->adir.init(fvalue);
       else if (j == 7)
         md5 = fvalue;
       else if (j == 5)
-        dc->mbz_file.init(fvalue);
+        dc->cmp_fn.init(fvalue);
       else if (j == 4)
-        dc->last_update = get_time_init(fvalue);
+        dc->prev_access = get_time_init(fvalue);
       else if (j == 6)
-        dc->mbz_md5.init(fvalue);
+        dc->cmp_checksum.init(fvalue);
     }
 
-    if (dc->status < 3 && md5 != NULL)
-      dc->md5.init(md5);
+    if (dc->condition < 3 && md5 != NULL)
+      dc->checksum.init(md5);
 
     ++ count_added;
   }
@@ -5098,9 +5059,9 @@ __exit__:
   return count;
 }
 
-truefalse MyDB::set_dist_client_status(MyDistClient & dist_client, ni new_status)
+truefalse MyDB::set_dist_client_status(CDistTermItem & dist_client, ni new_status)
 {
-  return set_dist_client_status(dist_client.client_id(), dist_client.dist_info->ver.get_ptr(), new_status);
+  return set_dist_client_status(dist_client.term_sn(), dist_client.dist_data->ver.get_ptr(), new_status);
 }
 
 truefalse MyDB::set_dist_client_status(CONST text * client_id, CONST text * dist_id, ni new_status)
@@ -5218,11 +5179,11 @@ truefalse MyDB::mark_client_valid(CONST text * client_id, truefalse valid)
   text sql[1024];
   if (!valid)
   {
-    CONST text * sql_template = "delete from tb_clients where client_id = '%s'";
+    CONST text * sql_template = "delete from tb_clients where term_sn = '%s'";
     snprintf(sql, 1024, sql_template, client_id);
   } else
   {
-    CONST text * sql_template = "insert into tb_clients(client_id, client_password) values('%s', '%s')";
+    CONST text * sql_template = "insert into tb_clients(term_sn, client_password) values('%s', '%s')";
     snprintf(sql, 1024, sql_template, client_id, client_id);
   }
 
