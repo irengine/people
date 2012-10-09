@@ -20,7 +20,7 @@ public:
   CBsReqContainer * http_module() CONST;
   CPositionContainer * location_module() CONST;
   CD2MContainer * dist_to_middle_module() CONST;
-  MyDB & db();
+  CPG & db();
 
   SF truefalse initialize(CONST text * hdir = NULL, CCfg::CAppMode m = CCfg::AM_UNKNOWN);
   SF DVOID cleanup();
@@ -40,7 +40,7 @@ private:
   CBsReqContainer     * m_http_module;
   CD2MContainer * m_dist_to_middle_module;
   CTermSNs m_term_SNs;
-  MyDB  m_db;
+  CPG  m_db;
 };
 
 typedef ACE_Unmanaged_Singleton<CRunner, ACE_Null_Mutex> CRunnerX;

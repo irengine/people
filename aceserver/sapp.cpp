@@ -55,7 +55,7 @@ CD2MContainer * CRunner::dist_to_middle_module() CONST
   return m_dist_to_middle_module;
 }
 
-MyDB & CRunner::db()
+CPG & CRunner::db()
 {
   return m_db;
 }
@@ -95,11 +95,11 @@ DVOID CRunner::print_caches()
   }
   ni blocks;
   //d
-  if (MyHeartBeatHandler::mem_block())
+  if (CPingHandler::mem_block())
   {
-    blocks = MyHeartBeatHandler::mem_block()->blocks();
-    MyHeartBeatHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyHeartBeatHandler", l_get, l_put, l_peak, l_fail, sizeof(MyHeartBeatHandler), blocks);
+    blocks = CPingHandler::mem_block()->blocks();
+    CPingHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
+    CApp::print_pool("MyHeartBeatHandler", l_get, l_put, l_peak, l_fail, sizeof(CPingHandler), blocks);
   }
 
   if (CPingProc::mem_block())
@@ -182,7 +182,7 @@ truefalse CRunner::do_init()
   CCfg * cfg = CCfgX::instance();
   g_term_sns = &m_term_SNs;
 
-  if (!m_db.connect())
+  if (!m_db.login_to_db())
   {
     C_FATAL("fail to connect to database. quitting...\n");
     return false;
@@ -221,7 +221,7 @@ truefalse CRunner::initialize(CONST text * v_dir, CCfg::CAppMode v_m)
   if (l_p->dist())
   {
     CPingProc::mem_block_start(l_p->client_peak);
-    MyHeartBeatHandler::mem_block_start(l_p->client_peak);
+    CPingHandler::mem_block_start(l_p->client_peak);
     CD2MHandler::mem_block_start(20);
     CD2BsHandler::mem_block_start(20);
   }
@@ -247,7 +247,7 @@ DVOID CRunner::cleanup()
   g_term_sns = NULL;
   CCfgX::close();
   print_caches(); //only mem pool info, other objects should gone by now
-  MyHeartBeatHandler::mem_block_end();
+  CPingHandler::mem_block_end();
   CPingProc::mem_block_end();
   CPositionHandler::mem_block_end();
   CPositionProc::mem_block_end();

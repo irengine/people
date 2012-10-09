@@ -158,7 +158,7 @@ CBsDistData * CBsDistDatas::alloc_data(CONST text * did)
 
 truefalse CBsDistDatas::need_reload()
 {
-  return (!CRunnerX::instance()->db().dist_info_is_update(*this));
+  return (!CRunnerX::instance()->db().is_dist_data_new(*this));
 }
 
 DVOID CBsDistDatas::alloc_spaces(CONST ni m)
@@ -893,7 +893,7 @@ truefalse CBsReqProc::handle_prio(CMB * mb)
   }
 
 
-  MyDB & db = CRunnerX::instance()->db();
+  CPG & db = CRunnerX::instance()->db();
   if (!db.check_online())
   {
     C_ERROR("no connection to db, quitting\n");
@@ -901,7 +901,7 @@ truefalse CBsReqProc::handle_prio(CMB * mb)
   }
 
   C_INFO("prio = %s\n", plist? plist:"NULL");
-  return db.save_prio(plist);
+  return db.write_pl(plist);
 }
 
 PREPARE_MEMORY_POOL(CBsReqProc);
@@ -1081,7 +1081,7 @@ truefalse CBsReqTask::process_mb_i(CMB * mb, CBsDistReq & v_bs_req)
   text key[12];
   c_tools_create_rnd_text(key, 12);
   v_bs_req.password = key;
-  MyDB & l_database = CRunnerX::instance()->db();
+  CPG & l_database = CRunnerX::instance()->db();
 
   if (unlikely(!container()->working_app()))
     return false;
@@ -1115,13 +1115,13 @@ truefalse CBsReqTask::process_mb_i(CMB * mb, CBsDistReq & v_bs_req)
     return false;
   }
 
-  if (!l_database.save_dist(v_bs_req, l_cs.get_ptr(), l_single_cs.get_ptr()))
+  if (!l_database.write_task(v_bs_req, l_cs.get_ptr(), l_single_cs.get_ptr()))
   {
     C_ERROR("can not save_dist to db\n");
     return false;
   }
 
-  if (!l_database.save_dist_clients(v_bs_req.acode, v_bs_req.adir, v_bs_req.ver))
+  if (!l_database.write_task_terms(v_bs_req.acode, v_bs_req.adir, v_bs_req.ver))
   {
     C_ERROR("can not save_dist_clients to db\n");
     return false;
@@ -1130,18 +1130,18 @@ truefalse CBsReqTask::process_mb_i(CMB * mb, CBsDistReq & v_bs_req)
   if (unlikely(!container()->working_app()))
     return false;
 
-  if (!l_database.dist_info_update_status())
+  if (!l_database.refresh_task_condition())
   {
     C_ERROR("call to dist_info_update_status() failed\n");
     return false;
   }
 
-  l_database.remove_orphan_dist_info();
+  l_database.delete_unused_tasks();
 
   tell_dists();
 
   CObsoleteDirDeleter x;
-  if (l_database.get_dist_ids(x))
+  if (l_database.read_term_SNs(x))
     x.work(CCfgX::instance()->bz_files_path.c_str());
 
   return true;
@@ -1203,15 +1203,15 @@ truefalse CBsReqTask::process_mb_i2(CMB * mb)
     return false;
   }
 
-  MyDB & l_database = CRunnerX::instance()->db();
+  CPG & l_database = CRunnerX::instance()->db();
   if (!l_database.check_online())
   {
     C_ERROR("lost db con\n");
     return false;
   }
 
-  l_database.save_sr(backid, cmd, acode);
-  if (!l_database.dist_info_update_status())
+  l_database.write_sr(backid, cmd, acode);
+  if (!l_database.refresh_task_condition())
   {
     C_ERROR("call to dist_info_update_status() failed\n");
     return false;
@@ -1763,7 +1763,7 @@ DVOID CDistTermItem::download_checksum_feedback(CONST text * cs_s)
   if (!checksum.get_ptr() || !checksum.get_ptr()[0])
   {
     set_checksum(cs_s);
-    CRunnerX::instance()->db().set_dist_client_md5(term_sn(), dist_data->ver.get_ptr(), cs_s, 2);
+    CRunnerX::instance()->db().write_task_term_cs(term_sn(), dist_data->ver.get_ptr(), cs_s, 2);
   }
 
   on_conditon2();
@@ -1815,7 +1815,7 @@ truefalse CDistTermItem::on_conditon0()
   {
     if(post_cs())
     {
-      CRunnerX::instance()->db().set_dist_client_status(*this, 1);
+      CRunnerX::instance()->db().write_task_term_item_condition(*this, 1);
       set_condition(1);
     }
     return true;
@@ -1823,7 +1823,7 @@ truefalse CDistTermItem::on_conditon0()
 
   if (post_download())
   {
-    CRunnerX::instance()->db().set_dist_client_status(*this, 3);
+    CRunnerX::instance()->db().write_task_term_item_condition(*this, 3);
     set_condition(3);
   }
   return true;
@@ -1847,12 +1847,12 @@ truefalse CDistTermItem::on_conditon2()
       cmp_fn.init(CCompFactory::single_fn());
       cmp_checksum.init(dist_data->mbz_md5.get_ptr());
     }
-    CRunnerX::instance()->db().set_dist_client_mbz(term_sn(), dist_data->ver.get_ptr(), cmp_fn.get_ptr(), cmp_checksum.get_ptr());
+    CRunnerX::instance()->db().write_task_term_mbz(term_sn(), dist_data->ver.get_ptr(), cmp_fn.get_ptr(), cmp_checksum.get_ptr());
   }
 
   if (post_download())
   {
-    CRunnerX::instance()->db().set_dist_client_status(*this, 3);
+    CRunnerX::instance()->db().write_task_term_item_condition(*this, 3);
     set_condition(3);
   }
   return true;
@@ -2100,7 +2100,7 @@ DVOID CTermStation::destruct_term_item(CDistTermItem * v_item)
 {
   m_stations->at_del_term_item(v_item, false);
   m_items.remove(v_item);
-  CRunnerX::instance()->db().delete_dist_client(m_term_sn.to_str(), v_item->dist_data->ver.get_ptr());
+  CRunnerX::instance()->db().destruct_task_term(m_term_sn.to_str(), v_item->dist_data->ver.get_ptr());
   CPoolObjectDeletor prot;
   prot(v_item);
 }
@@ -2125,7 +2125,7 @@ truefalse CTermStation::work()
     for (l_x = m_items.begin(); l_x != m_items.end(); ++l_x)
       m_stations->at_del_term_item(*l_x, false);
     reset();
-    CRunnerX::instance()->db().load_dist_clients(m_stations, this);
+    CRunnerX::instance()->db().read_task_terms(m_stations, this);
     C_DEBUG("fetching term(%s) from database\n", m_term_sn.to_str());
   }
 
@@ -2288,7 +2288,7 @@ truefalse CSpreader::do_jobs(truefalse v_query_db)
   if (v_query_db)
   {
     m_datas.alloc_spaces(0);
-    return (CRunnerX::instance()->db().load_dist_infos(m_datas) < 0)? false:true;
+    return (CRunnerX::instance()->db().read_tasks(m_datas) < 0)? false:true;
   }
 
   return true;
@@ -2299,7 +2299,7 @@ truefalse CSpreader::do_term_stations(truefalse v_query_db)
   if (v_query_db)
   {
     m_stations.reset();
-    if (!CRunnerX::instance()->db().load_dist_clients(&m_stations, NULL))
+    if (!CRunnerX::instance()->db().read_task_terms(&m_stations, NULL))
       return false;
   }
 
@@ -2316,7 +2316,7 @@ DVOID CSpreader::at_download_cmd_feedback(CONST text * v_term_sn, CONST text * v
   if (v_condition <= 3)
   {
     l_item->set_condition(v_condition);
-    CRunnerX::instance()->db().set_dist_client_status(v_term_sn, v_did, v_condition);
+    CRunnerX::instance()->db().write_task_term_condition(v_term_sn, v_did, v_condition);
   }
   else
   {
@@ -2689,7 +2689,7 @@ CProc::OUTPUT CPingProc::do_md5_file_list(CMB * mb)
     C_DEBUG("full checksum from %s, size = %d\n", l_x.get_ptr(), mb->length());
   }
 
-  CRunnerX::instance()->ping_component()->service()->add_request_slow(mb);
+  CRunnerX::instance()->ping_component()->service()->append_task_delay(mb);
   return OP_OK;
 }
 
@@ -2704,7 +2704,7 @@ CProc::OUTPUT CPingProc::do_ftp_reply(CMB * mb)
     return OP_FAIL;
   }
   CMB * l_mbx = CCacheX::instance()->get_mb_ack(mb);
-  CRunnerX::instance()->ping_component()->service()->add_request(mb, true);
+  CRunnerX::instance()->ping_component()->service()->append_task(mb, true);
   if (l_mbx != NULL)
     if (m_handler->post_packet(l_mbx) < 0)
       return OP_FAIL;
@@ -2815,7 +2815,7 @@ CProc::OUTPUT CPingProc::do_vlc_empty_req(CMB * mb)
 
 CProc::OUTPUT CPingProc::do_psp(CMB * mb)
 {
-  CRunnerX::instance()->ping_component()->service()->add_request(mb, true);
+  CRunnerX::instance()->ping_component()->service()->append_task(mb, true);
   return OP_OK;
 }
 
@@ -2926,7 +2926,7 @@ CParentGatherer::~CParentGatherer()
 
 DVOID CParentGatherer::post()
 {
-  i_post(get_command());
+  i_post(what_action());
   clear();
 }
 
@@ -2990,7 +2990,7 @@ CDownloadReplyGatherer::~CDownloadReplyGatherer()
 
 }
 
-CONST text * CDownloadReplyGatherer::get_command() CONST
+CONST text * CDownloadReplyGatherer::what_action() CONST
 {
   return CONST_BS_DIST_FEEDBACK_CMD;
 }
@@ -3036,7 +3036,7 @@ DVOID CHeartBeatGatherer::append(CONST text * term_sn, CONST ni m)
     post();
 }
 
-CONST text * CHeartBeatGatherer::get_command() CONST
+CONST text * CHeartBeatGatherer::what_action() CONST
 {
   return CONST_BS_PING_CMD;
 }
@@ -3064,7 +3064,7 @@ DVOID CIPVerGatherer::append(CONST text * term_sn, ni sn_size, CONST text * ip, 
     post();
 }
 
-CONST text * CIPVerGatherer::get_command() CONST
+CONST text * CIPVerGatherer::what_action() CONST
 {
   return CONST_BS_IP_VER_CMD;
 }
@@ -3091,7 +3091,7 @@ DVOID CHwPowerTimeGatherer::append(CONST text * term_sn, ni sn_size, CONST text 
     post();
 }
 
-CONST text * CHwPowerTimeGatherer::get_command() CONST
+CONST text * CHwPowerTimeGatherer::what_action() CONST
 {
   return CONST_BS_POWERON_LINK_CMD;
 }
@@ -3119,7 +3119,7 @@ DVOID CClickGatherer::append(CONST text * term_sn, ni sn_size, CONST text * chn,
     post();
 }
 
-CONST text * CClickGatherer::get_command() CONST
+CONST text * CClickGatherer::what_action() CONST
 {
   return CONST_BS_ADV_CLICK_CMD;
 }
@@ -3169,7 +3169,7 @@ DVOID CHardwareWarnGatherer::append(CONST text * term_sn, ni sn_size, CONST text
     post();
 }
 
-CONST text * CHardwareWarnGatherer::get_command() CONST
+CONST text * CHardwareWarnGatherer::what_action() CONST
 {
   return CONST_BS_HARD_MON_CMD;
 }
@@ -3200,7 +3200,7 @@ DVOID CVideoGatherer::append(CONST text * term_sn, ni sn_size, CONST text * fn, 
     post();
 }
 
-CONST text * CVideoGatherer::get_command() CONST
+CONST text * CVideoGatherer::what_action() CONST
 {
   return CONST_BS_VLC_CMD;
 }
@@ -3231,45 +3231,42 @@ DVOID CNoVideoWarnGatherer::append(CONST text * term_sn, ni sn_size, CONST text 
     post();
 }
 
-CONST text * CNoVideoWarnGatherer::get_command() CONST
+CONST text * CNoVideoWarnGatherer::what_action() CONST
 {
   return CONST_BS_VLC_EMPTY_CMD;
 }
 
 
-MyHeartBeatHandler::MyHeartBeatHandler(CHandlerDirector * xptr): CParentHandler(xptr)
+CPingHandler::CPingHandler(CHandlerDirector * p): CParentHandler(p)
 {
   m_proc = new CPingProc(this);
 }
 
-CTermSNs * MyHeartBeatHandler::term_SNs() CONST
+CTermSNs * CPingHandler::term_SNs() CONST
 {
   return g_term_sns;
 }
 
-PREPARE_MEMORY_POOL(MyHeartBeatHandler);
+PREPARE_MEMORY_POOL(CPingHandler);
 
 
-//MyHeartBeatService//
-
-MyHeartBeatService::MyHeartBeatService(CContainer * module, ni numThreads):
-    CTaskBase(module, numThreads)
+CPingTask::CPingTask(CContainer * p, ni m): CTaskBase(p, m)
 {
-  msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
-  m_queue2.high_water_mark(MSG_QUEUE_MAX_SIZE * 5);
+  msg_queue()->high_water_mark(MQ_PEAK);
+  m_mq_two.high_water_mark(MQ_PEAK * 5);
 }
 
-truefalse MyHeartBeatService::add_request(CMB * mb, truefalse btail)
+truefalse CPingTask::append_task(CMB * mb, truefalse v_at_end)
 {
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  ni ret;
-  if (btail)
-    ret = this->msg_queue()->enqueue_tail(mb, &tv);
+  ACE_Time_Value l_z(ACE_Time_Value::zero);
+  ni l_x;
+  if (v_at_end)
+    l_x = this->msg_queue()->enqueue_tail(mb, &l_z);
   else
-    ret = this->msg_queue()->enqueue_head(mb, &tv);
-  if (unlikely(ret < 0))
+    l_x = this->msg_queue()->enqueue_head(mb, &l_z);
+  if (unlikely(l_x < 0))
   {
-    C_ERROR("can not put message @MyHeartBeatService::add_request %s\n", (CONST text *)CSysError());
+    C_ERROR("CPingTask::append_task: %s\n", (CONST text *)CSysError());
     mb->release();
     return false;
   }
@@ -3277,12 +3274,12 @@ truefalse MyHeartBeatService::add_request(CMB * mb, truefalse btail)
   return true;
 }
 
-truefalse MyHeartBeatService::add_request_slow(CMB * mb)
+truefalse CPingTask::append_task_delay(CMB * mb)
 {
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (unlikely(m_queue2.enqueue_tail(mb, &tv) < 0))
+  ACE_Time_Value l_x(ACE_Time_Value::zero);
+  if (unlikely(m_mq_two.enqueue_tail(mb, &l_x) < 0))
   {
-    C_ERROR("can not put message to MyHeartBeatService.m_queue2 %s\n", (CONST text *)CSysError());
+    C_ERROR("CPingTask::append_task_delay: %s\n", (CONST text *)CSysError());
     mb->release();
     return false;
   }
@@ -3290,201 +3287,195 @@ truefalse MyHeartBeatService::add_request_slow(CMB * mb)
   return true;
 }
 
-ni MyHeartBeatService::svc()
+ni CPingTask::svc()
 {
-  C_INFO("running %s::svc()\n", name());
+  C_INFO("start %s::svc()\n", name());
   CMB * mb;
-  ACE_Time_Value tv(ACE_Time_Value::zero);
+  ACE_Time_Value l_z(ACE_Time_Value::zero);
   while (CRunnerX::instance()->running())
   {
-    truefalse idle = true;
-    for (; this->msg_queue()->dequeue(mb, &tv) != -1; )
+    truefalse l_x = true;
+    for (; this->msg_queue()->dequeue(mb, &l_z) != -1; )
     {
-      idle = false;
-      CMBProt guard(mb);
+      l_x = false;
+      CMBProt prot(mb);
       if (mb->capacity() == sizeof(ni))
       {
-        ni cmd = *(ni*)mb->base();
-        if (cmd == TIMED_DIST_TASK)
+        ni l_command = *(ni*)mb->base();
+        if (l_command == TID_)
         {
-          m_distributor.work(false);
+          m_spreader.work(false);
         } else
-          C_ERROR("unknown command recieved(%d)\n", cmd);
+          C_ERROR("bad cmd (%d)\n", l_command);
       } else
       {
-        CCmdHeader * dph = (CCmdHeader *) mb->base();
-        if (dph->cmd == CCmdHeader::PT_HAVE_DIST_TASK)
+        CCmdHeader * l_header = (CCmdHeader *) mb->base();
+        if (l_header->cmd == CCmdHeader::PT_HAVE_DIST_TASK)
         {
-          do_have_dist_task();
-        } else if ((dph->cmd == CCmdHeader::PT_FTP_FILE))
+          handle_have_job();
+        } else if ((l_header->cmd == CCmdHeader::PT_FTP_FILE))
         {
-//          C_DEBUG("service: got one ftp reply packet, size = %d\n", mb->capacity());
-          do_ftp_file_reply(mb);
-        } else if ((dph->cmd == CCmdHeader::PT_PSP))
+          handle_download_feedback(mb);
+        } else if ((l_header->cmd == CCmdHeader::PT_PSP))
         {
-          do_psp(mb);
+          handle_pause_stop(mb);
         } else
-          C_ERROR("unknown packet recieved @%s, cmd = %d\n", name(), dph->cmd);
+          C_ERROR("bad cmd: %s, cmd = %d\n", name(), l_header->cmd);
       }
     }
 
-    if (m_queue2.dequeue_head(mb, &tv) != -1)
+    if (m_mq_two.dequeue_head(mb, &l_z) != -1)
     {
-      idle = false;
-      CMBProt guard(mb);
-      CCmdHeader * dph = (CCmdHeader *) mb->base();
-      if ((dph->cmd == CCmdHeader::PT_FILE_MD5_LIST))
+      l_x = false;
+      CMBProt prot(mb);
+      CCmdHeader * l_xyz = (CCmdHeader *) mb->base();
+      if ((l_xyz->cmd == CCmdHeader::PT_FILE_MD5_LIST))
       {
-        do_file_md5_reply(mb);
+        handle_cs_feedback(mb);
       } else
-        C_ERROR("unknown packet received @%s.queue2, cmd = %d\n", name(), dph->cmd);
+        C_ERROR("bad data @%s, cmd = %d\n", name(), l_xyz->cmd);
     }
 
-    if (idle)
+    if (l_x)
       ACE_OS::sleep(1);
   }
   C_INFO("exiting %s::svc()\n", name());
   return 0;
 }
 
-DVOID MyHeartBeatService::do_have_dist_task()
+DVOID CPingTask::handle_have_job()
 {
-  m_distributor.work(true);
+  m_spreader.work(true);
 }
 
-DVOID MyHeartBeatService::do_ftp_file_reply(CMB * mb)
+DVOID CPingTask::handle_download_feedback(CMB * mb)
 {
-  CCmdExt * dpe = (CCmdExt*) mb->base();
-  CNumber client_id;
-  if (unlikely(!CRunnerX::instance()->termSNs().get_sn(dpe->signature, &client_id)))
+  CCmdExt * l_x = (CCmdExt*) mb->base();
+  CNumber l_term_sn;
+  if (unlikely(!CRunnerX::instance()->termSNs().get_sn(l_x->signature, &l_term_sn)))
   {
-    C_FATAL("can not find client id @MyHeartBeatService::do_ftp_file_reply()\n");
-    return;
-  } //todo: optimize: pass client_id directly from processor
-
-  ni len = dpe->size - sizeof(CCmdHeader);
-  if (unlikely(dpe->data[len - 5] != CCmdHeader::ITEM_SEPARATOR))
-  {
-    C_ERROR("bad ftp file reply packet @%s::do_ftp_file_reply()\n", name());
-    return;
-  }
-  dpe->data[len - 5] = 0;
-  if (unlikely(!dpe->data[0]))
-  {
-    C_ERROR("bad ftp file reply packet @%s::do_ftp_file_reply(), no dist_id\n", name());
+    C_FATAL("not found term sn @handle_download_feedback\n");
     return;
   }
 
-  CONST text * dist_id = dpe->data;
-  text ok = dpe->data[len - 4];
-  text recv_status = dpe->data[len - 3];
-  text ftype = dpe->data[len - 2];
-  text step = 0;
-  ni status;
-
-  if (unlikely(ok != '0' && ok != '1'))
+  ni l_i = l_x->size - sizeof(CCmdHeader);
+  if (unlikely(l_x->data[l_i - 5] != CCmdHeader::ITEM_SEPARATOR))
   {
-    C_ERROR("bad ok flag(%c) on client ftp reply @%s\n", ok, name());
+    C_ERROR("invalid download rep data @%s.1\n", name());
     return;
   }
-  if (unlikely(!c_tell_ftype_valid(ftype) && ftype != 'x'))
+  l_x->data[l_i - 5] = 0;
+  if (unlikely(!l_x->data[0]))
   {
-    C_ERROR("bad ftype(%c) on client ftp reply @%s\n", ftype, name());
+    C_ERROR("invalid download rep data @%s.2, no task found\n", name());
     return;
   }
 
-  if (recv_status == '2')
+  CONST text * l_task = l_x->data;
+  text l_fine = l_x->data[l_i - 4];
+  text l_read_state = l_x->data[l_i - 3];
+  text l_ftype = l_x->data[l_i - 2];
+  text l_pace = 0;
+  ni l_condition;
+
+  if (unlikely(l_fine != '0' && l_fine != '1'))
   {
-    C_DEBUG("ftp command received term_sn(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
-    status = 4;
-  } else if (recv_status == '3')
+    C_ERROR("bad ok flag(%c) @%s\n", l_fine, name());
+    return;
+  }
+  if (unlikely(!c_tell_ftype_valid(l_ftype) && l_ftype != 'x'))
   {
-    status = 5;
-    step = '3';
-    C_DEBUG("ftp download completed term_sn(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
-  } else if (recv_status == '4')
+    C_ERROR("bad ftype(%c) @%s\n", l_ftype, name());
+    return;
+  }
+
+  if (l_read_state == '2')
   {
-    status = 5;
-    C_DEBUG("dist extract completed term_sn(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
-  } else if (recv_status == '5')
+    C_DEBUG("get download cmd term_sn(%s) task(%s)\n", l_term_sn.to_str(), l_task);
+    l_condition = 4;
+  } else if (l_read_state == '3')
   {
-    status = 5;
-    C_DEBUG("dist extract failed term_sn(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
-  } else if (recv_status == '9')
+    l_condition = 5;
+    l_pace = '3';
+    C_DEBUG("get download done term_sn(%s) task(%s)\n", l_term_sn.to_str(), l_task);
+  } else if (l_read_state == '4')
   {
-    C_DEBUG("dist download started term_sn(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
-    step = '2';
-  } else if (recv_status == '7')
+    l_condition = 5;
+    C_DEBUG("get decompress done term_sn(%s) task(%s)\n", l_term_sn.to_str(), l_task);
+  } else if (l_read_state == '5')
   {
-    C_DEBUG("dist download failed term_sn(%s) dist_id(%s)\n", client_id.to_str(), dist_id);
-    step = '3';
-    status = 5;
+    l_condition = 5;
+    C_DEBUG("get decompress failed term_sn(%s) task(%s)\n", l_term_sn.to_str(), l_task);
+  } else if (l_read_state == '9')
+  {
+    C_DEBUG("get download begin term_sn(%s) task(%s)\n", l_term_sn.to_str(), l_task);
+    l_pace = '2';
+  } else if (l_read_state == '7')
+  {
+    C_DEBUG("get download failed term_sn(%s) task(%s)\n", l_term_sn.to_str(), l_task);
+    l_pace = '3';
+    l_condition = 5;
   }
   else
   {
-    C_ERROR("unknown ftp reply status code: %c\n", recv_status);
+    C_ERROR("bad download result: %c\n", l_read_state);
     return;
   }
 
-  if ((ftype != 'x') && step != 0)
+  if ((l_ftype != 'x') && l_pace != 0)
   {
-    text buff[32];
-    c_tools_convert_time_to_text(buff, 32, true);
-    ((CPingContainer *)container())->download_reply_gatherer().append(dist_id, ftype, client_id.to_str(), step, ok, buff);
-    if (step == '3' && ok == '1')
-      ((CPingContainer *)container())->download_reply_gatherer().append(dist_id, ftype, client_id.to_str(), '4', ok, buff);
+    text tmp[32];
+    c_tools_convert_time_to_text(tmp, 32, true);
+    ((CPingContainer *)container())->download_reply_gatherer().append(l_task, l_ftype, l_term_sn.to_str(), l_pace, l_fine, tmp);
+    if (l_pace == '3' && l_fine == '1')
+      ((CPingContainer *)container())->download_reply_gatherer().append(l_task, l_ftype, l_term_sn.to_str(), '4', l_fine, tmp);
   }
-  if (recv_status == '9')
+  if (l_read_state == '9')
     return;
 
-  m_distributor.at_download_cmd_feedback(client_id.to_str(), dist_id, status, ok == '1');
+  m_spreader.at_download_cmd_feedback(l_term_sn.to_str(), l_task, l_condition, l_fine == '1');
 }
 
-DVOID MyHeartBeatService::do_psp(CMB * mb)
+DVOID CPingTask::handle_pause_stop(CMB * mb)
 {
-  CCmdExt * dpe = (CCmdExt*) mb->base();
-  CNumber client_id;
-  if (unlikely(!CRunnerX::instance()->termSNs().get_sn(dpe->signature, &client_id)))
+  CCmdExt * l_x = (CCmdExt*) mb->base();
+  CNumber l_term_sn;
+  if (unlikely(!CRunnerX::instance()->termSNs().get_sn(l_x->signature, &l_term_sn)))
   {
-    C_FATAL("can not find client id @MyHeartBeatService::do_file_md5_reply()\n");
+    C_FATAL("term sn not found CPingTask::handle_pause_stop\n");
     return;
-  } //todo: optimize: pass client_id directly from processor
+  }
 
-  m_distributor.control_pause_stop(client_id.to_str(), dpe->data + 1, dpe->data[0]);
+  m_spreader.control_pause_stop(l_term_sn.to_str(), l_x->data + 1, l_x->data[0]);
 }
 
-DVOID MyHeartBeatService::do_file_md5_reply(CMB * mb)
+DVOID CPingTask::handle_cs_feedback(CMB * mb)
 {
-  CCmdExt * dpe = (CCmdExt*) mb->base();
-  CNumber client_id;
-  if (unlikely(!CRunnerX::instance()->termSNs().get_sn(dpe->signature, &client_id)))
+  CCmdExt * l_x = (CCmdExt*) mb->base();
+  CNumber l_term_sn;
+  if (unlikely(!CRunnerX::instance()->termSNs().get_sn(l_x->signature, &l_term_sn)))
   {
-    C_FATAL("can not find client id @MyHeartBeatService::do_file_md5_reply()\n");
-    return;
-  } //todo: optimize: pass client_id directly from processor
-
-  if (unlikely(!dpe->data[0]))
-  {
-    C_ERROR("bad file md5 list reply packet @%s::do_file_md5_reply(), no dist_id\n", name());
+    C_FATAL("term sn not found CPingTask::handle_cs_feedback\n");
     return;
   }
-  text * md5list = strchr(dpe->data, CCmdHeader::ITEM_SEPARATOR);
-  if (unlikely(!md5list))
+
+  if (unlikely(!l_x->data[0]))
   {
-    C_ERROR("bad file md5 list reply packet @%s::do_file_md5_reply(), no dist_id mark\n", name());
+    C_ERROR("%s::handle_cs_feedback no task\n", name());
     return;
   }
-  *md5list ++ = 0;
-  CONST text * dist_id = dpe->data;
-//  C_DEBUG("file md5 list from term_sn(%s) dist_id(%s): %s\n", client_id.as_string(),
-//      dist_id, (*md5list? md5list: "(empty)"));
-  C_DEBUG("file md5 list from client_id(%s) dist_id(%s): len = %d\n", client_id.to_str(), dist_id, strlen(md5list));
-
-  m_distributor.at_download_checksum_feedback(client_id.to_str(), dist_id, md5list);
+  text * l_cs_s = strchr(l_x->data, CCmdHeader::ITEM_SEPARATOR);
+  if (unlikely(!l_cs_s))
+  {
+    C_ERROR("invalid data %s::handle_cs_feedback, no task mark\n", name());
+    return;
+  }
+  *l_cs_s ++ = 0;
+  CONST text * l_task = l_x->data;
+  C_DEBUG("checksum term_sn(%s) task(%s): size = %d\n", l_term_sn.to_str(), l_task, strlen(l_cs_s));
+  m_spreader.at_download_checksum_feedback(l_term_sn.to_str(), l_task, l_cs_s);
 }
 
-
-//MyHeartBeatAcceptor//
 
 CPingAcc::CPingAcc(CParentScheduler * p1, CHandlerDirector * p2): CParentAcc(p1, p2)
 {
@@ -3494,7 +3485,7 @@ CPingAcc::CPingAcc(CParentScheduler * p1, CHandlerDirector * p2): CParentAcc(p1,
 
 ni CPingAcc::make_svc_handler(CParentHandler *& sh)
 {
-  sh = new MyHeartBeatHandler(m_director);
+  sh = new CPingHandler(m_director);
   if (!sh)
   {
     C_ERROR("oom @%s\n", name());
@@ -3576,8 +3567,8 @@ ni CPingScheduler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID * v_x)
   else if ((long)v_x == TID_DIST_TASK)
   {
     CMB * mb = CCacheX::instance()->get_mb(sizeof(ni));
-    *(ni*)mb->base() = MyHeartBeatService::TIMED_DIST_TASK;
-    CRunnerX::instance()->ping_component()->service()->add_request(mb, false);
+    *(ni*)mb->base() = CPingTask::TID_;
+    CRunnerX::instance()->ping_component()->service()->append_task(mb, false);
   } else if ((long)v_x == TID_CLICK)
   {
     CPingProc::m_adv_click_submitter->post_if_needed();
@@ -3678,7 +3669,7 @@ CPingScheduler * CPingContainer::scheduler() CONST
   return m_schduler;
 }
 
-MyHeartBeatService * CPingContainer::service() CONST
+CPingTask * CPingContainer::service() CONST
 {
   return m_service;
 }
@@ -3698,7 +3689,7 @@ CDownloadReplyGatherer & CPingContainer::download_reply_gatherer()
 DVOID CPingContainer::pl()
 {
   CMemProt l_x;
-  if (!CRunnerX::instance()->db().load_pl(l_x))
+  if (!CRunnerX::instance()->db().read_pl(l_x))
     return;
   ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
   m_pl.init(l_x.get_ptr());
@@ -3720,7 +3711,7 @@ CONST text * CPingContainer::name() CONST
 
 truefalse CPingContainer::before_begin()
 {
-  add_task(m_service = new MyHeartBeatService(this, 1));
+  add_task(m_service = new CPingTask(this, 1));
   add_scheduler(m_schduler = new CPingScheduler(this));
   return true;
 }
@@ -3781,7 +3772,7 @@ DVOID CD2BsProc::process_ip_ver_reply_one(text * v_ptr)
   CNumber l_term_sn(l_sn);
   ni l_xi;
   if (unlikely(!id_table.mark_valid(l_term_sn, client_valid, l_xi)))
-    CRunnerX::instance()->db().mark_client_valid(l_sn, client_valid);
+    CRunnerX::instance()->db().change_term_valid(l_sn, client_valid);
 
   if (likely(client_valid))
   {
@@ -4049,7 +4040,7 @@ CProc::OUTPUT CD2MProc::handle_ver_reply(CMB * mb)
 
 CProc::OUTPUT CD2MProc::handle_has_dist(CMB * mb)
 {
-  CRunnerX::instance()->ping_component()->service()->add_request(mb, false);
+  CRunnerX::instance()->ping_component()->service()->append_task(mb, false);
   return OP_OK;
 }
 
@@ -4266,104 +4257,104 @@ CONST text * CONST_db_name = "acedb";
 class CPGResultProt
 {
 public:
-  CPGResultProt(PGresult * res): m_result(res)
+  CPGResultProt(PGresult * p): m_ptr(p)
   {
 
   }
 
   ~CPGResultProt()
   {
-    PQclear(m_result);
+    PQclear(m_ptr);
   }
 
 private:
   CPGResultProt(CONST CPGResultProt &);
   CPGResultProt & operator = (CONST CPGResultProt &);
 
-  PGresult * m_result;
+  PGresult * m_ptr;
 };
 
 
-MyDB::MyDB()
+CPG::CPG()
 {
-  m_connection = NULL;
-  m_server_port = 0;
+  m_pg_con = NULL;
+  m_db_port = 0;
 }
 
-MyDB::~MyDB()
+CPG::~CPG()
 {
-  disconnect();
+  make_offline();
 }
 
-time_t MyDB::get_time_init(CONST text * s)
+time_t CPG::get_time_init(CONST text * v_ptr)
 {
-  SF time_t _current = time(NULL);
-  CONST time_t CONST_longevity = CONST_one_year * 10;
+  SF time_t l_t = time(NULL);
+  CONST time_t CONST_longevity = CONST_one_year * 8;
 
-  if (unlikely(!s || !*s))
+  if (unlikely(!v_ptr || !*v_ptr))
     return 0;
-  struct tm _tm;
-  ni ret = sscanf(s, "%04d-%02d-%02d %02d:%02d:%02d", &_tm.tm_year, &_tm.tm_mon, &_tm.tm_mday,
-      &_tm.tm_hour, &_tm.tm_min, &_tm.tm_sec);
-  _tm.tm_year -= 1900;
-  _tm.tm_mon -= 1;
-  _tm.tm_isdst = -1;
-  if (ret != 6 || _tm.tm_year <= 0)
-    return 0;
-
-  time_t result = mktime(&_tm);
-  if (result + CONST_longevity < _current || _current + CONST_longevity < result)
+  struct tm l_z;
+  ni l_x = sscanf(v_ptr, "%04d-%02d-%02d %02d:%02d:%02d", &l_z.tm_year, &l_z.tm_mon, &l_z.tm_mday,
+      &l_z.tm_hour, &l_z.tm_min, &l_z.tm_sec);
+  l_z.tm_year -= 1900;
+  l_z.tm_mon -= 1;
+  l_z.tm_isdst = -1;
+  if (l_x != 6 || l_z.tm_year <= 0)
     return 0;
 
-  return result;
+  time_t l_r = mktime(&l_z);
+  if (l_r + CONST_longevity < l_t || l_t + CONST_longevity < l_r)
+    return 0;
+
+  return l_r;
 }
 
-truefalse MyDB::connect()
+truefalse CPG::login_to_db()
 {
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  if (connected())
+  if (is_online())
     return true;
-  CCfg * cfg = CCfgX::instance();
-  CONST text * connect_str_template = "hostaddr=%s port=%d user='%s' password='%s' dbname=acedb";
-  CONST ni STRING_LEN = 1024;
-  text connect_str[STRING_LEN];
-  snprintf(connect_str, STRING_LEN - 1, connect_str_template,
-      cfg->db_addr.c_str(), cfg->db_port, cfg->db_name.c_str(), cfg->db_password.c_str());
-  m_connection = PQconnectdb(connect_str);
-  C_INFO("start connecting to database\n");
-  truefalse result = (PQstatus(m_connection) == CONNECTION_OK);
-  if (!result)
+  CCfg * l_obj = CCfgX::instance();
+  CONST text * const_text = "hostaddr=%s port=%d user='%s' password='%s' dbname=acedb";
+  CONST ni TEXT_SIZE = 1024;
+  text connect_str[TEXT_SIZE];
+  snprintf(connect_str, TEXT_SIZE - 1, const_text,
+      l_obj->db_addr.c_str(), l_obj->db_port, l_obj->db_name.c_str(), l_obj->db_password.c_str());
+  m_pg_con = PQconnectdb(connect_str);
+  C_INFO("login to db...\n");
+  truefalse l_x = (PQstatus(m_pg_con) == CONNECTION_OK);
+  if (!l_x)
   {
-    C_ERROR("connect to database failed, msg = %s\n", PQerrorMessage(m_connection));
-    PQfinish(m_connection);
-    m_connection = NULL;
+    C_ERROR("login to db failed: %s\n", PQerrorMessage(m_pg_con));
+    PQfinish(m_pg_con);
+    m_pg_con = NULL;
   }
   else
-    C_INFO("connect to database OK\n");
-  return result;
+    C_INFO("login to db done\n");
+  return l_x;
 }
 
-truefalse MyDB::check_online()
+truefalse CPG::check_online()
 {
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  CONST text * select_sql = "select ('now'::text)::timestamp(0) without time zone";
-  exec_command(select_sql);
+  CONST text * l_x = "select ('now'::text)::timestamp(0) without time zone";
+  run_sql(l_x);
   return validate_db_online();
 }
 
-truefalse MyDB::validate_db_online()
+truefalse CPG::validate_db_online()
 {
-  if (unlikely(!connected()))
+  if (unlikely(!is_online()))
     return false;
-  ConnStatusType cst = PQstatus(m_connection);
-  if (cst == CONNECTION_BAD)
+  ConnStatusType l_z = PQstatus(m_pg_con);
+  if (l_z == CONNECTION_BAD)
   {
-    C_ERROR("connection to db lost, trying to re-connect...\n");
-    PQreset(m_connection);
-    cst = PQstatus(m_connection);
-    if (cst == CONNECTION_BAD)
+    C_ERROR("db not online, retrying...\n");
+    PQreset(m_pg_con);
+    l_z = PQstatus(m_pg_con);
+    if (l_z == CONNECTION_BAD)
     {
-      C_ERROR("reconnect to db failed: %s\n", PQerrorMessage(m_connection));
+      C_ERROR("reconnect to db failed: %s\n", PQerrorMessage(m_pg_con));
       return false;
     } else
       C_INFO("reconnect to db OK!\n");
@@ -4371,767 +4362,714 @@ truefalse MyDB::validate_db_online()
   return true;
 }
 
-DVOID MyDB::disconnect()
+DVOID CPG::make_offline()
 {
-  if (connected())
+  if (is_online())
   {
-    PQfinish(m_connection);
-    m_connection = NULL;
+    PQfinish(m_pg_con);
+    m_pg_con = NULL;
   }
 }
 
-truefalse MyDB::connected() CONST
+truefalse CPG::is_online() CONST
 {
-  return m_connection != NULL;
+  return m_pg_con != NULL;
 }
 
-truefalse MyDB::begin_transaction()
+truefalse CPG::tr_start()
 {
-  return exec_command("BEGIN");
+  return run_sql("BEGIN");
 }
 
-truefalse MyDB::commit()
+truefalse CPG::tr_finish()
 {
-  return exec_command("COMMIT");
+  return run_sql("COMMIT");
 }
 
-truefalse MyDB::rollback()
+truefalse CPG::tr_cancel()
 {
-  return exec_command("ROLLBACK");
+  return run_sql("ROLLBACK");
 }
 
-DVOID MyDB::wrap_str(CONST text * s, CMemProt & wrapped) CONST
+DVOID CPG::prepare_text(CONST text * v_str, CMemProt & v_text) CONST
 {
-  if (!s || !*s)
-    wrapped.init("null");
+  if (!v_str || !*v_str)
+    v_text.init("null");
   else
-    wrapped.init("'", s, "'");
+    v_text.init("'", v_str, "'");
 }
 
-time_t MyDB::get_db_time_i()
+time_t CPG::get_db_time_i()
 {
-  CONST text * CONST_select_sql = "select ('now'::text)::timestamp(0) without time zone";
-  PGresult * pres = PQexec(m_connection, CONST_select_sql);
-  CPGResultProt guard(pres);
-  if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
+  CONST text * CONST_text = "select ('now'::text)::timestamp(0) without time zone";
+  PGresult * l_x = PQexec(m_pg_con, CONST_text);
+  CPGResultProt prot(l_x);
+  if (!l_x || PQresultStatus(l_x) != PGRES_TUPLES_OK)
   {
-    C_ERROR("MyDB::sql (%s) failed: %s\n", CONST_select_sql, PQerrorMessage(m_connection));
+    C_ERROR("sql (%s) failed: %s\n", CONST_text, PQerrorMessage(m_pg_con));
     return 0;
   }
-  if (unlikely(PQntuples(pres) <= 0))
+  if (unlikely(PQntuples(l_x) <= 0))
     return 0;
-  return get_time_init(PQgetvalue(pres, 0, 0));
+  return get_time_init(PQgetvalue(l_x, 0, 0));
 }
 
-truefalse MyDB::exec_command(CONST text * sql_command, ni * affected)
+truefalse CPG::run_sql(CONST text * v_query, ni * v_rows_count)
 {
-  if (unlikely(!sql_command || !*sql_command))
+  if (unlikely(!v_query || !*v_query))
     return false;
-  PGresult * pres = PQexec(m_connection, sql_command);
-  CPGResultProt guard(pres);
-  if (!pres || (PQresultStatus(pres) != PGRES_COMMAND_OK && PQresultStatus(pres) != PGRES_TUPLES_OK))
+  PGresult * l_x = PQexec(m_pg_con, v_query);
+  CPGResultProt prot(l_x);
+  if (!l_x || (PQresultStatus(l_x) != PGRES_COMMAND_OK && PQresultStatus(l_x) != PGRES_TUPLES_OK))
   {
-    C_ERROR("MyDB::exec_command(%s) failed: %s\n", sql_command, PQerrorMessage(m_connection));
+    C_ERROR("run_sql(%s) failed: %s\n", v_query, PQerrorMessage(m_pg_con));
     return false;
   } else
   {
-    if (affected)
+    if (v_rows_count)
     {
-      CONST text * s = PQcmdTuples(pres);
-      if (!s || !*s)
-        *affected = 0;
+      CONST text * l_text = PQcmdTuples(l_x);
+      if (!l_text || !*l_text)
+        *v_rows_count = 0;
       else
-        *affected = atoi(PQcmdTuples(pres));
+        *v_rows_count = atoi(PQcmdTuples(l_x));
     }
     return true;
   }
 }
 
-truefalse MyDB::load_term_SNs(CTermSNs * v_SNs)
+truefalse CPG::load_term_SNs(CTermSNs * v_SNs)
 {
-  C_ASSERT_RETURN(v_SNs != NULL, "null id_table @MyDB::get_client_ids\n", false);
+  C_ASSERT_RETURN(v_SNs != NULL, "null param\n", false);
 
-  CONST text * CONST_select_sql_template = "select term_sn, client_password, client_expired, auto_seq "
+  CONST text * CONST_cmd = "select term_sn, client_password, client_expired, auto_seq "
                                            "from tb_clients where auto_seq > %d order by auto_seq";
-  text select_sql[1024];
-  snprintf(select_sql, 1024 - 1, CONST_select_sql_template, v_SNs->prev_no());
+  text l_cmd[1024];
+  snprintf(l_cmd, 1024 - 1, CONST_cmd, v_SNs->prev_no());
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  PGresult * pres = PQexec(m_connection, select_sql);
-  CPGResultProt guard(pres);
-  if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
+  PGresult * l_x = PQexec(m_pg_con, l_cmd);
+  CPGResultProt prot(l_x);
+  if (!l_x || PQresultStatus(l_x) != PGRES_TUPLES_OK)
   {
-    C_ERROR("MyDB::sql (%s) failed: %s\n", select_sql, PQerrorMessage(m_connection));
+    C_ERROR("(%s) failed: %s\n", l_cmd, PQerrorMessage(m_pg_con));
     return false;
   }
-  ni count = PQntuples(pres);
-  if (count > 0)
+  ni l_m = PQntuples(l_x);
+  if (l_m > 0)
   {
-    v_SNs->prepare_space(count);
-    truefalse expired;
-    CONST text * p;
-    for (ni i = 0; i < count; ++i)
+    v_SNs->prepare_space(l_m);
+    truefalse l_not_valid;
+    CONST text * l_ptr;
+    for (ni k = 0; k < l_m; ++k)
     {
-      p = PQgetvalue(pres, i, 2);
-      expired = p && (*p == 't' || *p == 'T');
-      v_SNs->append(PQgetvalue(pres, i, 0), PQgetvalue(pres, i, 1), expired);
+      l_ptr = PQgetvalue(l_x, k, 2);
+      l_not_valid = l_ptr && (*l_ptr == 't' || *l_ptr == 'T');
+      v_SNs->append(PQgetvalue(l_x, k, 0), PQgetvalue(l_x, k, 1), l_not_valid);
     }
-    ni last_seq = atoi(PQgetvalue(pres, count - 1, 1));
-    v_SNs->set_prev_no(last_seq);
+    ni l_xyz = atoi(PQgetvalue(l_x, l_m - 1, 1));
+    v_SNs->set_prev_no(l_xyz);
   }
 
-  C_INFO("MyDB::get %d client_IDs from database\n", count);
+  C_INFO("load %d term SNs from db\n", l_m);
   return true;
 }
 
-truefalse MyDB::save_client_id(CONST text * s)
+truefalse CPG::save_term_sn(CONST text * v_str)
 {
-  CNumber id = s;
-  id.rtrim();
-  if (id.to_str()[0] == 0)
+  CNumber l_sn = v_str;
+  l_sn.rtrim();
+  if (l_sn.to_str()[0] == 0)
     return false;
 
-  CONST text * insert_sql_template = "insert into tb_clients(term_sn) values('%s')";
-  text insert_sql[1024];
-  snprintf(insert_sql, 1024, insert_sql_template, id.to_str());
+  CONST text * const_cmd = "insert into tb_clients(term_sn) values('%s')";
+  text l_cmd[1024];
+  snprintf(l_cmd, 1024, const_cmd, l_sn.to_str());
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return exec_command(insert_sql);
+  return run_sql(l_cmd);
 }
 
-truefalse MyDB::save_dist(CBsDistReq & http_dist_request, CONST text * md5, CONST text * mbz_md5)
+truefalse CPG::write_task(CBsDistReq & v_req, CONST text * v_cs, CONST text * v_mbz_cs)
 {
-  CONST text * insert_sql_template = "insert into tb_dist_info("
+  CONST text * const_text = "insert into tb_dist_info("
                "dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
                "dist_ftype, dist_password, dist_md5, dist_mbz_md5) "
                "values('%s', '%s', %s, '%s', '%s', '%s', '%s', '%s', '%s')";
-  CONST text * _md5 = md5 ? md5 : "";
-  CONST text * _mbz_md5 = mbz_md5 ? mbz_md5 : "";
-  ni len = strlen(insert_sql_template) + strlen(_md5) + strlen(_mbz_md5) + 2000;
-  CMemProt sql;
-  CCacheX::instance()->get(len, &sql);
+  CONST text * l_cs = v_cs ? v_cs : "";
+  CONST text * l_mbz_cs = v_mbz_cs ? v_mbz_cs : "";
+  ni l_m = strlen(const_text) + strlen(l_cs) + strlen(l_mbz_cs) + 2000;
+  CMemProt l_cmd;
+  CCacheX::instance()->get(l_m, &l_cmd);
   CMemProt aindex;
-  wrap_str(http_dist_request.aindex, aindex);
-  snprintf(sql.get_ptr(), len - 1, insert_sql_template,
-      http_dist_request.ver, http_dist_request.type, aindex.get_ptr(),
-      http_dist_request.findex, http_dist_request.fdir,
-      http_dist_request.ftype, http_dist_request.password, _md5, _mbz_md5);
+  prepare_text(v_req.aindex, aindex);
+  snprintf(l_cmd.get_ptr(), l_m - 1, const_text,
+      v_req.ver, v_req.type, aindex.get_ptr(), v_req.findex, v_req.fdir,
+      v_req.ftype, v_req.password, l_cs, l_mbz_cs);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return exec_command(sql.get_ptr());
+  return run_sql(l_cmd.get_ptr());
 }
 
-truefalse MyDB::save_sr(text * dids, CONST text * cmd, text * idlist)
+truefalse CPG::write_sr(text * dids, CONST text * cmd, text * v_sn_s)
 {
-  CONST text * sql_tpl = "update tb_dist_clients set dc_status = %d where dc_dist_id = '%s' and dc_client_id = '%s'";
-  ni status = *cmd == '1'? 5: 7;
+  CONST text * const_cmd = "update tb_dist_clients set dc_status = %d where dc_dist_id = '%s' and dc_client_id = '%s'";
+  ni l_condition = *cmd == '1'? 5: 7;
 
-  text sql[1024];
+  text l_cmd[1024];
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
 
-  text separator[2] = {';', 0};
-  CONST ni BATCH_COUNT = 20;
-  ni i = 0, total = 0, ok = 0;
-  CTextDelimiter client_ids(idlist, separator);
-  CTextDelimiter dist_ids(dids, separator);
-  std::list<char *> l_client_ids, l_dist_ids;
-  text * client_id, *dist_id;
-  while ((client_id = client_ids.get()) != NULL)
-    l_client_ids.push_back(client_id);
-  while((dist_id = dist_ids.get()) != NULL)
-    l_dist_ids.push_back(dist_id);
-  std::list<char *>::iterator it1, it2;
-  for (it1 = l_dist_ids.begin(); it1 != l_dist_ids.end(); ++ it1)
+  text l_xxx[2] = {';', 0};
+  CONST ni NUM_IN_ONE_RUN = 20;
+  ni mm = 0, l_all = 0, l_fine = 0;
+  CTextDelimiter l_terms_delimiter(v_sn_s, l_xxx);
+  CTextDelimiter l_task_delimiter(dids, l_xxx);
+  std::list<char *> l_term_SNs, l_tasks;
+  text * term_sn, * task;
+  while ((term_sn = l_terms_delimiter.get()) != NULL)
+    l_term_SNs.push_back(term_sn);
+  while((task = l_task_delimiter.get()) != NULL)
+    l_tasks.push_back(task);
+  std::list<char *>::iterator l_z1, l_z_two;
+  for (l_z1 = l_tasks.begin(); l_z1 != l_tasks.end(); ++ l_z1)
   {
-    dist_id = *it1;
-    for (it2 = l_client_ids.begin(); it2 != l_client_ids.end(); ++ it2)
+    task = *l_z1;
+    for (l_z_two = l_term_SNs.begin(); l_z_two != l_term_SNs.end(); ++ l_z_two)
     {
-      total ++;
-      client_id = *it2;
-      if (i == 0)
+      l_all ++;
+      term_sn = *l_z_two;
+      if (mm == 0)
       {
-        if (!begin_transaction())
+        if (!tr_start())
         {
           C_ERROR("failed to begin transaction @MyDB::save_sr\n");
           return false;
         }
       }
-      snprintf(sql, 1024, sql_tpl, status, dist_id, client_id);
-      exec_command(sql);
-      ++i;
-      if (i == BATCH_COUNT)
+      snprintf(l_cmd, 1024, const_cmd, l_condition, task, term_sn);
+      run_sql(l_cmd);
+      ++mm;
+      if (mm == NUM_IN_ONE_RUN)
       {
-        if (!commit())
+        if (!tr_finish())
         {
-          C_ERROR("failed to commit transaction @MyDB::save_sr\n");
-          rollback();
+          C_ERROR("tr_finish write_sr\n");
+          tr_cancel();
         } else
-          ok += i;
-        i = 0;
+          l_fine += mm;
+        mm = 0;
       }
     }
   }
 
-  if (i != 0)
+  if (mm != 0)
   {
-    if (!commit())
+    if (!tr_finish())
     {
-      C_ERROR("failed to commit transaction @MyDB::save_sr\n");
-      rollback();
+      C_ERROR("tr_finish write_sr.2\n");
+      tr_cancel();
     } else
-      ok += i;
+      l_fine += mm;
   }
 
-  C_INFO("MyDB::save_sr success/total = %d/%d\n", ok, total);
+  C_INFO("write_sr done: %d/%d\n", l_fine, l_all);
   return true;
 }
 
-truefalse MyDB::save_prio(CONST text * prio)
+truefalse CPG::write_pl(CONST text * v_plist)
 {
-  if (!prio || !*prio)
+  if (!v_plist || !*v_plist)
     return false;
-  text sql[2048];
-  CONST text * sql_template = "update tb_config set cfg_value = '%s' where cfg_id = 2";
-  snprintf(sql, 2048, sql_template, prio);
+  text l_cmd[2048];
+  CONST text * const_cmd = "update tb_config set cfg_value = '%s' where cfg_id = 2";
+  snprintf(l_cmd, 2048, const_cmd, v_plist);
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return exec_command(sql);
+  return run_sql(l_cmd);
 }
 
-truefalse MyDB::save_dist_clients(text * idlist, text * adirlist, CONST text * dist_id)
+truefalse CPG::write_task_terms(text * v_term_SNs, text * v_adir_s, CONST text * v_task)
 {
-  CONST text * insert_sql_template1 = "insert into tb_dist_clients(dc_dist_id, dc_client_id, dc_adir) values('%s', '%s', '%s')";
-  CONST text * insert_sql_template2 = "insert into tb_dist_clients(dc_dist_id, dc_client_id) values('%s', '%s')";
-  text insert_sql[2048];
+  CONST text * const_cmd1 = "insert into tb_dist_clients(dc_dist_id, dc_client_id, dc_adir) values('%s', '%s', '%s')";
+  CONST text * const_cmd2 = "insert into tb_dist_clients(dc_dist_id, dc_client_id) values('%s', '%s')";
+  text l_cmd[2048];
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
 
-  text separator[2] = {';', 0};
-  CONST ni BATCH_COUNT = 20;
-  ni i = 0, total = 0, ok = 0;
-  CTextDelimiter client_ids(idlist, separator);
-  CTextDelimiter adirs(adirlist, separator);
-  text * client_id, * adir;
-  while ((client_id = client_ids.get()) != NULL)
+  text l_xxx[2] = {';', 0};
+  CONST ni NUM_IN_ONE_RUN = 20;
+  ni mm = 0, l_all = 0, l_fine = 0;
+  CTextDelimiter l_term_SN_delimiter(v_term_SNs, l_xxx);
+  CTextDelimiter l_adir_delimiter(v_adir_s, l_xxx);
+  text * l_term_sn, * l_adir;
+  while ((l_term_sn = l_term_SN_delimiter.get()) != NULL)
   {
-    adir = adirs.get();
-    total ++;
-    if (i == 0)
+    l_adir = l_adir_delimiter.get();
+    l_all ++;
+    if (mm == 0)
     {
-      if (!begin_transaction())
+      if (!tr_start())
       {
-        C_ERROR("failed to begin transaction @MyDB::save_dist_clients\n");
+        C_ERROR("tr_start() write_task_terms\n");
         return false;
       }
     }
-    if (adir)
-      snprintf(insert_sql, 2048, insert_sql_template1, dist_id, client_id, adir);
+    if (l_adir)
+      snprintf(l_cmd, 2048, const_cmd1, v_task, l_term_sn, l_adir);
     else
-      snprintf(insert_sql, 2048, insert_sql_template2, dist_id, client_id);
-    exec_command(insert_sql);
-    ++i;
-    if (i == BATCH_COUNT)
+      snprintf(l_cmd, 2048, const_cmd2, v_task, l_term_sn);
+    run_sql(l_cmd);
+    ++mm;
+    if (mm == NUM_IN_ONE_RUN)
     {
-      if (!commit())
+      if (!tr_finish())
       {
-        C_ERROR("failed to commit transaction @MyDB::save_dist_clients\n");
-        rollback();
+        C_ERROR("tr_finish write_task_terms\n");
+        tr_cancel();
       } else
-        ok += i;
+        l_fine += mm;
 
-      i = 0;
+      mm = 0;
     }
   }
 
-  if (i != 0)
+  if (mm != 0)
   {
-    if (!commit())
+    if (!tr_finish())
     {
-      C_ERROR("failed to commit transaction @MyDB::save_dist_clients\n");
-      rollback();
+      C_ERROR("tr_finish write_task_terms.2\n");
+      tr_cancel();
     } else
-      ok += i;
+      l_fine += mm;
   }
 
-  C_INFO("MyDB::save_dist_clients success/total = %d/%d\n", ok, total);
+  C_INFO("write_task_terms done: %d/%d\n", l_fine, l_all);
   return true;
 }
 
-truefalse MyDB::save_dist_cmp_done(CONST text *dist_id)
+truefalse CPG::write_task_cmp_finished(CONST text *v_task)
 {
-  if (unlikely(!dist_id || !*dist_id))
+  if (unlikely(!v_task || !*v_task))
     return false;
 
-  CONST text * update_sql_template = "update tb_dist_info set dist_cmp_done = 1 where dist_id='%s'";
-  text insert_sql[1024];
-  snprintf(insert_sql, 1024, update_sql_template, dist_id);
+  CONST text * const_text = "update tb_dist_info set dist_cmp_done = 1 where dist_id='%s'";
+  text l_cmd[1024];
+  snprintf(l_cmd, 1024, const_text, v_task);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return exec_command(insert_sql);
+  return run_sql(l_cmd);
 }
 
-ni MyDB::load_dist_infos(CBsDistDatas & infos)
+ni CPG::read_tasks(CBsDistDatas & v_datas)
 {
-  CONST text * CONST_select_sql = "select dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
+  CONST text * const_text = "select dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
                                   " dist_ftype, dist_time, dist_password, dist_mbz_md5, dist_md5"
                                    " from tb_dist_info order by dist_time";
-//      "select *, ((('now'::text)::timestamp(0) without time zone - dist_cmp_time > interval '00:10:10') "
-//      ") and dist_cmp_done = '0' as cmp_needed, "
-//      "((('now'::text)::timestamp(0) without time zone - dist_md5_time > interval '00:10:10') "
-//      ") and (dist_md5 is null) and (dist_type = '1') as md5_needed "
-//      "from tb_dist_info order by dist_time";
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
 
-  PGresult * pres = PQexec(m_connection, CONST_select_sql);
-  CPGResultProt guard(pres);
-  if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
+  PGresult * l_x = PQexec(m_pg_con, const_text);
+  CPGResultProt prot(l_x);
+  if (!l_x || PQresultStatus(l_x) != PGRES_TUPLES_OK)
   {
-    C_ERROR("MyDB::sql (%s) failed: %s\n", CONST_select_sql, PQerrorMessage(m_connection));
+    C_ERROR("PQexec(%s): %s\n", const_text, PQerrorMessage(m_pg_con));
     return -1;
   }
 
-  ni count = PQntuples(pres);
-  ni field_count = PQnfields(pres);
-  if (unlikely(field_count != 10))
+  ni l_num = PQntuples(l_x);
+  ni l_m = PQnfields(l_x);
+  if (unlikely(l_m != 10))
   {
-    C_ERROR("incorrect column count(%d) @MyDB::load_dist_infos\n", field_count);
+    C_ERROR("bad read_tasks.col(%d)\n", l_m);
     return -1;
   }
 
-  infos.alloc_spaces(count);
-  for (ni i = 0; i < count; ++ i)
+  v_datas.alloc_spaces(l_num);
+  for (ni l_n = 0; l_n < l_num; ++ l_n)
   {
-    CBsDistData * info = infos.alloc_data(PQgetvalue(pres, i, 0));
+    CBsDistData * v_data = v_datas.alloc_data(PQgetvalue(l_x, l_n, 0));
 
-    for (ni j = 0; j < field_count; ++j)
+    for (ni l_k = 0; l_k < l_m; ++l_k)
     {
-      CONST text * fvalue = PQgetvalue(pres, i, j);
-      if (!fvalue || !*fvalue)
+      CONST text * l_xyz = PQgetvalue(l_x, l_n, l_k);
+      if (!l_xyz || !*l_xyz)
         continue;
 
-      if (j == 5)
-        info->ftype[0] = *fvalue;
-      else if (j == 4)
-        info->fdir.init(fvalue);
-      else if (j == 3)
+      if (l_k == 5)
+        v_data->ftype[0] = *l_xyz;
+      else if (l_k == 4)
+        v_data->fdir.init(l_xyz);
+      else if (l_k == 3)
       {
-        info->findex.init(fvalue);
-        info->findex_len = strlen(fvalue);
+        v_data->findex.init(l_xyz);
+        v_data->findex_len = strlen(l_xyz);
       }
-      else if (j == 9)
+      else if (l_k == 9)
       {
-        info->md5.init(fvalue);
-        info->md5_len = strlen(fvalue);
+        v_data->md5.init(l_xyz);
+        v_data->md5_len = strlen(l_xyz);
       }
-      else if (j == 1)
-        info->type[0] = *fvalue;
-      else if (j == 7)
+      else if (l_k == 1)
+        v_data->type[0] = *l_xyz;
+      else if (l_k == 7)
       {
-        info->password.init(fvalue);
-        info->password_len = strlen(fvalue);
+        v_data->password.init(l_xyz);
+        v_data->password_len = strlen(l_xyz);
       }
-      else if (j == 6)
+      else if (l_k == 6)
       {
-        info->dist_time.init(fvalue);
+        v_data->dist_time.init(l_xyz);
       }
-      else if (j == 2)
+      else if (l_k == 2)
       {
-        info->aindex.init(fvalue);
-        info->aindex_len = strlen(fvalue);
+        v_data->aindex.init(l_xyz);
+        v_data->aindex_len = strlen(l_xyz);
       }
-      else if (j == 8)
-        info->mbz_md5.init(fvalue);
+      else if (l_k == 8)
+        v_data->mbz_md5.init(l_xyz);
     }
 
-    info->calc_md5_opt_len();
+    v_data->calc_md5_opt_len();
   }
 
-  C_INFO("MyDB::get %d dist infos from database\n", count);
-  return count;
+  C_INFO("read_tasks: %d task(s) from db\n", l_num);
+  return l_num;
 }
 
-truefalse MyDB::take_owner_ship(CONST text * table, CONST text * field, CMemProt & old_time, CONST text * where_clause)
-{
-  CONST text * update_sql_template = "update %s set "
-                                     "%s = ('now'::text)::timestamp(0) without time zone "
-                                     "%s and %s %s %s";
-  text sql[1024];
-  if (old_time.get_ptr() && old_time.get_ptr()[0])
-  {
-    CMemProt wrapped_time;
-    wrap_str(old_time.get_ptr(), wrapped_time);
-    snprintf(sql, 1024, update_sql_template, table, field, where_clause, field, "=", wrapped_time.get_ptr());
-  }
-  else
-    snprintf(sql, 1024, update_sql_template, table, field, where_clause, field, "is", "null");
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  ni m = 0;
-  if (!exec_command(sql, &m))
+truefalse CPG::finish_task_cmp(CONST text * v_task)
+{
+  if (unlikely(!v_task || !*v_task))
     return false;
 
-  truefalse result = (m == 1);
-
-  CONST text * select_sql_template = "select %s from %s %s";
-  snprintf(sql, 1024, select_sql_template, field, table, where_clause);
-  PGresult * pres = PQexec(m_connection, sql);
-  CPGResultProt guard(pres);
-  if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
-  {
-    C_ERROR("MyDB::sql (%s) failed: %s\n", sql, PQerrorMessage(m_connection));
-    return result;
-  }
-  ni count = PQntuples(pres);
-  if (count > 0)
-    old_time.init(PQgetvalue(pres, 0, 0));
-  return result;
-}
-
-truefalse MyDB::dist_mark_cmp_done(CONST text * dist_id)
-{
-  if (unlikely(!dist_id || !*dist_id))
-    return false;
-
-  CONST text * update_sql_template = "update tb_dist_info set dist_cmp_done = 1 "
+  CONST text * const_cmd = "update tb_dist_info set dist_cmp_done = 1 "
                                      "where dist_id = '%s'";
-  text sql[1024];
-  snprintf(sql, 1024, update_sql_template, dist_id);
+  text l_cmd[1024];
+  snprintf(l_cmd, 1024, const_cmd, v_task);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return exec_command(sql);
+  return run_sql(l_cmd);
 }
 
-truefalse MyDB::dist_mark_md5_done(CONST text * dist_id)
+truefalse CPG::finish_task_cs(CONST text * v_task)
 {
-  if (unlikely(!dist_id || !*dist_id))
+  if (unlikely(!v_task || !*v_task))
     return false;
 
-  CONST text * update_sql_template = "update tb_dist_info set dist_md5_done = 1 "
+  CONST text * const_cmd = "update tb_dist_info set dist_md5_done = 1 "
                                      "where dist_id = '%s'";
-  text sql[1024];
-  snprintf(sql, 1024, update_sql_template, dist_id);
+  text l_cmd[1024];
+  snprintf(l_cmd, 1024, const_cmd, v_task);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return exec_command(sql);
+  return run_sql(l_cmd);
 }
 
-truefalse MyDB::save_dist_md5(CONST text * dist_id, CONST text * md5, ni md5_len)
+truefalse CPG::write_task_cs(CONST text * v_task, CONST text * v_cs, ni v_cs_size)
 {
-  if (unlikely(!dist_id || !*dist_id || !md5))
+  if (unlikely(!v_task || !*v_task || !v_cs))
     return false;
 
-  CONST text * update_sql_template = "update tb_dist_info set dist_md5 = '%s' "
+  CONST text * const_cmd = "update tb_dist_info set dist_md5 = '%s' "
                                      "where dist_id = '%s'";
-  ni len = md5_len + strlen(update_sql_template) + strlen(dist_id) + 20;
-  CMemProt sql;
-  CCacheX::instance()->get(len, &sql);
-  snprintf(sql.get_ptr(), len, update_sql_template, md5, dist_id);
+  ni v_m = v_cs_size + strlen(const_cmd) + strlen(v_task) + 20;
+  CMemProt l_cmd;
+  CCacheX::instance()->get(v_m, &l_cmd);
+  snprintf(l_cmd.get_ptr(), v_m, const_cmd, v_cs, v_task);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return exec_command(sql.get_ptr());
+  return run_sql(l_cmd.get_ptr());
 }
 
-truefalse MyDB::save_dist_ftp_md5(CONST text * dist_id, CONST text * md5)
+truefalse CPG::write_task_download_cs(CONST text * v_task, CONST text * v_cs)
 {
-  if (unlikely(!dist_id || !*dist_id || !md5 || !*md5))
+  if (unlikely(!v_task || !*v_task || !v_cs || !*v_cs))
     return false;
 
-  CONST text * update_sql_template = "update tb_dist_info set dist_mbz_md5 = '%s' "
+  CONST text * const_cmd = "update tb_dist_info set dist_mbz_md5 = '%s' "
                                      "where dist_id = '%s'";
-  text sql[1024];
-  snprintf(sql, 1024, update_sql_template, md5, dist_id);
+  text l_cmd[1024];
+  snprintf(l_cmd, 1024, const_cmd, v_cs, v_task);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return exec_command(sql);
+  return run_sql(l_cmd);
 }
 
-truefalse MyDB::load_dist_clients(CTermStations * dist_clients, CTermStation * _dc_one)
+truefalse CPG::read_task_terms(CTermStations * v_stations, CTermStation * v_station)
 {
-  C_ASSERT_RETURN(dist_clients != NULL, "null dist_clients @MyDB::load_dist_clients\n", false);
+  C_ASSERT_RETURN(v_stations != NULL, "null param\n", false);
 
-  CONST text * CONST_select_sql_1 = "select dc_dist_id, dc_client_id, dc_status, dc_adir, dc_last_update,"
+  CONST text * CONST_cmd1 = "select dc_dist_id, dc_client_id, dc_status, dc_adir, dc_last_update,"
       " dc_mbz_file, dc_mbz_md5, dc_md5"
       " from tb_dist_clients order by dc_client_id";
-  CONST text * CONST_select_sql_2 = "select dc_dist_id, dc_client_id, dc_status, dc_adir, dc_last_update,"
+  CONST text * CONST_cmd2 = "select dc_dist_id, dc_client_id, dc_status, dc_adir, dc_last_update,"
       " dc_mbz_file, dc_mbz_md5, dc_md5"
       " from tb_dist_clients where dc_client_id = '%s'";
-  CONST text * CONST_select_sql;
+  CONST text * CONST_cmd;
 
-  text sql[512];
-  if (!_dc_one)
-    CONST_select_sql = CONST_select_sql_1;
+  text l_cmd[512];
+  if (!v_station)
+    CONST_cmd = CONST_cmd1;
   else
   {
-    snprintf(sql, 512, CONST_select_sql_2, _dc_one->term_sn());
-    CONST_select_sql = sql;
+    snprintf(l_cmd, 512, CONST_cmd2, v_station->term_sn());
+    CONST_cmd = l_cmd;
   }
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
 
-//  dist_clients->db_time = get_db_time_i();
-//  if (unlikely(dist_clients->db_time == 0))
-//  {
-//    C_ERROR("can not get db server time\n");
-//    return false;
-//  }
-
-  PGresult * pres = PQexec(m_connection, CONST_select_sql);
-  CPGResultProt guard(pres);
-  if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
+  PGresult * l_x = PQexec(m_pg_con, CONST_cmd);
+  CPGResultProt prot(l_x);
+  if (!l_x || PQresultStatus(l_x) != PGRES_TUPLES_OK)
   {
-    C_ERROR("MyDB::sql (%s) failed: %s\n", CONST_select_sql, PQerrorMessage(m_connection));
+    C_ERROR("PQexec (%s): %s\n", CONST_cmd, PQerrorMessage(m_pg_con));
     return -1;
   }
-  ni count = PQntuples(pres);
-  ni field_count = PQnfields(pres);
-  ni count_added = 0;
-  CTermStation * dc_one;
+  ni l_num = PQntuples(l_x);
+  ni l_m = PQnfields(l_x);
+  ni l_ok = 0;
+  CTermStation * l_station;
 
-  if (count == 0)
+  if (l_num == 0)
     goto __exit__;
-  if (unlikely(field_count != 8))
+  if (unlikely(l_m != 8))
   {
-    C_ERROR("wrong column number(%d) @MyDB::load_dist_clients()\n", field_count);
+    C_ERROR("read_task_terms: bad col(%d)\n", l_m);
     return false;
   }
 
-  CBsDistData * info;
-  if (!_dc_one)
-    dc_one = dist_clients->generate_term_station(PQgetvalue(pres, 0, 1));
+  CBsDistData * l_data;
+  if (!v_station)
+    l_station = v_stations->generate_term_station(PQgetvalue(l_x, 0, 1));
   else
-    dc_one = _dc_one;
-  for (ni i = 0; i < count; ++ i)
+    l_station = v_station;
+  for (ni l_k = 0; l_k < l_num; ++ l_k)
   {
-    info = dist_clients->search_dist_data(PQgetvalue(pres, i, 0));
-    if (unlikely(!info))
+    l_data = v_stations->search_dist_data(PQgetvalue(l_x, l_k, 0));
+    if (unlikely(!l_data))
       continue;
 
-    if (!_dc_one)
+    if (!v_station)
     {
-      CONST text * client_id = PQgetvalue(pres, i, 1);
-      if (unlikely(!dc_one->check_term_sn(client_id)))
-        dc_one = dist_clients->generate_term_station(client_id);
+      CONST text * client_id = PQgetvalue(l_x, l_k, 1);
+      if (unlikely(!l_station->check_term_sn(client_id)))
+        l_station = v_stations->generate_term_station(client_id);
     }
 
-    CDistTermItem * dc = dc_one->generate_term_item(info);
+    CDistTermItem * l_item = l_station->generate_term_item(l_data);
 
     CONST text * md5 = NULL;
-    for (ni j = 0; j < field_count; ++j)
+    for (ni l_o = 0; l_o < l_m; ++l_o)
     {
-      CONST text * fvalue = PQgetvalue(pres, i, j);
-      if (!fvalue || !*fvalue)
+      CONST text * l_ptr = PQgetvalue(l_x, l_k, l_o);
+      if (!l_ptr || !*l_ptr)
         continue;
 
-      if (j == 2)
-        dc->condition = atoi(fvalue);
-      else if (j == 3)
-        dc->adir.init(fvalue);
-      else if (j == 7)
-        md5 = fvalue;
-      else if (j == 5)
-        dc->cmp_fn.init(fvalue);
-      else if (j == 4)
-        dc->prev_access = get_time_init(fvalue);
-      else if (j == 6)
-        dc->cmp_checksum.init(fvalue);
+      if (l_o == 2)
+        l_item->condition = atoi(l_ptr);
+      else if (l_o == 3)
+        l_item->adir.init(l_ptr);
+      else if (l_o == 7)
+        md5 = l_ptr;
+      else if (l_o == 5)
+        l_item->cmp_fn.init(l_ptr);
+      else if (l_o == 4)
+        l_item->prev_access = get_time_init(l_ptr);
+      else if (l_o == 6)
+        l_item->cmp_checksum.init(l_ptr);
     }
 
-    if (dc->condition < 3 && md5 != NULL)
-      dc->checksum.init(md5);
+    if (l_item->condition < 3 && md5 != NULL)
+      l_item->checksum.init(md5);
 
-    ++ count_added;
+    ++ l_ok;
   }
 
 __exit__:
-  if (!_dc_one)
-    C_INFO("MyDB::get %d/%d dist client infos from database\n", count_added, count);
-  return count;
+  if (!v_station)
+    C_INFO("read_task_terms: %d/%d\n", l_ok, l_num);
+  return l_num;
 }
 
-truefalse MyDB::set_dist_client_status(CDistTermItem & dist_client, ni new_status)
+truefalse CPG::write_task_term_item_condition(CDistTermItem & v_item, ni v_condtion)
 {
-  return set_dist_client_status(dist_client.term_sn(), dist_client.dist_data->ver.get_ptr(), new_status);
+  return write_task_term_condition(v_item.term_sn(), v_item.dist_data->ver.get_ptr(), v_condtion);
 }
 
-truefalse MyDB::set_dist_client_status(CONST text * client_id, CONST text * dist_id, ni new_status)
+truefalse CPG::write_task_term_condition(CONST text * v_term_sn, CONST text * v_task, ni v_condition)
 {
-  CONST text * update_sql_template = "update tb_dist_clients set dc_status = %d "
+  CONST text * const_cmd = "update tb_dist_clients set dc_status = %d "
                                      "where dc_dist_id = '%s' and dc_client_id='%s' and dc_status < %d";
-  text sql[1024];
-  snprintf(sql, 1024, update_sql_template, new_status, dist_id, client_id, new_status);
+  text l_cmd[1024];
+  snprintf(l_cmd, 1024, const_cmd, v_condition, v_task, v_term_sn, v_condition);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return exec_command(sql);
+  return run_sql(l_cmd);
 }
 
-truefalse MyDB::set_dist_client_md5(CONST text * client_id, CONST text * dist_id, CONST text * md5, ni new_status)
+truefalse CPG::write_task_term_cs(CONST text * v_term_sn, CONST text * v_task, CONST text * v_cs, ni v_condition)
 {
-  CONST text * update_sql_template = "update tb_dist_clients set dc_status = %d, dc_md5 = '%s' "
+  CONST text * const_cmd = "update tb_dist_clients set dc_status = %d, dc_md5 = '%s' "
                                      "where dc_dist_id = '%s' and dc_client_id='%s' and dc_status < %d";
-  ni len = strlen(update_sql_template) + strlen(md5) + strlen(client_id)
-    + strlen(dist_id) + 40;
-  CMemProt sql;
-  CCacheX::instance()->get(len, &sql);
-  snprintf(sql.get_ptr(), len, update_sql_template, new_status, md5, dist_id, client_id, new_status);
+  ni l_m = strlen(const_cmd) + strlen(v_cs) + strlen(v_term_sn) + strlen(v_task) + 40;
+  CMemProt l_cmd;
+  CCacheX::instance()->get(l_m, &l_cmd);
+  snprintf(l_cmd.get_ptr(), l_m, const_cmd, v_condition, v_cs, v_task, v_term_sn, v_condition);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  ni num = 0;
-  return exec_command(sql.get_ptr(), &num) && num == 1;
+  ni l_i = 0;
+  return run_sql(l_cmd.get_ptr(), &l_i) && l_i == 1;
 }
 
-truefalse MyDB::set_dist_client_mbz(CONST text * client_id, CONST text * dist_id, CONST text * mbz, CONST text * mbz_md5)
+truefalse CPG::write_task_term_mbz(CONST text * v_term_sn, CONST text * v_task, CONST text * v_mbz, CONST text * v_cs_mbz)
 {
-  CONST text * update_sql_template = "update tb_dist_clients set dc_mbz_file = '%s', dc_mbz_md5 = '%s' "
+  CONST text * const_cmd = "update tb_dist_clients set dc_mbz_file = '%s', dc_mbz_md5 = '%s' "
                                      "where dc_dist_id = '%s' and dc_client_id='%s' and dc_status < 3";
-  ni len = strlen(update_sql_template) + strlen(mbz) + strlen(client_id)
-          + strlen(dist_id) + 40 + strlen(mbz_md5);
-  CMemProt sql;
-  CCacheX::instance()->get(len, &sql);
-  snprintf(sql.get_ptr(), len, update_sql_template, mbz, mbz_md5, dist_id, client_id);
+  ni l_m = strlen(const_cmd) + strlen(v_mbz) + strlen(v_term_sn)
+          + strlen(v_task) + 40 + strlen(v_cs_mbz);
+  CMemProt l_cmd;
+  CCacheX::instance()->get(l_m, &l_cmd);
+  snprintf(l_cmd.get_ptr(), l_m, const_cmd, v_mbz, v_cs_mbz, v_task, v_term_sn);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  ni num = 0;
-  return exec_command(sql.get_ptr(), &num) && num == 1;
+  ni k = 0;
+  return run_sql(l_cmd.get_ptr(), &k) && k == 1;
 }
 
-truefalse MyDB::delete_dist_client(CONST text * client_id, CONST text * dist_id)
+truefalse CPG::destruct_task_term(CONST text * v_term_sn, CONST text * v_task)
 {
-  CONST text * delete_sql_template = "delete from tb_dist_clients where dc_dist_id = '%s' and dc_client_id='%s'";
-  text sql[1024];
-  snprintf(sql, 1024, delete_sql_template, dist_id, client_id);
-
+  CONST text * const_cmd = "delete from tb_dist_clients where dc_dist_id = '%s' and dc_client_id='%s'";
+  text l_cmd[1024];
+  snprintf(l_cmd, 1024, const_cmd, v_task, v_term_sn);
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return exec_command(sql);
+  return run_sql(l_cmd);
 }
 
-truefalse MyDB::dist_info_is_update(CBsDistDatas & infos)
+truefalse CPG::is_dist_data_new(CBsDistDatas & v_datas)
 {
   {
     ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
     if (!validate_db_online())
       return true;
   }
-  CMemProt value;
-  if (!load_cfg_value(1, value))
+  CMemProt l_x;
+  if (!read_config(1, l_x))
     return true;
-  truefalse result = strcmp(infos.prev_query_ts.get_ptr(), value.get_ptr()) == 0;
-  if (!result)
-    infos.prev_query_ts.init(value.get_ptr());
-  return result;
+  truefalse l_y = strcmp(v_datas.prev_query_ts.get_ptr(), l_x.get_ptr()) == 0;
+  if (!l_y)
+    v_datas.prev_query_ts.init(l_x.get_ptr());
+  return l_y;
 }
 
-truefalse MyDB::load_pl(CMemProt & value)
+truefalse CPG::read_pl(CMemProt & v_x)
 {
-  return load_cfg_value(2, value);
+  return read_config(2, v_x);
 }
 
-truefalse MyDB::dist_info_update_status()
+truefalse CPG::refresh_task_condition()
 {
-  ni now = (ni)time(NULL);
-  ni x = random() % 0xFFFFFF;
-  text buff[64];
-  snprintf(buff, 64, "%d-%d", now, x);
-  return set_cfg_value(1, buff);
+  ni l_t = (ni)time(NULL);
+  ni l_m = random() % 0xFFFFFF;
+  text tmp[64];
+  snprintf(tmp, 64, "%d-%d", l_t, l_m);
+  return write_config(1, tmp);
 }
 
-truefalse MyDB::remove_orphan_dist_info()
+truefalse CPG::delete_unused_tasks()
 {
-  CONST text * sql = "select post_process()";
-
+  CONST text * const_cmd = "select post_process()";
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return exec_command(sql);
+  return run_sql(const_cmd);
 }
 
-truefalse MyDB::get_dist_ids(CObsoleteDirDeleter & path_remover)
+truefalse CPG::read_term_SNs(CObsoleteDirDeleter & v_obj)
 {
-  CONST text * sql = "select dist_id from tb_dist_info";
-
+  CONST text * const_cmd = "select dist_id from tb_dist_info";
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  PGresult * pres = PQexec(m_connection, sql);
-  CPGResultProt guard(pres);
-  if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
+  PGresult * l_x = PQexec(m_pg_con, const_cmd);
+  CPGResultProt prot(l_x);
+  if (!l_x || PQresultStatus(l_x) != PGRES_TUPLES_OK)
   {
-    C_ERROR("MyDB::sql (%s) failed: %s\n", sql, PQerrorMessage(m_connection));
+    C_ERROR("PQexec(%s): %s\n", const_cmd, PQerrorMessage(m_pg_con));
     return false;
   }
-  ni count = PQntuples(pres);
-  if (count > 0)
+  ni l_m = PQntuples(l_x);
+  if (l_m > 0)
   {
-    for (ni i = 0; i < count; ++i)
-      path_remover.append_did(PQgetvalue(pres, i, 0));
+    for (ni k = 0; k < l_m; ++k)
+      v_obj.append_did(PQgetvalue(l_x, k, 0));
   }
   return true;
 }
 
-truefalse MyDB::mark_client_valid(CONST text * client_id, truefalse valid)
+truefalse CPG::change_term_valid(CONST text * v_term_sn, truefalse v_ok)
 {
-  text sql[1024];
-  if (!valid)
+  text l_cmd[1024];
+  if (!v_ok)
   {
-    CONST text * sql_template = "delete from tb_clients where term_sn = '%s'";
-    snprintf(sql, 1024, sql_template, client_id);
+    CONST text * const_cmd = "delete from tb_clients where term_sn = '%s'";
+    snprintf(l_cmd, 1024, const_cmd, v_term_sn);
   } else
   {
-    CONST text * sql_template = "insert into tb_clients(term_sn, client_password) values('%s', '%s')";
-    snprintf(sql, 1024, sql_template, client_id, client_id);
+    CONST text * const_cmd = "insert into tb_clients(term_sn, client_password) values('%s', '%s')";
+    snprintf(l_cmd, 1024, const_cmd, v_term_sn, v_term_sn);
   }
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return exec_command(sql);
+  return run_sql(l_cmd);
 }
 
-truefalse MyDB::set_cfg_value(CONST ni id, CONST text * value)
+truefalse CPG::write_config(CONST ni v_key, CONST text * v_x)
 {
-  CONST text * sql_template = "update tb_config set cfg_value = '%s' where cfg_id = %d";
-  text sql[1024];
-  snprintf(sql, 1024, sql_template, value, id);
+  CONST text * const_cmd = "update tb_config set cfg_value = '%s' where cfg_id = %d";
+  text l_cmd[1024];
+  snprintf(l_cmd, 1024, const_cmd, v_x, v_key);
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return exec_command(sql);
+  return run_sql(l_cmd);
 }
 
-truefalse MyDB::load_cfg_value(CONST ni id, CMemProt & value)
+truefalse CPG::read_config(CONST ni v_key, CMemProt & v_x)
 {
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return load_cfg_value_i(id, value);
+  return read_config_i(v_key, v_x);
 }
 
-truefalse MyDB::load_cfg_value_i(CONST ni id, CMemProt & value)
+truefalse CPG::read_config_i(CONST ni v_key, CMemProt & v_x)
 {
-  CONST text * CONST_select_sql_template = "select cfg_value from tb_config where cfg_id = %d";
-  text select_sql[1024];
-  snprintf(select_sql, 1024, CONST_select_sql_template, id);
+  CONST text * const_cmd = "select cfg_value from tb_config where cfg_id = %d";
+  text l_cmd[1024];
+  snprintf(l_cmd, 1024, const_cmd, v_key);
 
-  PGresult * pres = PQexec(m_connection, select_sql);
-  CPGResultProt guard(pres);
-  if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
+  PGresult * l_x = PQexec(m_pg_con, l_cmd);
+  CPGResultProt prot(l_x);
+  if (!l_x || PQresultStatus(l_x) != PGRES_TUPLES_OK)
   {
-    C_ERROR("MyDB::sql (%s) failed: %s\n", select_sql, PQerrorMessage(m_connection));
+    C_ERROR("PQexec(%s): %s\n", l_cmd, PQerrorMessage(m_pg_con));
     return false;
   }
-  ni count = PQntuples(pres);
-  if (count > 0)
+  ni l_m = PQntuples(l_x);
+  if (l_m > 0)
   {
-    value.init(PQgetvalue(pres, 0, 0));
+    v_x.init(PQgetvalue(l_x, 0, 0));
     return true;
   } else
     return false;
 }
 
 
-truefalse MyDB::load_db_server_time_i(time_t &t)
+truefalse CPG::do_read_db_time(time_t & v_t)
 {
-  CONST text * select_sql = "select ('now'::text)::timestamp(0) without time zone";
-  PGresult * pres = PQexec(m_connection, select_sql);
-  CPGResultProt guard(pres);
-  if (!pres || PQresultStatus(pres) != PGRES_TUPLES_OK)
+  CONST text * const_cmd = "select ('now'::text)::timestamp(0) without time zone";
+  PGresult * l_x = PQexec(m_pg_con, const_cmd);
+  CPGResultProt prot(l_x);
+  if (!l_x || PQresultStatus(l_x) != PGRES_TUPLES_OK)
   {
-    C_ERROR("MyDB::sql (%s) failed: %s\n", select_sql, PQerrorMessage(m_connection));
+    C_ERROR("PQexec(%s): %s\n", const_cmd, PQerrorMessage(m_pg_con));
     return false;
   }
-  if (PQntuples(pres) <= 0)
+  if (PQntuples(l_x) <= 0)
     return false;
-  t = get_time_init(PQgetvalue(pres, 0, 0));
+  v_t = get_time_init(PQgetvalue(l_x, 0, 0));
   return true;
 }

@@ -758,7 +758,7 @@ protected:
 
   DVOID clear();
   DVOID i_post(CONST text *);
-  virtual CONST text * get_command() CONST = 0;
+  virtual CONST text * what_action() CONST = 0;
 
   CGatheredDatas m_chunks;
 };
@@ -772,7 +772,7 @@ public:
   DVOID append(CONST text *, text, CONST text *, text, text, CONST text *);
 
 protected:
-  virtual CONST text * get_command() CONST;
+  virtual CONST text * what_action() CONST;
 
 private:
   enum { BUFF_LEN = 1024 };
@@ -794,7 +794,7 @@ public:
   DVOID append(CONST text *, CONST ni);
 
 protected:
-  virtual CONST text * get_command() CONST;
+  virtual CONST text * what_action() CONST;
 
 private:
   enum { BUFF_LEN = 4096 };
@@ -809,7 +809,7 @@ public:
   DVOID append(CONST text *, ni, CONST text *, CONST text *, CONST text *);
 
 protected:
-  virtual CONST text * get_command() CONST;
+  virtual CONST text * what_action() CONST;
 
 private:
   enum { BUFF_LEN = 2048 };
@@ -826,7 +826,7 @@ public:
   DVOID append(CONST text *, ni, CONST text, CONST text *);
 
 protected:
-  virtual CONST text * get_command() CONST;
+  virtual CONST text * what_action() CONST;
 
 private:
   enum { BUFF_LEN = 2048 };
@@ -844,7 +844,7 @@ public:
   DVOID append(CONST text *, ni, CONST text *, CONST text *, CONST text *);
 
 protected:
-  virtual CONST text * get_command() CONST;
+  virtual CONST text * what_action() CONST;
 
 private:
   enum { BUFF_LEN = 2048 };
@@ -862,7 +862,7 @@ public:
   DVOID append(CONST text *, ni, CONST text, CONST text, CONST text *);
 
 protected:
-  virtual CONST text * get_command() CONST;
+  virtual CONST text * what_action() CONST;
 
 private:
   enum { BUFF_LEN = 2048 };
@@ -880,7 +880,7 @@ public:
   DVOID append(CONST text *, ni, CONST text *, CONST text *);
 
 protected:
-  virtual CONST text * get_command() CONST;
+  virtual CONST text * what_action() CONST;
 
 private:
   enum { BUFF_LEN = 4096 };
@@ -897,7 +897,7 @@ public:
   DVOID append(CONST text *, ni, CONST text);
 
 protected:
-  virtual CONST text * get_command() CONST;
+  virtual CONST text * what_action() CONST;
 
 private:
   enum { BUFF_LEN = 4096 };
@@ -907,35 +907,35 @@ private:
 };
 
 
-class MyHeartBeatHandler: public CParentHandler
+class CPingHandler: public CParentHandler
 {
 public:
-  MyHeartBeatHandler(CHandlerDirector * xptr = NULL);
+  CPingHandler(CHandlerDirector * = NULL);
   virtual CTermSNs * term_SNs() CONST;
 
-  DECLARE_MEMORY_POOL__NOTHROW(MyHeartBeatHandler, ACE_Thread_Mutex);
+  DECLARE_MEMORY_POOL__NOTHROW(CPingHandler, ACE_Thread_Mutex);
 };
 
-class MyHeartBeatService: public CTaskBase
+class CPingTask: public CTaskBase
 {
 public:
-  enum { TIMED_DIST_TASK = 1 };
+  enum { TID_ = 1 };
 
-  MyHeartBeatService(CContainer * module, ni numThreads = 1);
+  CPingTask(CContainer *, ni = 1);
   virtual ni svc();
-  truefalse add_request(CMB * mb, truefalse btail);
-  truefalse add_request_slow(CMB * mb);
+  truefalse append_task(CMB *, truefalse);
+  truefalse append_task_delay(CMB *);
 
 private:
-  enum { MSG_QUEUE_MAX_SIZE = 5 * 1024 * 1024 };
+  enum { MQ_PEAK = 5 * 1024 * 1024 };
 
-  DVOID do_have_dist_task();
-  DVOID do_ftp_file_reply(CMB * mb);
-  DVOID do_file_md5_reply(CMB * mb);
-  DVOID do_psp(CMB * mb);
+  DVOID handle_have_job();
+  DVOID handle_download_feedback(CMB *);
+  DVOID handle_cs_feedback(CMB *);
+  DVOID handle_pause_stop(CMB *);
 
-  CSpreader m_distributor;
-  ACE_Message_Queue<ACE_MT_SYNCH> m_queue2;
+  CSpreader m_spreader;
+  ACE_Message_Queue<ACE_MT_SYNCH> m_mq_two;
 };
 
 class CPingScheduler: public CParentScheduler
@@ -982,7 +982,7 @@ public:
   virtual ~CPingContainer();
   CPingScheduler * scheduler() CONST;
   virtual CONST text * name() CONST;
-  MyHeartBeatService * service() CONST;
+  CPingTask * service() CONST;
   ni connected_count() CONST;
   CDownloadReplyGatherer & download_reply_gatherer();
   DVOID pl();
@@ -1001,7 +1001,7 @@ private:
   CHardwareWarnGatherer m_hw_warn_gatherer;
   CVideoGatherer m_video_gatherer;
   CNoVideoWarnGatherer m_no_video_warn_gatherer;
-  MyHeartBeatService * m_service;
+  CPingTask * m_service;
   CPingScheduler * m_schduler;
   ACE_Thread_Mutex m_mutex;
   CMemProt m_pl;
@@ -1161,61 +1161,60 @@ private:
 };
 
 
-class MyDB
+class CPG
 {
 public:
-  MyDB();
-  ~MyDB();
+  CPG();
+  ~CPG();
   SF time_t get_time_init(CONST text * s);
 
-  truefalse connect();
+  truefalse write_task_cs(CONST text *, CONST text *, ni);
+  truefalse write_task_download_cs(CONST text *, CONST text *);
+  truefalse read_task_terms(CTermStations *, CTermStation *);
+  truefalse write_task_term_item_condition(CDistTermItem &, ni);
+  truefalse write_task_term_condition(CONST text *, CONST text *, ni);
+  truefalse write_task_term_cs(CONST text *, CONST text *, CONST text *, ni);
+  truefalse write_task_term_mbz(CONST text *, CONST text *, CONST text *, CONST text *);
+  truefalse destruct_task_term(CONST text *, CONST text *);
+  truefalse is_dist_data_new(CBsDistDatas &);
+  truefalse refresh_task_condition();
+  truefalse delete_unused_tasks();
+  truefalse read_term_SNs(CObsoleteDirDeleter &);
+  truefalse change_term_valid(CONST text *, truefalse);
+  truefalse login_to_db();
   truefalse validate_db_online();
   truefalse check_online();
   truefalse load_term_SNs(CTermSNs *);
-  truefalse save_client_id(CONST text * s);
-  truefalse save_dist(CBsDistReq & http_dist_request, CONST text * md5, CONST text * mbz_md5);
-  truefalse save_sr(text * dist_id, CONST text * cmd, text * idlist);
-  truefalse save_prio(CONST text * prio);
-  truefalse save_dist_clients(text * idlist, text * adirlist, CONST text * dist_id);
-  truefalse save_dist_cmp_done(CONST text *dist_id);
-  ni  load_dist_infos(CBsDistDatas & infos);
-  truefalse load_pl(CMemProt & value);
-  truefalse dist_mark_cmp_done(CONST text * dist_id);
-  truefalse dist_mark_md5_done(CONST text * dist_id);
-  truefalse save_dist_md5(CONST text * dist_id, CONST text * md5, ni md5_len);
-  truefalse save_dist_ftp_md5(CONST text * dist_id, CONST text * md5);
-  truefalse load_dist_clients(CTermStations * dist_clients, CTermStation * _dc_one);
-  truefalse set_dist_client_status(CDistTermItem & dist_client, ni new_status);
-  truefalse set_dist_client_status(CONST text * client_id, CONST text * dist_id, ni new_status);
-  truefalse set_dist_client_md5(CONST text * client_id, CONST text * dist_id, CONST text * md5, ni new_status);
-  truefalse set_dist_client_mbz(CONST text * client_id, CONST text * dist_id, CONST text * mbz, CONST text * mbz_md5);
-  truefalse delete_dist_client(CONST text * client_id, CONST text * dist_id);
-  truefalse dist_info_is_update(CBsDistDatas & infos);
-  truefalse dist_info_update_status();
-  truefalse remove_orphan_dist_info();
-  truefalse get_dist_ids(CObsoleteDirDeleter & path_remover);
-  truefalse mark_client_valid(CONST text * client_id, truefalse valid);
+  truefalse save_term_sn(CONST text * s);
+  truefalse write_task(CBsDistReq &, CONST text *, CONST text *);
+  truefalse write_sr(text *, CONST text *, text *);
+  truefalse write_pl(CONST text *);
+  truefalse write_task_terms(text * sns, text * adirs, CONST text * did);
+  truefalse write_task_cmp_finished(CONST text *);
+  ni        read_tasks(CBsDistDatas &);
+  truefalse read_pl(CMemProt &);
+  truefalse finish_task_cmp(CONST text *);
+  truefalse finish_task_cs(CONST text *);
 
 private:
-  DVOID disconnect();
-  truefalse load_db_server_time_i(time_t &t);
-  truefalse connected() CONST;
-  truefalse begin_transaction();
-  truefalse commit();
-  truefalse rollback();
-  truefalse exec_command(CONST text * sql_command, ni * affected = NULL);
-  DVOID wrap_str(CONST text * s, CMemProt & wrapped) CONST;
-  time_t get_db_time_i();
-  truefalse take_owner_ship(CONST text * table, CONST text * field, CMemProt & old_time, CONST text * where_clause);
-  truefalse set_cfg_value(CONST ni id, CONST text * value);
-  truefalse load_cfg_value(CONST ni id, CMemProt & value);
-  truefalse load_cfg_value_i(CONST ni id, CMemProt & value);
+  DVOID make_offline();
+  truefalse do_read_db_time(time_t &);
+  truefalse is_online() CONST;
+  truefalse tr_start();
+  truefalse tr_finish();
+  truefalse tr_cancel();
+  truefalse run_sql(CONST text *, ni * = NULL);
+  DVOID prepare_text(CONST text *, CMemProt &) CONST;
+  time_t    get_db_time_i();
+  truefalse write_config(CONST ni, CONST text *);
+  truefalse read_config(CONST ni, CMemProt &);
+  truefalse read_config_i(CONST ni, CMemProt &);
 
-  PGconn * m_connection;
-  CMemProt m_server_addr;
-  ni m_server_port;
-  CMemProt m_user_name;
-  CMemProt m_password;
+  PGconn * m_pg_con;
+  CMemProt m_db_ip;
+  ni m_db_port;
+  CMemProt m_db_login;
+  CMemProt m_db_key;
   ACE_Thread_Mutex m_mutex;
 };
 
