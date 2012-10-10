@@ -68,7 +68,7 @@ truefalse CRunner::post_dist_task(CMB * mb)
     return false;
   }
 
-  return c_tools_mb_putq(m_ping_container->service(), mb, "post dist task");
+  return c_tools_mb_putq(m_ping_container->task(), mb, "post dist task");
 }
 
 truefalse CRunner::before_begin()
@@ -195,7 +195,7 @@ truefalse CRunner::do_init()
     add_component(m_ping_container = new CPingContainer(this));
     add_component(m_d2m_container = new CD2MContainer(this));
   }
-  if (l_obj->middle())
+  if (l_obj->pre())
   {
     add_component(m_position_container = new CPositionContainer(this));
     add_component(m_balance_container = new CBalanceContainer(this));
@@ -222,7 +222,7 @@ truefalse CRunner::initialize(CONST text * v_dir, CCfg::CAppMode v_m)
     CD2MHandler::mem_block_start(20);
     CD2BsHandler::mem_block_start(20);
   }
-  if (l_p->middle())
+  if (l_p->pre())
   {
     CBalanceHandler::mem_block_start(50);
     CPositionHandler::mem_block_start(1000);
@@ -267,9 +267,9 @@ int main(ni argc, CONST text * argv[])
   truefalse l_z;
 
   if (argc == 3 && strcmp(argv[1], "-home") == 0 && argv[2][0] == '/')
-    l_z = CRunner::initialize(argv[2], CCfg::AM_UNKNOWN);
+    l_z = CRunner::initialize(argv[2], CCfg::AM_INVALID);
   else
-    l_z = CRunner::initialize(NULL, CCfg::AM_UNKNOWN);
+    l_z = CRunner::initialize(NULL, CCfg::AM_INVALID);
 
   if (l_z)
     CRunnerX::instance()->begin();

@@ -38,7 +38,7 @@ void MyProgramLauncher::kill_instance()
     m_last_kill = time(NULL);
   }
 */
-  C_INFO("searching to kill %s\n", name());
+  C_INFO("searching to kill %s\n", title());
   DIR * dir = opendir("/proc");
   if (!dir)
   {
@@ -73,9 +73,9 @@ void MyProgramLauncher::kill_instance()
       buff2[count] = 0;
       if (buff2[count - 1] == '\n')
         buff2[count - 1] = 0;
-      if (strcmp(name(), buff2) == 0)
+      if (strcmp(title(), buff2) == 0)
       {
-        C_INFO("find pid (%d) of %s, killing...\n", m, name());
+        C_INFO("find pid (%d) of %s, killing...\n", m, title());
         kill(m, SIGKILL);
       }
     }
@@ -103,7 +103,7 @@ bool MyProgramLauncher::do_on_terminated()
   return launch();
 }
 
-const char * MyProgramLauncher::name() const
+const char * MyProgramLauncher::title() const
 {
   return 0;
 }
@@ -373,7 +373,7 @@ bool MyVLCLauncher::parse_line(char * ptr, CMemProt & file_list, bool fill_optio
   return true;
 }
 
-const char * MyVLCLauncher::name() const
+const char * MyVLCLauncher::title() const
 {
   return "vlc";
 }
@@ -485,7 +485,7 @@ MyOperaLauncher::MyOperaLauncher()
 
 }
 
-const char * MyOperaLauncher::name() const
+const char * MyOperaLauncher::title() const
 {
   return "opera";
 }
@@ -1127,9 +1127,9 @@ int main(int argc, const char * argv[])
   no_sigpipe.register_action (SIGPIPE, &original_action);
   bool ret;
   if (argc == 3 && strcmp(argv[1], "-home") == 0 && argv[2][0] == '/')
-    ret = MyClientApp::app_init(argv[2], CCfg::AM_CLIENT);
+    ret = MyClientApp::app_init(argv[2], CCfg::AM_TERMINAL);
   else
-    ret = MyClientApp::app_init(NULL, CCfg::AM_CLIENT);
+    ret = MyClientApp::app_init(NULL, CCfg::AM_TERMINAL);
 
   if (ret)
     MyClientAppX::instance()->begin();

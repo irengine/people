@@ -402,7 +402,7 @@ public:
   typedef CParentClientProc super;
 
   MyClientToDistProcessor(CParentHandler * handler);
-  virtual const char * name() const;
+  virtual const char * title() const;
   virtual CProc::OUTPUT at_head_arrival();
   virtual int at_start();
   int send_heart_beat();
@@ -527,7 +527,7 @@ class MyClientToDistService: public CTaskBase
 public:
   MyClientToDistService(CContainer * module, int numThreads = 1);
   virtual int svc();
-  virtual const char * name() const;
+  virtual const char * title() const;
   bool add_md5_task(MyDistInfoMD5 * p);
   bool add_extract_task(MyDistInfoFtp * p);
   bool add_rev_task(const char * p);
@@ -548,7 +548,7 @@ class MyClientFtpService: public CTaskBase
 public:
   MyClientFtpService(CContainer * module, int numThreads = 1);
   virtual int svc();
-  virtual const char * name() const;
+  virtual const char * title() const;
   bool add_ftp_task(MyDistInfoFtp * p);
 
 private:
@@ -604,7 +604,7 @@ public:
   virtual ~MyClientToDistDispatcher();
 
   virtual int handle_timeout (const ACE_Time_Value &current_time, const void *act = 0);
-  virtual const char * name() const;
+  virtual const char * title() const;
   void ask_for_server_addr_list_done(bool success);
   void start_watch_dog();
   void on_ack(uuid_t uuid);
@@ -634,7 +634,7 @@ class MyClientToDistConnector: public CParentConn
 public:
   MyClientToDistConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager);
   virtual int make_svc_handler(CParentHandler *& sh);
-  virtual const char * name() const;
+  virtual const char * title() const;
   void dist_server_addr(const char * addr);
   time_t reset_last_connect_time();
 
@@ -675,7 +675,7 @@ public:
     return m_dispatcher;
   }
   MyClientFtpService * client_ftp_service() const;
-  virtual const char * name() const;
+  virtual const char * title() const;
   void ask_for_server_addr_list_done(bool success);
   MyDistInfoFtps & dist_info_ftps();
   MyDistInfoMD5s & dist_info_md5s();
@@ -731,7 +731,7 @@ public:
   typedef CParentClientProc super;
 
   MyClientToMiddleProcessor(CParentHandler * handler);
-  virtual const char * name() const;
+  virtual const char * title() const;
   virtual CProc::OUTPUT at_head_arrival();
   virtual int at_start();
 
@@ -768,7 +768,7 @@ class MyClientToMiddleConnector: public CParentConn
 public:
   MyClientToMiddleConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager);
   virtual int make_svc_handler(CParentHandler *& sh);
-  virtual const char * name() const;
+  virtual const char * title() const;
   void finish();
 
 protected:
@@ -820,7 +820,7 @@ public:
   enum { IDLE_TIME_AS_DEAD = 5 }; //in minutes
   MyHttp1991Acceptor(CParentScheduler * _dispatcher, CHandlerDirector * manager);
   virtual int make_svc_handler(CParentHandler *& sh);
-  virtual const char * name() const;
+  virtual const char * title() const;
 };
 
 

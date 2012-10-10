@@ -220,7 +220,7 @@ class CPositionProc: public CParentServerProc
 public:
   CPositionProc(CParentHandler *);
   virtual CProc::OUTPUT at_head_arrival();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 
   SF CBalanceDatas * m_balance_datas;
   DECLARE_MEMORY_POOL__NOTHROW(CPositionProc, ACE_Thread_Mutex);
@@ -255,7 +255,7 @@ public:
 protected:
   virtual truefalse before_begin();
   virtual DVOID before_finish();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 
 private:
   enum { MQ_MAX = 1024 * 1024 * 5 };
@@ -269,7 +269,7 @@ public:
   CPositionAcc(CParentScheduler *, CHandlerDirector *);
 
   virtual ni make_svc_handler(CParentHandler *& sh);
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 };
 
 
@@ -283,7 +283,7 @@ public:
 protected:
   virtual truefalse before_begin();
   virtual DVOID before_finish();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 
 private:
   CBalanceDatas m_balance_datas;
@@ -301,7 +301,7 @@ public:
   typedef CParentFormattedProc<ni> baseclass;
   CBsReqProc(CParentHandler *);
   virtual ~CBsReqProc();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
   DECLARE_MEMORY_POOL__NOTHROW(CBsReqProc, ACE_Thread_Mutex);
 
 protected:
@@ -328,7 +328,7 @@ class CBsReqTask: public CTaskBase
 public:
   CBsReqTask(CContainer *, ni = 1);
   virtual ni svc();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 
 private:
   enum { MQ_MAX = 5 * 1024 * 1024 };
@@ -346,7 +346,7 @@ class CBsReqScheduler: public CParentScheduler
 {
 public:
   CBsReqScheduler(CContainer *, ni = 1);
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 
 protected:
   virtual DVOID before_finish();
@@ -363,7 +363,7 @@ public:
 
   CBsReqAcc(CParentScheduler *, CHandlerDirector *);
   virtual ni make_svc_handler(CParentHandler *& sh);
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 };
 
 
@@ -372,7 +372,7 @@ class CBsReqContainer: public CContainer
 public:
   CBsReqContainer(CApp * app);
   virtual ~CBsReqContainer();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
   CBsReqTask * bs_req_task();
 
 protected:
@@ -396,7 +396,7 @@ public:
 
   CBalanceProc(CParentHandler *);
   virtual ~CBalanceProc();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
   virtual truefalse term_sn_check_done() CONST;
   virtual CProc::OUTPUT at_head_arrival();
   DVOID balance_datas(CBalanceDatas *);
@@ -429,7 +429,7 @@ class CBalanceScheduler: public CParentScheduler
 public:
   CBalanceScheduler(CContainer *, ni = 1);
   ~CBalanceScheduler();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
   virtual ni handle_timeout(CONST ACE_Time_Value &, CONST DVOID * = 0);
   DVOID post_bs(CMB * mb);
 
@@ -453,7 +453,7 @@ public:
   CBalanceAcc(CParentScheduler *, CHandlerDirector *);
 
   virtual ni make_svc_handler(CParentHandler *& sh);
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 };
 
 
@@ -462,7 +462,7 @@ class CBalanceContainer: public CContainer
 public:
   CBalanceContainer(CApp *);
   virtual ~CBalanceContainer();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
   CBalanceScheduler * scheduler() CONST;
 
 protected:
@@ -481,7 +481,7 @@ public:
   typedef CBSProceBase baseclass;
 
   CM2BsProc(CParentHandler *);
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 
   DECLARE_MEMORY_POOL__NOTHROW(CM2BsProc, ACE_Thread_Mutex);
 
@@ -511,7 +511,7 @@ class CM2BsConn: public CParentConn
 public:
   CM2BsConn(CParentScheduler *, CHandlerDirector *);
   virtual ni make_svc_handler(CParentHandler *& sh);
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 
 protected:
   enum { RETRY_DELAY = 1 }; //m
@@ -683,40 +683,40 @@ public:
 
   CPingProc(CParentHandler *);
   virtual CProc::OUTPUT at_head_arrival();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 
-  SF CHeartBeatGatherer * m_heart_beat_submitter;
-  SF CIPVerGatherer * m_ip_ver_submitter;
-  SF CDownloadReplyGatherer * m_ftp_feedback_submitter;
-  SF CClickGatherer * m_adv_click_submitter;
-  SF CHwPowerTimeGatherer * m_pc_on_off_submitter;
-  SF CHardwareWarnGatherer * m_hardware_alarm_submitter;
-  SF CVideoGatherer * m_vlc_submitter;
-  SF CNoVideoWarnGatherer * m_vlc_empty_submitter;
+  SF CHeartBeatGatherer * m_ping_gatherer;
+  SF CIPVerGatherer * m_ipver_gatherer;
+  SF CDownloadReplyGatherer * m_download_reply_gatherer;
+  SF CClickGatherer * m_click_gatherer;
+  SF CHwPowerTimeGatherer * m_HW_powertime_gatherer;
+  SF CHardwareWarnGatherer * m_HW_warn_gatherer;
+  SF CVideoGatherer * m_video_gatherer;
+  SF CNoVideoWarnGatherer * m_no_vide_warn_gatherer;
 
   DECLARE_MEMORY_POOL__NOTHROW(CPingProc, ACE_Thread_Mutex);
 
 protected:
-  virtual CProc::OUTPUT do_read_data(CMB * mb);
+  virtual CProc::OUTPUT do_read_data(CMB *);
 
 private:
   enum { MQ_PEAK = 2 * 1024 * 1024 };
 
-  DVOID handle_heart_beat();
-  CProc::OUTPUT do_version_check(CMB * mb);
-  CProc::OUTPUT do_md5_file_list(CMB * mb);
-  CProc::OUTPUT do_ftp_reply(CMB * mb);
-  CProc::OUTPUT do_ip_ver_req(CMB * mb);
-  CProc::OUTPUT do_adv_click_req(CMB * mb);
-  CProc::OUTPUT do_pc_on_off_req(CMB * mb);
-  CProc::OUTPUT do_hardware_alarm_req(CMB * mb);
-  CProc::OUTPUT do_vlc_req(CMB * mb);
-  CProc::OUTPUT do_test(CMB * mb);
-  CProc::OUTPUT do_psp(CMB * mb);
-  CProc::OUTPUT do_vlc_empty_req(CMB * mb);
-  CProc::OUTPUT do_send_pq();
+  DVOID i_ping();
+  CProc::OUTPUT i_hw_warn(CMB *);
+  CProc::OUTPUT i_video(CMB *);
+  CProc::OUTPUT i_test(CMB *);
+  CProc::OUTPUT i_pause_stop(CMB *);
+  CProc::OUTPUT i_no_video_warn(CMB *);
+  CProc::OUTPUT i_post_pq();
+  CProc::OUTPUT i_ver(CMB *);
+  CProc::OUTPUT i_checksums(CMB *);
+  CProc::OUTPUT i_download_feedback(CMB *);
+  CProc::OUTPUT i_ipver(CMB *);
+  CProc::OUTPUT i_click(CMB *);
+  CProc::OUTPUT i_hw_powertime(CMB *);
 
-  text m_hw_ver[12];
+  text m_version_driver[12];
 };
 
 class CParentGatherer;
@@ -724,31 +724,30 @@ class CParentGatherer;
 class CGatheredData
 {
 public:
-  CGatheredData(ni block_size, ni max_item_length, CParentGatherer * submitter, truefalse auto_submit = false);
+  CGatheredData(ni, ni peak_size, CParentGatherer *, truefalse auto_submit = false);
   ~CGatheredData();
 
   DVOID clear();
   truefalse append(CONST text * item, ni len = 0);
   truefalse append(text c);
   CONST text * data();
-  ni data_len() CONST;
+  ni chunk_size() CONST;
 
 private:
-  enum { ITEM_SEPARATOR = ';' };
+  enum { DATA_MARK = ';' };
 
   CMB * m_mb;
-  text * m_current_ptr;
-  ni m_max_item_length;
-  ni m_chunk_size;
+  text * m_free_pos;
   CParentGatherer * m_gatherer;
-  truefalse m_auto_submit;
+  truefalse m_post_automatic;
+  ni m_peak_piece_size;
+  ni m_chunk_size;
 };
 
 class CParentGatherer
 {
 public:
   virtual ~CParentGatherer();
-
   DVOID post();
   DVOID add_chunk(CGatheredData *);
   DVOID post_if_needed();
@@ -768,7 +767,6 @@ class CDownloadReplyGatherer: public CParentGatherer
 public:
   CDownloadReplyGatherer();
   virtual ~CDownloadReplyGatherer();
-
   DVOID append(CONST text *, text, CONST text *, text, text, CONST text *);
 
 protected:
@@ -778,9 +776,9 @@ private:
   enum { BUFF_LEN = 1024 };
   CGatheredData m_task_chunk;
   CGatheredData m_ftype_chunk;
-  CGatheredData m_client_id_chunk;
+  CGatheredData m_term_sn_chunk;
   CGatheredData m_step_chunk;
-  CGatheredData m_ok_flag_chunk;
+  CGatheredData m_fine_chunk;
   CGatheredData m_date_chunk;
 };
 
@@ -942,7 +940,7 @@ class CPingScheduler: public CParentScheduler
 {
 public:
   CPingScheduler(CContainer *, ni = 1);
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
   virtual ni handle_timeout (CONST ACE_Time_Value &, CONST DVOID *);
   CPingAcc * acc() CONST;
 
@@ -971,7 +969,7 @@ public:
   enum { REAP_TIMEOUT = 15 }; //m
   CPingAcc(CParentScheduler *, CHandlerDirector *);
   virtual ni make_svc_handler(CParentHandler *& sh);
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 };
 
 
@@ -981,12 +979,12 @@ public:
   CPingContainer(CApp *);
   virtual ~CPingContainer();
   CPingScheduler * scheduler() CONST;
-  virtual CONST text * name() CONST;
-  CPingTask * service() CONST;
+  virtual CONST text * title() CONST;
+  CPingTask * task() CONST;
   ni connected_count() CONST;
   CDownloadReplyGatherer & download_reply_gatherer();
-  DVOID pl();
-  truefalse get_pl(CMemProt &);
+  DVOID prio();
+  truefalse get_prio(CMemProt &);
 
 protected:
   virtual truefalse before_begin();
@@ -1001,10 +999,10 @@ private:
   CHardwareWarnGatherer m_hw_warn_gatherer;
   CVideoGatherer m_video_gatherer;
   CNoVideoWarnGatherer m_no_video_warn_gatherer;
-  CPingTask * m_service;
+  CPingTask * m_ping_task;
   CPingScheduler * m_schduler;
   ACE_Thread_Mutex m_mutex;
-  CMemProt m_pl;
+  CMemProt m_prio;
 };
 
 
@@ -1017,16 +1015,15 @@ class CD2BsProc: public CBSProceBase
 public:
   typedef CBSProceBase baseclass;
   CD2BsProc(CParentHandler *);
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 
 protected:
   virtual CProc::OUTPUT do_read_data(CMB * mb);
 
 private:
   enum { MQ_PEAK = 2 * 1024 * 1024 };
-
-  DVOID process_ip_ver_reply(CBSData * bspacket);
-  DVOID process_ip_ver_reply_one(text * item);
+  DVOID i_ipver_entry(text *);
+  DVOID i_ipver(CBSData *);
 };
 
 class CD2BsHandler: public CParentHandler
@@ -1051,7 +1048,7 @@ class CD2BsConn: public CParentConn
 public:
   CD2BsConn(CParentScheduler *, CHandlerDirector *);
   virtual ni make_svc_handler(CParentHandler *& sh);
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 
 protected:
   enum { RETRY_DELAY = 1 }; //m
@@ -1113,7 +1110,7 @@ public:
   CD2MSchduler(CContainer *, ni = 1);
   virtual ~CD2MSchduler();
 
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
   DVOID post_bs(CMB *);
   DVOID post_pre(CMB *);
 
@@ -1137,7 +1134,7 @@ class CD2MConn: public CParentConn
 public:
   CD2MConn(CParentScheduler *, CHandlerDirector *);
   virtual ni make_svc_handler(CParentHandler *&);
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 
 protected:
   enum { RETRY_DELAY = 3 }; //m
@@ -1148,7 +1145,7 @@ class CD2MContainer: public CContainer
 public:
   CD2MContainer(CApp *);
   virtual ~CD2MContainer();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
   DVOID post_bs(CMB *);
   DVOID post_pre(CMB *);
 
@@ -1189,7 +1186,7 @@ public:
   truefalse write_task(CBsDistReq &, CONST text *, CONST text *);
   truefalse write_sr(text *, CONST text *, text *);
   truefalse write_pl(CONST text *);
-  truefalse write_task_terms(text * sns, text * adirs, CONST text * did);
+  truefalse write_task_terms(text *, text *, CONST text *);
   truefalse write_task_cmp_finished(CONST text *);
   ni        read_tasks(CBsDistDatas &);
   truefalse read_pl(CMemProt &);

@@ -31,7 +31,7 @@ public:
 protected:
   virtual bool on_launch(ACE_Process_Options & options);
   virtual bool do_on_terminated();
-  virtual const char * name() const;
+  virtual const char * title() const;
 
   bool m_wait_for_term;
   ACE_Process_Options m_options;
@@ -56,7 +56,7 @@ public:
 
 protected:
   virtual bool on_launch(ACE_Process_Options & options);
-  virtual const char * name() const;
+  virtual const char * title() const;
   bool load(CMemProt & file_list);
   bool file_changed();
 
@@ -91,7 +91,7 @@ public:
 
 protected:
   virtual bool on_launch(ACE_Process_Options & options);
-  virtual const char * name() const;
+  virtual const char * title() const;
 };
 
 class MyVLCMonitor: public ACE_Event_Handler
@@ -135,7 +135,7 @@ public:
   static void calc_download_parent_path(CMemProt & parent_path, const char * client_id = NULL);
   static bool full_backup(const char * dist_id, const char * client_id = NULL);
   static bool full_restore(const char * dist_id, bool remove_existing, bool is_new = true, const char * client_id = NULL, bool init = false);
-  static bool app_init(const char * app_home_path = NULL, CCfg::CAppMode mode = CCfg::AM_UNKNOWN);
+  static bool app_init(const char * app_home_path = NULL, CCfg::CAppMode mode = CCfg::AM_INVALID);
   static void app_fini();
   static const char * index_frame_file();
   static bool get_mfile(const CMemProt & parent_path, CMemProt & mfile);

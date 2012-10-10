@@ -456,7 +456,7 @@ public:
   virtual DVOID at_finish();
   virtual ni handle_input();
   virtual truefalse ok_to_post(CMB *) CONST;
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
   DVOID set_lastest_action();
   long get_lastest_action() CONST;
   CONST CNumber & term_sn() CONST;
@@ -496,7 +496,7 @@ public:
       m_mb->release();
   }
 
-  virtual CONST text * name() CONST
+  virtual CONST text * title() CONST
   {
     return "CParentFormattedProc";
   }
@@ -651,7 +651,7 @@ public:
   CFormatProcBase(CParentHandler * handler);
   virtual DVOID get_sinfo(CMemProt & info) CONST;
   virtual ni at_start();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 
 protected:
   virtual ni data_len();
@@ -682,7 +682,7 @@ public:
   typedef CFormatProcBase baseclass;
   CParentServerProc(CParentHandler * h);
   virtual ~CParentServerProc();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
   virtual truefalse ok_to_post(CMB * mb) CONST;
   virtual truefalse term_sn_check_done() CONST;
 
@@ -701,7 +701,7 @@ public:
 
   CParentClientProc(CParentHandler * h);
   virtual ~CParentClientProc();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
   virtual truefalse term_sn_check_done() CONST;
   virtual ni at_start();
   virtual DVOID at_finish();
@@ -735,7 +735,7 @@ public:
   ni begin();
   ni end();
   DVOID print_info();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
   CContainer * container() CONST;
   CHandlerDirector * director() CONST;
   CParentScheduler * scheduler() CONST;
@@ -769,7 +769,7 @@ public:
   CHandlerDirector * director() CONST;
   CParentScheduler * scheduler() CONST;
   DVOID print_data();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
   ni on_can_connect();
   DVOID reset_retry_count();
   DVOID tcp_addr(CONST text *);
@@ -811,7 +811,7 @@ public:
   ni begin();
   ni end();
   DVOID print_all();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
 
 protected:
   typedef std::vector<CTaskBase *> CTasks;
@@ -836,7 +836,7 @@ public:
   CTaskBase(CContainer * mod, ni num_threads);
   CContainer * container() CONST;
   DVOID print_all();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
   ni begin();
   ni end();
 
@@ -861,7 +861,7 @@ public:
   virtual ni svc();
   CContainer * container() CONST;
   DVOID print_data();
-  virtual CONST text * name() CONST;
+  virtual CONST text * title() CONST;
   ni begin();
   ni end();
 

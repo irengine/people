@@ -24,21 +24,15 @@ class CApp;
 class CCfg
 {
 public:
-  enum CAppMode
-  {
-    AM_UNKNOWN = 0,
-    AM_DIST = 1,
-    AM_MIDDLE = 2,
-    AM_CLIENT = 3
-  };
+  enum CAppMode  { AM_INVALID = 0, AM_DIST = 1, AM_PRE = 2, AM_TERMINAL = 3 };
 
   CCfg();
   truefalse readall(CONST text *, CAppMode);
   DVOID print_all();
   truefalse dist() CONST;
-  truefalse middle() CONST;
+  truefalse pre() CONST;
   truefalse server() CONST;
-  truefalse client() CONST;
+  truefalse term_station() CONST;
 
   //all
   CAppMode  mode;
@@ -47,7 +41,7 @@ public:
   ni  print_delay;
   ni  fcheck_delay;
   ni  log_file_count;
-  ni  log_file_size; //megabytes
+  ni  log_file_size; //mb
   truefalse log_debug;
   truefalse log_console;
   ni remote_port;
@@ -97,13 +91,13 @@ public:
 
 private:
   truefalse read_dist(CCfgHeap & , CCfgKey & );
-  truefalse read_middle(CCfgHeap & , CCfgKey & );
-  truefalse read_dist_middle(CCfgHeap &, CCfgKey &);
-  truefalse read_client_middle(CCfgHeap &, CCfgKey &);
-  truefalse read_client_dist(CCfgHeap &, CCfgKey &);
+  truefalse read_pre(CCfgHeap & , CCfgKey & );
+  truefalse read_dist_pre(CCfgHeap &, CCfgKey &);
+  truefalse read_term_pre(CCfgHeap &, CCfgKey &);
+  truefalse read_term_dist(CCfgHeap &, CCfgKey &);
   truefalse read_base(CCfgHeap &, CCfgKey &);
-  truefalse read_client(CCfgHeap &, CCfgKey &);
-  DVOID do_init(CONST text * app_home_path);
+  truefalse read_terminal(CCfgHeap &, CCfgKey &);
+  DVOID do_init(CONST text *);
 };
 
 typedef ACE_Unmanaged_Singleton<CCfg, ACE_Null_Mutex> CCfgX;
@@ -161,7 +155,6 @@ public:
 protected:
   friend class CSignaller;
   friend class CNotificationFiler;
-
   typedef std::vector<CContainer *> CMods;
 
   virtual truefalse before_begin();
@@ -170,7 +163,6 @@ protected:
   virtual DVOID i_print();
   virtual truefalse do_singal_child(pid_t);
   virtual truefalse do_schedule_work();
-
   truefalse handle_signal_child();
   DVOID handle_signal(ni);
   DVOID schedule_works();
@@ -190,7 +182,7 @@ private:
   CPrinter m_printer;
   truefalse m_sfile_ok;
   truefalse m_sfile_check;
-  truefalse m_running;
+  truefalse m_working;
   CClocker m_clock;
   ACE_Sig_Handler m_sgh;
 };

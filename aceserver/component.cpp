@@ -1398,7 +1398,7 @@ truefalse CProc::ok_to_post(CMB * ) CONST
   return true;
 }
 
-CONST text * CProc::name() CONST
+CONST text * CProc::title() CONST
 {
   return "CProc";
 }
@@ -1411,7 +1411,7 @@ ni CProc::on_read_data_at_down()
   if (n < 0)
     return -1;
   if (n > 0)
-    C_DEBUG("ignore %d since closing()\n", l_x, name());
+    C_DEBUG("ignore %d since closing()\n", l_x, title());
   return (m_handler->msg_queue()->is_empty ()) ? -1 : 0;
 }
 
@@ -1454,12 +1454,12 @@ int32_t CProc::term_sn_loc() CONST
 
 
 
-CFormatProcBase::CFormatProcBase(CParentHandler * handler): baseclass(handler)
+CFormatProcBase::CFormatProcBase(CParentHandler * v_h): baseclass(v_h)
 {
   m_remote_ip[0] = 0;
 }
 
-CONST text * CFormatProcBase::name() CONST
+CONST text * CFormatProcBase::title() CONST
 {
   return "CFormatProcBase";
 }
@@ -1470,9 +1470,9 @@ DVOID CFormatProcBase::get_sinfo(CMemProt & v_x) CONST
   if (!*str_id)
     str_id = "NULL";
   CONST text * ss[5];
-  ss[0] = "(remote addr=";
+  ss[0] = "(peer ip=";
   ss[1] = m_remote_ip;
-  ss[2] = ", client_id=";
+  ss[2] = ", term sn=";
   ss[3] = m_term_sn.to_str();
   ss[4] = ")";
   v_x.inits(ss, 5);
@@ -1552,7 +1552,7 @@ CParentServerProc::~CParentServerProc()
 
 }
 
-CONST text * CParentServerProc::name() CONST
+CONST text * CParentServerProc::title() CONST
 {
   return "CParentServerProc";
 }
@@ -1645,7 +1645,7 @@ CParentClientProc::~CParentClientProc()
 
 }
 
-CONST text * CParentClientProc::name() CONST
+CONST text * CParentClientProc::title() CONST
 {
   return "CParentClientProc";
 }
@@ -2181,10 +2181,10 @@ ni CParentAcc::begin()
 
   ni l_x = baseclass::open (l_addr, m_scheduler->reactor(), ACE_NONBLOCK);
   if (l_x == 0)
-    C_INFO("%s listening on port %d... OK\n", container()->name(), m_tcp_port);
+    C_INFO("%s listening on port %d... OK\n", container()->title(), m_tcp_port);
   else if (l_x < 0)
   {
-    C_ERROR("%s acceptor.open on port %d failed!\n", container()->name(), m_tcp_port);
+    C_ERROR("%s acceptor.open on port %d failed!\n", container()->title(), m_tcp_port);
     return -1;
   }
 
@@ -2194,7 +2194,7 @@ ni CParentAcc::begin()
     m_reaper_id = reactor()->schedule_timer(this, (void*)TID_reap_broken, tv, tv);
     if (m_reaper_id < 0)
     {
-      C_ERROR("can not setup dead connection timer @%s\n", name());
+      C_ERROR("can not setup dead connection timer @%s\n", title());
       return -1;
     }
   }
@@ -2222,12 +2222,12 @@ DVOID CParentAcc::i_print()
 
 DVOID CParentAcc::print_info()
 {
-  ACE_DEBUG((LM_INFO, "      +++ Acc: %s start\n", name()));
+  ACE_DEBUG((LM_INFO, "      +++ Acc: %s start\n", title()));
   i_print();
-  ACE_DEBUG((LM_INFO, "      +++ Acc: %s end\n", name()));
+  ACE_DEBUG((LM_INFO, "      +++ Acc: %s end\n", title()));
 }
 
-CONST text * CParentAcc::name() CONST
+CONST text * CParentAcc::title() CONST
 {
   return "CParentAcc";
 }
@@ -2322,13 +2322,13 @@ ni CParentConn::begin()
 
   if (m_port_of_ip <= 0)
   {
-    C_FATAL(ACE_TEXT ("attempt to connect to an invalid port %d @%s\n"), m_port_of_ip, name());
+    C_FATAL(ACE_TEXT ("attempt to connect to an invalid port %d @%s\n"), m_port_of_ip, title());
     return -1;
   }
 
   if (m_remote_ip.length() == 0)
   {
-    C_FATAL(ACE_TEXT ("attempt to connect to an NULL host from @%s\n"), name());
+    C_FATAL(ACE_TEXT ("attempt to connect to an NULL host from @%s\n"), title());
     return -1;
   }
 
@@ -2343,7 +2343,7 @@ ni CParentConn::begin()
     ACE_Time_Value interval (m_retry_delay * 60);
     m_retry_tid = reactor()->schedule_timer (this, (void*)TID_retry, interval, interval);
     if (m_retry_tid < 0)
-      C_ERROR(ACE_TEXT("%s setup reconnect timer failed, %s\n"), name(), (CONST char*)CSysError());
+      C_ERROR(ACE_TEXT("%s setup reconnect timer failed, %s\n"), title(), (CONST char*)CSysError());
   }
 
   if (m_no_activity_delay > 0)
@@ -2352,7 +2352,7 @@ ni CParentConn::begin()
     m_no_activity_tid = reactor()->schedule_timer(this, (void*)TID_reap_broken, tv, tv);
     if (m_no_activity_tid < 0)
     {
-      C_ERROR("can not setup dead connection timer @%s\n", name());
+      C_ERROR("can not setup dead connection timer @%s\n", title());
       return -1;
     }
   }
@@ -2370,12 +2370,12 @@ DVOID CParentConn::i_print()
 
 DVOID CParentConn::print_data()
 {
-  ACE_DEBUG((LM_INFO, "      +++ Conn: %s start\n", name()));
+  ACE_DEBUG((LM_INFO, "      +++ Conn: %s start\n", title()));
   i_print();
-  ACE_DEBUG((LM_INFO, "      +++ Conn: %s end\n", name()));
+  ACE_DEBUG((LM_INFO, "      +++ Conn: %s end\n", title()));
 }
 
-CONST text * CParentConn::name() CONST
+CONST text * CParentConn::title() CONST
 {
   return "CParentConn";
 }
@@ -2463,7 +2463,7 @@ ni CParentConn::i_socket_connect(ni v_num, truefalse is_new)
     else if (is_new)
       m_unfinished_count = v_num - actual_number;
 
-    C_INFO("%s connecting to %s:%d (all=%d, done=%d, failed=%d, waiting=%d)... \n", name(),
+    C_INFO("%s connecting to %s:%d (all=%d, done=%d, failed=%d, waiting=%d)... \n", title(),
         m_remote_ip.c_str(), m_port_of_ip, actual_number, num_done, actual_number - num_done- num_waiting, num_waiting);
 
     return num_done + num_waiting > 0;
@@ -2473,7 +2473,7 @@ ni CParentConn::i_socket_connect(ni v_num, truefalse is_new)
     CParentHandler * l_h = NULL;
     ACE_Time_Value tv(60);
     ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, tv);
-    C_INFO("%s connecting to %s:%d ...\n", name(), m_remote_ip.c_str(), m_port_of_ip);
+    C_INFO("%s connecting to %s:%d ...\n", title(), m_remote_ip.c_str(), m_port_of_ip);
     if (connect(l_h, l_addr, synch_options) == -1)
     {
       if (errno == EWOULDBLOCK)
@@ -2533,7 +2533,7 @@ truefalse CTaskBase::add_new(DVOID * p, ni type_of_cmd)
   *(text **)(mb->base() + sizeof(ni)) = (char*)p;
 
   text tmp[100];
-  snprintf(tmp, 100, "cmd pkt (%d) to %s", type_of_cmd, name());
+  snprintf(tmp, 100, "cmd pkt (%d) to %s", type_of_cmd, title());
   return c_tools_mb_putq(this, mb, tmp);
 }
 
@@ -2547,7 +2547,7 @@ DVOID * CTaskBase::task_convert(CMB * mb, ni & task_type) CONST
 }
 
 
-CONST text * CTaskBase::name() CONST
+CONST text * CTaskBase::title() CONST
 {
   return "CTaskBase";
 }
@@ -2576,7 +2576,7 @@ ni CParentScheduler::open (DVOID *)
     ACE_Time_Value interval(m_delay_clock);
     if (m_reactor->schedule_timer(this, (CONST void*)TID, interval, interval) < 0)
     {
-      C_ERROR("can not setup timer %s %s\n", name(), (CONST char*)CSysError());
+      C_ERROR("can not setup timer %s %s\n", title(), (CONST char*)CSysError());
       return -1;
     }
   }
@@ -2635,18 +2635,18 @@ ni CParentScheduler::end()
   return 0;
 }
 
-CONST text * CParentScheduler::name() CONST
+CONST text * CParentScheduler::title() CONST
 {
   return "CParentScheduler";
 }
 
 DVOID CParentScheduler::print_data()
 {
-  ACE_DEBUG((LM_INFO, "    --- scheduler: %s start\n", name()));
+  ACE_DEBUG((LM_INFO, "    --- scheduler: %s start\n", title()));
   i_print();
   std::for_each(m_conns.begin(), m_conns.end(), std::mem_fun(&CParentConn::print_data));
   std::for_each(m_accs.begin(), m_accs.end(), std::mem_fun(&CParentAcc::print_info));
-  ACE_DEBUG((LM_INFO, "    --- scheduler: %s end\n", name()));
+  ACE_DEBUG((LM_INFO, "    --- scheduler: %s end\n", title()));
 }
 
 DVOID CParentScheduler::i_print()
@@ -2700,7 +2700,7 @@ DVOID CParentScheduler::i_end()
 
 ni CParentScheduler::svc()
 {
-  C_INFO("Start %s::svc()\n", name());
+  C_INFO("Start %s::svc()\n", title());
 
   if (!i_begin())
     return -1;
@@ -2713,14 +2713,14 @@ ni CParentScheduler::svc()
     {
       if (errno == EINTR)
         continue;
-      C_INFO("exiting %s::svc() because %s\n", name(), (CONST char*)CSysError());
+      C_INFO("exiting %s::svc() because %s\n", title(), (CONST char*)CSysError());
       break;
     }
     if (!do_schedule_work())
       break;
   }
 
-  C_INFO("exiting %s::svc()\n", name());
+  C_INFO("exiting %s::svc()\n", title());
   i_end();
   return 0;
 }
@@ -2790,18 +2790,18 @@ ni CContainer::end()
   return 0;
 }
 
-CONST text * CContainer::name() CONST
+CONST text * CContainer::title() CONST
 {
   return "CContainer";
 }
 
 DVOID CContainer::print_all()
 {
-  ACE_DEBUG((LM_INFO, "  *** container: %s begin\n", name()));
+  ACE_DEBUG((LM_INFO, "  *** container: %s begin\n", title()));
   i_print();
   std::for_each(m_schedulers.begin(), m_schedulers.end(), std::mem_fun(&CParentScheduler::print_data));
   std::for_each(m_tasks.begin(), m_tasks.end(), std::mem_fun(&CTaskBase::print_all));
-  ACE_DEBUG((LM_INFO, "  *** container: %s finish\n", name()));
+  ACE_DEBUG((LM_INFO, "  *** container: %s finish\n", title()));
 }
 
 DVOID CContainer::i_print()

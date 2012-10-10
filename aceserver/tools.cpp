@@ -1183,7 +1183,7 @@ DVOID CCache::prepare(CCfg * v_ptr)
   m_blocks.reserve(cnt);
   m_block_sizes.reserve(cnt);
   ni m;
-  if (v_ptr->client())
+  if (v_ptr->term_station())
   {
     for(size_t i = 0;i < sizeof (l_sizes) / sizeof (ni);++i)
     {
@@ -1200,7 +1200,7 @@ DVOID CCache::prepare(CCfg * v_ptr)
       m_blocks[i]->prepare();
     }
   }
-  else if (v_ptr->middle())
+  else if (v_ptr->pre())
   {
     for(size_t i = 0;i < sizeof (l_sizes) / sizeof (ni);++i)
     {
@@ -1234,7 +1234,7 @@ DVOID CCache::prepare(CCfg * v_ptr)
   }
 
   ni l_x;
-  if (v_ptr->client())
+  if (v_ptr->term_station())
     l_x = 200;
   else if (v_ptr->dist())
     l_x = std::max((ni)((v_ptr->client_peak * 4)), 4000);

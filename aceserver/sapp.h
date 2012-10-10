@@ -13,7 +13,7 @@ class CRunner: public CApp
 public:
   CRunner();
   virtual ~CRunner();
-
+  truefalse post_dist_task(CMB *);
   CTermSNs & termSNs();
   CPingContainer * ping_component() CONST;
   CBalanceContainer * balance_container() CONST;
@@ -21,11 +21,9 @@ public:
   CPositionContainer * position_container() CONST;
   CD2MContainer * d2m_container() CONST;
   CPG & pg();
-
-  SF truefalse initialize(CONST text * hpath = NULL, CCfg::CAppMode m = CCfg::AM_UNKNOWN);
+  SF truefalse initialize(CONST text * hpath = NULL, CCfg::CAppMode m = CCfg::AM_INVALID);
   SF DVOID cleanup();
   SF DVOID print_caches();
-  truefalse post_dist_task(CMB * mb);
 
 protected:
   virtual truefalse before_begin();

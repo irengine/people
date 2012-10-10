@@ -1,10 +1,3 @@
-/*
- * serverapp.cpp
- *
- *  Created on: Dec 28, 2011
- *      Author: root
- */
-
 #include <ace/streams.h>
 #include <ace/Service_Config.h>
 #include <ace/Logging_Strategy.h>
@@ -99,7 +92,7 @@ CCfg::CCfg()
   print_delay = CONST_mem_print_delay;
   fcheck_delay = CONST_sfile_check_delay;
   remote_port = 0;
-  mode = AM_UNKNOWN;
+  mode = AM_INVALID;
   mem_pool = CONST_mem_pool;
   is_demon = CONST_demon;
 
@@ -129,33 +122,33 @@ CCfg::CCfg()
   http_port = CONST_http_port;
 }
 
-DVOID CCfg::do_init(CONST text * app_home_path)
+DVOID CCfg::do_init(CONST text * v_hdir)
 {
   CONST size_t BUFF_SIZE = 4096;
-  text path[BUFF_SIZE];
+  text l_dir[BUFF_SIZE];
 
-  if (!app_home_path)
+  if (!v_hdir)
   {
-    ssize_t n = readlink("/proc/self/exe", path, BUFF_SIZE);
-    if (n > 0 && n < ssize_t(BUFF_SIZE))
+    ssize_t l_m = readlink("/proc/self/exe", l_dir, BUFF_SIZE);
+    if (l_m > 0 && l_m < ssize_t(BUFF_SIZE))
     {
-      path[n] = '\0';
-      exe_path = path;
-      size_t pos = exe_path.rfind('/');
-      if (pos == exe_path.npos || pos == 0)
+      l_dir[l_m] = '\0';
+      exe_path = l_dir;
+      size_t l_k = exe_path.rfind('/');
+      if (l_k == exe_path.npos || l_k == 0)
       {
-        std::printf("exe_path (= %s) error\n", path);
+        std::printf("exe_path (= %s) error\n", l_dir);
         exit(1);
       }
-      exe_path = exe_path.substr(0, pos);
+      exe_path = exe_path.substr(0, l_k);
       app_path = exe_path;
-      pos = app_path.rfind('/', pos);
-      if (pos == app_path.npos || pos == 0)
+      l_k = app_path.rfind('/', l_k);
+      if (l_k == app_path.npos || l_k == 0)
       {
-        std::printf("app_path (= %s) error\n", app_path.c_str());
+        std::printf("app_dir (= %s) error\n", app_path.c_str());
         exit(2);
       }
-      app_path = app_path.substr(0, pos);
+      app_path = app_path.substr(0, l_k);
     } else
     {
       std::perror("readlink(\"/proc/self/exe\") failed\n");
@@ -163,7 +156,7 @@ DVOID CCfg::do_init(CONST text * app_home_path)
     }
   } else
   {
-    app_path = app_home_path;
+    app_path = v_hdir;
     exe_path = app_path + "/bin";
   }
 
@@ -175,12 +168,12 @@ DVOID CCfg::do_init(CONST text * app_home_path)
 
 truefalse CCfg::server() CONST
 {
-  return mode != AM_CLIENT;
+  return mode != AM_TERMINAL;
 }
 
-truefalse CCfg::client() CONST
+truefalse CCfg::term_station() CONST
 {
-  return mode == AM_CLIENT;
+  return mode == AM_TERMINAL;
 }
 
 truefalse CCfg::dist() CONST
@@ -188,9 +181,9 @@ truefalse CCfg::dist() CONST
   return mode == AM_DIST;
 }
 
-truefalse CCfg::middle() CONST
+truefalse CCfg::pre() CONST
 {
-  return mode == AM_MIDDLE;
+  return mode == AM_PRE;
 }
 
 truefalse CCfg::readall(CONST text * h_path, CAppMode m)
@@ -198,14 +191,14 @@ truefalse CCfg::readall(CONST text * h_path, CAppMode m)
   do_init(h_path);
 
   mode = m;
-  CCfgHeap heap;
-  if (heap.open () == -1)
+  CCfgHeap v_hp;
+  if (v_hp.open () == -1)
   {
-    C_FATAL("cfg.heap.open().\n");
+    C_FATAL("heap.open().\n");
     return false;
   }
 
-  ACE_Registry_ImpExp bridge(heap);
+  ACE_Registry_ImpExp bridge(v_hp);
   if (bridge.import_config (cfg_fn.c_str()) == -1)
   {
     C_FATAL("import_config() failed on %s\n", cfg_fn.c_str());
@@ -213,51 +206,51 @@ truefalse CCfg::readall(CONST text * h_path, CAppMode m)
   }
 
   CCfgKey akey;
-  if (heap.open_section (heap.root_section (), TEXT_Section_global,
+  if (v_hp.open_section (v_hp.root_section (), TEXT_Section_global,
                            0, akey) == -1)
   {
     C_FATAL("config.open_key failed, key = %s\n", TEXT_Section_global);
     return false;
   }
 
-  if (!read_base(heap, akey))
+  if (!read_base(v_hp, akey))
     return false;
 
-  if (mode <= AM_UNKNOWN || mode > AM_CLIENT)
+  if (mode <= AM_INVALID || mode > AM_TERMINAL)
   {
-    C_FATAL("unknown running mode (= %d)", mode);
+    C_FATAL("bad mode (= %d)", mode);
     return false;
   }
 
-  if (!read_dist_middle(heap, akey))
+  if (!read_dist_pre(v_hp, akey))
     return false;
 
-  if (!read_client_middle(heap, akey))
+  if (!read_term_pre(v_hp, akey))
     return false;
 
-  if (!read_client_dist(heap, akey))
+  if (!read_term_dist(v_hp, akey))
     return false;
 
-  if (!read_dist(heap, akey))
+  if (!read_dist(v_hp, akey))
     return false;
 
-  if (!read_middle(heap, akey))
+  if (!read_pre(v_hp, akey))
     return false;
 
-  if (!read_client(heap, akey))
+  if (!read_terminal(v_hp, akey))
     return false;
 
   return true;
 }
 
-truefalse CCfg::read_base(CCfgHeap & heap, CCfgKey & key)
+truefalse CCfg::read_base(CCfgHeap & v_h, CCfgKey & v_k)
 {
   ui n;
-  if (mode == AM_UNKNOWN)
+  if (mode == AM_INVALID)
   {
-    if (heap.get_integer_value (key,  TEXT_mode, n) == 0)
+    if (v_h.get_integer_value (v_k,  TEXT_mode, n) == 0)
     {
-      if (n != AM_DIST && n != AM_MIDDLE)
+      if (n != AM_DIST && n != AM_PRE)
       {
         C_FATAL("bad server mode = %d\n", n);
         return false;
@@ -270,61 +263,61 @@ truefalse CCfg::read_base(CCfgHeap & heap, CCfgKey & key)
     }
   }
 
-  if (heap.get_integer_value (key,  TEXT_test, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_test, n) == 0)
     g_is_test = (n != 0);
 
-  if (heap.get_integer_value (key,  TEXT_mem_pool, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_mem_pool, n) == 0)
   {
     mem_pool = (n != 0);
     g_cache = mem_pool;
   }
 
-  if (heap.get_integer_value (key,  TEXT_as_demon, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_as_demon, n) == 0)
     is_demon = (n != 0);
 
-  if (heap.get_integer_value (key,  TEXT_sfile_check_delay, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_sfile_check_delay, n) == 0)
     fcheck_delay = n;
 
-  if (heap.get_integer_value (key,  TEXT_log_file_number, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_log_file_number, n) == 0)
   {
     if (n > 0 && n <= 1000)
       log_file_count = n;
   }
 
-  if (heap.get_integer_value (key,  TEXT_log_file_size, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_log_file_size, n) == 0)
   {
     if (n > 0 && n <= 10000)
       log_file_size = n;
   }
 
-  if (heap.get_integer_value (key,  TEXT_log_debug, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_log_debug, n) == 0)
     log_debug = (n != 0);
 
-  if (heap.get_integer_value (key,  TEXT_log_console, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_log_console, n) == 0)
     log_console = (n != 0);
 
-  if (heap.get_integer_value (key,  TEXT_mem_print_delay, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_mem_print_delay, n) == 0)
     print_delay = n;
 
   return true;
 }
 
-truefalse CCfg::read_dist_middle(CCfgHeap & heap, CCfgKey & key)
+truefalse CCfg::read_dist_pre(CCfgHeap & v_h, CCfgKey & v_k)
 {
   if (!server())
     return true;
 
   ui n;
-  if (heap.get_integer_value (key,  TEXT_client_peak, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_client_peak, n) == 0)
   {
-    if (n > 0 && n <= 100000) //the upper limit of 100000 is more than enough?
+    if (n > 0 && n <= 100000)
     {
       client_peak = n;
     }
   }
 
   ACE_TString s;
-  if (heap.get_string_value(key, TEXT_server_key, s) == 0)
+  if (v_h.get_string_value(v_k, TEXT_server_key, s) == 0)
     skey = s.c_str();
   else
   {
@@ -332,7 +325,7 @@ truefalse CCfg::read_dist_middle(CCfgHeap & heap, CCfgKey & key)
     return false;
   }
 
-  if (heap.get_integer_value (key,  TEXT_server_port, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_server_port, n) == 0)
   {
     if (n == 0 || n >= 65535)
     {
@@ -342,7 +335,7 @@ truefalse CCfg::read_dist_middle(CCfgHeap & heap, CCfgKey & key)
     server_port = n;
   }
 
-  if (heap.get_string_value(key, TEXT_db_addr, s) == 0)
+  if (v_h.get_string_value(v_k, TEXT_db_addr, s) == 0)
     db_addr = s.c_str();
   else
   {
@@ -350,7 +343,7 @@ truefalse CCfg::read_dist_middle(CCfgHeap & heap, CCfgKey & key)
     return false;
   }
 
-  if (heap.get_integer_value (key,  TEXT_db_port, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_db_port, n) == 0)
   {
     if (n == 0 || n >= 65535)
     {
@@ -360,7 +353,7 @@ truefalse CCfg::read_dist_middle(CCfgHeap & heap, CCfgKey & key)
     db_port = n;
   }
 
-  if (heap.get_string_value(key, TEXT_db_user, s) == 0)
+  if (v_h.get_string_value(v_k, TEXT_db_user, s) == 0)
     db_name = s.c_str();
   else
   {
@@ -368,7 +361,7 @@ truefalse CCfg::read_dist_middle(CCfgHeap & heap, CCfgKey & key)
     return false;
   }
 
-  if (heap.get_string_value(key, TEXT_db_password, s) == 0)
+  if (v_h.get_string_value(v_k, TEXT_db_password, s) == 0)
     db_password = s.c_str();
   else
   {
@@ -376,7 +369,7 @@ truefalse CCfg::read_dist_middle(CCfgHeap & heap, CCfgKey & key)
     return false;
   }
 
-  if (heap.get_string_value(key, TEXT_bz_files_dir, s) == 0)
+  if (v_h.get_string_value(v_k, TEXT_bz_files_dir, s) == 0)
     bz_files_path = s.c_str();
   else
   {
@@ -384,7 +377,7 @@ truefalse CCfg::read_dist_middle(CCfgHeap & heap, CCfgKey & key)
     return false;
   }
 
-  if (heap.get_string_value(key, TEXT_bs_addr, s) == 0)
+  if (v_h.get_string_value(v_k, TEXT_bs_addr, s) == 0)
     bs_addr = s.c_str();
   else
   {
@@ -392,7 +385,7 @@ truefalse CCfg::read_dist_middle(CCfgHeap & heap, CCfgKey & key)
     return false;
   }
 
-  if (heap.get_integer_value(key, TEXT_bs_port, n) == 0)
+  if (v_h.get_integer_value(v_k, TEXT_bs_port, n) == 0)
   {
     if (n == 0 || n >= 65535)
     {
@@ -405,7 +398,7 @@ truefalse CCfg::read_dist_middle(CCfgHeap & heap, CCfgKey & key)
   return true;
 }
 
-truefalse CCfg::read_client(CCfgHeap & heap, CCfgKey & key)
+truefalse CCfg::read_terminal(CCfgHeap & v_h, CCfgKey & v_k)
 {
   if (server())
     return true;
@@ -413,7 +406,7 @@ truefalse CCfg::read_client(CCfgHeap & heap, CCfgKey & key)
   ui n;
   if (g_is_test)
   {
-    if (heap.get_integer_value(key, TEXT_ping_delay, n) == 0)
+    if (v_h.get_integer_value(v_k, TEXT_ping_delay, n) == 0)
     {
       if (n == 0 || n > 0xFFFF)
       {
@@ -427,7 +420,7 @@ truefalse CCfg::read_client(CCfgHeap & heap, CCfgKey & key)
 
   if (g_is_test)
   {
-    if (heap.get_integer_value(key, TEXT_download_threads, n) == 0)
+    if (v_h.get_integer_value(v_k, TEXT_download_threads, n) == 0)
     {
       if (n == 0 || n > 500)
       {
@@ -439,7 +432,7 @@ truefalse CCfg::read_client(CCfgHeap & heap, CCfgKey & key)
     }
   }
 
-  if (heap.get_integer_value(key, TEXT_adv_keep_days, n) == 0)
+  if (v_h.get_integer_value(v_k, TEXT_adv_keep_days, n) == 0)
   {
     if (n > 365)
     {
@@ -450,7 +443,7 @@ truefalse CCfg::read_client(CCfgHeap & heap, CCfgKey & key)
       adv_keep_days = n;
   }
 
-  if (heap.get_integer_value(key, TEXT_download_timeout, n) == 0)
+  if (v_h.get_integer_value(v_k, TEXT_download_timeout, n) == 0)
   {
     if (n < 60)
     {
@@ -461,7 +454,7 @@ truefalse CCfg::read_client(CCfgHeap & heap, CCfgKey & key)
       download_timeout = n;
   }
 
-  if (heap.get_integer_value(key, TEXT_download_retry_count, n) == 0)
+  if (v_h.get_integer_value(v_k, TEXT_download_retry_count, n) == 0)
   {
     if (n < 1 || n > 100000)
     {
@@ -472,7 +465,7 @@ truefalse CCfg::read_client(CCfgHeap & heap, CCfgKey & key)
       download_retry_count = n;
   }
 
-  if (heap.get_integer_value(key, TEXT_download_retry_delay, n) == 0)
+  if (v_h.get_integer_value(v_k, TEXT_download_retry_delay, n) == 0)
   {
     if (n < 1 || n > 60)
     {
@@ -483,19 +476,19 @@ truefalse CCfg::read_client(CCfgHeap & heap, CCfgKey & key)
       download_retry_delay = n;
   }
 
-  if (heap.get_integer_value(key, TEXT_can_root, n) == 0)
+  if (v_h.get_integer_value(v_k, TEXT_can_root, n) == 0)
     can_root = n;
 
   return true;
 }
 
-truefalse CCfg::read_dist(CCfgHeap & heap, CCfgKey & key)
+truefalse CCfg::read_dist(CCfgHeap & v_h, CCfgKey & v_k)
 {
   if (!dist())
     return true;
 
   ui n;
-  if (heap.get_integer_value(key, TEXT_server_id, n) == 0)
+  if (v_h.get_integer_value(v_k, TEXT_server_id, n) == 0)
   {
     if (n <= 1 || n >= 256)
     {
@@ -511,7 +504,7 @@ truefalse CCfg::read_dist(CCfgHeap & heap, CCfgKey & key)
   }
 
   ACE_TString s;
-  if (heap.get_string_value(key, TEXT_client_version_min, s) == 0)
+  if (v_h.get_string_value(v_k, TEXT_client_version_min, s) == 0)
   {
     if (!client_ver_min.init(s.c_str()))
     {
@@ -525,7 +518,7 @@ truefalse CCfg::read_dist(CCfgHeap & heap, CCfgKey & key)
     return false;
   }
 
-  if (heap.get_string_value(key, TEXT_client_version_now, s) == 0)
+  if (v_h.get_string_value(v_k, TEXT_client_version_now, s) == 0)
   {
     if (!client_ver_now.init(s.c_str()))
     {
@@ -550,13 +543,13 @@ truefalse CCfg::read_dist(CCfgHeap & heap, CCfgKey & key)
   return true;
 }
 
-truefalse CCfg::read_middle(CCfgHeap & heap, CCfgKey & key)
+truefalse CCfg::read_pre(CCfgHeap & v_h, CCfgKey & v_k)
 {
-  if (!middle())
+  if (!pre())
     return true;
 
   ui n;
-  if (heap.get_integer_value (key,  TEXT_http_port, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_http_port, n) == 0)
   {
     if (n == 0 || n >= 65535)
     {
@@ -567,7 +560,7 @@ truefalse CCfg::read_middle(CCfgHeap & heap, CCfgKey & key)
   }
 
   ACE_TString s;
-  if (heap.get_string_value(key, TEXT_ftp_servers, s) == 0)
+  if (v_h.get_string_value(v_k, TEXT_ftp_servers, s) == 0)
     ftp_servers = s.c_str();
   else
   {
@@ -578,13 +571,13 @@ truefalse CCfg::read_middle(CCfgHeap & heap, CCfgKey & key)
   return true;
 }
 
-truefalse CCfg::read_client_middle(CCfgHeap & heap, CCfgKey & key)
+truefalse CCfg::read_term_pre(CCfgHeap & v_h, CCfgKey & v_k)
 {
   if (dist())
     return true;
 
   ui n;
-  if (heap.get_integer_value (key,  TEXT_pre_client_port, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_pre_client_port, n) == 0)
   {
     if (n == 0 || n >= 65535)
     {
@@ -597,13 +590,13 @@ truefalse CCfg::read_client_middle(CCfgHeap & heap, CCfgKey & key)
   return true;
 }
 
-truefalse CCfg::read_client_dist(CCfgHeap & heap, CCfgKey & key)
+truefalse CCfg::read_term_dist(CCfgHeap & v_h, CCfgKey & v_k)
 {
-  if (middle())
+  if (pre())
     return true;
 
   ui n;
-  if (heap.get_integer_value (key, TEXT_ping_port, n) == 0)
+  if (v_h.get_integer_value (v_k, TEXT_ping_port, n) == 0)
   {
     if (n == 0 || n >= 65535)
     {
@@ -614,7 +607,7 @@ truefalse CCfg::read_client_dist(CCfgHeap & heap, CCfgKey & key)
   }
 
   ACE_TString s;
-  if (heap.get_string_value(key, TEXT_middle_addr, s) == 0)
+  if (v_h.get_string_value(v_k, TEXT_middle_addr, s) == 0)
     middle_addr = s.c_str();
   else
   {
@@ -635,11 +628,11 @@ DVOID CCfg::print_all()
   case AM_DIST:
     smode = "dist";
     break;
-  case AM_MIDDLE:
-    smode = "middle";
+  case AM_PRE:
+    smode = "pre";
     break;
-  case AM_CLIENT:
-    smode = "client";
+  case AM_TERMINAL:
+    smode = "terminal";
     break;
   default:
     C_FATAL("bad mode (=%d).\n", mode);
@@ -675,18 +668,18 @@ DVOID CCfg::print_all()
     ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_db_user, db_name.c_str()));
   }
 
-  if (client() || dist())
+  if (term_station() || dist())
   {
     ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_ping_port, ping_port));
     ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_middle_addr, middle_addr.c_str()));
   }
 
-  if (client() || middle())
+  if (term_station() || pre())
   {
     ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_pre_client_port, pre_client_port));
   }
 
-  if (client())
+  if (term_station())
   {
     if (g_is_test)
       ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_ping_delay, client_ping_interval));
@@ -697,7 +690,7 @@ DVOID CCfg::print_all()
     ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_can_root, can_root));
   }
 
-  if (middle())
+  if (pre())
   {
     ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_http_port, http_port));
     ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_ftp_servers, ftp_servers.c_str()));
@@ -765,7 +758,7 @@ ni CClocker::handle_timeout (CONST ACE_Time_Value &, CONST DVOID *)
 
 CApp::CApp(): m_sig(this), m_sfile(this), m_printer(this)
 {
-  m_running = false;
+  m_working = false;
   m_hup = false;
   m_term = false;
   m_chld = false;
@@ -852,7 +845,7 @@ CApp::~CApp()
 
 truefalse CApp::running() CONST
 {
-  return m_running;
+  return m_working;
 }
 
 DVOID CApp::demon()
@@ -931,10 +924,10 @@ truefalse CApp::before_begin()
 
 DVOID CApp::begin()
 {
-  if (m_running)
+  if (m_working)
     return;
   C_INFO("loading components...\n");
-  m_running = true;
+  m_working = true;
   before_begin();
   std::for_each(m_components.begin(), m_components.end(), std::mem_fun(&CContainer::begin));
 
@@ -950,10 +943,10 @@ DVOID CApp::before_finish()
 
 DVOID CApp::end()
 {
-  if (!m_running)
+  if (!m_working)
     return;
   C_INFO("ending components...\n");
-  m_running = false;
+  m_working = false;
   std::for_each(m_components.begin(), m_components.end(), std::mem_fun(&CContainer::end));
   before_finish();
   C_INFO("ending components finish!\n");

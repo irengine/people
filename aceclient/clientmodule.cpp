@@ -2225,7 +2225,7 @@ bool MyDistInfoMD5Comparer::compute(MyDistInfoMD5 * dist_md5)
 
   CMemProt target_parent_path, px;
   dist_md5->calc_target_parent_path(px, false, true);
-  target_parent_path.init(px.get_ptr(), "/new");
+  target_parent_path.init(px.get_ptr(), "/backup/new");
 
   CMemProt target_path;
   if (!dist_md5->calc_target_path(target_parent_path.get_ptr(), target_path))
@@ -2503,7 +2503,7 @@ MyClientToDistProcessor::MyClientToDistProcessor(CParentHandler * handler): CPar
   m_handler->msg_queue()->high_water_mark(MSG_QUEUE_MAX_SIZE);
 }
 
-const char * MyClientToDistProcessor::name() const
+const char * MyClientToDistProcessor::title() const
 {
   return "MyClientToDistProcessor";
 }
@@ -3543,7 +3543,7 @@ MyClientToDistService::MyClientToDistService(CContainer * module, int numThreads
 
 int MyClientToDistService::svc()
 {
-  C_INFO(ACE_TEXT ("running %s::svc()\n"), name());
+  C_INFO(ACE_TEXT ("running %s::svc()\n"), title());
 
   for (ACE_Message_Block *mb; getq(mb) != -1;)
   {
@@ -3556,7 +3556,7 @@ int MyClientToDistService::svc()
 
     if (unlikely(!p))
     {
-      C_ERROR("null pointer get @%s::get_task(mb)\n", name());
+      C_ERROR("null pointer get @%s::get_task(mb)\n", title());
       continue;
     }
 
@@ -3567,14 +3567,14 @@ int MyClientToDistService::svc()
     else if (task_type == TASK_REV)
       do_rev_task((const char *)p);
     else
-      C_ERROR("unknown task type = %d @%s::svc()\n", task_type, name());
+      C_ERROR("unknown task type = %d @%s::svc()\n", task_type, title());
   }
 
-  C_INFO(ACE_TEXT ("exiting %s::svc()\n"), name());
+  C_INFO(ACE_TEXT ("exiting %s::svc()\n"), title());
   return 0;
 }
 
-const char * MyClientToDistService::name() const
+const char * MyClientToDistService::title() const
 {
   return "MyClientToDistService";
 }
@@ -3583,7 +3583,7 @@ bool MyClientToDistService::add_md5_task(MyDistInfoMD5 * p)
 {
   if (unlikely(!p->validate()))
   {
-    C_ERROR("invalid md5 task @ %s::add_md5_task", name());
+    C_ERROR("invalid md5 task @ %s::add_md5_task", title());
     delete p;
     return true;
   }
@@ -3594,7 +3594,7 @@ bool MyClientToDistService::add_extract_task(MyDistInfoFtp * p)
 {
   if (unlikely(!p->validate()))
   {
-    C_ERROR("invalid extract task @ %s::add_extract_task", name());
+    C_ERROR("invalid extract task @ %s::add_extract_task", title());
     delete p;
     return true;
   }
@@ -3720,7 +3720,7 @@ int MyClientFtpService::svc()
   static bool bprinted = false;
   if (!bprinted)
   {
-    C_INFO(ACE_TEXT ("running %s::svc()\n"), name());
+    C_INFO(ACE_TEXT ("running %s::svc()\n"), title());
     bprinted = true;
   }
   std::string server_addr = ((MyClientToDistModule*)container())->server_addr_list().rnd();
@@ -3744,7 +3744,7 @@ int MyClientFtpService::svc()
 
   if (bprinted)
   {
-    C_INFO(ACE_TEXT ("exiting %s::svc()\n"), name());
+    C_INFO(ACE_TEXT ("exiting %s::svc()\n"), title());
     bprinted = false;
   }
   return 0;
@@ -3781,7 +3781,7 @@ void MyClientFtpService::do_ftp_task(MyDistInfoFtp * dist_info, std::string & se
   return_back(dist_info);
 }
 
-const char * MyClientFtpService::name() const
+const char * MyClientFtpService::title() const
 {
   return "MyClientFtpService";
 }
@@ -3886,7 +3886,7 @@ MyClientToDistConnector::MyClientToDistConnector(CParentScheduler * _dispatcher,
   m_last_connect_time = 0;
 }
 
-const char * MyClientToDistConnector::name() const
+const char * MyClientToDistConnector::title() const
 {
   return "MyClientToDistConnector";
 }
@@ -3909,7 +3909,7 @@ int MyClientToDistConnector::make_svc_handler(CParentHandler *& sh)
   sh = new MyClientToDistHandler(m_director);
   if (!sh)
   {
-    C_ERROR("can not alloc MyClientToDistHandler from %s\n", name());
+    C_ERROR("can not alloc MyClientToDistHandler from %s\n", title());
     return -1;
   }
 //  C_DEBUG("MyClientToDistConnector::make_svc_handler(%X)...\n", long(sh));
@@ -4066,7 +4066,7 @@ bool MyClientToDistDispatcher::before_begin()
 
     ACE_Time_Value interval(WATCH_DOG_INTERVAL * 60);
     if (reactor()->schedule_timer(this, (const void*)TIMER_ID_WATCH_DOG, interval, interval) < 0)
-      C_ERROR("setup watch dog timer failed %s %s\n", name(), (const char*)CSysError());
+      C_ERROR("setup watch dog timer failed %s %s\n", title(), (const char*)CSysError());
 
     if (MyClientAppX::instance()->opera_launcher().running())
       start_watch_dog();
@@ -4074,7 +4074,7 @@ bool MyClientToDistDispatcher::before_begin()
   return true;
 }
 
-const char * MyClientToDistDispatcher::name() const
+const char * MyClientToDistDispatcher::title() const
 {
   return "MyClientToDistDispatcher";
 }
@@ -4082,7 +4082,7 @@ const char * MyClientToDistDispatcher::name() const
 
 int MyClientToDistDispatcher::handle_timeout(const ACE_Time_Value &, const void * act)
 {
-  if ((long)act == (long)TIMER_ID_BASE)
+  if ((long)act == (long)TID)
   {
     ((MyClientToDistModule*)container())->check_ftp_timed_task();
     if (!g_is_test)
@@ -4112,7 +4112,7 @@ void MyClientToDistDispatcher::ask_for_server_addr_list_done(bool success)
 
   if (addr_list.empty())
   {
-    C_ERROR("no dist server addresses exist @%s\n", name());
+    C_ERROR("no dist server addresses exist @%s\n", title());
     return;
   }
 
@@ -4174,7 +4174,7 @@ bool MyClientToDistDispatcher::do_schedule_work()
         CParentHandler * handler = m_connector->director()->locate(index);
         if (!handler)
         {
-          C_WARNING("can not send data to client since connection is lost @ %s::do_schedule_work\n", name());
+          C_WARNING("can not send data to client since connection is lost @ %s::do_schedule_work\n", title());
           mb->release();
           continue;
         }
@@ -4332,7 +4332,7 @@ const char * MyClientToDistModule::hw_ver()
 */
 }
 
-const char * MyClientToDistModule::name() const
+const char * MyClientToDistModule::title() const
 {
   return "MyClientToDistModule";
 }
@@ -4468,7 +4468,7 @@ MyClientToMiddleProcessor::MyClientToMiddleProcessor(CParentHandler * handler): 
 
 }
 
-const char * MyClientToMiddleProcessor::name() const
+const char * MyClientToMiddleProcessor::title() const
 {
   return "MyClientToMiddleProcessor";
 }
@@ -4653,7 +4653,7 @@ MyClientToMiddleConnector::MyClientToMiddleConnector(CParentScheduler * _dispatc
   m_retried_count = 0;
 }
 
-const char * MyClientToMiddleConnector::name() const
+const char * MyClientToMiddleConnector::title() const
 {
   return "MyClientToMiddleConnector";
 }
@@ -4679,7 +4679,7 @@ int MyClientToMiddleConnector::make_svc_handler(CParentHandler *& sh)
   sh = new MyClientToMiddleHandler(m_director);
   if (!sh)
   {
-    C_ERROR("can not alloc MyClientToMiddleHandler from %s\n", name());
+    C_ERROR("can not alloc MyClientToMiddleHandler from %s\n", title());
     return -1;
   }
   sh->container((void*)this);
@@ -4958,7 +4958,7 @@ int MyHttp1991Acceptor::make_svc_handler(CParentHandler *& sh)
   sh = new MyHttp1991Handler(m_director);
   if (!sh)
   {
-    C_ERROR("can not alloc MyHttp1991Handler from %s\n", name());
+    C_ERROR("can not alloc MyHttp1991Handler from %s\n", title());
     return -1;
   }
   sh->container((void*)this);
@@ -4966,7 +4966,7 @@ int MyHttp1991Acceptor::make_svc_handler(CParentHandler *& sh)
   return 0;
 }
 
-const char * MyHttp1991Acceptor::name() const
+const char * MyHttp1991Acceptor::title() const
 {
   return "MyHttp1991Acceptor";
 }
