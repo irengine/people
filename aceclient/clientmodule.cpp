@@ -115,10 +115,10 @@ MyClickInfo::MyClickInfo()
   len = 0;
 }
 
-MyClickInfo::MyClickInfo(const char * chn, const char * pcode, const char * count):
-    channel(chn), point_code(pcode), click_count(count)
+MyClickInfo::MyClickInfo(const char * chn, const char * pcode, const char * count, const char * _colname):
+    channel(chn), point_code(pcode), click_count(count), colname(_colname)
 {
-  len = channel.length() + point_code.length() + click_count.length() + 3;
+  len = channel.length() + point_code.length() + click_count.length() + colname.length() + 4;
 }
 
 
@@ -184,7 +184,7 @@ bool MyClientDB::init_db()
       "create table if not exists tb_ftp_info(ftp_dist_id text PRIMARY KEY, ftp_str text, ftp_status integer, ftp_recv_time integer, "
                 "md5_client text, md5_server text, ftp_adir text, ftp_aindex text, ftp_ftype num)";
   const char * const_sql_tb_click =
-      "create table if not exists tb_click(channel_id text, point_code text, click_num, primary key(channel_id, point_code))";
+      "create table if not exists tb_click(channel_id text, point_code text, click_num, col_name, primary key(channel_id, point_code))";
   const char * const_sql_tb_adv =
       "create table if not exists tb_adv(filename text, last_access, primary key(filename))";
   const char * const_sql_fist_record_tpl =
@@ -396,9 +396,9 @@ bool MyClientDB::get_ftp_command_status(const char * dist_id, int & status)
   return status != -10;
 }
 
-bool MyClientDB::save_click_info(const char * channel, const char * point_code)
+bool MyClientDB::save_click_info(const char * channel, const char * point_code, const char * col_name)
 {
-  if (unlikely(!channel || !*channel || !point_code || !*point_code))
+  if (unlikely(!channel || !*channel || !point_code || !*point_code || !col_name || !*col_name))
     return false;
   char sql[800];
   int num = 0;
@@ -426,8 +426,8 @@ bool MyClientDB::save_click_info(const char * channel, const char * point_code)
     return do_exec(sql);
   } else
   {
-    const char * const_sql_template = "insert into tb_click(channel_id, point_code, click_num) values('%s', '%s', 1)";
-    ACE_OS::snprintf(sql, 800, const_sql_template, channel, point_code);
+    const char * const_sql_template = "insert into tb_click(channel_id, point_code, col_name, click_num) values('%s', '%s', '%s', 1)";
+    ACE_OS::snprintf(sql, 800, const_sql_template, channel, point_code, col_name);
     return do_exec(sql);
   }
 }
@@ -441,7 +441,7 @@ bool MyClientDB::clear_click_infos()
 bool MyClientDB::get_click_infos(MyClickInfos & infos)
 {
 //  const char * sql = "select channel_id, point_code, count(*) from tb_click group by channel_id, point_code";
-  const char * sql = "select channel_id, point_code, click_num from tb_click";
+  const char * sql = "select channel_id, point_code, click_num, col_name from tb_click";
   char *zErrMsg = 0;
   if (sqlite3_exec(m_db, sql, get_click_infos_callback, &infos, &zErrMsg) != SQLITE_OK)
   {
@@ -728,10 +728,10 @@ int MyClientDB::get_click_infos_callback(void * p, int argc, char **argv, char *
 {
   ACE_UNUSED_ARG(azColName);
   MyClickInfos * infos = (MyClickInfos *)p;
-  if (unlikely(argc != 3 || !argv[0] || !argv[0][0] || !argv[1] || !argv[1][0] || !argv[2] || !argv[2][0]))
+  if (unlikely(argc != 4 || !argv[0] || !argv[0][0] || !argv[1] || !argv[1][0] || !argv[2] || !argv[2][0] || !argv[3] || !argv[3][0]))
     return 0;
 
-  infos->push_back(MyClickInfo(argv[0], argv[1], argv[2]));
+  infos->push_back(MyClickInfo(argv[0], argv[1], argv[2], argv[3]));
   return 0;
 }
 
@@ -4403,12 +4403,14 @@ ACE_Message_Block * MyClientToDistModule::get_click_infos(const char * client_id
   char * ptr = dpe->data;
   for (it = click_infos.begin(); it != click_infos.end(); ++it)
   {
-    ACE_OS::sprintf(ptr, "%s%c%s%c%s%c",
+    ACE_OS::sprintf(ptr, "%s%c%s%c%s%c%s%c",
         it->channel.c_str(),
         MyDataPacketHeader::ITEM_SEPARATOR,
         it->point_code.c_str(),
         MyDataPacketHeader::ITEM_SEPARATOR,
         it->click_count.c_str(),
+        MyDataPacketHeader::ITEM_SEPARATOR,
+        it->colname.c_str(),
         MyDataPacketHeader::FINISH_SEPARATOR);
     ptr += it->len;
   }
@@ -4778,6 +4780,14 @@ void MyHttp1991Processor::do_command_adv_click(char * parameter)
     MY_ERROR("invalid adv click (%s)\n", parameter);
     return;
   }
+  const char * col_name_tag = "&colname=";
+  char * col_name = ACE_OS::strstr(pcode, col_name_tag);
+  if (unlikely(col_name == 0))
+  {
+    MY_ERROR("invalid adv click: no %s tag\n", col_name_tag);
+    return;
+  }
+  *col_name = 0;
 
   *pcode = 0;
   pcode += ACE_OS::strlen("&no=");
@@ -4787,19 +4797,26 @@ void MyHttp1991Processor::do_command_adv_click(char * parameter)
     return;
   }
 
-  char * ptr = ACE_OS::strchr(pcode, '\n');
+  col_name += strlen(col_name_tag);
+  if (unlikely(*col_name == 0))
+  {
+    MY_ERROR("invalid adv click: no %s\n", col_name);
+    return;
+  }
+
+  char * ptr = ACE_OS::strchr(col_name, '\n');
   if (ptr)
     *ptr = 0;
-  ptr = ACE_OS::strchr(pcode, '\r');
+  ptr = ACE_OS::strchr(col_name, '\r');
   if (ptr)
     *ptr = 0;
-  ptr = ACE_OS::strstr(pcode, " HTTP/");
+  ptr = ACE_OS::strstr(col_name, " HTTP/");
   if (ptr)
     *ptr = 0;
 
   MyClientDBGuard dbg;
   if (dbg.db().open_db(m_client_id.as_string()))
-    dbg.db().save_click_info(parameter, pcode);
+    dbg.db().save_click_info(parameter, pcode, col_name);
   send_string("*1");
 }
 

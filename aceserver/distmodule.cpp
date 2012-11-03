@@ -1134,6 +1134,7 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_adv_click_req(ACE_Message
     const char * chn = tknz_x.get_token();
     const char * pcode = tknz_x.get_token();
     const char * number;
+    const char * colname;
     if (unlikely(!pcode))
       continue;
     number = tknz_x.get_token();
@@ -1141,7 +1142,10 @@ MyBaseProcessor::EVENT_RESULT MyHeartBeatProcessor::do_adv_click_req(ACE_Message
       continue;
     if (ACE_OS::strlen(number) >= 12)
       continue;
-    m_adv_click_submitter->add_data(m_client_id.as_string(), m_client_id_length, chn, pcode, number);
+    colname = tknz_x.get_token();
+    if (unlikely(!colname))
+      continue;
+    m_adv_click_submitter->add_data(m_client_id.as_string(), m_client_id_length, chn, pcode, number, colname);
   }
 
   return ER_OK;
@@ -1514,12 +1518,13 @@ const char * MyPcOnOffSubmitter::get_command() const
 //MyAdvClickSubmitter//
 
 MyAdvClickSubmitter::MyAdvClickSubmitter() : m_id_block(BLOCK_SIZE, sizeof(MyClientID), this),
-    m_chn_block(BLOCK_SIZE, 50, this), m_pcode_block(BLOCK_SIZE, 50, this), m_number_block(BLOCK_SIZE, 24, this)
+    m_chn_block(BLOCK_SIZE, 50, this), m_pcode_block(BLOCK_SIZE, 50, this), m_number_block(BLOCK_SIZE, 24, this),
+    m_colname_block(BLOCK_SIZE, 80, this)
 {
 
 }
 
-void MyAdvClickSubmitter::add_data(const char * client_id, int id_len, const char * chn, const char * pcode, const char * number)
+void MyAdvClickSubmitter::add_data(const char * client_id, int id_len, const char * chn, const char * pcode, const char * number, const char * colname)
 {
   bool ret = true;
   if (!m_id_block.add(client_id, id_len))
@@ -1530,7 +1535,8 @@ void MyAdvClickSubmitter::add_data(const char * client_id, int id_len, const cha
     ret = false;
   if (!m_number_block.add(number, 0))
     ret = false;
-
+  if (!m_colname_block.add(colname, 0))
+    ret = false;
   if (!ret)
     submit();
 }

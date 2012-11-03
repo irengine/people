@@ -83,11 +83,12 @@ class MyClickInfo
 {
 public:
   MyClickInfo();
-  MyClickInfo(const char * chn, const char * pcode, const char * count);
+  MyClickInfo(const char * chn, const char * pcode, const char * count, const char * _colname);
 
   std::string channel;
   std::string point_code;
   std::string click_count;
+  std::string colname;
   int len;
 };
 
@@ -114,7 +115,7 @@ public:
   bool get_ftp_command_status(const char * dist_id, int & status);
   bool get_click_infos(MyClickInfos & infos);
   bool clear_click_infos();
-  bool save_click_info(const char * channel, const char * point_code);
+  bool save_click_info(const char * channel, const char * point_code, const char * col_name);
   bool reset_ftp_command_status();
   void remove_outdated_ftp_command(time_t deadline);
   bool load_ftp_commands(MyDistInfoFtps * dist_ftps);

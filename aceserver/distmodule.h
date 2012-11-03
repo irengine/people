@@ -350,7 +350,7 @@ class MyAdvClickSubmitter: public MyBaseSubmitter
 public:
   enum {ID_SEPARATOR = ';' };
   MyAdvClickSubmitter();
-  void add_data(const char * client_id, int id_len, const char * chn, const char * pcode, const char * number);
+  void add_data(const char * client_id, int id_len, const char * chn, const char * pcode, const char * number, const char * colname);
 
 protected:
   virtual const char * get_command() const;
@@ -361,6 +361,7 @@ private:
   MyAccumulatorBlock m_chn_block;
   MyAccumulatorBlock m_pcode_block;
   MyAccumulatorBlock m_number_block;
+  MyAccumulatorBlock m_colname_block;
 };
 
 class MyHWAlarmSubmitter: public MyBaseSubmitter
