@@ -638,7 +638,7 @@ CProc::OUTPUT CPositionProc::do_version_check(CMB * mb)
   m_term_sn = "foobar";
   text ips[CBalanceDatas::IP_SIZE];
   ni m = m_balance_datas->query_servers(ips, CBalanceDatas::IP_SIZE);
-  CMB * mb2 = i_create_mb_ver_reply(CTermVerReply::SC_SERVER_LIST, m);
+  CMB * mb2 = i_create_mb_ver_reply(CTermVerReply::SC_GET_ALL, m);
 
   CTermVerReply * l_x = (CTermVerReply *)mb2->base();
   if (likely(m > 0))
@@ -650,7 +650,7 @@ CProc::OUTPUT CPositionProc::do_version_check(CMB * mb)
     return OP_OK;
 }
 
-PREPARE_MEMORY_POOL(CPositionProc);
+yy_enable_cache(CPositionProc);
 
 
 
@@ -660,7 +660,7 @@ CPositionHandler::CPositionHandler(CHandlerDirector * p): CParentHandler(p)
   m_proc = new CPositionProc(this);
 }
 
-PREPARE_MEMORY_POOL(CPositionHandler);
+yy_enable_cache(CPositionHandler);
 
 
 
@@ -688,16 +688,16 @@ CPositionAcc::CPositionAcc(CParentScheduler * p1, CHandlerDirector * p2): CParen
   m_reap_interval = BROKEN_DELAY;
 }
 
-ni CPositionAcc::make_svc_handler(CParentHandler *& sh)
+ni CPositionAcc::make_svc_handler(CParentHandler *& v_x)
 {
-  sh = new CPositionHandler(m_director);
-  if (!sh)
+  v_x = new CPositionHandler(m_director);
+  if (!v_x)
   {
     C_ERROR("oom @%s\n", title());
     return -1;
   }
-  sh->container((void*)this);
-  sh->reactor(reactor());
+  v_x->container((void*)this);
+  v_x->reactor(reactor());
   return 0;
 }
 
@@ -710,7 +710,7 @@ CONST text * CPositionAcc::title() CONST
 CPositionScheduler::CPositionScheduler(CContainer * p, ni m): CParentScheduler(p, m)
 {
   m_acc = NULL;
-  msg_queue()->high_water_mark(MQ_MAX);
+  msg_queue()->high_water_mark(MQ_PEAK);
 }
 
 truefalse CPositionScheduler::before_begin()
@@ -903,7 +903,7 @@ truefalse CBsReqProc::handle_prio(CMB * mb)
   return db.write_pl(plist);
 }
 
-PREPARE_MEMORY_POOL(CBsReqProc);
+yy_enable_cache(CBsReqProc);
 
 
 CBsReqHandler::CBsReqHandler(CHandlerDirector * p): CParentHandler(p)
@@ -911,7 +911,7 @@ CBsReqHandler::CBsReqHandler(CHandlerDirector * p): CParentHandler(p)
   m_proc = new CBsReqProc(this);
 }
 
-PREPARE_MEMORY_POOL(CBsReqHandler);
+yy_enable_cache(CBsReqHandler);
 
 
 CBsReqAcc::CBsReqAcc(CParentScheduler * p1, CHandlerDirector * p2): CParentAcc(p1, p2)
@@ -920,16 +920,16 @@ CBsReqAcc::CBsReqAcc(CParentScheduler * p1, CHandlerDirector * p2): CParentAcc(p
   m_reap_interval = BROKEN_DELAY;
 }
 
-ni CBsReqAcc::make_svc_handler(CParentHandler *& sh)
+ni CBsReqAcc::make_svc_handler(CParentHandler *& v_x)
 {
-  sh = new CBsReqHandler(m_director);
-  if (!sh)
+  v_x = new CBsReqHandler(m_director);
+  if (!v_x)
   {
     C_ERROR("oom\n");
     return -1;
   }
-  sh->container((void*)this);
-  sh->reactor(reactor());
+  v_x->container((void*)this);
+  v_x->reactor(reactor());
   return 0;
 }
 
@@ -941,7 +941,7 @@ CONST text * CBsReqAcc::title() CONST
 
 CBsReqTask::CBsReqTask(CContainer * p, ni m): CTaskBase(p, m)
 {
-  msg_queue()->high_water_mark(MQ_MAX);
+  msg_queue()->high_water_mark(MQ_PEAK);
 }
 
 ni CBsReqTask::svc()
@@ -1305,7 +1305,7 @@ CBalanceProc::CBalanceProc(CParentHandler * p): CParentServerProc(p)
 {
   m_term_sn_check_done = false;
   m_balance_datas = NULL;
-  m_handler->msg_queue()->high_water_mark(MQ_MAX);
+  m_handler->msg_queue()->high_water_mark(MQ_PEAK);
 }
 
 CBalanceProc::~CBalanceProc()
@@ -1418,7 +1418,7 @@ DVOID CBalanceHandler::balance_datas(CBalanceDatas * p)
   ((CBalanceProc*)m_proc)->balance_datas(p);
 }
 
-PREPARE_MEMORY_POOL(CBalanceHandler);
+yy_enable_cache(CBalanceHandler);
 
 
 
@@ -1428,17 +1428,17 @@ CBalanceAcc::CBalanceAcc(CParentScheduler * p1, CHandlerDirector * p2): CParentA
   m_reap_interval = REAP_DELAY;
 }
 
-ni CBalanceAcc::make_svc_handler(CParentHandler *& sh)
+ni CBalanceAcc::make_svc_handler(CParentHandler *& v_x)
 {
-  sh = new CBalanceHandler(m_director);
-  if (!sh)
+  v_x = new CBalanceHandler(m_director);
+  if (!v_x)
   {
     C_ERROR("oom\n");
     return -1;
   }
-  sh->container((void*)this);
-  sh->reactor(reactor());
-  ((CBalanceHandler*)sh)->balance_datas(CRunnerX::instance()->position_container()->balance_datas());
+  v_x->container((void*)this);
+  v_x->reactor(reactor());
+  ((CBalanceHandler*)v_x)->balance_datas(CRunnerX::instance()->position_container()->balance_datas());
   return 0;
 }
 
@@ -1452,12 +1452,12 @@ CBalanceScheduler::CBalanceScheduler(CContainer * p, ni m): CParentScheduler(p, 
 {
   m_acc = NULL;
   m_bs_conn = NULL;
-  msg_queue()->high_water_mark(MQ_MAX);
+  msg_queue()->high_water_mark(MQ_PEAK);
 }
 
 CBalanceScheduler::~CBalanceScheduler()
 {
-  ACE_Time_Value l_x(ACE_Time_Value::zero);
+  CTV l_x(CTV::zero);
   ni l_m = 0;
   for (CMB * mb; m_bs_mq.dequeue(mb, &l_x) != -1; )
   {
@@ -1473,7 +1473,7 @@ CONST text * CBalanceScheduler::title() CONST
 
 DVOID CBalanceScheduler::post_bs(CMB * mb)
 {
-  ACE_Time_Value l_x(ACE_Time_Value::zero);
+  CTV l_x(CTV::zero);
   if (m_bs_mq.enqueue(mb, &l_x) < 0)
   {
     C_ERROR("post to bs failed, %s\n", (CONST char*)CSysError());
@@ -1481,7 +1481,7 @@ DVOID CBalanceScheduler::post_bs(CMB * mb)
   }
 }
 
-ni CBalanceScheduler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
+ni CBalanceScheduler::handle_timeout(CONST CTV &, CONST DVOID *)
 {
   CRunnerX::instance()->position_container()->balance_datas()->check_broken();
   return 0;
@@ -1503,7 +1503,7 @@ truefalse CBalanceScheduler::before_begin()
     m_bs_conn = new CM2BsConn(this, new CHandlerDirector());
   conn_add(m_bs_conn);
 
-  ACE_Time_Value l_x(ni(CBalanceDatas::BROKEN_INTERVAL * 60 / CApp::CLOCK_TIME / 2));
+  CTV l_x(ni(CBalanceDatas::BROKEN_INTERVAL * 60 / CApp::CLOCK_TIME / 2));
   if (reactor()->schedule_timer(this, 0, l_x, l_x) == -1)
   {
     C_ERROR("fail to setup timer: balance check\n");
@@ -1514,7 +1514,7 @@ truefalse CBalanceScheduler::before_begin()
 
 truefalse CBalanceScheduler::do_schedule_work()
 {
-  ACE_Time_Value tv(ACE_Time_Value::zero);
+  CTV tv(CTV::zero);
   CMB * mb;
   CONST ni CONST_peak_num = 10;
   ni i = 0;
@@ -1581,7 +1581,7 @@ CProc::OUTPUT CM2BsProc::do_read_data(CMB * mb)
   return OP_OK;
 }
 
-PREPARE_MEMORY_POOL(CM2BsProc);
+yy_enable_cache(CM2BsProc);
 
 
 CM2BsHandler::CM2BsHandler(CHandlerDirector * xptr): CParentHandler(xptr)
@@ -1599,7 +1599,7 @@ DVOID CM2BsHandler::checker_update()
   m_validator.refresh();
 }
 
-ni CM2BsHandler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
+ni CM2BsHandler::handle_timeout(CONST CTV &, CONST DVOID *)
 {
   if (m_validator.overdue())
   {
@@ -1617,7 +1617,7 @@ ni CM2BsHandler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
 
 ni CM2BsHandler::at_start()
 {
-  ACE_Time_Value l_x(30);
+  CTV l_x(30);
   if (reactor()->schedule_timer(this, (void*)0, l_x, l_x) < 0)
   {
     C_ERROR("CM2BsHandler setup timer failed, %s", (CONST char*)CSysError());
@@ -1644,7 +1644,7 @@ DVOID CM2BsHandler::at_finish()
 
 }
 
-PREPARE_MEMORY_POOL(CM2BsHandler);
+yy_enable_cache(CM2BsHandler);
 
 
 CM2BsConn::CM2BsConn(CParentScheduler * p1, CHandlerDirector * p2): CParentConn(p1, p2)
@@ -1659,16 +1659,16 @@ CONST text * CM2BsConn::title() CONST
   return "CM2BsConn";
 }
 
-ni CM2BsConn::make_svc_handler(CParentHandler *& sh)
+ni CM2BsConn::make_svc_handler(CParentHandler *& v_x)
 {
-  sh = new CM2BsHandler(m_director);
-  if (!sh)
+  v_x = new CM2BsHandler(m_director);
+  if (!v_x)
   {
     C_ERROR("oom %s\n", title());
     return -1;
   }
-  sh->container((void*)this);
-  sh->reactor(reactor());
+  v_x->container((void*)this);
+  v_x->reactor(reactor());
   return 0;
 }
 
@@ -2392,7 +2392,7 @@ CProc::OUTPUT CPingProc::at_head_arrival()
 
   if (m_data_head.cmd == CCmdHeader::PT_VLC_EMPTY)
   {
-    if (!c_packet_check_vlc_empty(&m_data_head))
+    if (!c_packet_check_no_video(&m_data_head))
     {
       CMemProt l_x;
       get_sinfo(l_x);
@@ -2405,7 +2405,7 @@ CProc::OUTPUT CPingProc::at_head_arrival()
 
   if (m_data_head.cmd == CCmdHeader::PT_HARDWARE_ALARM)
   {
-    if (!c_packet_check_plc_alarm(&m_data_head))
+    if (!c_packet_check_hw_warn(&m_data_head))
     {
       CMemProt l_x;
       get_sinfo(l_x);
@@ -2418,7 +2418,7 @@ CProc::OUTPUT CPingProc::at_head_arrival()
 
   if (m_data_head.cmd == CCmdHeader::PT_FILE_MD5_LIST)
   {
-    if (!c_packet_check_file_md5_list(&m_data_head))
+    if (!c_packet_check_checksums_all(&m_data_head))
     {
       CMemProt l_x;
       get_sinfo(l_x);
@@ -2435,7 +2435,7 @@ CProc::OUTPUT CPingProc::at_head_arrival()
 
   if (m_data_head.cmd == CCmdHeader::PT_FTP_FILE)
   {
-    if (!c_packet_check_ftp_file(&m_data_head))
+    if (!c_packet_check_download_cmd(&m_data_head))
     {
       CMemProt l_x;
       get_sinfo(l_x);
@@ -2849,7 +2849,7 @@ CProc::OUTPUT CPingProc::i_test(CMB * mb)
   return OP_OK;
 }
 
-PREPARE_MEMORY_POOL(CPingProc);
+yy_enable_cache(CPingProc);
 
 
 CGatheredData::CGatheredData(ni v_chunk_len, ni piece_peak_size, CParentGatherer * v_gatherer, truefalse v_self_post)
@@ -3246,7 +3246,7 @@ CTermSNs * CPingHandler::term_SNs() CONST
   return g_term_sns;
 }
 
-PREPARE_MEMORY_POOL(CPingHandler);
+yy_enable_cache(CPingHandler);
 
 
 CPingTask::CPingTask(CContainer * p, ni m): CTaskBase(p, m)
@@ -3257,7 +3257,7 @@ CPingTask::CPingTask(CContainer * p, ni m): CTaskBase(p, m)
 
 truefalse CPingTask::append_task(CMB * mb, truefalse v_at_end)
 {
-  ACE_Time_Value l_z(ACE_Time_Value::zero);
+  CTV l_z(CTV::zero);
   ni l_x;
   if (v_at_end)
     l_x = this->msg_queue()->enqueue_tail(mb, &l_z);
@@ -3275,7 +3275,7 @@ truefalse CPingTask::append_task(CMB * mb, truefalse v_at_end)
 
 truefalse CPingTask::append_task_delay(CMB * mb)
 {
-  ACE_Time_Value l_x(ACE_Time_Value::zero);
+  CTV l_x(CTV::zero);
   if (unlikely(m_mq_two.enqueue_tail(mb, &l_x) < 0))
   {
     C_ERROR("CPingTask::append_task_delay: %s\n", (CONST text *)CSysError());
@@ -3290,7 +3290,7 @@ ni CPingTask::svc()
 {
   C_INFO("start %s::svc()\n", title());
   CMB * mb;
-  ACE_Time_Value l_z(ACE_Time_Value::zero);
+  CTV l_z(CTV::zero);
   while (CRunnerX::instance()->running())
   {
     truefalse l_x = true;
@@ -3482,16 +3482,16 @@ CPingAcc::CPingAcc(CParentScheduler * p1, CHandlerDirector * p2): CParentAcc(p1,
   m_reap_interval = REAP_TIMEOUT;
 }
 
-ni CPingAcc::make_svc_handler(CParentHandler *& sh)
+ni CPingAcc::make_svc_handler(CParentHandler *& v_x)
 {
-  sh = new CPingHandler(m_director);
-  if (!sh)
+  v_x = new CPingHandler(m_director);
+  if (!v_x)
   {
     C_ERROR("oom @%s\n", title());
     return -1;
   }
-  sh->container((void*)this);
-  sh->reactor(reactor());
+  v_x->container((void*)this);
+  v_x->reactor(reactor());
   return 0;
 }
 
@@ -3519,12 +3519,12 @@ CPingAcc * CPingScheduler::acc() CONST
   return m_acc;
 }
 
-ni CPingScheduler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID * v_x)
+ni CPingScheduler::handle_timeout(CONST CTV &, CONST DVOID * v_x)
 {
   if ((long)v_x == CParentScheduler::TID)
   {
     CMB *mb;
-    ACE_Time_Value l_tv(ACE_Time_Value::zero);
+    CTV l_tv(CTV::zero);
     while (-1 != this->getq(mb, &l_tv))
     {
       if (unlikely(mb->size() < sizeof(CCmdHeader)))
@@ -3596,7 +3596,7 @@ truefalse CPingScheduler::before_begin()
   acc_add(m_acc);
 
   {
-    ACE_Time_Value l_tv(TIMER_VALUE_PING);
+    CTV l_tv(TIMER_VALUE_PING);
     if (reactor()->schedule_timer(this, (CONST void*)TID_PING, l_tv, l_tv) < 0)
     {
       C_ERROR("schedule_timer ping: %s %s\n", title(), (CONST char*)CSysError());
@@ -3605,7 +3605,7 @@ truefalse CPingScheduler::before_begin()
   }
 
   {
-    ACE_Time_Value l_tv(TIMER_VALUE_IP_VER);
+    CTV l_tv(TIMER_VALUE_IP_VER);
     if (reactor()->schedule_timer(this, (CONST void*)TID_IPVER, l_tv, l_tv) < 0)
     {
       C_ERROR("schedule_timer ip ver:%s %s\n", title(), (CONST char*)CSysError());
@@ -3614,7 +3614,7 @@ truefalse CPingScheduler::before_begin()
   }
 
   {
-    ACE_Time_Value l_tv(TIMER_VALUE_DOWNLOAD_REPLY);
+    CTV l_tv(TIMER_VALUE_DOWNLOAD_REPLY);
     if (reactor()->schedule_timer(this, (CONST void*)TID_DOWNLOAD_REPLY, l_tv, l_tv) < 0)
     {
       C_ERROR("schedule_timer download reply:%s %s\n", title(), (CONST char*)CSysError());
@@ -3623,7 +3623,7 @@ truefalse CPingScheduler::before_begin()
   }
 
   {
-    ACE_Time_Value l_tv(TIMER_VALUE_DIST_TASK * 60);
+    CTV l_tv(TIMER_VALUE_DIST_TASK * 60);
     if (reactor()->schedule_timer(this, (CONST void*)TID_DIST_TASK, l_tv, l_tv) < 0)
     {
       C_ERROR("schedule_timer dist task:%s %s\n", title(), (CONST char*)CSysError());
@@ -3632,7 +3632,7 @@ truefalse CPingScheduler::before_begin()
   }
 
   {
-    ACE_Time_Value l_tv(TIMER_VALUE_CLICK * 60);
+    CTV l_tv(TIMER_VALUE_CLICK * 60);
     if (reactor()->schedule_timer(this, (CONST void*)TID_CLICK, l_tv, l_tv) < 0)
     {
       C_ERROR("schedule_timer click:%s %s\n", title(), (CONST char*)CSysError());
@@ -3809,7 +3809,7 @@ DVOID CD2BsHandler::refresh()
   m_validator.refresh();
 }
 
-ni CD2BsHandler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
+ni CD2BsHandler::handle_timeout(CONST CTV &, CONST DVOID *)
 {
   if (m_validator.overdue())
   {
@@ -3827,7 +3827,7 @@ ni CD2BsHandler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
 
 ni CD2BsHandler::at_start()
 {
-  ACE_Time_Value l_tv(30);
+  CTV l_tv(30);
   if (reactor()->schedule_timer(this, (void*)0, l_tv, l_tv) < 0)
   {
     C_ERROR(ACE_TEXT("schedule_timer: %s"), (CONST char*)CSysError());
@@ -3854,7 +3854,7 @@ DVOID CD2BsHandler::at_finish()
 
 }
 
-PREPARE_MEMORY_POOL(CD2BsHandler);
+yy_enable_cache(CD2BsHandler);
 
 
 
@@ -3870,16 +3870,16 @@ CONST text * CD2BsConn::title() CONST
   return "CD2BsConn";
 }
 
-ni CD2BsConn::make_svc_handler(CParentHandler *& sh)
+ni CD2BsConn::make_svc_handler(CParentHandler *& v_x)
 {
-  sh = new CD2BsHandler(m_director);
-  if (!sh)
+  v_x = new CD2BsHandler(m_director);
+  if (!v_x)
   {
     C_ERROR("oom @%s\n", title());
     return -1;
   }
-  sh->container((void*)this);
-  sh->reactor(reactor());
+  v_x->container((void*)this);
+  v_x->reactor(reactor());
   return 0;
 }
 
@@ -3920,7 +3920,7 @@ CProc::OUTPUT CD2MProc::at_head_arrival()
 
   if (l_y)
   {
-    if (!c_packet_check_term_ver_reply(&m_data_head))
+    if (!c_packet_check_term_ver_back(&m_data_head))
     {
       C_ERROR("can not check term ver reply data\n");
       return OP_FAIL;
@@ -3940,7 +3940,7 @@ CProc::OUTPUT CD2MProc::at_head_arrival()
 
   if (m_data_head.cmd == CCmdHeader::PT_REMOTE_CMD)
   {
-    if (!c_packet_check_file_md5_list(&m_data_head))
+    if (!c_packet_check_checksums_all(&m_data_head))
     {
       C_ERROR("can not check rmt command data\n");
       return OP_FAIL;
@@ -4022,11 +4022,11 @@ CProc::OUTPUT CD2MProc::handle_ver_reply(CMB * mb)
     C_ERROR("%s ver bad\n", prefix_msg);
     return CProc::OP_FAIL;
 
-  case CTermVerReply::SC_ACCESS_DENIED:
+  case CTermVerReply::SC_NO_RIGHTS:
     C_ERROR("%s no rights\n", prefix_msg);
     return CProc::OP_FAIL;
 
-  case CTermVerReply::SC_SERVER_BUSY:
+  case CTermVerReply::SC_NOT_FREE:
     C_ERROR("%s all are in use\n", prefix_msg);
     return CProc::OP_FAIL;
 
@@ -4070,8 +4070,8 @@ CD2MHandler::CD2MHandler(CHandlerDirector * P): CParentHandler(P)
 
 DVOID CD2MHandler::init_timer()
 {
-  ACE_Time_Value l_x(ACE_Time_Value::zero);
-  ACE_Time_Value l_y(BALANCE_DELAY * 60);
+  CTV l_x(CTV::zero);
+  CTV l_y(BALANCE_DELAY * 60);
   m_tid = reactor()->schedule_timer(this, (void*)BALANCE_TIMER, l_x, l_y);
   if (m_tid < 0)
     C_ERROR("schedule_timer: %s", (CONST char*)CSysError());
@@ -4087,7 +4087,7 @@ ni CD2MHandler::at_start()
   return 0;
 }
 
-ni CD2MHandler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID * v_ptr)
+ni CD2MHandler::handle_timeout(CONST CTV &, CONST DVOID * v_ptr)
 {
   if (long(v_ptr) == BALANCE_TIMER)
     return ((CD2MProc*)m_proc)->post_balance();
@@ -4106,7 +4106,7 @@ DVOID CD2MHandler::at_finish()
     reactor()->cancel_timer(m_tid);
 }
 
-PREPARE_MEMORY_POOL(CD2MHandler);
+yy_enable_cache(CD2MHandler);
 
 
 
@@ -4151,7 +4151,7 @@ CD2MSchduler::~CD2MSchduler()
 
 DVOID CD2MSchduler::before_finish_stage_1()
 {
-  ACE_Time_Value l_x(ACE_Time_Value::zero);
+  CTV l_x(CTV::zero);
   CMB * mb;
   while (m_2_bs_mq.dequeue(mb, &l_x) != -1)
     mb->release();
@@ -4172,14 +4172,14 @@ truefalse CD2MSchduler::before_begin()
 
 truefalse CD2MSchduler::do_schedule_work()
 {
-  ACE_Time_Value l_x(ACE_Time_Value::zero);
+  CTV l_x(CTV::zero);
   CMB * mb;
   CONST ni CONST_peak_number = 10;
   ni l_m = 0;
   while (++l_m < CONST_peak_number && this->getq(mb, &l_x) != -1)
     m_conn->director()->post_all(mb);
 
-  l_x = ACE_Time_Value::zero;
+  l_x = CTV::zero;
   l_m = 0;
   while (++l_m < CONST_peak_number && m_2_bs_mq.dequeue(mb, &l_x) != -1)
     m_2_bs_conn->director()->post_all(mb);
@@ -4194,7 +4194,7 @@ CONST text * CD2MSchduler::title() CONST
 
 DVOID CD2MSchduler::post_bs(CMB * mb)
 {
-  ACE_Time_Value l_x(ACE_Time_Value::zero);
+  CTV l_x(CTV::zero);
   if (m_2_bs_mq.enqueue(mb, &l_x) < 0)
     mb->release();
 }
@@ -4249,9 +4249,6 @@ DVOID CD2MContainer::before_finish()
 
 
 //db
-
-CONST text * CONST_db_name = "acedb";
-
 
 class CPGResultProt
 {
@@ -4314,7 +4311,7 @@ truefalse CPG::login_to_db()
   if (is_online())
     return true;
   CCfg * l_obj = CCfgX::instance();
-  CONST text * const_text = "hostaddr=%s port=%d user='%s' password='%s' dbname=acedb";
+  CONST text * const_text = "hostaddr=%s port=%d user='%s' password='%s' dbname=serverdata";
   CONST ni TEXT_SIZE = 1024;
   text connect_str[TEXT_SIZE];
   snprintf(connect_str, TEXT_SIZE - 1, const_text,
@@ -4441,8 +4438,8 @@ truefalse CPG::load_term_SNs(CTermSNs * v_SNs)
 {
   C_ASSERT_RETURN(v_SNs != NULL, "null param\n", false);
 
-  CONST text * CONST_cmd = "select client_id, client_password, client_expired, auto_seq "
-                                           "from tb_clients where auto_seq > %d order by auto_seq";
+  CONST text * CONST_cmd = "select term_sn, term_key, term_bad, term_serial "
+                                           "from x_terms where term_serial > %d order by term_serial";
   text l_cmd[1024];
   snprintf(l_cmd, 1024 - 1, CONST_cmd, v_SNs->prev_no());
 
@@ -4481,7 +4478,7 @@ truefalse CPG::save_term_sn(CONST text * v_str)
   if (l_sn.to_str()[0] == 0)
     return false;
 
-  CONST text * const_cmd = "insert into tb_clients(client_id) values('%s')";
+  CONST text * const_cmd = "insert into x_terms(term_sn) values('%s')";
   text l_cmd[1024];
   snprintf(l_cmd, 1024, const_cmd, l_sn.to_str());
 
@@ -4491,9 +4488,9 @@ truefalse CPG::save_term_sn(CONST text * v_str)
 
 truefalse CPG::write_task(CBsDistReq & v_req, CONST text * v_cs, CONST text * v_mbz_cs)
 {
-  CONST text * const_text = "insert into tb_dist_info("
-               "dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
-               "dist_ftype, dist_password, dist_md5, dist_mbz_md5) "
+  CONST text * const_text = "insert into x_handleout_data("
+               "ho_no, ho_kind, ho_term_file, ho_server_file, ho_server_path,"
+               "ho_server_kind, ho_key, ho_checksum, ho_zip_checksum) "
                "values('%s', '%s', %s, '%s', '%s', '%s', '%s', '%s', '%s')";
   CONST text * l_cs = v_cs ? v_cs : "";
   CONST text * l_mbz_cs = v_mbz_cs ? v_mbz_cs : "";
@@ -4512,7 +4509,7 @@ truefalse CPG::write_task(CBsDistReq & v_req, CONST text * v_cs, CONST text * v_
 
 truefalse CPG::write_sr(text * dids, CONST text * cmd, text * v_sn_s)
 {
-  CONST text * const_cmd = "update tb_dist_clients set dc_status = %d where dc_dist_id = '%s' and dc_client_id = '%s'";
+  CONST text * const_cmd = "update x_handout_details set hd_state = %d where hd_no = '%s' and hd_term_sn = '%s'";
   ni l_condition = *cmd == '1'? 5: 7;
 
   text l_cmd[1024];
@@ -4581,7 +4578,7 @@ truefalse CPG::write_pl(CONST text * v_plist)
   if (!v_plist || !*v_plist)
     return false;
   text l_cmd[2048];
-  CONST text * const_cmd = "update tb_config set cfg_value = '%s' where cfg_id = 2";
+  CONST text * const_cmd = "update x_sinfo set sdata = '%s' where skey = 2";
   snprintf(l_cmd, 2048, const_cmd, v_plist);
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return run_sql(l_cmd);
@@ -4589,8 +4586,8 @@ truefalse CPG::write_pl(CONST text * v_plist)
 
 truefalse CPG::write_task_terms(text * v_term_SNs, text * v_adir_s, CONST text * v_task)
 {
-  CONST text * const_cmd1 = "insert into tb_dist_clients(dc_dist_id, dc_client_id, dc_adir) values('%s', '%s', '%s')";
-  CONST text * const_cmd2 = "insert into tb_dist_clients(dc_dist_id, dc_client_id) values('%s', '%s')";
+  CONST text * const_cmd1 = "insert into x_handout_details(hd_no, hd_term_sn, hd_term_path) values('%s', '%s', '%s')";
+  CONST text * const_cmd2 = "insert into x_handout_details(hd_no, hd_term_sn) values('%s', '%s')";
   text l_cmd[2048];
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
@@ -4646,24 +4643,11 @@ truefalse CPG::write_task_terms(text * v_term_SNs, text * v_adir_s, CONST text *
   return true;
 }
 
-truefalse CPG::write_task_cmp_finished(CONST text *v_task)
-{
-  if (unlikely(!v_task || !*v_task))
-    return false;
-
-  CONST text * const_text = "update tb_dist_info set dist_cmp_done = 1 where dist_id='%s'";
-  text l_cmd[1024];
-  snprintf(l_cmd, 1024, const_text, v_task);
-
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return run_sql(l_cmd);
-}
-
 ni CPG::read_tasks(CBsDistDatas & v_datas)
 {
-  CONST text * const_text = "select dist_id, dist_type, dist_aindex, dist_findex, dist_fdir,"
-                                  " dist_ftype, dist_time, dist_password, dist_mbz_md5, dist_md5"
-                                   " from tb_dist_info order by dist_time";
+  CONST text * const_text = "select ho_no, ho_kind, ho_term_file, ho_server_file, ho_server_path,"
+                                  " ho_server_kind, ho_when, ho_key, ho_zip_checksum, ho_checksum"
+                                   " from x_handleout_data order by ho_when";
 
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
 
@@ -4736,41 +4720,13 @@ ni CPG::read_tasks(CBsDistDatas & v_datas)
 }
 
 
-truefalse CPG::finish_task_cmp(CONST text * v_task)
-{
-  if (unlikely(!v_task || !*v_task))
-    return false;
-
-  CONST text * const_cmd = "update tb_dist_info set dist_cmp_done = 1 "
-                                     "where dist_id = '%s'";
-  text l_cmd[1024];
-  snprintf(l_cmd, 1024, const_cmd, v_task);
-
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return run_sql(l_cmd);
-}
-
-truefalse CPG::finish_task_cs(CONST text * v_task)
-{
-  if (unlikely(!v_task || !*v_task))
-    return false;
-
-  CONST text * const_cmd = "update tb_dist_info set dist_md5_done = 1 "
-                                     "where dist_id = '%s'";
-  text l_cmd[1024];
-  snprintf(l_cmd, 1024, const_cmd, v_task);
-
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
-  return run_sql(l_cmd);
-}
-
 truefalse CPG::write_task_cs(CONST text * v_task, CONST text * v_cs, ni v_cs_size)
 {
   if (unlikely(!v_task || !*v_task || !v_cs))
     return false;
 
-  CONST text * const_cmd = "update tb_dist_info set dist_md5 = '%s' "
-                                     "where dist_id = '%s'";
+  CONST text * const_cmd = "update x_handleout_data set ho_checksum = '%s' "
+                                     "where ho_no = '%s'";
   ni v_m = v_cs_size + strlen(const_cmd) + strlen(v_task) + 20;
   CMemProt l_cmd;
   CCacheX::instance()->get(v_m, &l_cmd);
@@ -4785,8 +4741,8 @@ truefalse CPG::write_task_download_cs(CONST text * v_task, CONST text * v_cs)
   if (unlikely(!v_task || !*v_task || !v_cs || !*v_cs))
     return false;
 
-  CONST text * const_cmd = "update tb_dist_info set dist_mbz_md5 = '%s' "
-                                     "where dist_id = '%s'";
+  CONST text * const_cmd = "update x_handleout_data set ho_zip_checksum = '%s' "
+                                     "where ho_no = '%s'";
   text l_cmd[1024];
   snprintf(l_cmd, 1024, const_cmd, v_cs, v_task);
 
@@ -4798,12 +4754,12 @@ truefalse CPG::read_task_terms(CTermStations * v_stations, CTermStation * v_stat
 {
   C_ASSERT_RETURN(v_stations != NULL, "null param\n", false);
 
-  CONST text * CONST_cmd1 = "select dc_dist_id, dc_client_id, dc_status, dc_adir, dc_last_update,"
-      " dc_mbz_file, dc_mbz_md5, dc_md5"
-      " from tb_dist_clients order by dc_client_id";
-  CONST text * CONST_cmd2 = "select dc_dist_id, dc_client_id, dc_status, dc_adir, dc_last_update,"
-      " dc_mbz_file, dc_mbz_md5, dc_md5"
-      " from tb_dist_clients where dc_client_id = '%s'";
+  CONST text * CONST_cmd1 = "select hd_no, hd_term_sn, hd_state, hd_term_path, hd_prev_access,"
+      " hd_zip_name, hd_zip_checksum, hd_checksum"
+      " from x_handout_details order by hd_term_sn";
+  CONST text * CONST_cmd2 = "select hd_no, hd_term_sn, hd_state, hd_term_path, hd_prev_access,"
+      " hd_zip_name, hd_zip_checksum, hd_checksum"
+      " from x_handout_details where hd_term_sn = '%s'";
   CONST text * CONST_cmd;
 
   text l_cmd[512];
@@ -4897,8 +4853,8 @@ truefalse CPG::write_task_term_item_condition(CDistTermItem & v_item, ni v_condt
 
 truefalse CPG::write_task_term_condition(CONST text * v_term_sn, CONST text * v_task, ni v_condition)
 {
-  CONST text * const_cmd = "update tb_dist_clients set dc_status = %d "
-                                     "where dc_dist_id = '%s' and dc_client_id='%s' and dc_status < %d";
+  CONST text * const_cmd = "update x_handout_details set hd_state = %d "
+                                     "where hd_no = '%s' and hd_term_sn='%s' and hd_state < %d";
   text l_cmd[1024];
   snprintf(l_cmd, 1024, const_cmd, v_condition, v_task, v_term_sn, v_condition);
 
@@ -4908,8 +4864,8 @@ truefalse CPG::write_task_term_condition(CONST text * v_term_sn, CONST text * v_
 
 truefalse CPG::write_task_term_cs(CONST text * v_term_sn, CONST text * v_task, CONST text * v_cs, ni v_condition)
 {
-  CONST text * const_cmd = "update tb_dist_clients set dc_status = %d, dc_md5 = '%s' "
-                                     "where dc_dist_id = '%s' and dc_client_id='%s' and dc_status < %d";
+  CONST text * const_cmd = "update x_handout_details set hd_state = %d, hd_checksum = '%s' "
+                                     "where hd_no = '%s' and hd_term_sn='%s' and hd_state < %d";
   ni l_m = strlen(const_cmd) + strlen(v_cs) + strlen(v_term_sn) + strlen(v_task) + 40;
   CMemProt l_cmd;
   CCacheX::instance()->get(l_m, &l_cmd);
@@ -4922,8 +4878,8 @@ truefalse CPG::write_task_term_cs(CONST text * v_term_sn, CONST text * v_task, C
 
 truefalse CPG::write_task_term_mbz(CONST text * v_term_sn, CONST text * v_task, CONST text * v_mbz, CONST text * v_cs_mbz)
 {
-  CONST text * const_cmd = "update tb_dist_clients set dc_mbz_file = '%s', dc_mbz_md5 = '%s' "
-                                     "where dc_dist_id = '%s' and dc_client_id='%s' and dc_status < 3";
+  CONST text * const_cmd = "update x_handout_details set hd_zip_name = '%s', hd_zip_checksum = '%s' "
+                                     "where hd_no = '%s' and hd_term_sn='%s' and hd_state < 3";
   ni l_m = strlen(const_cmd) + strlen(v_mbz) + strlen(v_term_sn)
           + strlen(v_task) + 40 + strlen(v_cs_mbz);
   CMemProt l_cmd;
@@ -4937,7 +4893,7 @@ truefalse CPG::write_task_term_mbz(CONST text * v_term_sn, CONST text * v_task, 
 
 truefalse CPG::destruct_task_term(CONST text * v_term_sn, CONST text * v_task)
 {
-  CONST text * const_cmd = "delete from tb_dist_clients where dc_dist_id = '%s' and dc_client_id='%s'";
+  CONST text * const_cmd = "delete from x_handout_details where hd_no = '%s' and hd_no='%s'";
   text l_cmd[1024];
   snprintf(l_cmd, 1024, const_cmd, v_task, v_term_sn);
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
@@ -4976,14 +4932,14 @@ truefalse CPG::refresh_task_condition()
 
 truefalse CPG::delete_unused_tasks()
 {
-  CONST text * const_cmd = "select post_process()";
+  CONST text * const_cmd = "select last_func()";
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   return run_sql(const_cmd);
 }
 
 truefalse CPG::read_term_SNs(CObsoleteDirDeleter & v_obj)
 {
-  CONST text * const_cmd = "select dist_id from tb_dist_info";
+  CONST text * const_cmd = "select ho_no from x_handleout_data";
   ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
   PGresult * l_x = PQexec(m_pg_con, const_cmd);
   CPGResultProt prot(l_x);
@@ -5006,11 +4962,11 @@ truefalse CPG::change_term_valid(CONST text * v_term_sn, truefalse v_ok)
   text l_cmd[1024];
   if (!v_ok)
   {
-    CONST text * const_cmd = "delete from tb_clients where client_id = '%s'";
+    CONST text * const_cmd = "delete from x_terms where term_sn = '%s'";
     snprintf(l_cmd, 1024, const_cmd, v_term_sn);
   } else
   {
-    CONST text * const_cmd = "insert into tb_clients(client_id, client_password) values('%s', '%s')";
+    CONST text * const_cmd = "insert into x_terms(term_sn, term_key) values('%s', '%s')";
     snprintf(l_cmd, 1024, const_cmd, v_term_sn, v_term_sn);
   }
 
@@ -5020,7 +4976,7 @@ truefalse CPG::change_term_valid(CONST text * v_term_sn, truefalse v_ok)
 
 truefalse CPG::write_config(CONST ni v_key, CONST text * v_x)
 {
-  CONST text * const_cmd = "update tb_config set cfg_value = '%s' where cfg_id = %d";
+  CONST text * const_cmd = "update x_sinfo set sdata = '%s' where skey = %d";
   text l_cmd[1024];
   snprintf(l_cmd, 1024, const_cmd, v_x, v_key);
 
@@ -5036,7 +4992,7 @@ truefalse CPG::read_config(CONST ni v_key, CMemProt & v_x)
 
 truefalse CPG::read_config_i(CONST ni v_key, CMemProt & v_x)
 {
-  CONST text * const_cmd = "select cfg_value from tb_config where cfg_id = %d";
+  CONST text * const_cmd = "select sdata from x_sinfo where skey = %d";
   text l_cmd[1024];
   snprintf(l_cmd, 1024, const_cmd, v_key);
 

@@ -2329,27 +2329,27 @@ ni main( DVOID )
 #endif
 
 
-truefalse c_packet_check_file_md5_list(CONST CCmdHeader * h)
+truefalse c_packet_check_checksums_all(CONST CCmdHeader * h)
 {
   return h->signature == CCmdHeader::SIGNATURE &&
          h->size > (i32)sizeof(CCmdHeader) &&
          h->size < 2000000;
 }
 
-truefalse c_packet_check_ftp_file(CONST CCmdHeader * h)
+truefalse c_packet_check_download_cmd(CONST CCmdHeader * h)
 {
   return h->signature == CCmdHeader::SIGNATURE &&
          h->size > (i32)sizeof(CCmdHeader) &&
          h->size < 4096;
 }
 
-truefalse c_packet_check_base(CONST CCmdHeader * h)
+truefalse c_packet_check_common(CONST CCmdHeader * h)
 {
   return h->signature == CCmdHeader::SIGNATURE &&
          h->size == (i32)sizeof(CCmdHeader);
 }
 
-truefalse c_packet_check_plc_alarm(CONST CCmdHeader * h)
+truefalse c_packet_check_hw_warn(CONST CCmdHeader * h)
 {
   return h->signature == CCmdHeader::SIGNATURE &&
          h->size == (i32)sizeof(CPLCWarning);
@@ -2361,7 +2361,7 @@ truefalse c_packet_check_load_balance_req(CONST CCmdHeader * h)
          h->size == (i32)sizeof(CLoadBalanceReq);
 }
 
-truefalse c_packet_check_term_ver_reply(CONST CCmdHeader * h)
+truefalse c_packet_check_term_ver_back(CONST CCmdHeader * h)
 {
   return h->signature == CCmdHeader::SIGNATURE &&
          h->size >= (i32)sizeof(CTermVerReply) &&
@@ -2379,7 +2379,7 @@ truefalse c_packet_check_term_ver_req(CONST CCmdHeader * h, CONST ni extra)
            h->size == (i32)sizeof(CTerminalVerReq);
 }
 
-truefalse c_packet_check_vlc_empty(CONST CCmdHeader * h)
+truefalse c_packet_check_no_video(CONST CCmdHeader * h)
 {
   return h->signature == CCmdHeader::SIGNATURE &&
          h->size == (i32)sizeof(CCmdHeader) + 1;

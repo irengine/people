@@ -1591,7 +1591,7 @@ CProc::OUTPUT CParentServerProc::i_is_ver_ok(CMB * mb, CTermSNs & term_SNs)
 {
   CTerminalVerReq * l_header = (CTerminalVerReq *) mb->base();
   l_header->fix_data();
-  CMB * reply_mb = NULL;
+  CMB * l_back = NULL;
   m_term_ver.init(l_header->term_ver_major, l_header->term_ver_minor);
   ni m = term_SNs.find_location(l_header->term_sn);
   truefalse l_ok = false;
@@ -1610,12 +1610,12 @@ CProc::OUTPUT CParentServerProc::i_is_ver_ok(CMB * mb, CTermSNs & term_SNs)
   {
     m_mark_down = true;
     C_WARNING("terminate client because bad sn = %s\n", l_header->term_sn.to_str());
-    reply_mb = i_create_mb_ver_reply(CTermVerReply::SC_ACCESS_DENIED);
+    l_back = i_create_mb_ver_reply(CTermVerReply::SC_NO_RIGHTS);
   }
 
   if (m_mark_down)
   {
-    if (m_handler->post_packet(reply_mb) <= 0)
+    if (m_handler->post_packet(l_back) <= 0)
       return OP_FAIL;
     else
       return OP_OK;
@@ -1663,9 +1663,9 @@ DVOID CParentClientProc::sn_check_ok(truefalse bOK)
 truefalse CParentClientProc::ok_to_post(CMB * mb) CONST
 {
   CCmdHeader * l_header = (CCmdHeader*) mb->base();
-  truefalse bVerReq = l_header->cmd == CCmdHeader::PT_VER_REQ;
-  truefalse sn_check_done = term_sn_check_done();
-  return bVerReq != sn_check_done;
+  truefalse l_is_ver = l_header->cmd == CCmdHeader::PT_VER_REQ;
+  truefalse l_ver_finished = term_sn_check_done();
+  return l_is_ver != l_ver_finished;
 }
 
 
@@ -2078,7 +2078,7 @@ ni CParentHandler::handle_close (ACE_HANDLE handle, ACE_Reactor_Mask close_mask)
   ACE_UNUSED_ARG(close_mask);
 
   CMB *mb;
-  ACE_Time_Value t(ACE_Time_Value::zero);
+  CTV t(CTV::zero);
   while (-1 != this->getq(mb, &t))
     mb->release();
   if (m_handler_director && !m_marked_for_close)
@@ -2092,7 +2092,7 @@ ni CParentHandler::handle_close (ACE_HANDLE handle, ACE_Reactor_Mask close_mask)
 ni CParentHandler::handle_output (ACE_HANDLE)
 {
   CMB *mb;
-  ACE_Time_Value t (ACE_Time_Value::zero);
+  CTV t (CTV::zero);
   while (-1 != this->getq(mb, &t))
   {
     if (c_tools_post_mb(this, mb) < 0)
@@ -2162,7 +2162,7 @@ DVOID CParentAcc::before_finish()
 
 }
 
-ni CParentAcc::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *m)
+ni CParentAcc::handle_timeout(CONST CTV &, CONST DVOID *m)
 {
   if (long(m) == TID_reap_broken)
     m_director->delete_broken(m_reap_interval);
@@ -2190,7 +2190,7 @@ ni CParentAcc::begin()
 
   if (m_reap_interval > 0)
   {
-    ACE_Time_Value tv( m_reap_interval * 60);
+    CTV tv( m_reap_interval * 60);
     m_reaper_id = reactor()->schedule_timer(this, (void*)TID_reap_broken, tv, tv);
     if (m_reaper_id < 0)
     {
@@ -2277,10 +2277,10 @@ truefalse CParentConn::before_reconnect()
   return true;
 }
 
-ni CParentConn::handle_timeout(CONST ACE_Time_Value &current_time, CONST DVOID *act)
+ni CParentConn::handle_timeout(CONST CTV &v_x, CONST DVOID *v_y)
 {
-  ACE_UNUSED_ARG(current_time);
-  if (long(act) == TID_retry && m_retry_delay > 0)
+  ACE_UNUSED_ARG(v_x);
+  if (long(v_y) == TID_retry && m_retry_delay > 0)
   {
     if (m_director->active_count() < m_conn_count)
     {
@@ -2295,7 +2295,7 @@ ni CParentConn::handle_timeout(CONST ACE_Time_Value &current_time, CONST DVOID *
         i_socket_connect(m_conn_count - m_director->active_count(), true);
       }
     }
-  } else if (long(act) == TID_reap_broken && m_no_activity_delay > 0)
+  } else if (long(v_y) == TID_reap_broken && m_no_activity_delay > 0)
     m_director->delete_broken(m_no_activity_delay);
 
   return 0;
@@ -2340,7 +2340,7 @@ ni CParentConn::begin()
 
   if (m_retry_delay > 0)
   {
-    ACE_Time_Value interval (m_retry_delay * 60);
+    CTV interval (m_retry_delay * 60);
     m_retry_tid = reactor()->schedule_timer (this, (void*)TID_retry, interval, interval);
     if (m_retry_tid < 0)
       C_ERROR(ACE_TEXT("%s setup reconnect timer failed, %s\n"), title(), (CONST char*)CSysError());
@@ -2348,7 +2348,7 @@ ni CParentConn::begin()
 
   if (m_no_activity_delay > 0)
   {
-    ACE_Time_Value tv( m_no_activity_delay * 60);
+    CTV tv( m_no_activity_delay * 60);
     m_no_activity_tid = reactor()->schedule_timer(this, (void*)TID_reap_broken, tv, tv);
     if (m_no_activity_tid < 0)
     {
@@ -2424,54 +2424,54 @@ ni CParentConn::i_socket_connect(ni v_num, truefalse is_new)
     truefalse l_x = m_unfinished_count > 0;
     if (l_x && is_new)
       return 0;
-    ni actual_number;
+    ni l_true_count;
     if (l_x)
-      actual_number = std::min(m_unfinished_count, (ONCE_COUNT - m_director->waiting_count()));
+      l_true_count = std::min(m_unfinished_count, (ONCE_COUNT - m_director->waiting_count()));
     else
-      actual_number = std::min(v_num, (ni)ONCE_COUNT);
+      l_true_count = std::min(v_num, (ni)ONCE_COUNT);
 
-    if (actual_number <= 0)
+    if (l_true_count <= 0)
       return 0;
 
-    ACE_INET_Addr port_to_connect(m_port_of_ip, m_remote_ip.c_str());
+    ACE_INET_Addr l_addr(m_port_of_ip, m_remote_ip.c_str());
     CParentHandler * l_h = NULL;
-    ni num_done = 0, num_waiting = 0;
+    ni l_done = 0, l_pending = 0;
 
-    ACE_Time_Value timeout(60);
-    ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, timeout);
+    CTV l_oopp(60);
+    ACE_Synch_Options l_param(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, l_oopp);
 
-    for (ni i = 1; i <= actual_number; ++i)
+    for (ni i = 1; i <= l_true_count; ++i)
     {
       l_h = NULL;
-      ni l_y = connect(l_h, port_to_connect, synch_options);
+      ni l_y = connect(l_h, l_addr, l_param);
       if (l_y == 0)
       {
-        ++num_done;
+        ++l_done;
       }
       else if (l_y == -1)
       {
         if (errno == EWOULDBLOCK)
         {
-          num_waiting++;
+          l_pending++;
           m_director->add(l_h, CHandlerDirector::HWaiting);
         }
       }
     }
 
     if (l_x)
-      m_unfinished_count -= actual_number;
+      m_unfinished_count -= l_true_count;
     else if (is_new)
-      m_unfinished_count = v_num - actual_number;
+      m_unfinished_count = v_num - l_true_count;
 
     C_INFO("%s connecting to %s:%d (all=%d, done=%d, failed=%d, waiting=%d)... \n", title(),
-        m_remote_ip.c_str(), m_port_of_ip, actual_number, num_done, actual_number - num_done- num_waiting, num_waiting);
+        m_remote_ip.c_str(), m_port_of_ip, l_true_count, l_done, l_true_count - l_done- l_pending, l_pending);
 
-    return num_done + num_waiting > 0;
+    return l_done + l_pending > 0;
   } else
   {
     ACE_INET_Addr l_addr(m_port_of_ip, m_remote_ip.c_str());
     CParentHandler * l_h = NULL;
-    ACE_Time_Value tv(60);
+    CTV tv(60);
     ACE_Synch_Options synch_options(ACE_Synch_Options::USE_REACTOR | ACE_Synch_Options::USE_TIMEOUT, tv);
     C_INFO("%s connecting to %s:%d ...\n", title(), m_remote_ip.c_str(), m_port_of_ip);
     if (connect(l_h, l_addr, synch_options) == -1)
@@ -2573,7 +2573,7 @@ ni CParentScheduler::open (DVOID *)
 
   if (m_delay_clock > 0)
   {
-    ACE_Time_Value interval(m_delay_clock);
+    CTV interval(m_delay_clock);
     if (m_reactor->schedule_timer(this, (CONST void*)TID, interval, interval) < 0)
     {
       C_ERROR("can not setup timer %s %s\n", title(), (CONST char*)CSysError());
@@ -2707,8 +2707,8 @@ ni CParentScheduler::svc()
 
   while (m_container->working_app())
   {
-    ACE_Time_Value timeout(2);
-    ni ret = reactor()->handle_events(&timeout);
+    CTV l_x(2);
+    ni ret = reactor()->handle_events(&l_x);
     if (ret == -1)
     {
       if (errno == EINTR)
@@ -2809,14 +2809,14 @@ DVOID CContainer::i_print()
 
 }
 
-DVOID CContainer::add_task(CTaskBase * _service)
+DVOID CContainer::add_task(CTaskBase * v_task)
 {
-  if (!_service)
+  if (!v_task)
   {
     C_FATAL("NULL param\n");
     return;
   }
-  m_tasks.push_back(_service);
+  m_tasks.push_back(v_task);
 }
 
 DVOID CContainer::add_scheduler(CParentScheduler * p)

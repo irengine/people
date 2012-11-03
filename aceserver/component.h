@@ -731,7 +731,7 @@ public:
   typedef ACE_Acceptor<CParentHandler, CSockBridge>  baseclass;
   CParentAcc(CParentScheduler *, CHandlerDirector *);
   virtual ~CParentAcc();
-  virtual ni handle_timeout (CONST ACE_Time_Value &, CONST DVOID * = 0);
+  virtual ni handle_timeout (CONST CTV &, CONST DVOID * = 0);
   ni begin();
   ni end();
   DVOID print_info();
@@ -764,7 +764,7 @@ public:
 
   CParentConn(CParentScheduler *, CHandlerDirector *);
   virtual ~CParentConn();
-  virtual ni handle_timeout (CONST ACE_Time_Value &, CONST DVOID * = 0);
+  virtual ni handle_timeout (CONST CTV &, CONST DVOID * = 0);
   CContainer * container() CONST;
   CHandlerDirector * director() CONST;
   CParentScheduler * scheduler() CONST;

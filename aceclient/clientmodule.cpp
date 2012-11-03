@@ -2558,7 +2558,7 @@ CProc::OUTPUT MyClientToDistProcessor::at_head_arrival()
 
   if (bVersionCheckReply)
   {
-    if (!c_packet_check_term_ver_reply(&m_data_head))
+    if (!c_packet_check_term_ver_back(&m_data_head))
     {
       C_ERROR("failed to validate header for version check\n");
       return OP_FAIL;
@@ -2568,7 +2568,7 @@ CProc::OUTPUT MyClientToDistProcessor::at_head_arrival()
 
   if (m_data_head.cmd == CCmdHeader::PT_FILE_MD5_LIST)
   {
-    if (!c_packet_check_file_md5_list(&m_data_head))
+    if (!c_packet_check_checksums_all(&m_data_head))
     {
       C_ERROR("failed to validate header for server file md5 list\n");
       return OP_FAIL;
@@ -2578,7 +2578,7 @@ CProc::OUTPUT MyClientToDistProcessor::at_head_arrival()
 
   if (m_data_head.cmd == CCmdHeader::PT_FTP_FILE)
   {
-    if (!c_packet_check_ftp_file(&m_data_head))
+    if (!c_packet_check_download_cmd(&m_data_head))
     {
       C_ERROR("failed to validate header for server ftp file\n");
       return OP_FAIL;
@@ -2599,7 +2599,7 @@ CProc::OUTPUT MyClientToDistProcessor::at_head_arrival()
 
   if (m_data_head.cmd == CCmdHeader::PT_ACK)
   {
-    if (!c_packet_check_base(&m_data_head))
+    if (!c_packet_check_common(&m_data_head))
     {
       C_ERROR("failed to validate header for server ack packet\n");
       return OP_FAIL;
@@ -3023,13 +3023,13 @@ CProc::OUTPUT MyClientToDistProcessor::do_version_check_reply(ACE_Message_Block 
       C_ERROR("handshake response from dist server: Version Mismatch\n");
     return CProc::OP_FAIL;
 
-  case CTermVerReply::SC_ACCESS_DENIED:
+  case CTermVerReply::SC_NO_RIGHTS:
     m_handler->connector()->reset_retry_count();
     if (!g_is_test || m_term_loc == 0)
       C_ERROR("handshake response from dist server: Access Denied\n");
     return CProc::OP_FAIL;
 
-  case CTermVerReply::SC_SERVER_BUSY:
+  case CTermVerReply::SC_NOT_FREE:
     if (!g_is_test || m_term_loc == 0)
       C_INFO("handshake response from dist server: Server Busy\n");
 
@@ -3530,7 +3530,7 @@ void MyClientToDistHandler::at_finish()
   }
 }
 
-PREPARE_MEMORY_POOL(MyClientToDistHandler);
+yy_enable_cache(MyClientToDistHandler);
 
 
 //MyClientToDistService//
@@ -4515,7 +4515,7 @@ CProc::OUTPUT MyClientToMiddleProcessor::at_head_arrival()
 
   if (bVersionCheckReply)
   {
-    if (!c_packet_check_term_ver_reply(&m_data_head))
+    if (!c_packet_check_term_ver_back(&m_data_head))
     {
       C_ERROR("failed to validate header for version check reply\n");
       return OP_FAIL;
@@ -4552,15 +4552,15 @@ void MyClientToMiddleProcessor::do_version_check_reply(ACE_Message_Block * mb)
     C_ERROR("%s get version mismatch response\n", prefix_msg);
     return;
 
-  case CTermVerReply::SC_ACCESS_DENIED:
+  case CTermVerReply::SC_NO_RIGHTS:
     C_ERROR("%s get access denied response\n", prefix_msg);
     return;
 
-  case CTermVerReply::SC_SERVER_BUSY:
+  case CTermVerReply::SC_NOT_FREE:
     C_ERROR("%s get server busy response\n", prefix_msg);
     return;
 
-  case CTermVerReply::SC_SERVER_LIST:
+  case CTermVerReply::SC_GET_ALL:
     do_handle_server_list(mb);
     return;
 
@@ -4639,7 +4639,7 @@ void MyClientToMiddleHandler::at_finish()
 
 }
 
-PREPARE_MEMORY_POOL(MyClientToMiddleHandler);
+yy_enable_cache(MyClientToMiddleHandler);
 
 
 //MyClientToMiddleConnector//

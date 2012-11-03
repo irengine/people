@@ -508,7 +508,7 @@ public:
   bool setup_heart_beat_timer(int heart_beat_interval);
   bool setup_click_send_timer();
   MyClientToDistModule * module_x() const;
-  DECLARE_MEMORY_POOL__NOTHROW(MyClientToDistHandler, ACE_Thread_Mutex);
+  xx_enable_cache_easy(MyClientToDistHandler, ACE_Thread_Mutex);
 
 protected:
   virtual void at_finish();
@@ -750,7 +750,7 @@ public:
   MyClientToMiddleHandler(CHandlerDirector * xptr = NULL);
   MyClientToDistModule * module_x() const;
   int handle_timeout(const ACE_Time_Value &current_time, const void *act);
-  DECLARE_MEMORY_POOL__NOTHROW(MyClientToMiddleHandler, ACE_Thread_Mutex);
+  xx_enable_cache_easy(MyClientToMiddleHandler, ACE_Thread_Mutex);
 
 protected:
   virtual void at_finish();

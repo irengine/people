@@ -40,6 +40,7 @@ typedef bool         truefalse;
 typedef char         text;
 typedef unsigned char utext;
 typedef ACE_Message_Block CMB;
+typedef ACE_Time_Value CTV;
 
 #define EXTERN extern
 #define SF     static
@@ -379,13 +380,13 @@ private:
   DVOID * m_end;
 };
 
-#define DECLARE_MEMORY_POOL(Cls, Mutex) \
+#define xx_enable_cache(v_type, v_lock) \
   public: \
-    typedef CMemBlock<Mutex> MemBlock; \
+    typedef CMemBlock<v_lock> MemBlock; \
     SF void* operator new(size_t _size, std::new_handler p = 0) \
     { \
       ACE_UNUSED_ARG(p); \
-      if (_size != sizeof(Cls) || !g_cache) \
+      if (_size != sizeof(v_type) || !g_cache) \
         return ::operator new(_size); \
       void* _ptr = _m_mem_block->malloc(); \
       if (_ptr) \
@@ -412,7 +413,7 @@ private:
     SF DVOID mem_block_start(ni pool_size) \
     { \
       if (g_cache) \
-        _m_mem_block = new MemBlock(pool_size, sizeof(Cls)); \
+        _m_mem_block = new MemBlock(pool_size, sizeof(v_type)); \
     } \
     SF DVOID mem_block_end() \
     { \
@@ -429,13 +430,13 @@ private:
   private: \
     SF MemBlock * _m_mem_block
 
-#define DECLARE_MEMORY_POOL__NOTHROW(Cls, Mutex) \
+#define xx_enable_cache_easy(v_type, v_lock) \
   public: \
-    typedef CMemBlock<Mutex> MemBlock; \
+    typedef CMemBlock<v_lock> MemBlock; \
     SF void* operator new(size_t _size, std::new_handler p = 0) throw() \
     { \
       ACE_UNUSED_ARG(p); \
-      if (_size != sizeof(Cls) || !g_cache) \
+      if (_size != sizeof(v_type) || !g_cache) \
         return ::operator new(_size); \
       return _m_mem_block->malloc(); \
     } \
@@ -454,7 +455,7 @@ private:
     SF DVOID mem_block_start(ni pool_size) \
     { \
       if (g_cache) \
-        _m_mem_block = new MemBlock(pool_size, sizeof(Cls)); \
+        _m_mem_block = new MemBlock(pool_size, sizeof(v_type)); \
     } \
     SF DVOID mem_block_end() \
     { \
@@ -471,8 +472,8 @@ private:
   private: \
     SF MemBlock * _m_mem_block
 
-#define PREPARE_MEMORY_POOL(Cls) \
-  Cls::MemBlock * Cls::_m_mem_block = NULL
+#define yy_enable_cache(v_type) \
+  v_type::MemBlock * v_type::_m_mem_block = NULL
 
 class CTermSNs;
 
@@ -944,25 +945,25 @@ public:
     SC_OK = 1,
     SC_OK_UP,
     SC_NOT_MATCH,
-    SC_ACCESS_DENIED,
-    SC_SERVER_BUSY,
-    SC_SERVER_LIST
+    SC_NO_RIGHTS,
+    SC_NOT_FREE,
+    SC_GET_ALL
   };
   enum { DATA_LENGTH_MAX = 4096 };
   i8 ret_subcmd;
   text data[0];
 };
 
-truefalse c_packet_check_base(CONST CCmdHeader *);
-truefalse c_packet_check_file_md5_list(CONST CCmdHeader *);
-truefalse c_packet_check_ftp_file(CONST CCmdHeader *);
-truefalse c_packet_check_plc_alarm(CONST CCmdHeader *);
+truefalse c_packet_check_common(CONST CCmdHeader *);
+truefalse c_packet_check_checksums_all(CONST CCmdHeader *);
+truefalse c_packet_check_download_cmd(CONST CCmdHeader *);
+truefalse c_packet_check_hw_warn(CONST CCmdHeader *);
 truefalse c_packet_check_load_balance_req(CONST CCmdHeader *);
-truefalse c_packet_check_term_ver_reply(CONST CCmdHeader *);
+truefalse c_packet_check_term_ver_back(CONST CCmdHeader *);
 truefalse c_packet_check_term_ver_req(CONST CCmdHeader *, CONST ni extra = 0);
-truefalse c_packet_check_vlc_empty(CONST CCmdHeader *);
-#define c_packet_check_have_dist_task c_packet_check_base
-#define c_packet_check_ping c_packet_check_base
+truefalse c_packet_check_no_video(CONST CCmdHeader *);
+#define c_packet_check_has_job c_packet_check_common
+#define c_packet_check_ping c_packet_check_common
 
 class CLoadBalanceReq: public CCmdHeader
 {
