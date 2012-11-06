@@ -8,118 +8,117 @@ CONST text * g_CONST_ver = "1.0";
 long g_clock_counter = 0;
 truefalse g_is_test = false;
 
-CONST truefalse CONST_demon = false;
-CONST ni  CONST_client_peak = 9900;
-CONST truefalse CONST_mem_pool = true;
-CONST ni  CONST_mem_print_delay = 30; //m
-CONST ni  CONST_sfile_check_delay = 3; //m
-CONST ni  CONST_log_fs = 20;
-CONST ni  CONST_log_file_count = 3;
-CONST truefalse CONST_log_console = true;
-CONST truefalse CONST_log_debug = true;
+CONST truefalse CONST_run_at_back = false;
+CONST ni  CONST_term_peak = 9900;
+CONST truefalse CONST_enable_cache = true;
+CONST ni  CONST_print_delay = 30; //m
+CONST ni  CONST_fcheck_delay = 3; //m
+CONST ni  CONST_max_len_log = 20;
+CONST ni  CONST_num_log = 3;
+CONST truefalse CONST_window_also_log = true;
+CONST truefalse CONST_verbose_log = true;
 
-CONST ni  CONST_pre_client_port = 2223;
-CONST ni  CONST_server_port = 2224;
-CONST ni  CONST_download_threads = 50;
-CONST ni  CONST_ping_delay = 60; //seconds
-CONST ni  CONST_ping_port = 2222;
-CONST ni  CONST_db_port = 5432;
-CONST ni  CONST_bs_port = 1921;
-CONST ni  CONST_http_port = 1922;
-CONST ni  CONST_can_root = 0;
-CONST ni  CONST_download_retry_count = 30;
-CONST ni  CONST_download_timeout = 120;
-CONST ni  CONST_download_retry_delay = 4;
+CONST ni  CONST_pre_term_hole = 2223;
+CONST ni  CONST_server_hole = 2224;
+CONST ni  CONST_download_concurrents = 50;
+CONST ni  CONST_ping_delay = 60; //s
+CONST ni  CONST_ping_hole = 2222;
+CONST ni  CONST_db_hole = 5432;
+CONST ni  CONST_bs_hole = 1921;
+CONST ni  CONST_web_hole = 1922;
+CONST ni  CONST_can_su = 0;
+CONST ni  CONST_download_again_num = 30;
+CONST ni  CONST_download_max_idle = 120;
+CONST ni  CONST_download_again_sleep = 4;
 
 //all
-CONST text * TEXT_Section_global = "global";
-CONST text * TEXT_mode = "running_mode";
-CONST text * TEXT_sfile_check_delay = "status_file_check_interval";
-CONST text * TEXT_mem_pool = "use_mem_pool";
-CONST text * TEXT_mem_print_delay = "mem_pool_dump_interval";
+CONST text * TEXT_SDefault = "default";
+CONST text * TEXT_style = "style";
+CONST text * TEXT_fcheck_delay = "fcheck_delay";
+CONST text * TEXT_enable_cache = "enable_cache";
+CONST text * TEXT_print_delay = "print_delay";
 CONST text * TEXT_test = "test_mode";
-CONST text * TEXT_log_debug = "log.debug_enabled";
-CONST text * TEXT_as_demon = "run_as_demon";
-CONST text * TEXT_log_file_size = "log.file_size";
-CONST text * TEXT_log_console = "log.to_stderr";
-CONST text * TEXT_log_file_number = "log.file_number";
-CONST text * TEXT_download_threads = "module.test_client_ftp_thread_number";
+CONST text * TEXT_verbose_log = "verbose_log";
+CONST text * TEXT_run_at_back = "run_at_back";
+CONST text * TEXT_max_len_log = "max_len_log";
+CONST text * TEXT_window_also_log = "window_also_log";
+CONST text * TEXT_num_log = "num_log";
+CONST text * TEXT_download_concurrents = "download_concurrents";
 
 //s
-CONST text * TEXT_client_peak = "max_clients";
-CONST text * TEXT_server_key = "middle_server.key";
-CONST text * TEXT_server_port = "middle_server.dist_port";
-CONST text * TEXT_db_user = "db_server.user_name";
-CONST text * TEXT_db_password = "db_server.password";
-CONST text * TEXT_db_addr = "db_server.addr";
-CONST text * TEXT_db_port = "db_server.port";
-CONST text * TEXT_bz_files_dir = "compressed_store_path";
-CONST text * TEXT_bs_port = "bs_server_port";
-CONST text * TEXT_bs_addr = "bs_server_addr";
+CONST text * TEXT_term_peak = "term_peak";
+CONST text * TEXT_skey = "skey";
+CONST text * TEXT_server_hole = "pre.server_hole";
+CONST text * TEXT_db_login = "db_login";
+CONST text * TEXT_db_key = "db_key";
+CONST text * TEXT_db_ip = "db_ip";
+CONST text * TEXT_db_hole = "db_hole";
+CONST text * TEXT_bz_files_path = "bz_files_dir";
+CONST text * TEXT_bs_hole = "bs_hole";
+CONST text * TEXT_bs_ip = "bs_ip";
 
 //cd
-CONST text *  TEXT_ping_port = "module.heart_beat.port";
-CONST text *  TEXT_middle_addr = "middle_server.addr";
+CONST text *  TEXT_ping_hole = "ping_hole";
+CONST text *  TEXT_pre_ip = "pre_ip";
 
 //cm
-CONST text *  TEXT_pre_client_port = "middle_server.client_port";
+CONST text *  TEXT_pre_term_hole = "pre_term_hole";
 
 //m
-CONST text *  TEXT_ftp_servers = "ftp_addr_list";
-CONST text *  TEXT_http_port = "middle_server.http_port";
+CONST text *  TEXT_download_servers = "download_servers";
+CONST text *  TEXT_web_hole = "web_hole";
 
 //d
-CONST text * TEXT_client_version_min = "client_version_minimum";
-CONST text * TEXT_server_id = "server_id";
-CONST text * TEXT_client_version_now = "client_version_current";
+CONST text * TEXT_term_edition_min = "term_edition_min";
+CONST text * TEXT_sid = "sid";
+CONST text * TEXT_term_edition_now = "term_edition_now";
 
 //c
-CONST text * TEXT_can_root = "module.client_enable_root";
-CONST text * TEXT_ping_delay = "module.client_heart_beat_interval";
-CONST text * TEXT_download_retry_count = "module.client_ftp_retry_count";
-CONST text * TEXT_download_retry_delay = "module.client_ftp_retry_interval";
-CONST text * TEXT_download_timeout = "module.client_ftp_timeout";
-CONST text * TEXT_adv_keep_days = "module.adv_expire_days";
+CONST text * TEXT_can_su = "can_su";
+CONST text * TEXT_term_ping_delay = "term_ping_delay";
+CONST text * TEXT_download_again_num = "download_again_num";
+CONST text * TEXT_download_again_sleep = "download_again_sleep";
+CONST text * TEXT_download_max_idle = "download_max_idle";
+CONST text * TEXT_adv_keep_days = "adv_keep_days";
 
 CCfg::CCfg()
 {
-  //common configuration
-  log_debug = CONST_log_debug;
-  log_file_count = CONST_log_file_count;
-  log_file_size = CONST_log_fs;
-  log_console = CONST_log_console;
+  verbose_log = CONST_verbose_log;
+  num_log = CONST_num_log;
+  max_len_log = CONST_max_len_log;
+  window_also_log = CONST_window_also_log;
 
-  print_delay = CONST_mem_print_delay;
-  fcheck_delay = CONST_sfile_check_delay;
-  remote_port = 0;
-  mode = AM_INVALID;
-  mem_pool = CONST_mem_pool;
-  is_demon = CONST_demon;
+  print_delay = CONST_print_delay;
+  fcheck_delay = CONST_fcheck_delay;
+  rmt_hole = 0;
+  mode = AM_BAD;
+  enable_cache = CONST_enable_cache;
+  run_at_back = CONST_run_at_back;
 
   //s
-  db_port = CONST_db_port;
-  bs_port = CONST_bs_port;
-  client_peak = CONST_client_peak;
-  server_port = CONST_server_port;
+  db_hole = CONST_db_hole;
+  bs_hole = CONST_bs_hole;
+  term_peak = CONST_term_peak;
+  server_hole = CONST_server_hole;
 
   //cd
-  pre_client_port = CONST_pre_client_port;
+  pre_term_hole = CONST_pre_term_hole;
 
   //d
-  ping_port = CONST_ping_port;
-  server_id = 1;
+  ping_hole = CONST_ping_hole;
+  sid = 1;
 
   //c
-  can_root = CONST_can_root;
-  client_ping_interval = CONST_ping_delay;
-  download_threads = CONST_download_threads;
+  can_su = CONST_can_su;
+  term_ping_delay = CONST_ping_delay;
+  download_concurrents = CONST_download_concurrents;
   adv_keep_days = 0;
-  download_retry_count = CONST_download_retry_count;
-  download_retry_delay = CONST_download_retry_delay;
-  download_timeout = CONST_download_timeout;
+  download_again_num = CONST_download_again_num;
+  download_again_sleep = CONST_download_again_sleep;
+  download_max_idle = CONST_download_max_idle;
 
   //m
-  http_port = CONST_http_port;
+  web_hole = CONST_web_hole;
 }
 
 DVOID CCfg::do_init(CONST text * v_hdir)
@@ -133,37 +132,37 @@ DVOID CCfg::do_init(CONST text * v_hdir)
     if (l_m > 0 && l_m < ssize_t(BUFF_SIZE))
     {
       l_dir[l_m] = '\0';
-      exe_path = l_dir;
-      size_t l_k = exe_path.rfind('/');
-      if (l_k == exe_path.npos || l_k == 0)
+      execute_dir = l_dir;
+      size_t l_k = execute_dir.rfind('/');
+      if (l_k == execute_dir.npos || l_k == 0)
       {
-        std::printf("exe_path (= %s) error\n", l_dir);
+        std::printf("execute_dir (= %s) error\n", l_dir);
         exit(1);
       }
-      exe_path = exe_path.substr(0, l_k);
-      app_path = exe_path;
-      l_k = app_path.rfind('/', l_k);
-      if (l_k == app_path.npos || l_k == 0)
+      execute_dir = execute_dir.substr(0, l_k);
+      runner_dir = execute_dir;
+      l_k = runner_dir.rfind('/', l_k);
+      if (l_k == runner_dir.npos || l_k == 0)
       {
-        std::printf("app_dir (= %s) error\n", app_path.c_str());
+        std::printf("runner_dir (= %s) error\n", runner_dir.c_str());
         exit(2);
       }
-      app_path = app_path.substr(0, l_k);
+      runner_dir = runner_dir.substr(0, l_k);
     } else
     {
-      std::perror("readlink(\"/proc/self/exe\") failed\n");
+      std::perror("readlink() failed\n");
       exit(3);
     }
   } else
   {
-    app_path = v_hdir;
-    exe_path = app_path + "/bin";
+    runner_dir = v_hdir;
+    execute_dir = runner_dir + "/bin";
   }
 
-  status_fn = app_path + "/running/app.pid";
-  log_fn = app_path + "/log/app.log";
-  cfg_fn = app_path + "/config/app.cfg";
-  data_path = app_path + "/data";
+  sfile_fn = runner_dir + "/running/run.pid";
+  log_fn = runner_dir + "/log/run.log";
+  cfg_fn = runner_dir + "/config/run.conf";
+  data_dir = runner_dir + "/data";
 }
 
 truefalse CCfg::server() CONST
@@ -176,9 +175,9 @@ truefalse CCfg::term_station() CONST
   return mode == AM_TERMINAL;
 }
 
-truefalse CCfg::dist() CONST
+truefalse CCfg::handleout() CONST
 {
-  return mode == AM_DIST;
+  return mode == AM_HANDLEOUT;
 }
 
 truefalse CCfg::pre() CONST
@@ -186,7 +185,7 @@ truefalse CCfg::pre() CONST
   return mode == AM_PRE;
 }
 
-truefalse CCfg::readall(CONST text * h_path, CAppMode m)
+truefalse CCfg::readall(CONST text * h_path, CXYZStyle m)
 {
   do_init(h_path);
 
@@ -206,32 +205,32 @@ truefalse CCfg::readall(CONST text * h_path, CAppMode m)
   }
 
   CCfgKey akey;
-  if (v_hp.open_section (v_hp.root_section (), TEXT_Section_global,
+  if (v_hp.open_section (v_hp.root_section (), TEXT_SDefault,
                            0, akey) == -1)
   {
-    C_FATAL("config.open_key failed, key = %s\n", TEXT_Section_global);
+    C_FATAL("config.open_key failed, key = %s\n", TEXT_SDefault);
     return false;
   }
 
   if (!read_base(v_hp, akey))
     return false;
 
-  if (mode <= AM_INVALID || mode > AM_TERMINAL)
+  if (mode <= AM_BAD || mode > AM_TERMINAL)
   {
     C_FATAL("bad mode (= %d)", mode);
     return false;
   }
 
-  if (!read_dist_pre(v_hp, akey))
+  if (!read_handleout_pre(v_hp, akey))
     return false;
 
   if (!read_term_pre(v_hp, akey))
     return false;
 
-  if (!read_term_dist(v_hp, akey))
+  if (!read_term_handleout(v_hp, akey))
     return false;
 
-  if (!read_dist(v_hp, akey))
+  if (!read_handleout(v_hp, akey))
     return false;
 
   if (!read_pre(v_hp, akey))
@@ -246,19 +245,19 @@ truefalse CCfg::readall(CONST text * h_path, CAppMode m)
 truefalse CCfg::read_base(CCfgHeap & v_h, CCfgKey & v_k)
 {
   ui n;
-  if (mode == AM_INVALID)
+  if (mode == AM_BAD)
   {
-    if (v_h.get_integer_value (v_k,  TEXT_mode, n) == 0)
+    if (v_h.get_integer_value (v_k,  TEXT_style, n) == 0)
     {
-      if (n != AM_DIST && n != AM_PRE)
+      if (n != AM_HANDLEOUT && n != AM_PRE)
       {
-        C_FATAL("bad server mode = %d\n", n);
+        C_FATAL("bad style = %d\n", n);
         return false;
       }
-      mode = CAppMode(n);
+      mode = CXYZStyle(n);
     } else
     {
-      C_FATAL("can not read server mode\n");
+      C_FATAL("can not read style\n");
       return false;
     }
   }
@@ -266,133 +265,133 @@ truefalse CCfg::read_base(CCfgHeap & v_h, CCfgKey & v_k)
   if (v_h.get_integer_value (v_k,  TEXT_test, n) == 0)
     g_is_test = (n != 0);
 
-  if (v_h.get_integer_value (v_k,  TEXT_mem_pool, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_enable_cache, n) == 0)
   {
-    mem_pool = (n != 0);
-    g_cache = mem_pool;
+    enable_cache = (n != 0);
+    g_cache = enable_cache;
   }
 
-  if (v_h.get_integer_value (v_k,  TEXT_as_demon, n) == 0)
-    is_demon = (n != 0);
+  if (v_h.get_integer_value (v_k,  TEXT_run_at_back, n) == 0)
+    run_at_back = (n != 0);
 
-  if (v_h.get_integer_value (v_k,  TEXT_sfile_check_delay, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_fcheck_delay, n) == 0)
     fcheck_delay = n;
 
-  if (v_h.get_integer_value (v_k,  TEXT_log_file_number, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_num_log, n) == 0)
   {
     if (n > 0 && n <= 1000)
-      log_file_count = n;
+      num_log = n;
   }
 
-  if (v_h.get_integer_value (v_k,  TEXT_log_file_size, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_max_len_log, n) == 0)
   {
     if (n > 0 && n <= 10000)
-      log_file_size = n;
+      max_len_log = n;
   }
 
-  if (v_h.get_integer_value (v_k,  TEXT_log_debug, n) == 0)
-    log_debug = (n != 0);
+  if (v_h.get_integer_value (v_k,  TEXT_verbose_log, n) == 0)
+    verbose_log = (n != 0);
 
-  if (v_h.get_integer_value (v_k,  TEXT_log_console, n) == 0)
-    log_console = (n != 0);
+  if (v_h.get_integer_value (v_k,  TEXT_window_also_log, n) == 0)
+    window_also_log = (n != 0);
 
-  if (v_h.get_integer_value (v_k,  TEXT_mem_print_delay, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_print_delay, n) == 0)
     print_delay = n;
 
   return true;
 }
 
-truefalse CCfg::read_dist_pre(CCfgHeap & v_h, CCfgKey & v_k)
+truefalse CCfg::read_handleout_pre(CCfgHeap & v_h, CCfgKey & v_k)
 {
   if (!server())
     return true;
 
   ui n;
-  if (v_h.get_integer_value (v_k,  TEXT_client_peak, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_term_peak, n) == 0)
   {
     if (n > 0 && n <= 100000)
     {
-      client_peak = n;
+      term_peak = n;
     }
   }
 
   ACE_TString s;
-  if (v_h.get_string_value(v_k, TEXT_server_key, s) == 0)
+  if (v_h.get_string_value(v_k, TEXT_skey, s) == 0)
     skey = s.c_str();
   else
   {
-    C_ERROR("fail to read cfg value %s\n", TEXT_server_key);
+    C_ERROR("fail to read cfg value %s\n", TEXT_skey);
     return false;
   }
 
-  if (v_h.get_integer_value (v_k,  TEXT_server_port, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_server_hole, n) == 0)
   {
     if (n == 0 || n >= 65535)
     {
-      C_ERROR("bad cfg value %s (= %d)\n", TEXT_server_port, n);
+      C_ERROR("bad cfg value %s (= %d)\n", TEXT_server_hole, n);
       return false;
     }
-    server_port = n;
+    server_hole = n;
   }
 
-  if (v_h.get_string_value(v_k, TEXT_db_addr, s) == 0)
-    db_addr = s.c_str();
+  if (v_h.get_string_value(v_k, TEXT_db_ip, s) == 0)
+    db_ip = s.c_str();
   else
   {
-    C_ERROR("can not read cfg value %s\n", TEXT_db_addr);
+    C_ERROR("can not read cfg value %s\n", TEXT_db_ip);
     return false;
   }
 
-  if (v_h.get_integer_value (v_k,  TEXT_db_port, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_db_hole, n) == 0)
   {
     if (n == 0 || n >= 65535)
     {
-      C_ERROR("bad cfg value %s (= %d)\n", TEXT_db_port, n);
+      C_ERROR("bad cfg value %s (= %d)\n", TEXT_db_hole, n);
       return false;
     }
-    db_port = n;
+    db_hole = n;
   }
 
-  if (v_h.get_string_value(v_k, TEXT_db_user, s) == 0)
-    db_name = s.c_str();
+  if (v_h.get_string_value(v_k, TEXT_db_login, s) == 0)
+    db_login = s.c_str();
   else
   {
-    C_ERROR("fail to read cfg value %s\n", TEXT_db_user);
+    C_ERROR("fail to read cfg value %s\n", TEXT_db_login);
     return false;
   }
 
-  if (v_h.get_string_value(v_k, TEXT_db_password, s) == 0)
-    db_password = s.c_str();
+  if (v_h.get_string_value(v_k, TEXT_db_key, s) == 0)
+    db_key = s.c_str();
   else
   {
-    C_ERROR("fail to read cfg value %s\n", TEXT_db_password);
+    C_ERROR("fail to read cfg value %s\n", TEXT_db_key);
     return false;
   }
 
-  if (v_h.get_string_value(v_k, TEXT_bz_files_dir, s) == 0)
+  if (v_h.get_string_value(v_k, TEXT_bz_files_path, s) == 0)
     bz_files_path = s.c_str();
   else
   {
-    C_ERROR("fail to read cfg value %s\n", TEXT_bz_files_dir);
+    C_ERROR("fail to read cfg value %s\n", TEXT_bz_files_path);
     return false;
   }
 
-  if (v_h.get_string_value(v_k, TEXT_bs_addr, s) == 0)
-    bs_addr = s.c_str();
+  if (v_h.get_string_value(v_k, TEXT_bs_ip, s) == 0)
+    bs_ip = s.c_str();
   else
   {
-    C_ERROR("fail to read cfg value %s\n", TEXT_bs_addr);
+    C_ERROR("fail to read cfg value %s\n", TEXT_bs_ip);
     return false;
   }
 
-  if (v_h.get_integer_value(v_k, TEXT_bs_port, n) == 0)
+  if (v_h.get_integer_value(v_k, TEXT_bs_hole, n) == 0)
   {
     if (n == 0 || n >= 65535)
     {
-      C_ERROR("bad config value %s (= %d)\n", TEXT_bs_port, n);
+      C_ERROR("bad config value %s (= %d)\n", TEXT_bs_hole, n);
       return false;
     }
-    bs_port = n;
+    bs_hole = n;
   }
 
   return true;
@@ -406,29 +405,29 @@ truefalse CCfg::read_terminal(CCfgHeap & v_h, CCfgKey & v_k)
   ui n;
   if (g_is_test)
   {
-    if (v_h.get_integer_value(v_k, TEXT_ping_delay, n) == 0)
+    if (v_h.get_integer_value(v_k, TEXT_term_ping_delay, n) == 0)
     {
       if (n == 0 || n > 0xFFFF)
       {
         C_WARNING("bad %s value (= %d), resort to default = %d\n",
-            TEXT_ping_delay, n, CONST_ping_delay);
+            TEXT_term_ping_delay, n, CONST_ping_delay);
       }
       else
-        client_ping_interval = n;
+        term_ping_delay = n;
     }
   }
 
   if (g_is_test)
   {
-    if (v_h.get_integer_value(v_k, TEXT_download_threads, n) == 0)
+    if (v_h.get_integer_value(v_k, TEXT_download_concurrents, n) == 0)
     {
       if (n == 0 || n > 500)
       {
         C_WARNING("bad %s value (= %d), resort to default = %d\n",
-            TEXT_download_threads, n, CONST_download_threads);
+            TEXT_download_concurrents, n, CONST_download_concurrents);
       }
       else
-        download_threads = n;
+        download_concurrents = n;
     }
   }
 
@@ -443,100 +442,100 @@ truefalse CCfg::read_terminal(CCfgHeap & v_h, CCfgKey & v_k)
       adv_keep_days = n;
   }
 
-  if (v_h.get_integer_value(v_k, TEXT_download_timeout, n) == 0)
+  if (v_h.get_integer_value(v_k, TEXT_download_max_idle, n) == 0)
   {
     if (n < 60)
     {
       C_WARNING("bad %s value (%d), resort to default = %d\n",
-          TEXT_download_timeout, n, CONST_download_timeout);
+          TEXT_download_max_idle, n, CONST_download_max_idle);
     }
     else
-      download_timeout = n;
+      download_max_idle = n;
   }
 
-  if (v_h.get_integer_value(v_k, TEXT_download_retry_count, n) == 0)
+  if (v_h.get_integer_value(v_k, TEXT_download_again_num, n) == 0)
   {
     if (n < 1 || n > 100000)
     {
       C_WARNING("bad %s value (%d), resort to default = %d\n",
-          TEXT_download_retry_count, n, CONST_download_retry_count);
+          TEXT_download_again_num, n, CONST_download_again_num);
     }
     else
-      download_retry_count = n;
+      download_again_num = n;
   }
 
-  if (v_h.get_integer_value(v_k, TEXT_download_retry_delay, n) == 0)
+  if (v_h.get_integer_value(v_k, TEXT_download_again_sleep, n) == 0)
   {
     if (n < 1 || n > 60)
     {
       C_WARNING("bad %s value (%d), resort to default = %d\n",
-          TEXT_download_retry_delay, n, CONST_download_retry_delay);
+          TEXT_download_again_sleep, n, CONST_download_again_sleep);
     }
     else
-      download_retry_delay = n;
+      download_again_sleep = n;
   }
 
-  if (v_h.get_integer_value(v_k, TEXT_can_root, n) == 0)
-    can_root = n;
+  if (v_h.get_integer_value(v_k, TEXT_can_su, n) == 0)
+    can_su = n;
 
   return true;
 }
 
-truefalse CCfg::read_dist(CCfgHeap & v_h, CCfgKey & v_k)
+truefalse CCfg::read_handleout(CCfgHeap & v_h, CCfgKey & v_k)
 {
-  if (!dist())
+  if (!handleout())
     return true;
 
   ui n;
-  if (v_h.get_integer_value(v_k, TEXT_server_id, n) == 0)
+  if (v_h.get_integer_value(v_k, TEXT_sid, n) == 0)
   {
     if (n <= 1 || n >= 256)
     {
-      C_ERROR("bad config value %s: %d\n", TEXT_server_id, n);
+      C_ERROR("bad config value %s: %d\n", TEXT_sid, n);
       return false;
     }
-    server_id = (u_int8_t)n;
+    sid = (u_int8_t)n;
   }
   else
   {
-    C_ERROR("fail to read cfg value %s\n", TEXT_server_id);
+    C_ERROR("fail to read cfg value %s\n", TEXT_sid);
     return false;
   }
 
   ACE_TString s;
-  if (v_h.get_string_value(v_k, TEXT_client_version_min, s) == 0)
+  if (v_h.get_string_value(v_k, TEXT_term_edition_min, s) == 0)
   {
-    if (!client_ver_min.init(s.c_str()))
+    if (!term_edition_min.init(s.c_str()))
     {
-      C_ERROR("bad config value %s: %s\n", TEXT_client_version_min, s.c_str());
+      C_ERROR("bad config value %s: %s\n", TEXT_term_edition_min, s.c_str());
       return false;
     }
   }
   else
   {
-    C_ERROR("fail to read cfg value %s\n", TEXT_client_version_min);
+    C_ERROR("fail to read cfg value %s\n", TEXT_term_edition_min);
     return false;
   }
 
-  if (v_h.get_string_value(v_k, TEXT_client_version_now, s) == 0)
+  if (v_h.get_string_value(v_k, TEXT_term_edition_now, s) == 0)
   {
-    if (!client_ver_now.init(s.c_str()))
+    if (!term_edition_now.init(s.c_str()))
     {
-      C_ERROR("bad config value %s: %s\n", TEXT_client_version_now, s.c_str());
+      C_ERROR("bad config value %s: %s\n", TEXT_term_edition_now, s.c_str());
       return false;
     }
   }
   else
   {
-    C_ERROR("fail to read cfg value %s\n", TEXT_client_version_now);
+    C_ERROR("fail to read cfg value %s\n", TEXT_term_edition_now);
     return false;
   }
 
-  if (client_ver_now < client_ver_min)
+  if (term_edition_now < term_edition_min)
   {
     C_ERROR("bad config value %s(%s) < %s(%s)\n",
-        TEXT_client_version_now, client_ver_now.to_text(),
-        TEXT_client_version_min, client_ver_min.to_text());
+        TEXT_term_edition_now, term_edition_now.to_text(),
+        TEXT_term_edition_min, term_edition_min.to_text());
     return false;
   }
 
@@ -549,22 +548,22 @@ truefalse CCfg::read_pre(CCfgHeap & v_h, CCfgKey & v_k)
     return true;
 
   ui n;
-  if (v_h.get_integer_value (v_k,  TEXT_http_port, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_web_hole, n) == 0)
   {
     if (n == 0 || n >= 65535)
     {
-      C_ERROR("bad config value %s (= %d)\n", TEXT_http_port, n);
+      C_ERROR("bad config value %s (= %d)\n", TEXT_web_hole, n);
       return false;
     }
-    http_port = n;
+    web_hole = n;
   }
 
   ACE_TString s;
-  if (v_h.get_string_value(v_k, TEXT_ftp_servers, s) == 0)
-    ftp_servers = s.c_str();
+  if (v_h.get_string_value(v_k, TEXT_download_servers, s) == 0)
+    download_servers = s.c_str();
   else
   {
-    C_ERROR("fail to read cfg value %s\n", TEXT_ftp_servers);
+    C_ERROR("fail to read cfg value %s\n", TEXT_download_servers);
     return false;
   }
 
@@ -573,45 +572,45 @@ truefalse CCfg::read_pre(CCfgHeap & v_h, CCfgKey & v_k)
 
 truefalse CCfg::read_term_pre(CCfgHeap & v_h, CCfgKey & v_k)
 {
-  if (dist())
+  if (handleout())
     return true;
 
   ui n;
-  if (v_h.get_integer_value (v_k,  TEXT_pre_client_port, n) == 0)
+  if (v_h.get_integer_value (v_k,  TEXT_pre_term_hole, n) == 0)
   {
     if (n == 0 || n >= 65535)
     {
-      C_ERROR("bad config value %s (= %d)\n", TEXT_pre_client_port, n);
+      C_ERROR("bad config value %s (= %d)\n", TEXT_pre_term_hole, n);
       return false;
     }
-    pre_client_port = n;
+    pre_term_hole = n;
   }
 
   return true;
 }
 
-truefalse CCfg::read_term_dist(CCfgHeap & v_h, CCfgKey & v_k)
+truefalse CCfg::read_term_handleout(CCfgHeap & v_h, CCfgKey & v_k)
 {
   if (pre())
     return true;
 
   ui n;
-  if (v_h.get_integer_value (v_k, TEXT_ping_port, n) == 0)
+  if (v_h.get_integer_value (v_k, TEXT_ping_hole, n) == 0)
   {
     if (n == 0 || n >= 65535)
     {
-      C_ERROR("bad config value %s (= %d)\n", TEXT_ping_port, n);
+      C_ERROR("bad config value %s (= %d)\n", TEXT_ping_hole, n);
       return false;
     }
-    ping_port = n;
+    ping_hole = n;
   }
 
   ACE_TString s;
-  if (v_h.get_string_value(v_k, TEXT_middle_addr, s) == 0)
-    middle_addr = s.c_str();
+  if (v_h.get_string_value(v_k, TEXT_pre_ip, s) == 0)
+    pre_ip = s.c_str();
   else
   {
-    C_ERROR("fail to read cfg value %s\n", TEXT_middle_addr);
+    C_ERROR("fail to read cfg value %s\n", TEXT_pre_ip);
     return false;
   }
 
@@ -625,8 +624,8 @@ DVOID CCfg::print_all()
   CONST text * smode;
   switch (mode)
   {
-  case AM_DIST:
-    smode = "dist";
+  case AM_HANDLEOUT:
+    smode = "handleout";
     break;
   case AM_PRE:
     smode = "pre";
@@ -638,17 +637,17 @@ DVOID CCfg::print_all()
     C_FATAL("bad mode (=%d).\n", mode);
     exit(10);
   }
-  ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_mode, smode));
+  ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_style, smode));
 
-  ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_as_demon, is_demon));
-  ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_mem_pool, mem_pool));
-  ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_mem_print_delay, print_delay));
-  ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_sfile_check_delay, fcheck_delay));
+  ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_run_at_back, run_at_back));
+  ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_enable_cache, enable_cache));
+  ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_print_delay, print_delay));
+  ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_fcheck_delay, fcheck_delay));
 
-  ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_log_file_number, log_file_count));
-  ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_log_file_size, log_file_size));
-  ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_log_debug, log_debug));
-  ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_log_console, log_console));
+  ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_num_log, num_log));
+  ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_max_len_log, max_len_log));
+  ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_verbose_log, verbose_log));
+  ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_window_also_log, window_also_log));
 
   if (g_is_test)
     ACE_DEBUG ((LM_INFO, "\ttest_mode = 1\n"));
@@ -657,98 +656,98 @@ DVOID CCfg::print_all()
 
   if (server())
   {
-    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_client_peak, client_peak));
-    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_server_port, server_port));
-    ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_server_key, skey.c_str()));
-    ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_bz_files_dir, bz_files_path.c_str()));
-    ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_bs_addr, bs_addr.c_str()));
-    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_bs_port, bs_port));
-    ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_db_addr, db_addr.c_str()));
-    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_db_port, db_port));
-    ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_db_user, db_name.c_str()));
+    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_term_peak, term_peak));
+    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_server_hole, server_hole));
+    ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_skey, skey.c_str()));
+    ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_bz_files_path, bz_files_path.c_str()));
+    ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_bs_ip, bs_ip.c_str()));
+    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_bs_hole, bs_hole));
+    ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_db_ip, db_ip.c_str()));
+    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_db_hole, db_hole));
+    ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_db_login, db_login.c_str()));
   }
 
-  if (term_station() || dist())
+  if (term_station() || handleout())
   {
-    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_ping_port, ping_port));
-    ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_middle_addr, middle_addr.c_str()));
+    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_ping_hole, ping_hole));
+    ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_pre_ip, pre_ip.c_str()));
   }
 
   if (term_station() || pre())
   {
-    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_pre_client_port, pre_client_port));
+    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_pre_term_hole, pre_term_hole));
   }
 
   if (term_station())
   {
     if (g_is_test)
-      ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_ping_delay, client_ping_interval));
+      ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_term_ping_delay, term_ping_delay));
 //    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_adv_keep_days, adv_keep_days));
-    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_download_timeout, download_timeout));
-    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_download_retry_count, download_retry_count));
-    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_download_retry_delay, download_retry_delay));
-    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_can_root, can_root));
+    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_download_max_idle, download_max_idle));
+    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_download_again_num, download_again_num));
+    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_download_again_sleep, download_again_sleep));
+    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_can_su, can_su));
   }
 
   if (pre())
   {
-    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_http_port, http_port));
-    ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_ftp_servers, ftp_servers.c_str()));
+    ACE_DEBUG ((LM_INFO, "\t%s = %d\n", TEXT_web_hole, web_hole));
+    ACE_DEBUG ((LM_INFO, "\t%s = %s\n", TEXT_download_servers, download_servers.c_str()));
   }
 
   //
-  ACE_DEBUG ((LM_INFO, "\tstatus_file = %s\n", status_fn.c_str()));
-  ACE_DEBUG ((LM_INFO, "\tlog_file = %s\n", log_fn.c_str()));
-  ACE_DEBUG ((LM_INFO, "\tconfig_file = %s\n", cfg_fn.c_str()));
-  ACE_DEBUG ((LM_INFO, "\tapp_path = %s\n", app_path.c_str()));
-  ACE_DEBUG ((LM_INFO, "\texe_path = %s\n", exe_path.c_str()));
+  ACE_DEBUG ((LM_INFO, "\tpid_fn = %s\n", sfile_fn.c_str()));
+  ACE_DEBUG ((LM_INFO, "\tlog_fn = %s\n", log_fn.c_str()));
+  ACE_DEBUG ((LM_INFO, "\tconfig_fn = %s\n", cfg_fn.c_str()));
+  ACE_DEBUG ((LM_INFO, "\trunner_dir = %s\n", runner_dir.c_str()));
+  ACE_DEBUG ((LM_INFO, "\texecute_dir = %s\n", execute_dir.c_str()));
 }
 
 
 
-CSignaller::CSignaller(CApp * p)
+CSignaller::CSignaller(CParentRunner * p)
 {
-  m_parent = p;
+  m_ptr = p;
 }
 
 ni CSignaller::handle_signal (ni signum, siginfo_t*, ucontext_t*)
 {
-  m_parent->handle_signal(signum);
+  m_ptr->handle_signal(signum);
   return 0;
 };
 
 
 
-CNotificationFiler::CNotificationFiler(CApp * p)
+CNotificationFiler::CNotificationFiler(CParentRunner * p)
 {
-  m_parent = p;
+  m_ptr = p;
 }
 
-ni CNotificationFiler::handle_timeout(CONST ACE_Time_Value &, CONST DVOID *)
+ni CNotificationFiler::handle_timeout(CONST CTV &, CONST DVOID *)
 {
   struct stat st;
-  if (::stat(CCfgX::instance()->status_fn.c_str(), &st) == -1 && errno == ENOENT)
-    m_parent->handle_no_sfile();
+  if (::stat(CCfgX::instance()->sfile_fn.c_str(), &st) == -1 && errno == ENOENT)
+    m_ptr->handle_no_sfile();
   return 0;
 }
 
 
 
-CPrinter::CPrinter(CApp * p)
+CPrinter::CPrinter(CParentRunner * p)
 {
-  m_parent = p;
+  m_ptr = p;
 }
 
-ni CPrinter::handle_timeout (CONST ACE_Time_Value &, CONST DVOID *)
+ni CPrinter::handle_timeout (CONST CTV &, CONST DVOID *)
 {
-  m_parent->print_info();
+  m_ptr->print_info();
   return 0;
 }
 
 
 
 
-ni CClocker::handle_timeout (CONST ACE_Time_Value &, CONST DVOID *)
+ni CClocker::handle_timeout (CONST CTV &, CONST DVOID *)
 {
   ++g_clock_counter;
   return 0;
@@ -756,7 +755,7 @@ ni CClocker::handle_timeout (CONST ACE_Time_Value &, CONST DVOID *)
 
 
 
-CApp::CApp(): m_sig(this), m_sfile(this), m_printer(this)
+CParentRunner::CParentRunner(): m_sig(this), m_sfile(this), m_printer(this)
 {
   m_working = false;
   m_hup = false;
@@ -767,12 +766,12 @@ CApp::CApp(): m_sig(this), m_sfile(this), m_printer(this)
   srandom(time(NULL));
 }
 
-truefalse CApp::do_init()
+truefalse CParentRunner::do_init()
 {
   return true;
 }
 
-DVOID CApp::add_component(CContainer * p)
+DVOID CParentRunner::add_component(CContainer * p)
 {
   if (!p)
   {
@@ -782,7 +781,7 @@ DVOID CApp::add_component(CContainer * p)
   m_components.push_back(p);
 }
 
-truefalse CApp::delayed_init()
+truefalse CParentRunner::delayed_init()
 {
   CCfgX::instance()->print_all();
   C_INFO("loading containers...\n");
@@ -798,29 +797,29 @@ truefalse CApp::delayed_init()
 
   if (CCfgX::instance()->fcheck_delay != 0)
   {
-    ni fd = open(CCfgX::instance()->status_fn.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
-    if (fd == -1)
+    ni l_i = open(CCfgX::instance()->sfile_fn.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+    if (l_i == -1)
     {
-      C_WARNING("sfile needed, but fail create/open file %s\n", CCfgX::instance()->status_fn.c_str());
+      C_WARNING("sfile needed, but fail create/open file %s\n", CCfgX::instance()->sfile_fn.c_str());
       return false;
     }
-    close(fd);
+    close(l_i);
     m_sfile_check = true;
 
-    ACE_Time_Value interval (CCfgX::instance()->fcheck_delay * 60);
+    CTV interval (CCfgX::instance()->fcheck_delay * 60);
     if (ACE_Reactor::instance()->schedule_timer (&m_sfile, 0, interval, interval) == -1)
       C_WARNING("fail init sfile timer\n");
   }
 
   if (CCfgX::instance()->print_delay > 0)
   {
-    ACE_Time_Value interval(60 * CCfgX::instance()->print_delay);
+    CTV interval(60 * CCfgX::instance()->print_delay);
     if (ACE_Reactor::instance()->schedule_timer (&m_printer,
                              0, interval, interval) == -1)
       C_WARNING("fail init stats timer\n");
   }
 
-  ACE_Time_Value interval(CLOCK_TIME);
+  CTV interval(CLOCK_TIME);
   if (ACE_Reactor::instance()->schedule_timer(&m_clock, 0, interval, interval) == -1)
   {
     C_FATAL("fail init clock timer\n");
@@ -830,7 +829,7 @@ truefalse CApp::delayed_init()
   return true;
 }
 
-CApp::~CApp()
+CParentRunner::~CParentRunner()
 {
   m_sgh.remove_handler(SIGHUP);
   m_sgh.remove_handler(SIGTERM);
@@ -843,52 +842,51 @@ CApp::~CApp()
   std::for_each(m_components.begin(), m_components.end(), CObjDeletor());
 }
 
-truefalse CApp::running() CONST
+truefalse CParentRunner::running() CONST
 {
   return m_working;
 }
 
-DVOID CApp::demon()
+DVOID CParentRunner::put_to_back()
 {
-  pid_t pid;
+  pid_t l_x;
 
-  if ((pid = fork()) != 0)
+  if ((l_x = fork()) != 0)
     exit(0);
 
   setsid();
   signal(SIGHUP, SIG_IGN);
 
-  if ((pid = fork()) != 0)
+  if ((l_x = fork()) != 0)
     exit(0);
 
   umask(0);
 
-  for (ni i = 0; i <= 1024; ++i)
-    close(i);
+  for (ni l_y = 0; l_y <= 1003; ++l_y)
+    close(l_y);
 }
 
-DVOID CApp::init_log()
+DVOID CParentRunner::init_log()
 {
-  CONST text * cmd = "dynamic Logger Service_Object *ACE:_make_ACE_Logging_Strategy()"
+  CONST text * l_xyz = "dynamic Logger Service_Object *ACE:_make_ACE_Logging_Strategy()"
    "\"-o -s %s -N %d -m %d000 -i 1 -f STDERR|OSTREAM \"";
 
-  ni m = strlen(cmd) + CCfgX::instance()->log_fn.length() + 100;
-  text * buff = new text[m];
-  std::snprintf(buff, m, cmd, CCfgX::instance()->log_fn.c_str(),
-      CCfgX::instance()->log_file_count,
-      CCfgX::instance()->log_file_size);
-  if (ACE_Service_Config::process_directive(buff) == -1)
+  ni l_n = strlen(l_xyz) + CCfgX::instance()->log_fn.length() + 100;
+  text * l_x = new text[l_n];
+  std::snprintf(l_x, l_n, l_xyz, CCfgX::instance()->log_fn.c_str(),
+      CCfgX::instance()->num_log, CCfgX::instance()->max_len_log);
+  if (ACE_Service_Config::process_directive(l_x) == -1)
   {
-    std::printf("ACE_Service_Config::process_directive failed, args = %s\n", buff);
+    std::printf("ACE_Service_Config::process_directive failed, args = %s\n", l_x);
     exit(6);
   }
-  delete []buff;
+  delete []l_x;
   u_long log_mask = LM_INFO | LM_WARNING | LM_ERROR;
-  if (CCfgX::instance()->log_debug)
+  if (CCfgX::instance()->verbose_log)
     log_mask |= LM_DEBUG;
   ACE_LOG_MSG->priority_mask (log_mask, ACE_Log_Msg::PROCESS);
 
-  if (CCfgX::instance()->is_demon || !CCfgX::instance()->log_console)
+  if (CCfgX::instance()->run_at_back || !CCfgX::instance()->window_also_log)
     ACE_LOG_MSG->clr_flags(ACE_Log_Msg::STDERR);
   if (CCfgX::instance()->server())
     C_INFO("Loading server Ver %s...\n", current_ver().c_str());
@@ -896,12 +894,12 @@ DVOID CApp::init_log()
     C_INFO("Loading client Ver %s...\n", current_ver().c_str());
 }
 
-DVOID CApp::i_print()
+DVOID CParentRunner::i_print()
 {
 
 }
 
-DVOID CApp::print_pool(CONST text * p, long v_get, long v_put, long v_peak, long v_fail, ni block_size, ni v_blocks)
+DVOID CParentRunner::print_pool(CONST text * p, long v_get, long v_put, long v_peak, long v_fail, ni block_size, ni v_blocks)
 {
   long l_use = v_get - v_put;
   ACE_DEBUG((LM_INFO, "    Obj[%s], Use=%d, Get=%d, "
@@ -909,7 +907,7 @@ DVOID CApp::print_pool(CONST text * p, long v_get, long v_put, long v_peak, long
       p, l_use, v_get, v_put, v_peak, v_fail, block_size, v_blocks));
 }
 
-DVOID CApp::print_info()
+DVOID CParentRunner::print_info()
 {
   C_INFO("##### Stats Start #####\n");
   std::for_each(m_components.begin(), m_components.end(), std::mem_fun(&CContainer::print_all));
@@ -917,12 +915,12 @@ DVOID CApp::print_info()
   ACE_DEBUG((LM_INFO, "##### Finish #####\n"));
 }
 
-truefalse CApp::before_begin()
+truefalse CParentRunner::before_begin()
 {
   return true;
 }
 
-DVOID CApp::begin()
+DVOID CParentRunner::begin()
 {
   if (m_working)
     return;
@@ -936,12 +934,12 @@ DVOID CApp::begin()
   schedule_works();
 }
 
-DVOID CApp::before_finish()
+DVOID CParentRunner::before_finish()
 {
 
 }
 
-DVOID CApp::end()
+DVOID CParentRunner::end()
 {
   if (!m_working)
     return;
@@ -952,7 +950,7 @@ DVOID CApp::end()
   C_INFO("ending components finish!\n");
 }
 
-DVOID CApp::handle_signal(ni signum)
+DVOID CParentRunner::handle_signal(ni signum)
 {
   switch (signum)
   {
@@ -971,12 +969,12 @@ DVOID CApp::handle_signal(ni signum)
   }
 }
 
-DVOID CApp::schedule_works()
+DVOID CParentRunner::schedule_works()
 {
   while(true)
   {
-    ACE_Time_Value timeout(2);
-    ACE_Reactor::instance()->run_reactor_event_loop(timeout);
+    CTV l_x(2);
+    ACE_Reactor::instance()->run_reactor_event_loop(l_x);
     if (m_term)
     {
       C_INFO("sigterm, exiting...\n");
@@ -1002,14 +1000,14 @@ DVOID CApp::schedule_works()
   }
 }
 
-truefalse CApp::handle_signal_up()
+truefalse CParentRunner::handle_signal_up()
 {
   m_hup = false;
   print_info();
   return true;
 }
 
-truefalse CApp::handle_signal_child()
+truefalse CParentRunner::handle_signal_child()
 {
   ni st;
   pid_t x;
@@ -1023,17 +1021,17 @@ truefalse CApp::handle_signal_child()
   return true;
 }
 
-truefalse CApp::do_singal_child(pid_t)
+truefalse CParentRunner::do_singal_child(pid_t)
 {
   return true;
 }
 
-truefalse CApp::do_schedule_work()
+truefalse CParentRunner::do_schedule_work()
 {
   return true;
 }
 
-DVOID CApp::handle_no_sfile()
+DVOID CParentRunner::handle_no_sfile()
 {
   m_sfile_ok = false;
 }

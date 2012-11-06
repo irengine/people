@@ -884,7 +884,7 @@ bool MyFTPClient::is_response(const char * res_code)
 
 int MyFTPClient::get_timeout_seconds() const
 {
-  return CCfgX::instance()->download_timeout;
+  return CCfgX::instance()->download_max_idle;
 }
 
 bool MyFTPClient::send(const char * command)
@@ -1452,7 +1452,7 @@ bool MyDistInfoFtp::load_init(char * src)
 time_t MyDistInfoFtp::get_delay_penalty() const
 {
   //return (time_t)(std::min(m_failed_count + 1, (int)MAX_FAILED_COUNT) * 60 * FAILED_PENALTY);
-  return (time_t)(60 * CCfgX::instance()->download_retry_delay);
+  return (time_t)(60 * CCfgX::instance()->download_again_sleep);
 }
 
 bool MyDistInfoFtp::should_ftp(time_t now) const
@@ -1473,7 +1473,7 @@ void MyDistInfoFtp::touch()
 void MyDistInfoFtp::inc_failed(int steps)
 {
   m_failed_count += steps;
-  if (m_failed_count >= CCfgX::instance()->download_retry_count)
+  if (m_failed_count >= CCfgX::instance()->download_again_num)
   {
     if (status <= 3)
     {
@@ -1504,7 +1504,7 @@ ACE_Message_Block * MyDistInfoFtp::make_ftp_dist_message(const char * dist_id, i
     status = 3;
   int dist_id_len = ACE_OS::strlen(dist_id);
   int total_len = dist_id_len + 1 + 2 + 2;
-  ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd(total_len, CCmdHeader::PT_FTP_FILE, false);
+  ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd(total_len, CCmdHeader::PT_DOWNLOAD, false);
   CCmdExt * dpe = (CCmdExt*) mb->base();
   ACE_OS::memcpy(dpe->data, dist_id, dist_id_len);
   dpe->data[dist_id_len] = CCmdHeader::ITEM_SEPARATOR;
@@ -2083,7 +2083,7 @@ void MyDistInfoMD5::post_md5_message()
   int dist_id_len = ACE_OS::strlen(dist_id.get_ptr());
   int md5_len = m_md5list.text_len(false);
   int total_len = dist_id_len + 1 + md5_len;
-  ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd(total_len, CCmdHeader::PT_FILE_MD5_LIST);
+  ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd(total_len, CCmdHeader::PT_CHECKSUMS);
   CCmdExt * dpe = (CCmdExt*) mb->base();
   if (g_is_test)
     dpe->signature = client_id_index;
@@ -2412,7 +2412,7 @@ void MyIpVerReply::do_init(CMemProt & g, char * data, time_t t)
 
 void MyIpVerReply::get_filename(CMemProt & fn)
 {
-  fn.init(CCfgX::instance()->data_path.c_str(), "/pc_time.dat");
+  fn.init(CCfgX::instance()->data_dir.c_str(), "/pc_time.dat");
 }
 
 void MyIpVerReply::save_to_file(const char * s)
@@ -2548,7 +2548,7 @@ CProc::OUTPUT MyClientToDistProcessor::at_head_arrival()
   if (result != OP_GO_ON)
     return OP_FAIL;
 
-  bool bVersionCheckReply = m_data_head.cmd == CCmdHeader::PT_VER_REPLY; //m_version_check_reply_done
+  bool bVersionCheckReply = m_data_head.cmd == CCmdHeader::PT_LOGIN_BACK; //m_version_check_reply_done
   if (bVersionCheckReply == m_version_check_reply_done)
   {
     C_ERROR(ACE_TEXT("unexpected packet header from dist server, version_check_reply_done = %d, "
@@ -2566,7 +2566,7 @@ CProc::OUTPUT MyClientToDistProcessor::at_head_arrival()
     return OP_OK;
   }
 
-  if (m_data_head.cmd == CCmdHeader::PT_FILE_MD5_LIST)
+  if (m_data_head.cmd == CCmdHeader::PT_CHECKSUMS)
   {
     if (!c_packet_check_checksums_all(&m_data_head))
     {
@@ -2576,7 +2576,7 @@ CProc::OUTPUT MyClientToDistProcessor::at_head_arrival()
     return OP_OK;
   }
 
-  if (m_data_head.cmd == CCmdHeader::PT_FTP_FILE)
+  if (m_data_head.cmd == CCmdHeader::PT_DOWNLOAD)
   {
     if (!c_packet_check_download_cmd(&m_data_head))
     {
@@ -2586,7 +2586,7 @@ CProc::OUTPUT MyClientToDistProcessor::at_head_arrival()
     return OP_OK;
   }
 
-  if (m_data_head.cmd == CCmdHeader::PT_IP_VER_REQ)
+  if (m_data_head.cmd == CCmdHeader::PT_LOC_REPORT)
   {
     if (m_data_head.size <= (int)sizeof(CCmdHeader) || m_data_head.size >= 512
         || m_data_head.signature != CCmdHeader::SIGNATURE)
@@ -2597,7 +2597,7 @@ CProc::OUTPUT MyClientToDistProcessor::at_head_arrival()
     return OP_OK;
   }
 
-  if (m_data_head.cmd == CCmdHeader::PT_ACK)
+  if (m_data_head.cmd == CCmdHeader::PT_ANSWER)
   {
     if (!c_packet_check_common(&m_data_head))
     {
@@ -2633,7 +2633,7 @@ CProc::OUTPUT MyClientToDistProcessor::at_head_arrival()
     return OP_OK;
   }
 
-  if (m_data_head.cmd == CCmdHeader::PT_TEST)
+  if (m_data_head.cmd == CCmdHeader::PT_QUIZ)
   {
     if (m_data_head.size < (int)sizeof(CCmdHeader)
         || m_data_head.signature != CCmdHeader::SIGNATURE)
@@ -2644,7 +2644,7 @@ CProc::OUTPUT MyClientToDistProcessor::at_head_arrival()
     return OP_OK;
   }
 
-  if (m_data_head.cmd == CCmdHeader::PT_PSP)
+  if (m_data_head.cmd == CCmdHeader::PT_PAUSE_STOP)
   {
     if (m_data_head.size < (int)sizeof(CCmdHeader) + 2
         || m_data_head.signature != CCmdHeader::SIGNATURE)
@@ -2667,7 +2667,7 @@ CProc::OUTPUT MyClientToDistProcessor::do_read_data(ACE_Message_Block * mb)
   CFormatProcBase::do_read_data(mb);
   CCmdHeader * header = (CCmdHeader *)mb->base();
 
-  if (header->cmd == CCmdHeader::PT_VER_REPLY)
+  if (header->cmd == CCmdHeader::PT_LOGIN_BACK)
   {
     CProc::OUTPUT result = do_version_check_reply(mb);
 
@@ -2696,25 +2696,25 @@ CProc::OUTPUT MyClientToDistProcessor::do_read_data(ACE_Message_Block * mb)
     return result;
   }
 
-  if (header->cmd == CCmdHeader::PT_FILE_MD5_LIST)
+  if (header->cmd == CCmdHeader::PT_CHECKSUMS)
     return do_md5_list_request(mb);
 
-  if (header->cmd == CCmdHeader::PT_FTP_FILE)
+  if (header->cmd == CCmdHeader::PT_DOWNLOAD)
     return do_ftp_file_request(mb);
 
-  if (header->cmd == CCmdHeader::PT_IP_VER_REQ)
+  if (header->cmd == CCmdHeader::PT_LOC_REPORT)
     return do_ip_ver_reply(mb);
 
   if (header->cmd == CCmdHeader::PT_REMOTE_CMD)
     return do_remote_cmd(mb);
 
-  if (header->cmd == CCmdHeader::PT_ACK)
+  if (header->cmd == CCmdHeader::PT_ANSWER)
     return do_ack(mb);
 
-  if (header->cmd == CCmdHeader::PT_TEST)
+  if (header->cmd == CCmdHeader::PT_QUIZ)
     return do_test(mb);
 
-  if (header->cmd == CCmdHeader::PT_PSP)
+  if (header->cmd == CCmdHeader::PT_PAUSE_STOP)
     return do_psp(mb);
 
   if (header->cmd == CCmdHeader::PT_TQ)
@@ -2735,7 +2735,7 @@ bool MyClientToDistProcessor::check_vlc_empty()
   if (c == o)
     return true;
   o = c;
-  ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd(1, CCmdHeader::PT_VLC_EMPTY);
+  ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd(1, CCmdHeader::PT_NO_VIDEO);
   CCmdExt * dpe = (CCmdExt *)mb->base();
   dpe->data[0] = c;
   return m_handler->post_packet(mb) >= 0;
@@ -2745,7 +2745,7 @@ int MyClientToDistProcessor::send_heart_beat()
 {
   if (!m_version_check_reply_done)
     return 0;
-  ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd(0, CCmdHeader::PT_PING);
+  ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd(0, CCmdHeader::PT_HEART_BEAT);
   int ret = (m_handler->post_packet(mb) < 0? -1: 0);
   check_vlc_empty();
 //  C_DEBUG("send_heart_beat = %d\n", ret);
@@ -2880,7 +2880,7 @@ void MyClientToDistProcessor::check_offline_report()
   ACE_OS::strncat(buff, buff2 + 9, 64 -1);
   int len = ACE_OS::strlen(buff);
   ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd(len + 1 + 1,
-      CCmdHeader::PT_PC_ON_OFF);
+      CCmdHeader::PT_POWER_TIME);
   CCmdExt * dpe = (CCmdExt *)mb->base();
   dpe->data[0] = '3';
   ACE_OS::memcpy(dpe->data + 1, buff, len + 1);
@@ -3055,20 +3055,20 @@ int MyClientToDistProcessor::send_version_check_req()
   CTerminalVerReq * proc = (CTerminalVerReq *)mb->base();
   if (my_addr[0] != 0)
     ACE_OS::memcpy(proc->uuid, my_addr, IP_LEN);
-  proc->term_ver_major = const_client_version_major;
-  proc->term_ver_minor = const_client_version_minor;
+  proc->term_edition_x = const_client_version_major;
+  proc->term_edition_y = const_client_version_minor;
   proc->term_sn = m_term_sn;
-  proc->server_id = (u_int8_t) MyServerID::load(m_term_sn.to_str());
-  ACE_OS::memcpy(proc->hw_ver, hw_ver, len);
+  proc->handleout_id = (u_int8_t) MyServerID::load(m_term_sn.to_str());
+  ACE_OS::memcpy(proc->driver_edition, hw_ver, len);
   return (m_handler->post_packet(mb) < 0? -1: 0);
 }
 
 int MyClientToDistProcessor::send_ip_ver_req()
 {
-  ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd_direct(sizeof(CIpVerReq), CCmdHeader::PT_IP_VER_REQ);
-  CIpVerReq * ivr = (CIpVerReq *) mb->base();
-  ivr->term_ver_major = const_client_version_major;
-  ivr->term_ver_minor = const_client_version_minor;
+  ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd_direct(sizeof(CLocationReq), CCmdHeader::PT_LOC_REPORT);
+  CLocationReq * ivr = (CLocationReq *) mb->base();
+  ivr->term_edition_x = const_client_version_major;
+  ivr->term_edition_y = const_client_version_minor;
   if (!g_is_test || m_term_loc == 0)
     C_INFO("sending ip ver to dist server...\n");
   return (m_handler->post_packet(mb) < 0? -1: 0);
@@ -3244,7 +3244,7 @@ void MyDistServerAddrList::load()
 void MyDistServerAddrList::get_file_name(CMemProt & file_name)
 {
   const char * const_file_name = "/config/servers.lst";
-  file_name.init(CCfgX::instance()->app_path.c_str(), const_file_name);
+  file_name.init(CCfgX::instance()->runner_dir.c_str(), const_file_name);
 }
 
 bool MyDistServerAddrList::valid_addr(const char * addr) const
@@ -3322,8 +3322,8 @@ void MyVlcHistory::items(MyVlcItems * _items)
 
 void MyVlcHistory::process()
 {
-  std::string vlc2 = CCfgX::instance()->data_path + "/vlc-history2.txt";
-  std::string vlc1 = CCfgX::instance()->data_path + "/vlc-history.txt";
+  std::string vlc2 = CCfgX::instance()->data_dir + "/vlc-history2.txt";
+  std::string vlc1 = CCfgX::instance()->data_dir + "/vlc-history.txt";
   CSysFS::remove(vlc1.c_str(), true);
   CSysFS::remove(vlc2.c_str(), true);
   return;
@@ -3463,7 +3463,7 @@ int MyClientToDistHandler::handle_timeout(const ACE_Time_Value &current_time, co
       C_DEBUG("ping dist server now...\n");
 #if 0
     const int extra_size = 1024 * 1024 * 1;
-    ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd(extra_size, CCmdHeader::PT_TEST);
+    ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd(extra_size, CCmdHeader::PT_QUIZ);
     CCmdExt * dpe = (CCmdExt *)mb->base();
     ACE_OS::memset(dpe->get_ptr, 0, extra_size);
     int ret = post_packet(mb);
@@ -3879,7 +3879,7 @@ MyDistInfoFtp * MyClientFtpService::get_dist_info_ftp(ACE_Message_Block * mb) co
 MyClientToDistConnector::MyClientToDistConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
     CParentConn(_dispatcher, _manager)
 {
-  m_port_of_ip = CCfgX::instance()->ping_port;
+  m_port_of_ip = CCfgX::instance()->ping_hole;
   m_retry_delay = RECONNECT_INTERVAL;
   if (g_is_test)
     m_conn_count = MyClientAppX::instance()->term_SNs().number();
@@ -3932,7 +3932,7 @@ bool MyClientToDistConnector::before_reconnect()
   if (new_addr && *new_addr)
   {
     if (ACE_OS::strcmp("127.0.0.1", new_addr) == 0)
-      new_addr = CCfgX::instance()->middle_addr.c_str();
+      new_addr = CCfgX::instance()->pre_ip.c_str();
     C_INFO("maximum connect to %s:%d retry count reached , now trying next addr %s:%d...\n",
         m_remote_ip.c_str(), m_port_of_ip, new_addr, m_port_of_ip);
     m_remote_ip = new_addr;
@@ -4124,7 +4124,7 @@ void MyClientToDistDispatcher::ask_for_server_addr_list_done(bool success)
 
   const char * addr = addr_list.begin();
   if (ACE_OS::strcmp("127.0.0.1", addr) == 0)
-    addr = CCfgX::instance()->middle_addr.c_str();
+    addr = CCfgX::instance()->pre_ip.c_str();
   m_connector->dist_server_addr(addr);
   m_connector->begin();
 }
@@ -4187,7 +4187,7 @@ bool MyClientToDistDispatcher::do_schedule_work()
         if (likely(mb->capacity() >= (int)sizeof(CCmdHeader)))
         {
           CCmdHeader * dph = (CCmdHeader*)mb->base();
-          if (dph->cmd == CCmdHeader::PT_FTP_FILE)
+          if (dph->cmd == CCmdHeader::PT_DOWNLOAD)
           {
             uuid_t uuid;
             uuid_clear(uuid);
@@ -4235,7 +4235,7 @@ void MyHwAlarm::y(char _y)
 ACE_Message_Block * MyHwAlarm::make_hardware_alarm_mb()
 {
   ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd_direct(sizeof(CPLCWarning),
-      CCmdHeader::PT_HARDWARE_ALARM);
+      CCmdHeader::PT_HW_WARN);
   if (g_is_test)
     ((CCmdHeader *)mb->base())->signature = 0;
   CPLCWarning * dpe = (CPLCWarning *)mb->base();
@@ -4247,7 +4247,7 @@ ACE_Message_Block * MyHwAlarm::make_hardware_alarm_mb()
 
 //MyClientToDistModule//
 
-MyClientToDistModule::MyClientToDistModule(CApp * app): CContainer(app)
+MyClientToDistModule::MyClientToDistModule(CParentRunner * app): CContainer(app)
 {
   if (g_is_test)
   {
@@ -4350,7 +4350,7 @@ void MyClientToDistModule::ask_for_server_addr_list_done(bool success)
   if (m_client_ftp_service)
     return;
   if (g_is_test)
-    add_task(m_client_ftp_service = new MyClientFtpService(this, CCfgX::instance()->download_threads));
+    add_task(m_client_ftp_service = new MyClientFtpService(this, CCfgX::instance()->download_concurrents));
   else
     add_task(m_client_ftp_service = new MyClientFtpService(this, 1));
   m_client_ftp_service->begin();
@@ -4511,7 +4511,7 @@ CProc::OUTPUT MyClientToMiddleProcessor::at_head_arrival()
   if (result != OP_GO_ON)
     return OP_FAIL;
 
-  bool bVersionCheckReply = m_data_head.cmd == CCmdHeader::PT_VER_REPLY;
+  bool bVersionCheckReply = m_data_head.cmd == CCmdHeader::PT_LOGIN_BACK;
 
   if (bVersionCheckReply)
   {
@@ -4534,7 +4534,7 @@ CProc::OUTPUT MyClientToMiddleProcessor::do_read_data(ACE_Message_Block * mb)
   CMBProt guard(mb);
 
   CCmdHeader * header = (CCmdHeader *)mb->base();
-  if (header->cmd == CCmdHeader::PT_VER_REPLY)
+  if (header->cmd == CCmdHeader::PT_LOGIN_BACK)
     do_version_check_reply(mb);
   else
     C_ERROR("unsupported command received @MyClientToDistProcessor::do_read_data(), command = %d\n",
@@ -4592,10 +4592,10 @@ int MyClientToMiddleProcessor::send_version_check_req()
 {
   ACE_Message_Block * mb = create_login_mb();
   CTerminalVerReq * proc = (CTerminalVerReq *)mb->base();
-  proc->term_ver_major = const_client_version_major;
-  proc->term_ver_minor = const_client_version_minor;
+  proc->term_edition_x = const_client_version_major;
+  proc->term_edition_y = const_client_version_minor;
   proc->term_sn = m_term_sn;
-  proc->server_id = 0;
+  proc->handleout_id = 0;
   C_INFO("sending handshake request to middle server...\n");
   return (m_handler->post_packet(mb) < 0? -1: 0);
 }
@@ -4647,8 +4647,8 @@ yy_enable_cache(MyClientToMiddleHandler);
 MyClientToMiddleConnector::MyClientToMiddleConnector(CParentScheduler * _dispatcher, CHandlerDirector * _manager):
     CParentConn(_dispatcher, _manager)
 {
-  m_port_of_ip = CCfgX::instance()->pre_client_port;
-  m_remote_ip = CCfgX::instance()->middle_addr;
+  m_port_of_ip = CCfgX::instance()->pre_term_hole;
+  m_remote_ip = CCfgX::instance()->pre_ip;
   m_retry_delay = RECONNECT_INTERVAL;
   m_retried_count = 0;
 }
@@ -4904,7 +4904,7 @@ ACE_Message_Block * MyHttp1991Processor::make_pc_on_off_mb(bool on, const char *
 {
   int len = ACE_OS::strlen(sdata);
   ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd(len + 1 + 1,
-      CCmdHeader::PT_PC_ON_OFF);
+      CCmdHeader::PT_POWER_TIME);
   if (g_is_test)
     ((CCmdHeader *)mb->base())->signature = 0;
   CCmdExt * dpe = (CCmdExt *)mb->base();

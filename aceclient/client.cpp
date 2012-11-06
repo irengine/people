@@ -208,15 +208,15 @@ bool MyVLCLauncher::save_file(const char * buff)
 
 void MyVLCLauncher::init_mode(bool)
 {
-  m_adv_txt = CCfgX::instance()->data_path + "/5/adv.txt";
-  m_gasket = CCfgX::instance()->data_path + "/8/gasket.avi";
-  std::string s = CCfgX::instance()->data_path + "/5";
+  m_adv_txt = CCfgX::instance()->data_dir + "/5/adv.txt";
+  m_gasket = CCfgX::instance()->data_dir + "/8/gasket.avi";
+  std::string s = CCfgX::instance()->data_dir + "/5";
   m_options.working_directory(s.c_str());
 }
 
 void MyVLCLauncher::get_file_stat(time_t &t, int & n)
 {
-  std::string fn = CCfgX::instance()->data_path + "/vlc-history.txt";
+  std::string fn = CCfgX::instance()->data_dir + "/vlc-history.txt";
   struct stat stat;
   if (CSysFS::stat(fn.c_str(), &stat))
   {
@@ -335,7 +335,7 @@ bool MyVLCLauncher::parse_line(char * ptr, CMemProt & file_list, bool fill_optio
   char * token;
   ACE_OS::strcpy(cmdline.get_ptr(), sfake);
   CMemProt fn;
-  std::string p5 = CCfgX::instance()->data_path + "/5/";
+  std::string p5 = CCfgX::instance()->data_dir + "/5/";
   while ((token = tkn.get()) != NULL)
   {
     fn.init(p5.c_str(), token);
@@ -622,9 +622,9 @@ void MyClientApp::data_path(CMemProt & _data_path, const char * client_id)
     char tmp[128];
     tmp[0] = 0;
     CTerminalDirCreator::term_sn_to_dir(client_id, tmp, 128);
-    _data_path.init(CCfgX::instance()->app_path.c_str(), "/data/", tmp);
+    _data_path.init(CCfgX::instance()->runner_dir.c_str(), "/data/", tmp);
   } else
-    _data_path.init(CCfgX::instance()->app_path.c_str(), "/data");
+    _data_path.init(CCfgX::instance()->runner_dir.c_str(), "/data");
 }
 
 void MyClientApp::calc_display_parent_path(CMemProt & parent_path, const char * client_id)
@@ -954,14 +954,14 @@ void MyClientApp::dump_mem_pool_info()
   {
     chunks = MyClientToDistHandler::mem_block()->blocks();
     MyClientToDistHandler::mem_block()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyClientToDistHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToDistHandler), chunks);
+    CParentRunner::print_pool("MyClientToDistHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToDistHandler), chunks);
   }
 
   if (likely(MyClientToMiddleHandler::mem_block() != NULL))
   {
     chunks = MyClientToMiddleHandler::mem_block()->blocks();
     MyClientToMiddleHandler::mem_block()->query_stats(nAlloc, nFree, nMaxUse, nAllocFull);
-    CApp::print_pool("MyClientToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToMiddleHandler), chunks);
+    CParentRunner::print_pool("MyClientToMiddleHandler", nAlloc, nFree, nMaxUse, nAllocFull, sizeof(MyClientToMiddleHandler), chunks);
   }
 
   CCacheX::instance()->print_info();
@@ -975,7 +975,7 @@ const char * MyClientApp::index_frame_file()
   return "indexfile";
 }
 
-bool MyClientApp::app_init(const char * app_home_path, CCfg::CAppMode mode)
+bool MyClientApp::app_init(const char * app_home_path, CCfg::CXYZStyle mode)
 {
   MyClientApp * app = MyClientAppX::instance();
   CCfg * cfg = CCfgX::instance();
@@ -984,13 +984,13 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::CAppMode mode)
     std::printf("error loading config file, quitting\n");
     exit(5);
   }
-  if (geteuid() == 0 && cfg->can_root == 0)
+  if (geteuid() == 0 && cfg->can_su == 0)
   {
     std::printf("error run as root, quitting\n");
     exit(6);
   }
-  if (cfg->is_demon)
-    CApp::demon();
+  if (cfg->run_at_back)
+    CParentRunner::put_to_back();
 
   MyClientToMiddleHandler::mem_block_start(20);
   CCacheX::instance()->prepare(cfg);
@@ -1004,7 +1004,7 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::CAppMode mode)
 
   if (g_is_test)
   {
-    std::string idfile = cfg->app_path + "/config/id.file";
+    std::string idfile = cfg->runner_dir + "/config/id.file";
     std::ifstream ifs(idfile.c_str(), std::ifstream::in);
     if (!ifs || ifs.bad())
     {
@@ -1017,7 +1017,7 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::CAppMode mode)
       ifs.getline(id, 64);
       app->m_term_SNs.append(id);
     }
-    CTerminalDirCreator::create_dirs_from_TermSNs(cfg->data_path.c_str(), &app->m_term_SNs);
+    CTerminalDirCreator::create_dirs_from_TermSNs(cfg->data_dir.c_str(), &app->m_term_SNs);
     MyClientToDistHandler::mem_block_start(app->m_term_SNs.number() * 1.2);
 
     int m = app->m_term_SNs.number();
@@ -1035,12 +1035,12 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::CAppMode mode)
     }
   } else
   {
-    std::string path_x = cfg->app_path + "/data/download";
+    std::string path_x = cfg->runner_dir + "/data/download";
     CSysFS::create_dir(path_x.c_str(), true);
-    path_x = cfg->app_path + "/data/tmp";
+    path_x = cfg->runner_dir + "/data/tmp";
     CSysFS::delete_dir(path_x.c_str(), true);
     CSysFS::create_dir(path_x.c_str(), true);
-    path_x = cfg->app_path + "/data/backup";
+    path_x = cfg->runner_dir + "/data/backup";
     CSysFS::create_dir(path_x.c_str(), true);
 
 //    if(cfg->adv_expire_days > 0)

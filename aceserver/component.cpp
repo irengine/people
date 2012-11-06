@@ -1507,7 +1507,7 @@ CProc::OUTPUT CFormatProcBase::do_read_data(CMB * mb)
 
 CMB * CFormatProcBase::create_login_mb(CONST ni x)
 {
-  CMB * mb = CCacheX::instance()->get_mb_cmd_direct(sizeof(CTerminalVerReq) + x, CCmdHeader::PT_VER_REQ);
+  CMB * mb = CCacheX::instance()->get_mb_cmd_direct(sizeof(CTerminalVerReq) + x, CCmdHeader::PT_LOGIN);
   return mb;
 }
 
@@ -1574,7 +1574,7 @@ CProc::OUTPUT CParentServerProc::at_head_arrival()
     return r;
 
   truefalse l_sn_Ok = term_sn_check_done();
-  truefalse l_ver_ok = (m_data_head.cmd == CCmdHeader::PT_VER_REQ);
+  truefalse l_ver_ok = (m_data_head.cmd == CCmdHeader::PT_LOGIN);
   if (l_sn_Ok == l_ver_ok)
   {
     CMemProt l_x;
@@ -1592,7 +1592,7 @@ CProc::OUTPUT CParentServerProc::i_is_ver_ok(CMB * mb, CTermSNs & term_SNs)
   CTerminalVerReq * l_header = (CTerminalVerReq *) mb->base();
   l_header->fix_data();
   CMB * l_back = NULL;
-  m_term_ver.init(l_header->term_ver_major, l_header->term_ver_minor);
+  m_term_ver.init(l_header->term_edition_x, l_header->term_edition_y);
   ni m = term_SNs.find_location(l_header->term_sn);
   truefalse l_ok = false;
 
@@ -1628,7 +1628,7 @@ CProc::OUTPUT CParentServerProc::i_is_ver_ok(CMB * mb, CTermSNs & term_SNs)
 CMB * CParentServerProc::i_create_mb_ver_reply(CTermVerReply::SUBCMD x, ni more_space)
 {
   ni l_x = sizeof(CTermVerReply) + more_space;
-  CMB * mb = CCacheX::instance()->get_mb_cmd_direct(l_x, CCmdHeader::PT_VER_REPLY);
+  CMB * mb = CCacheX::instance()->get_mb_cmd_direct(l_x, CCmdHeader::PT_LOGIN_BACK);
   CTermVerReply * l_header = (CTermVerReply *) mb->base();
   l_header->ret_subcmd = x;
   return mb;
@@ -1663,7 +1663,7 @@ DVOID CParentClientProc::sn_check_ok(truefalse bOK)
 truefalse CParentClientProc::ok_to_post(CMB * mb) CONST
 {
   CCmdHeader * l_header = (CCmdHeader*) mb->base();
-  truefalse l_is_ver = l_header->cmd == CCmdHeader::PT_VER_REQ;
+  truefalse l_is_ver = l_header->cmd == CCmdHeader::PT_LOGIN;
   truefalse l_ver_finished = term_sn_check_done();
   return l_is_ver != l_ver_finished;
 }
@@ -1701,7 +1701,7 @@ CProc::OUTPUT CParentClientProc::at_head_arrival()
     return result;
 
   truefalse bVerified = term_sn_check_done();
-  truefalse bVersionCheck = (m_data_head.cmd == CCmdHeader::PT_VER_REPLY);
+  truefalse bVersionCheck = (m_data_head.cmd == CCmdHeader::PT_LOGIN_BACK);
   if (bVerified == bVersionCheck)
   {
     CMemProt info;
@@ -1863,7 +1863,7 @@ DVOID CHandlerDirector::delete_broken(ni _to)
   CHandlersAllIt l_x;
   CParentHandler * h;
   CHandlerDirectorDownProt o(this);
-  long deadline = g_clock_counter - long(_to * 60 / CApp::CLOCK_TIME);
+  long deadline = g_clock_counter - long(_to * 60 / CParentRunner::CLOCK_TIME);
   for (l_x = m_handlers.begin(); l_x != m_handlers.end();)
   {
     h = l_x->first;
@@ -2726,7 +2726,7 @@ ni CParentScheduler::svc()
 }
 
 
-CContainer::CContainer(CApp * p): m_app(p), m_is_working(false)
+CContainer::CContainer(CParentRunner * p): m_app(p), m_is_working(false)
 {
 
 }
@@ -2741,7 +2741,7 @@ truefalse CContainer::working() CONST
   return m_is_working;
 }
 
-CApp * CContainer::app() CONST
+CParentRunner * CContainer::app() CONST
 {
   return m_app;
 }

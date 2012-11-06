@@ -21,15 +21,15 @@ public:
   truefalse have_checksum_compress() CONST;
   truefalse is_ok(CONST truefalse acode_also) CONST;
 
-  text * acode;
-  text * ftype;
-  text * fdir;
-  text * findex;
-  text * adir;
-  text * aindex;
-  text * ver;
-  text * type;
-  text * password;
+  text * what_;
+  text * remote_kind;
+  text * remote_path;
+  text * remote_file;
+  text * local_path;
+  text * local_file;
+  text * edition;
+  text * local_kind;
+  text * key;
 
 private:
   truefalse do_validate(CONST text *, CONST text *) CONST;
@@ -41,25 +41,25 @@ public:
   CBsDistData(CONST text *);
   truefalse have_checksum() CONST;
   truefalse have_checksum_compress() CONST;
-  DVOID calc_md5_opt_len();
+  DVOID calc_checksum_opt_sum();
 
   truefalse exist;
-  ni  md5_len;
-  ni  ver_len;
-  ni  findex_len;
-  ni  aindex_len;
-  ni  password_len;
-  ni  md5_opt_len;
-  text ftype[2];
-  text type[2];
-  CMemProt dist_time;
-  CMemProt md5;
-  CMemProt mbz_md5;
-  CMemProt fdir;
-  CMemProt findex;
-  CMemProt aindex;
-  CMemProt ver;
-  CMemProt password;
+  ni  checksum_size;
+  ni  edition_size;
+  ni  remote_file_size;
+  ni  local_file_size;
+  ni  key_size;
+  ni  checksum_opt_size;
+  text remote_kind[2];
+  text local_kind[2];
+  CMemProt when_handleout;
+  CMemProt check_sum;
+  CMemProt compress_checksum;
+  CMemProt remote_path;
+  CMemProt remote_file;
+  CMemProt local_file;
+  CMemProt edition;
+  CMemProt key;
 };
 
 class CBsDistDatas
@@ -118,7 +118,7 @@ public:
   }
   truefalse overdue() CONST
   {
-    return time(NULL) - m_tm >= 85;
+    return time(NULL) - m_tm >= 90;
   }
 
 private:
@@ -129,19 +129,19 @@ private:
 class CPositionAcc;
 class CPositionContainer;
 
-class CBalanceData
+class CChargeData
 {
 public:
   enum { IP_SIZE = 40 };
 
-  CBalanceData()
+  CChargeData()
   {
     m_ip[0] = 0;
     m_load = 0;
     m_prev_access_ts = g_clock_counter;
   }
 
-  CBalanceData(CONST text * p, ni m)
+  CChargeData(CONST text * p, ni m)
   {
     set_ip(p);
     set_load(m);
@@ -164,7 +164,7 @@ public:
       m_load = 0;
   }
 
-  truefalse operator < (CONST CBalanceData & obj) CONST
+  truefalse operator < (CONST CChargeData & obj) CONST
   {
     return m_load < obj.m_load;
   }
@@ -175,25 +175,25 @@ public:
 };
 
 
-class CBalanceDatas
+class CChargeDatas
 {
 public:
-  typedef std::vector<CBalanceData> CBalanceDataVec;
-  typedef CBalanceDataVec::iterator CBalanceDataVecIt;
+  typedef std::vector<CChargeData> CChargeDataVec;
+  typedef CChargeDataVec::iterator CChargeDataVecIt;
   enum { IP_SIZE = 2048 };
   enum { BROKEN_INTERVAL = 10 }; //m
-  CBalanceDatas();
+  CChargeDatas();
   ni    query_servers(text *, ni);
   DVOID check_broken();
-  DVOID refresh(CONST CBalanceData & load);
+  DVOID refresh(CONST CChargeData & load);
   DVOID del(CONST text *);
 
 private:
   DVOID do_compute_ips();
-  CBalanceDatas::CBalanceDataVecIt do_search(CONST text *);
+  CChargeDatas::CChargeDataVecIt do_search(CONST text *);
 
   ACE_Thread_Mutex m_mutex;
-  CBalanceDataVec m_loads;
+  CChargeDataVec m_loads;
   text m_ips[IP_SIZE];
   ni   m_ip_size;
 };
@@ -221,14 +221,14 @@ public:
   virtual CProc::OUTPUT at_head_arrival();
   virtual CONST text * title() CONST;
 
-  SF CBalanceDatas * m_balance_datas;
+  SF CChargeDatas * m_charge_datas;
   xx_enable_cache_easy(CPositionProc, ACE_Thread_Mutex);
 
 protected:
   virtual CProc::OUTPUT do_read_data(CMB *);
 
 private:
-  CProc::OUTPUT do_version_check(CMB *);
+  CProc::OUTPUT do_login_check(CMB *);
 };
 
 
@@ -275,9 +275,9 @@ public:
 class CPositionContainer: public CContainer
 {
 public:
-  CPositionContainer(CApp *);
+  CPositionContainer(CParentRunner *);
   virtual ~CPositionContainer();
-  CBalanceDatas * balance_datas();
+  CChargeDatas * charge_datas();
 
 protected:
   virtual truefalse before_begin();
@@ -285,7 +285,7 @@ protected:
   virtual CONST text * title() CONST;
 
 private:
-  CBalanceDatas m_balance_datas;
+  CChargeDatas m_charge_datas;
   CPositionTask * m_task;
   CPositionScheduler * m_scheduler;
 };
@@ -369,7 +369,7 @@ public:
 class CBsReqContainer: public CContainer
 {
 public:
-  CBsReqContainer(CApp * app);
+  CBsReqContainer(CParentRunner * app);
   virtual ~CBsReqContainer();
   virtual CONST text * title() CONST;
   CBsReqTask * bs_req_task();
@@ -398,7 +398,7 @@ public:
   virtual CONST text * title() CONST;
   virtual truefalse term_sn_check_done() CONST;
   virtual CProc::OUTPUT at_head_arrival();
-  DVOID balance_datas(CBalanceDatas *);
+  DVOID charge_datas(CChargeDatas *);
 
 protected:
   virtual CProc::OUTPUT do_read_data(CMB *);
@@ -410,7 +410,7 @@ private:
   CProc::OUTPUT handle_balance(CMB *);
 
   truefalse m_term_sn_check_done;
-  CBalanceDatas * m_balance_datas;
+  CChargeDatas * m_charge_datas;
 };
 
 
@@ -418,7 +418,7 @@ class CBalanceHandler: public CParentHandler
 {
 public:
   CBalanceHandler(CHandlerDirector * = NULL);
-  DVOID balance_datas(CBalanceDatas *);
+  DVOID balance_datas(CChargeDatas *);
 
   xx_enable_cache_easy(CBalanceHandler, ACE_Thread_Mutex);
 };
@@ -459,7 +459,7 @@ public:
 class CBalanceContainer: public CContainer
 {
 public:
-  CBalanceContainer(CApp *);
+  CBalanceContainer(CParentRunner *);
   virtual ~CBalanceContainer();
   virtual CONST text * title() CONST;
   CBalanceScheduler * scheduler() CONST;
@@ -520,7 +520,7 @@ protected:
 //dst
 class CPingContainer;
 class CHeartBeatGatherer;
-class CIPVerGatherer;
+class CLocationGatherer;
 class CDownloadReplyGatherer;
 class CClickGatherer;
 class CHwPowerTimeGatherer;
@@ -685,7 +685,7 @@ public:
   virtual CONST text * title() CONST;
 
   SF CHeartBeatGatherer * m_ping_gatherer;
-  SF CIPVerGatherer * m_ipver_gatherer;
+  SF CLocationGatherer * m_location_gatherer;
   SF CDownloadReplyGatherer * m_download_reply_gatherer;
   SF CClickGatherer * m_click_gatherer;
   SF CHwPowerTimeGatherer * m_HW_powertime_gatherer;
@@ -711,7 +711,7 @@ private:
   CProc::OUTPUT i_ver(CMB *);
   CProc::OUTPUT i_checksums(CMB *);
   CProc::OUTPUT i_download_feedback(CMB *);
-  CProc::OUTPUT i_ipver(CMB *);
+  CProc::OUTPUT i_location(CMB *);
   CProc::OUTPUT i_click(CMB *);
   CProc::OUTPUT i_hw_powertime(CMB *);
 
@@ -798,11 +798,11 @@ private:
   CGatheredData m_chunk;
 };
 
-class CIPVerGatherer: public CParentGatherer
+class CLocationGatherer: public CParentGatherer
 {
 public:
   enum { ITEM_MARK = ';' };
-  CIPVerGatherer();
+  CLocationGatherer();
   DVOID append(CONST text *, ni, CONST text *, CONST text *, CONST text *);
 
 protected:
@@ -950,14 +950,14 @@ protected:
 
 private:
   enum { TIMER_VALUE_PING = 15, //s
-         TIMER_VALUE_IP_VER = 10, //s
+         TIMER_VALUE_LOCATION = 10, //s
          TIMER_VALUE_DOWNLOAD_REPLY = 15, //s
          TIMER_VALUE_CLICK = 2, //m
-         TIMER_VALUE_DIST_TASK = 2 //m
+         TIMER_VALUE_HAS_JOB = 2 //m
        };
   enum { TIMER_DELAY_VALUE = 3 }; //s
   enum { MQ_PEAK = 60000000 };
-  enum { TID_PING = 2, TID_IPVER, TID_DIST_TASK, TID_DOWNLOAD_REPLY, TID_CLICK };
+  enum { TID_PING = 2, TID_LOCATION, TID_HAS_JOB, TID_DOWNLOAD_REPLY, TID_CLICK };
 
   CPingAcc * m_acc;
 };
@@ -975,7 +975,7 @@ public:
 class CPingContainer: public CContainer
 {
 public:
-  CPingContainer(CApp *);
+  CPingContainer(CParentRunner *);
   virtual ~CPingContainer();
   CPingScheduler * scheduler() CONST;
   virtual CONST text * title() CONST;
@@ -991,7 +991,7 @@ protected:
 
 private:
   CHeartBeatGatherer m_heart_beat_gatherer;
-  CIPVerGatherer m_ipver_gatherer;
+  CLocationGatherer m_location_gatherer;
   CDownloadReplyGatherer m_download_reply_gatherer;
   CClickGatherer m_click_gatherer;
   CHwPowerTimeGatherer m_hw_power_gatherer;
@@ -1021,8 +1021,8 @@ protected:
 
 private:
   enum { MQ_PEAK = 2000000 };
-  DVOID i_ipver_entry(text *);
-  DVOID i_ipver(CBSData *);
+  DVOID i_location_entry(text *);
+  DVOID i_location(CBSData *);
 };
 
 class CD2BsHandler: public CParentHandler
@@ -1066,7 +1066,7 @@ public:
   CD2MProc(CParentHandler *);
   virtual CProc::OUTPUT at_head_arrival();
   virtual ni at_start();
-  ni post_balance();
+  ni post_charge();
 
 protected:
   virtual CProc::OUTPUT do_read_data(CMB *);
@@ -1076,11 +1076,11 @@ private:
   enum { MQ_PEAK = 512 * 1024 };
 
   ni post_ver_mb();
-  CProc::OUTPUT handle_ver_reply(CMB *);
-  CProc::OUTPUT handle_has_dist(CMB *);
+  CProc::OUTPUT handle_login_back(CMB *);
+  CProc::OUTPUT handle_has_job(CMB *);
   CProc::OUTPUT handle_rmt_command(CMB *);
 
-  truefalse m_ver_reply_finished;
+  truefalse m_edition_back_finished;
   text m_self_ip[IP_SIZE];
 };
 
@@ -1098,8 +1098,8 @@ protected:
   virtual ni  at_start();
 
 private:
-  enum { BALANCE_TIMER = 1 };
-  enum { BALANCE_DELAY = 2 };
+  enum { CHARGE_TIMER = 1 };
+  enum { CHARGE_DELAY = 2 };
   long m_tid;
 };
 
@@ -1142,7 +1142,7 @@ protected:
 class CD2MContainer: public CContainer
 {
 public:
-  CD2MContainer(CApp *);
+  CD2MContainer(CParentRunner *);
   virtual ~CD2MContainer();
   virtual CONST text * title() CONST;
   DVOID post_bs(CMB *);
@@ -1199,9 +1199,9 @@ private:
   truefalse run_sql(CONST text *, ni * = NULL);
   DVOID prepare_text(CONST text *, CMemProt &) CONST;
   time_t    get_db_time_i();
-  truefalse write_config(CONST ni, CONST text *);
-  truefalse read_config(CONST ni, CMemProt &);
-  truefalse read_config_i(CONST ni, CMemProt &);
+  truefalse write_xinfo(CONST ni, CONST text *);
+  truefalse read_xinfo(CONST ni, CMemProt &);
+  truefalse read_xinfo_i(CONST ni, CMemProt &);
 
   PGconn * m_pg_con;
   CMemProt m_db_ip;

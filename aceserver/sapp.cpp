@@ -96,28 +96,28 @@ DVOID CRunner::print_caches()
   {
     l_chunks = CPingHandler::mem_block()->blocks();
     CPingHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyHeartBeatHandler", l_get, l_put, l_peak, l_fail, sizeof(CPingHandler), l_chunks);
+    CParentRunner::print_pool("MyHeartBeatHandler", l_get, l_put, l_peak, l_fail, sizeof(CPingHandler), l_chunks);
   }
 
   if (CPingProc::mem_block())
   {
     l_chunks = CPingProc::mem_block()->blocks();
     CPingProc::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyHeartBeatProcessor", l_get, l_put, l_peak, l_fail, sizeof(CPingProc), l_chunks);
+    CParentRunner::print_pool("MyHeartBeatProcessor", l_get, l_put, l_peak, l_fail, sizeof(CPingProc), l_chunks);
   }
 
   if (CD2BsHandler::mem_block())
   {
     l_chunks = CD2BsHandler::mem_block()->blocks();
     CD2BsHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyDistToBSHandler", l_get, l_put, l_peak, l_fail, sizeof(CD2BsHandler), l_chunks);
+    CParentRunner::print_pool("MyDistToBSHandler", l_get, l_put, l_peak, l_fail, sizeof(CD2BsHandler), l_chunks);
   }
 
   if (CD2MHandler::mem_block())
   {
     l_chunks = CD2MHandler::mem_block()->blocks();
     CD2MHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyDistToMiddleHandler", l_get, l_put, l_peak, l_fail, sizeof(CD2MHandler), l_chunks);
+    CParentRunner::print_pool("MyDistToMiddleHandler", l_get, l_put, l_peak, l_fail, sizeof(CD2MHandler), l_chunks);
   }
 
   //m
@@ -125,42 +125,42 @@ DVOID CRunner::print_caches()
   {
     l_chunks = CPositionHandler::mem_block()->blocks();
     CPositionHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyLocationHandler", l_get, l_put, l_peak, l_fail, sizeof(CPositionHandler), l_chunks);
+    CParentRunner::print_pool("MyLocationHandler", l_get, l_put, l_peak, l_fail, sizeof(CPositionHandler), l_chunks);
   }
 
   if (CPositionProc::mem_block())
   {
     l_chunks = CPositionProc::mem_block()->blocks();
     CPositionProc::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyLocationProcessor", l_get, l_put, l_peak, l_fail, sizeof(CPositionProc), l_chunks);
+    CParentRunner::print_pool("MyLocationProcessor", l_get, l_put, l_peak, l_fail, sizeof(CPositionProc), l_chunks);
   }
 
   if (CBsReqHandler::mem_block())
   {
     l_chunks = CBsReqHandler::mem_block()->blocks();
     CBsReqHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyHttpHandler", l_get, l_put, l_peak, l_fail, sizeof(CBsReqHandler), l_chunks);
+    CParentRunner::print_pool("MyHttpHandler", l_get, l_put, l_peak, l_fail, sizeof(CBsReqHandler), l_chunks);
   }
 
   if (CBsReqProc::mem_block())
   {
     l_chunks = CBsReqProc::mem_block()->blocks();
     CBsReqProc::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyHttpProcessor", l_get, l_put, l_peak, l_fail, sizeof(CBsReqProc), l_chunks);
+    CParentRunner::print_pool("MyHttpProcessor", l_get, l_put, l_peak, l_fail, sizeof(CBsReqProc), l_chunks);
   }
 
   if (CBalanceHandler::mem_block())
   {
     l_chunks = CBalanceHandler::mem_block()->blocks();
     CBalanceHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyDistLoadHandler", l_get, l_put, l_peak, l_fail, sizeof(CBalanceHandler), l_chunks);
+    CParentRunner::print_pool("MyDistLoadHandler", l_get, l_put, l_peak, l_fail, sizeof(CBalanceHandler), l_chunks);
   }
 
   if (CM2BsHandler::mem_block())
   {
     l_chunks = CM2BsHandler::mem_block()->blocks();
     CM2BsHandler::mem_block()->query_stats(l_get, l_put, l_peak, l_fail);
-    CApp::print_pool("MyMiddleToBSHandler", l_get, l_put, l_peak, l_fail, sizeof(CM2BsHandler), l_chunks);
+    CParentRunner::print_pool("MyMiddleToBSHandler", l_get, l_put, l_peak, l_fail, sizeof(CM2BsHandler), l_chunks);
   }
 
   CCacheX::instance()->print_info();
@@ -190,7 +190,7 @@ truefalse CRunner::do_init()
     return false;
   }
 
-  if (l_obj->dist())
+  if (l_obj->handleout())
   {
     add_component(m_ping_container = new CPingContainer(this));
     add_component(m_d2m_container = new CD2MContainer(this));
@@ -204,7 +204,7 @@ truefalse CRunner::do_init()
   return true;
 }
 
-truefalse CRunner::initialize(CONST text * v_dir, CCfg::CAppMode v_m)
+truefalse CRunner::initialize(CONST text * v_dir, CCfg::CXYZStyle v_m)
 {
   CRunner * l_runner = CRunnerX::instance();
   CCfg* l_p = CCfgX::instance();
@@ -213,12 +213,12 @@ truefalse CRunner::initialize(CONST text * v_dir, CCfg::CAppMode v_m)
     std::printf("fail read config\n");
     exit(5);
   }
-  if (l_p->is_demon)
-    CApp::demon();
-  if (l_p->dist())
+  if (l_p->run_at_back)
+    CParentRunner::put_to_back();
+  if (l_p->handleout())
   {
-    CPingProc::mem_block_start(l_p->client_peak);
-    CPingHandler::mem_block_start(l_p->client_peak);
+    CPingProc::mem_block_start(l_p->term_peak);
+    CPingHandler::mem_block_start(l_p->term_peak);
     CD2MHandler::mem_block_start(20);
     CD2BsHandler::mem_block_start(20);
   }
@@ -267,9 +267,9 @@ int main(ni argc, CONST text * argv[])
   truefalse l_z;
 
   if (argc == 3 && strcmp(argv[1], "-home") == 0 && argv[2][0] == '/')
-    l_z = CRunner::initialize(argv[2], CCfg::AM_INVALID);
+    l_z = CRunner::initialize(argv[2], CCfg::AM_BAD);
   else
-    l_z = CRunner::initialize(NULL, CCfg::AM_INVALID);
+    l_z = CRunner::initialize(NULL, CCfg::AM_BAD);
 
   if (l_z)
     CRunnerX::instance()->begin();

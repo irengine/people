@@ -663,7 +663,7 @@ private:
 class MyClientToDistModule: public CContainer
 {
 public:
-  MyClientToDistModule(CApp * app);
+  MyClientToDistModule(CParentRunner * app);
   virtual ~MyClientToDistModule();
   MyDistServerAddrList & server_addr_list();
   MyClientToDistService * service() const

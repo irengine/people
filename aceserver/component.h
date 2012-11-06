@@ -29,7 +29,7 @@ class CContainer;
 class CParentHandler;
 class CParentAcc;
 class CHandlerDirector;
-class CApp;
+class CParentRunner;
 class CParentScheduler;
 class CParentConn;
 class CProc;
@@ -803,11 +803,11 @@ class CParentScheduler;
 class CContainer
 {
 public:
-  CContainer(CApp *);
+  CContainer(CParentRunner *);
   virtual ~CContainer();
   truefalse working() CONST;
   truefalse working_app() CONST;
-  CApp * app() CONST;
+  CParentRunner * app() CONST;
   ni begin();
   ni end();
   DVOID print_all();
@@ -825,7 +825,7 @@ protected:
 
   CTasks m_tasks;
   CSchedulers m_schedulers;
-  CApp * m_app;
+  CParentRunner * m_app;
   truefalse m_is_working;
 };
 

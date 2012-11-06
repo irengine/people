@@ -881,26 +881,26 @@ public:
   enum PacketType
   {
     PT_NULL = 0,
-    PT_PING,
-    PT_VER_REQ,
-    PT_VER_REPLY,
+    PT_HEART_BEAT,
+    PT_LOGIN,
+    PT_LOGIN_BACK,
     PT_LOAD_BALANCE_REQ,
-    PT_FILE_MD5_LIST,
-    PT_HAVE_DIST_TASK,
-    PT_FTP_FILE,
-    PT_IP_VER_REQ,
+    PT_CHECKSUMS,
+    PT_HAS_JOB,
+    PT_DOWNLOAD,
+    PT_LOC_REPORT,
     PT_ADV_CLICK,
-    PT_PC_ON_OFF,
-    PT_HARDWARE_ALARM,
-    PT_VLC,
+    PT_POWER_TIME,
+    PT_HW_WARN,
+    PT_VIDEO,
     PT_REMOTE_CMD,
-    PT_ACK,
-    PT_VLC_EMPTY,
-    PT_TEST,
-    PT_PSP,
+    PT_ANSWER,
+    PT_NO_VIDEO,
+    PT_QUIZ,
+    PT_PAUSE_STOP,
     PT_TQ,
-    PT_END,
-    PT_DISCONNECT_INTERNAL
+    PT_LAST,
+    PT_TERMINATE_CONNECTION_I
   };
   i32 size;
   u32 signature;
@@ -919,22 +919,22 @@ public:
 class CTerminalVerReq: public CCmdHeader
 {
 public:
-  u8 term_ver_major;
-  u8 term_ver_minor;
-  u8 server_id;
+  u8 term_edition_x;
+  u8 term_edition_y;
+  u8 handleout_id;
   CNumber term_sn;
-  text hw_ver[0];
+  text driver_edition[0];
 
   DVOID fix_data()
   { term_sn.zero_ending(); }
 
 };
 
-class CIpVerReq: public CCmdHeader
+class CLocationReq: public CCmdHeader
 {
 public:
-  u8 term_ver_major;
-  u8 term_ver_minor;
+  u8 term_edition_x;
+  u8 term_edition_y;
 };
 
 class CTermVerReply: public CCmdHeader
@@ -978,7 +978,7 @@ public:
       ip[0] = 0;
     else
     {
-      memset(ip, 0, CLoadBalanceReq::IP_SIZE); //make compiler happy
+      memset(ip, 0, CLoadBalanceReq::IP_SIZE);
       ACE_OS::strsncpy(ip, s, CLoadBalanceReq::IP_SIZE);
     }
   }
@@ -1001,8 +1001,8 @@ public:
   ni  data_len() CONST;
   DVOID data_signature();
   truefalse validate_header() CONST;
-  DVOID set_cmd(CONST text * _cmd);
-  truefalse is_cmd(CONST text * _cmd);
+  DVOID set_cmd(CONST text *);
+  truefalse is_cmd(CONST text *);
   truefalse fix_data();
 
   text length[LEN];
@@ -1011,16 +1011,16 @@ public:
   text data[0];
 };
 
-#define CONST_BS_IP_VER_CMD        "01"
-#define CONST_BS_DIST_FEEDBACK_CMD "02"
-#define CONST_BS_HARD_MON_CMD      "03"
-#define CONST_BS_PING_CMD          "04"
-#define CONST_BS_ADV_CLICK_CMD     "05"
-#define CONST_BS_PATCH_FILE_CMD    "06"
-#define CONST_BS_POWERON_LINK_CMD  "07"
-#define CONST_BS_VLC_CMD           "10"
-#define CONST_BS_DIST_FBDETAIL_CMD "12"
-#define CONST_BS_VLC_EMPTY_CMD     "13"
+#define CCMD_PATCH_FILE    "06"
+#define CCMD_POWERON_LINK  "07"
+#define CCMD_VIDEO           "10"
+#define CCMD_HANDOUT_MORE_INFO "12"
+#define CCMD_NO_VIDEO     "13"
+#define CCMD_LOC_REPORT        "01"
+#define CCMD_HANDOUT_RESULT "02"
+#define CCMD_HARD_MON      "03"
+#define CCMD_HEART_BEAT          "04"
+#define CCMD_ADV_CLICK     "05"
 
 #pragma pack(pop)
 

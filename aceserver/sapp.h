@@ -8,7 +8,7 @@
 class CPingContainer;
 class CPositionContainer;
 
-class CRunner: public CApp
+class CRunner: public CParentRunner
 {
 public:
   CRunner();
@@ -21,7 +21,7 @@ public:
   CPositionContainer * position_container() CONST;
   CD2MContainer * d2m_container() CONST;
   CPG & pg();
-  SF truefalse initialize(CONST text * hpath = NULL, CCfg::CAppMode m = CCfg::AM_INVALID);
+  SF truefalse initialize(CONST text * hpath = NULL, CCfg::CXYZStyle m = CCfg::AM_BAD);
   SF DVOID cleanup();
   SF DVOID print_caches();
 

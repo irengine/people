@@ -1215,14 +1215,14 @@ DVOID CCache::prepare(CCfg * v_ptr)
       m_blocks[i]->prepare();
     }
   }
-  else if (CCfgX::instance()->dist())
+  else if (CCfgX::instance()->handleout())
   {
     for(size_t i = 0;i < sizeof (l_sizes) / sizeof (ni);++i)
     {
       if (l_sizes[i] == 32 || l_sizes[i] == 128)
-        m = std::max((ni)((v_ptr->client_peak * 20)), 10000);
+        m = std::max((ni)((v_ptr->term_peak * 20)), 10000);
       else if (l_sizes[i] <= 1 * KB)
-        m = std::max((ni)((v_ptr->client_peak * 2)), 3000);
+        m = std::max((ni)((v_ptr->term_peak * 2)), 3000);
       else if (l_sizes[i] < 512 * KB)
         m = 2 * MB / l_sizes[i];
       else
@@ -1236,10 +1236,10 @@ DVOID CCache::prepare(CCfg * v_ptr)
   ni l_x;
   if (v_ptr->term_station())
     l_x = 200;
-  else if (v_ptr->dist())
-    l_x = std::max((ni)((v_ptr->client_peak * 4)), 4000);
+  else if (v_ptr->handleout())
+    l_x = std::max((ni)((v_ptr->term_peak * 4)), 4000);
   else
-    l_x = std::max((ni)((v_ptr->client_peak * 2)), 2000);
+    l_x = std::max((ni)((v_ptr->term_peak * 2)), 2000);
   m_mbs = new CMemBlock<ACE_Thread_Mutex>(l_x, sizeof (CMB));
   m_dbs = new CMemBlock<ACE_Thread_Mutex>(l_x, sizeof (ACE_Data_Block));
 }
@@ -1349,7 +1349,7 @@ CMB * CCache::get_mb_ack(CMB * p)
   mb->wr_ptr(mb->capacity());
   CCmdHeader * h = (CCmdHeader *) mb->base();
   CCmdHeader * h_src = (CCmdHeader *) p->base();
-  h->cmd = CCmdHeader::PT_ACK;
+  h->cmd = CCmdHeader::PT_ANSWER;
   h->size = (ni)sizeof(CCmdHeader);
   h->signature = CCmdHeader::SIGNATURE;
   uuid_copy(h->uuid, h_src->uuid);
@@ -1457,12 +1457,12 @@ DVOID CCache::print_info()
   ni blocks;
   m_mbs->query_stats(l_get, l_put, l_peak, l_fail);
   blocks = m_mbs->blocks();
-  CApp::print_pool("MBCtrlPool", l_get, l_put, l_peak, l_fail, m_mbs->block_len(), blocks);
+  CParentRunner::print_pool("MBCtrlPool", l_get, l_put, l_peak, l_fail, m_mbs->block_len(), blocks);
 
   l_get = 0, l_put = 0, l_peak = 0, l_fail = 0;
   m_dbs->query_stats(l_get, l_put, l_peak, l_fail);
   blocks = m_dbs->blocks();
-  CApp::print_pool("DBCtrlPool", l_get, l_put, l_peak, l_fail, m_dbs->block_len(), blocks);
+  CParentRunner::print_pool("DBCtrlPool", l_get, l_put, l_peak, l_fail, m_dbs->block_len(), blocks);
 
   CONST ni CNT = 64;
   text txt[CNT];
@@ -1472,7 +1472,7 @@ DVOID CCache::print_info()
     m_blocks[i]->query_stats(l_get, l_put, l_peak, l_fail);
     blocks = m_blocks[i]->blocks();
     snprintf(txt, CNT, "DataPool.%02d", i + 1);
-    CApp::print_pool(txt, l_get, l_put, l_peak, l_fail, m_blocks[i]->block_len(), blocks);
+    CParentRunner::print_pool(txt, l_get, l_put, l_peak, l_fail, m_blocks[i]->block_len(), blocks);
   }
 }
 

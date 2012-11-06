@@ -109,7 +109,7 @@ private:
 };
 
 
-class MyClientApp: public CApp
+class MyClientApp: public CParentRunner
 {
 public:
   MyClientApp();
@@ -135,7 +135,7 @@ public:
   static void calc_download_parent_path(CMemProt & parent_path, const char * client_id = NULL);
   static bool full_backup(const char * dist_id, const char * client_id = NULL);
   static bool full_restore(const char * dist_id, bool remove_existing, bool is_new = true, const char * client_id = NULL, bool init = false);
-  static bool app_init(const char * app_home_path = NULL, CCfg::CAppMode mode = CCfg::AM_INVALID);
+  static bool app_init(const char * app_home_path = NULL, CCfg::CXYZStyle mode = CCfg::AM_BAD);
   static void app_fini();
   static const char * index_frame_file();
   static bool get_mfile(const CMemProt & parent_path, CMemProt & mfile);

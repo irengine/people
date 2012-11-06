@@ -19,82 +19,82 @@ typedef ACE_Configuration_Section_Key CCfgKey;
 
 std::string current_ver();
 
-class CApp;
+class CParentRunner;
 
 class CCfg
 {
 public:
-  enum CAppMode  { AM_INVALID = 0, AM_DIST = 1, AM_PRE = 2, AM_TERMINAL = 3 };
+  enum CXYZStyle  { AM_BAD = 0, AM_HANDLEOUT = 1, AM_PRE = 2, AM_TERMINAL = 3 };
 
   CCfg();
-  truefalse readall(CONST text *, CAppMode);
+  truefalse readall(CONST text *, CXYZStyle);
   DVOID print_all();
-  truefalse dist() CONST;
+  truefalse handleout() CONST;
   truefalse pre() CONST;
   truefalse server() CONST;
   truefalse term_station() CONST;
 
   //all
-  CAppMode  mode;
-  truefalse mem_pool;
-  truefalse is_demon;
+  CXYZStyle  mode;
+  truefalse enable_cache;
+  truefalse run_at_back;
   ni  print_delay;
   ni  fcheck_delay;
-  ni  log_file_count;
-  ni  log_file_size; //mb
-  truefalse log_debug;
-  truefalse log_console;
-  ni remote_port;
-  std::string data_path;
-  std::string exe_path;
-  std::string status_fn;
-  std::string app_path;
+  ni  num_log;
+  ni  max_len_log; //mb
+  truefalse verbose_log;
+  truefalse window_also_log;
+  ni rmt_hole;
+  std::string data_dir;
+  std::string execute_dir;
+  std::string sfile_fn;
+  std::string runner_dir;
   std::string log_fn;
   std::string cfg_fn;
 
-  //server
-  ni  client_peak;
-  ni  server_port;
+  //s
+  ni  term_peak;
+  ni  server_hole;
   std::string skey;
-  std::string db_addr;
-  ni db_port;
-  std::string db_name;
-  std::string db_password;
+  std::string db_ip;
+  ni db_hole;
+  std::string db_login;
+  std::string db_key;
   std::string bz_files_path;
-  std::string bs_addr;
-  ni bs_port;
+  std::string bs_ip;
+  ni bs_hole;
 
   //cd
-  ni ping_port;
-  std::string middle_addr;
+  ni ping_hole;
+  std::string pre_ip;
 
   //cm
-  ni pre_client_port;
+  ni pre_term_hole;
 
   //c
-  ni client_ping_interval;
-  ni download_threads;
+  ni term_ping_delay;
+  ni download_concurrents;
   ni adv_keep_days;
-  ni download_timeout;
-  ni download_retry_count;
-  ni download_retry_delay;
-  ni can_root;
+  ni download_max_idle;
+  ni download_again_num;
+  ni download_again_sleep;
+  ni can_su;
 
   //d
-  CTermVer client_ver_min;
-  CTermVer client_ver_now;
-  u8 server_id;
+  CTermVer term_edition_min;
+  CTermVer term_edition_now;
+  u8 sid;
 
   //m
-  ni http_port;
-  std::string ftp_servers;
+  ni web_hole;
+  std::string download_servers;
 
 private:
-  truefalse read_dist(CCfgHeap & , CCfgKey & );
+  truefalse read_handleout(CCfgHeap & , CCfgKey & );
   truefalse read_pre(CCfgHeap & , CCfgKey & );
-  truefalse read_dist_pre(CCfgHeap &, CCfgKey &);
+  truefalse read_handleout_pre(CCfgHeap &, CCfgKey &);
   truefalse read_term_pre(CCfgHeap &, CCfgKey &);
-  truefalse read_term_dist(CCfgHeap &, CCfgKey &);
+  truefalse read_term_handleout(CCfgHeap &, CCfgKey &);
   truefalse read_base(CCfgHeap &, CCfgKey &);
   truefalse read_terminal(CCfgHeap &, CCfgKey &);
   DVOID do_init(CONST text *);
@@ -105,51 +105,51 @@ typedef ACE_Unmanaged_Singleton<CCfg, ACE_Null_Mutex> CCfgX;
 class CSignaller: public ACE_Event_Handler
 {
 public:
-  CSignaller(CApp *);
+  CSignaller(CParentRunner *);
   virtual ni handle_signal (ni signum, siginfo_t * = 0, ucontext_t * = 0);
 
 private:
-  CApp * m_parent;
+  CParentRunner * m_ptr;
 };
 
 class CNotificationFiler: public ACE_Event_Handler
 {
 public:
-  CNotificationFiler(CApp *);
-  virtual ni handle_timeout (CONST ACE_Time_Value &, CONST DVOID * = 0);
+  CNotificationFiler(CParentRunner *);
+  virtual ni handle_timeout (CONST CTV &, CONST DVOID * = 0);
 
 private:
-  CApp * m_parent;
+  CParentRunner * m_ptr;
 };
 
 class CPrinter: public ACE_Event_Handler
 {
 public:
-  CPrinter(CApp *);
-  virtual ni handle_timeout (CONST ACE_Time_Value &, CONST DVOID * = 0);
+  CPrinter(CParentRunner *);
+  virtual ni handle_timeout (CONST CTV &, CONST DVOID * = 0);
 
 private:
-  CApp * m_parent;
+  CParentRunner * m_ptr;
 };
 
 class CClocker: public ACE_Event_Handler
 {
 public:
-  virtual ni handle_timeout (CONST ACE_Time_Value &, CONST DVOID * = 0);
+  virtual ni handle_timeout (CONST CTV &, CONST DVOID * = 0);
 };
 
-class CApp
+class CParentRunner
 {
 public:
   enum { CLOCK_TIME = 10 };
-  CApp();
-  virtual ~CApp();
+  CParentRunner();
+  virtual ~CParentRunner();
   truefalse running() CONST;
   DVOID begin();
   DVOID end();
   DVOID print_info();
   DVOID init_log();
-  SF DVOID demon();
+  SF DVOID put_to_back();
   SF DVOID print_pool(CONST text * name_of_pool, long, long, long, long, ni, ni);
 
 protected:
