@@ -2739,6 +2739,7 @@ CProc::OUTPUT CPingProc::i_click(CMB * mb)
     CONST text * chn = l_delimiter_2.get();
     CONST text * pcode = l_delimiter_2.get();
     CONST text * l_x;
+    CONST text * l_ran;
     if (unlikely(!pcode))
       continue;
     l_x = l_delimiter_2.get();
@@ -2746,7 +2747,10 @@ CProc::OUTPUT CPingProc::i_click(CMB * mb)
       continue;
     if (strlen(l_x) >= 12)
       continue;
-    m_click_gatherer->append(m_term_sn.to_str(), m_term_sn_len, chn, pcode, l_x);
+    l_ran = l_delimiter_2.get();
+    if (unlikely(!l_ran))
+      continue;
+    m_click_gatherer->append(m_term_sn.to_str(), m_term_sn_len, chn, pcode, l_x, l_ran);
   }
 
   return OP_OK;
@@ -3097,12 +3101,14 @@ CONST text * CHwPowerTimeGatherer::what_action() CONST
 
 
 CClickGatherer::CClickGatherer() : m_term_sn_chunk(BUFF_LEN, sizeof(CNumber), this),
-    m_chn_chunk(BUFF_LEN, 50, this), m_pcode_chunk(BUFF_LEN, 50, this), m_number_chunk(BUFF_LEN, 24, this)
+    m_chn_chunk(BUFF_LEN, 50, this), m_pcode_chunk(BUFF_LEN, 50, this), m_number_chunk(BUFF_LEN, 24, this),
+    m_ran_chunk(BUFF_LEN, 80, this)
 {
 
 }
 
-DVOID CClickGatherer::append(CONST text * term_sn, ni sn_size, CONST text * chn, CONST text * pcode, CONST text * v_count)
+DVOID CClickGatherer::append(CONST text * term_sn, ni sn_size, CONST text * chn, CONST text * pcode,
+    CONST text * v_count, CONST text * v_ran)
 {
   truefalse l_x = true;
   if (!m_term_sn_chunk.append(term_sn, sn_size))
@@ -3112,6 +3118,8 @@ DVOID CClickGatherer::append(CONST text * term_sn, ni sn_size, CONST text * chn,
   if (!m_pcode_chunk.append(pcode, 0))
     l_x = false;
   if (!m_number_chunk.append(v_count, 0))
+    l_x = false;
+  if (!m_ran_chunk.append(v_ran, 0))
     l_x = false;
 
   if (!l_x)

@@ -838,7 +838,7 @@ class CClickGatherer: public CParentGatherer
 public:
   enum { ITEM_MARK = ';' };
   CClickGatherer();
-  DVOID append(CONST text *, ni, CONST text *, CONST text *, CONST text *);
+  DVOID append(CONST text *, ni, CONST text *, CONST text *, CONST text *, CONST text *);
 
 protected:
   virtual CONST text * what_action() CONST;
@@ -849,6 +849,7 @@ private:
   CGatheredData m_chn_chunk;
   CGatheredData m_pcode_chunk;
   CGatheredData m_number_chunk;
+  CGatheredData m_ran_chunk;
 };
 
 class CHardwareWarnGatherer: public CParentGatherer
