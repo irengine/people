@@ -4780,7 +4780,7 @@ void MyHttp1991Processor::do_command_adv_click(char * parameter)
     MY_ERROR("invalid adv click (%s)\n", parameter);
     return;
   }
-  const char * col_name_tag = "&colname=";
+  const char * col_name_tag = "&ran=";
   char * col_name = ACE_OS::strstr(pcode, col_name_tag);
   if (unlikely(col_name == 0))
   {
