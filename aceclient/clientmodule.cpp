@@ -1242,15 +1242,15 @@ int MyDistInfoHeader::load_header_init(char * src)
   if (unlikely(!src))
     return -1;
 
-  char * end = strchr(src, CCmdHeader::FINISH_SEPARATOR);
+  char * end = strchr(src, CCmdHeader::LAST_MARK);
   if (!end)
   {
-    C_ERROR("bad packet data @MyDistInfoHeader::load_init, no FINISH_SEPARATOR found\n");
+    C_ERROR("bad packet data @MyDistInfoHeader::load_init, no LAST_MARK found\n");
     return false;
   }
   *end = 0;
 
-  const char separator[2] = { CCmdHeader::ITEM_SEPARATOR, 0 };
+  const char separator[2] = { CCmdHeader::DATA_MARK, 0 };
   CTextDelimiter tk(src, separator);
   char * token = tk.get();
   if (unlikely(!token))
@@ -1388,7 +1388,7 @@ bool MyDistInfoFtp::validate()
   }
 
   time_t t = time(NULL);
-  if (unlikely(!(recv_time < t + CONST_one_year && recv_time > t - CONST_one_year)))
+  if (unlikely(!(recv_time < t + C_1_year && recv_time > t - C_1_year)))
   {
     C_WARNING("obsolete MyDistInfoFtp object, recv_time = %d\n", recv_time);
     return false;
@@ -1417,7 +1417,7 @@ bool MyDistInfoFtp::load_init(char * src)
   }
 
   char * file_name = src + header_len;
-  char * file_password = ACE_OS::strchr(file_name, CCmdHeader::FINISH_SEPARATOR);
+  char * file_password = ACE_OS::strchr(file_name, CCmdHeader::LAST_MARK);
   if (unlikely(!file_password))
   {
     C_ERROR("No filename/password found at dist ftp packet\n");
@@ -1425,7 +1425,7 @@ bool MyDistInfoFtp::load_init(char * src)
   }
   *file_password++ = 0;
 
-  char * ftp_mbz_md5 = ACE_OS::strchr(file_name, CCmdHeader::ITEM_SEPARATOR);
+  char * ftp_mbz_md5 = ACE_OS::strchr(file_name, CCmdHeader::DATA_MARK);
   if (unlikely(!ftp_mbz_md5))
   {
     C_ERROR("No ftp file md5 found at dist ftp packet\n");
@@ -1507,7 +1507,7 @@ ACE_Message_Block * MyDistInfoFtp::make_ftp_dist_message(const char * dist_id, i
   ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd(total_len, CCmdHeader::PT_DOWNLOAD, false);
   CCmdExt * dpe = (CCmdExt*) mb->base();
   ACE_OS::memcpy(dpe->data, dist_id, dist_id_len);
-  dpe->data[dist_id_len] = CCmdHeader::ITEM_SEPARATOR;
+  dpe->data[dist_id_len] = CCmdHeader::DATA_MARK;
   dpe->data[dist_id_len + 1] = (ok ? '1':'0');
   dpe->data[dist_id_len + 2] = (char)(status + '0');
   dpe->data[dist_id_len + 3] = ftype;
@@ -2088,7 +2088,7 @@ void MyDistInfoMD5::post_md5_message()
   if (g_is_test)
     dpe->signature = client_id_index;
   ACE_OS::memcpy(dpe->data, dist_id.get_ptr(), dist_id_len);
-  dpe->data[dist_id_len] = CCmdHeader::ITEM_SEPARATOR;
+  dpe->data[dist_id_len] = CCmdHeader::DATA_MARK;
   m_md5list.save_text(dpe->data + dist_id_len + 1, md5_len, false);
 //  if (g_test_mode)
     C_INFO("posting md5 reply to dist server for dist_id (%s), md5 len = %d\n", dist_id.get_ptr(), md5_len - 1);
@@ -2320,7 +2320,7 @@ void MyIpVerReply::init(char * data)
 
   ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
   do_init(m_pc, data, t);
-  do_init(m_pc_x, cp.get_ptr(), t + CONST_one_day);
+  do_init(m_pc_x, cp.get_ptr(), t + C_1_day);
   if (ACE_OS::strlen(m_pc.get_ptr()) >= 10 && ACE_OS::strlen(m_pc_x.get_ptr()) >= 10)
   {
     if (m_pc.get_ptr()[9] == '1')
@@ -2804,7 +2804,7 @@ CProc::OUTPUT MyClientToDistProcessor::do_ftp_file_request(ACE_Message_Block * m
 
   char dist_id[128];
   {
-    const char * ptr = ACE_OS::strchr(packet->data, CCmdHeader::ITEM_SEPARATOR);
+    const char * ptr = ACE_OS::strchr(packet->data, CCmdHeader::DATA_MARK);
     int len = ptr - packet->data;
     if (unlikely(!ptr || len >= 100 || len == 0))
     {
@@ -3099,11 +3099,11 @@ void MyDistServerAddrList::addr_list(char *list)
 
   m_addr_list_len = ACE_OS::strlen(list) + 1;
   m_addr_list.init(list);
-  char * ftp_list = strchr(list, CCmdHeader::FINISH_SEPARATOR);
+  char * ftp_list = strchr(list, CCmdHeader::LAST_MARK);
   if (ftp_list)
     *ftp_list++ = 0;
 
-  char seperator[2] = {CCmdHeader::ITEM_SEPARATOR, 0};
+  char seperator[2] = {CCmdHeader::DATA_MARK, 0};
   char *str, *token, *saveptr;
 
   for (str = list; ;str = NULL)
@@ -4398,20 +4398,20 @@ ACE_Message_Block * MyClientToDistModule::get_click_infos(const char * client_id
   }
 
   ++len;
-  ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd(len, CCmdHeader::PT_ADV_CLICK, false);
+  ACE_Message_Block * mb = CCacheX::instance()->get_mb_cmd(len, CCmdHeader::PT_ADV, false);
   CCmdExt * dpe = (CCmdExt *)mb->base();
   char * ptr = dpe->data;
   for (it = click_infos.begin(); it != click_infos.end(); ++it)
   {
     ACE_OS::sprintf(ptr, "%s%c%s%c%s%c%s%c",
         it->channel.c_str(),
-        CCmdHeader::ITEM_SEPARATOR,
+        CCmdHeader::DATA_MARK,
         it->point_code.c_str(),
-        CCmdHeader::ITEM_SEPARATOR,
+        CCmdHeader::DATA_MARK,
         it->click_count.c_str(),
-        CCmdHeader::ITEM_SEPARATOR,
+        CCmdHeader::DATA_MARK,
         it->colname.c_str(),
-        CCmdHeader::FINISH_SEPARATOR);
+        CCmdHeader::LAST_MARK);
     ptr += it->len;
   }
   return mb;

@@ -884,7 +884,7 @@ bool MyClientApp::do_init()
       MyClientDBProt dbg;
       if (dbg.db().open_db(NULL, true))
       {
-        time_t deadline = time_t(NULL) - CONST_one_day * 20;
+        time_t deadline = time_t(NULL) - C_1_day * 20;
         dbg.db().remove_outdated_ftp_command(deadline);
       }
     }
@@ -1022,7 +1022,7 @@ bool MyClientApp::app_init(const char * app_home_path, CCfg::CXYZStyle mode)
 
     int m = app->m_term_SNs.number();
     CNumber client_id;
-    time_t deadline = time_t(NULL) - CONST_one_day * 10;
+    time_t deadline = time_t(NULL) - C_1_day * 10;
     for (int i = 0; i < m; ++i)
     {
       app->m_term_SNs.get_sn(i, &client_id);

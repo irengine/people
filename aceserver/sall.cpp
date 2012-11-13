@@ -401,7 +401,7 @@ CMB * c_create_hb_mb()
     return NULL;
   text * v_x = mb->base() + CBSData::DATA_OFFSET;
   *v_x = '1';
-  *(v_x + 1) = CBSData::END_MARK;
+  *(v_x + 1) = CBSData::LAST_SEPARATOR;
   return mb;
 }
 
@@ -489,7 +489,7 @@ DVOID CChargeDatas::do_compute_ips()
     memcpy(l_p, it->m_ip, len + 1);
     l_p += len;
     l_x -= (len + 1);
-    *l_p = CCmdHeader::ITEM_SEPARATOR;
+    *l_p = CCmdHeader::DATA_MARK;
     ++l_p;
   }
   *l_p = 0;
@@ -499,7 +499,7 @@ DVOID CChargeDatas::do_compute_ips()
     C_ERROR("ips too long\n");
   else
   {
-    *l_p++ = CCmdHeader::FINISH_SEPARATOR;
+    *l_p++ = CCmdHeader::LAST_MARK;
     ACE_OS::strsncpy(l_p, CCfgX::instance()->download_servers.c_str(), l_x + 1);
   }
 
@@ -1059,7 +1059,7 @@ truefalse CBsReqTask::process_mb(CMB * v_mb)
     text * l_ptr = mb->base() + CBSData::DATA_OFFSET;
     sprintf(l_ptr, "%s#%c##1#%c#%s", l_bs_req.edition, *l_bs_req.remote_kind,
         l_ret? '1':'0', tmp);
-    l_ptr[l_all] = CBSData::END_MARK;
+    l_ptr[l_all] = CBSData::LAST_SEPARATOR;
     CRunnerX::instance()->balance_container()->scheduler()->post_bs(mb);
 
     return l_ret;
@@ -1340,7 +1340,7 @@ CProc::OUTPUT CBalanceProc::at_head_arrival()
     return OP_OK;
   }
 
-  if (m_data_head.cmd == CCmdHeader::PT_LOAD_BALANCE_REQ)
+  if (m_data_head.cmd == CCmdHeader::PT_CHARGE_REPORT)
   {
     if (!c_packet_check_load_balance_req(&m_data_head))
     {
@@ -1365,7 +1365,7 @@ CProc::OUTPUT CBalanceProc::do_read_data(CMB * mb)
   if (l_ptr->cmd == CCmdHeader::PT_LOGIN)
     return term_ver_validate(mb);
 
-  if (l_ptr->cmd == CCmdHeader::PT_LOAD_BALANCE_REQ)
+  if (l_ptr->cmd == CCmdHeader::PT_CHARGE_REPORT)
     return handle_balance(mb);
 
   C_ERROR("get unknown cmd @CBalanceProc::do_read_data, command = %d\n",
@@ -1904,12 +1904,12 @@ ni CDistTermItem::calc_common_header_len()
 DVOID CDistTermItem::format_common_header(text * v_ptr)
 {
   sprintf(v_ptr, "%s%c%s%c%s%c%s%c%c%c%c%c",
-      dist_data->edition.get_ptr(), CCmdHeader::ITEM_SEPARATOR,
-      dist_data->remote_file.get_ptr(), CCmdHeader::ITEM_SEPARATOR,
-      adir.get_ptr()? adir.get_ptr(): Item_NULL, CCmdHeader::ITEM_SEPARATOR,
-      dist_data->local_file.get_ptr()? dist_data->local_file.get_ptr(): Item_NULL, CCmdHeader::ITEM_SEPARATOR,
-      dist_data->remote_kind[0], CCmdHeader::ITEM_SEPARATOR,
-      dist_data->local_kind[0], CCmdHeader::FINISH_SEPARATOR);
+      dist_data->edition.get_ptr(), CCmdHeader::DATA_MARK,
+      dist_data->remote_file.get_ptr(), CCmdHeader::DATA_MARK,
+      adir.get_ptr()? adir.get_ptr(): Item_NULL, CCmdHeader::DATA_MARK,
+      dist_data->local_file.get_ptr()? dist_data->local_file.get_ptr(): Item_NULL, CCmdHeader::DATA_MARK,
+      dist_data->remote_kind[0], CCmdHeader::DATA_MARK,
+      dist_data->local_kind[0], CCmdHeader::LAST_MARK);
 }
 
 CMB * CDistTermItem::create_mb_of_download_sub(truefalse fine)
@@ -1925,7 +1925,7 @@ CMB * CDistTermItem::create_mb_of_download_sub(truefalse fine)
     else
     {
       l_cs.init(checksum.get_ptr());
-      c_tools_text_replace(l_cs.get_ptr(), CCmdHeader::ITEM_SEPARATOR, ':');
+      c_tools_text_replace(l_cs.get_ptr(), CCmdHeader::DATA_MARK, ':');
       ni len = strlen(l_cs.get_ptr());
       if (l_cs.get_ptr()[len - 1] == ':')
         l_cs.get_ptr()[len - 1] = 0;
@@ -1942,7 +1942,7 @@ CMB * CDistTermItem::create_mb_of_download_sub(truefalse fine)
   sprintf(l_ptr, "%s#%c#%s#%s#%s#%c#%c#%s", dist_data->edition.get_ptr(),
       dist_data->remote_kind[0], term_station->term_sn(), dist_data->remote_file.get_ptr(),
       l_x, dist_data->local_kind[0], fine? '1': '0', tmp);
-  l_ptr[l_m] = CBSData::END_MARK;
+  l_ptr[l_m] = CBSData::LAST_SEPARATOR;
   return mb;
 }
 
@@ -1977,7 +1977,7 @@ truefalse CDistTermItem::create_cmp_file()
     return false;
   CMemProt l_cs2;
   l_cs2.init(checksum.get_ptr());
-  text separators[2] = { CCmdHeader::ITEM_SEPARATOR, 0 };
+  text separators[2] = { CCmdHeader::DATA_MARK, 0 };
   CTextDelimiter l_delimiter(l_cs2.get_ptr(), separators);
   text * l_tag;
   CMemProt l_fn;
@@ -2042,10 +2042,10 @@ truefalse CDistTermItem::post_download()
   text * l_ptr2 = l_ptr->data + l_header_size;
   memcpy(l_ptr2, download_fn, l_download_fn_size);
   l_ptr2 += l_download_fn_size;
-  *(l_ptr2 - 1) = CCmdHeader::ITEM_SEPARATOR;
+  *(l_ptr2 - 1) = CCmdHeader::DATA_MARK;
   memcpy(l_ptr2, l_cmp_cs, l_m);
   l_ptr2 += l_m;
-  *(l_ptr2 - 1) = CCmdHeader::FINISH_SEPARATOR;
+  *(l_ptr2 - 1) = CCmdHeader::LAST_MARK;
   memcpy(l_ptr2, dist_data->key.get_ptr(), dist_data->key_size + 1);
 
   prev_access = time(NULL);
@@ -2457,7 +2457,7 @@ CProc::OUTPUT CPingProc::at_head_arrival()
     return OP_OK;
   }
 
-  if (m_data_head.cmd == CCmdHeader::PT_ADV_CLICK)
+  if (m_data_head.cmd == CCmdHeader::PT_ADV)
   {
     if (m_data_head.size <= (ni)sizeof(CCmdHeader)
         || m_data_head.size >= 1 * 1024 * 1024
@@ -2563,7 +2563,7 @@ CProc::OUTPUT CPingProc::do_read_data(CMB * mb)
   if (l_x->cmd == CCmdHeader::PT_LOC_REPORT)
     return i_location(mb);
 
-  if (l_x->cmd == CCmdHeader::PT_ADV_CLICK)
+  if (l_x->cmd == CCmdHeader::PT_ADV)
     return i_click(mb);
 
   if (l_x->cmd == CCmdHeader::PT_VIDEO)
@@ -2729,12 +2729,12 @@ CProc::OUTPUT CPingProc::i_click(CMB * mb)
     return OP_FAIL;
   }
 
-  CONST text l_xxx[] = {CCmdHeader::FINISH_SEPARATOR, 0};
+  CONST text l_xxx[] = {CCmdHeader::LAST_MARK, 0};
   CTextDelimiter l_delimiter(l_ptr->data, l_xxx);
   text * l_data;
   while ((l_data = l_delimiter.get()) != NULL)
   {
-    CONST text l_yyy[] = {CCmdHeader::ITEM_SEPARATOR, 0};
+    CONST text l_yyy[] = {CCmdHeader::DATA_MARK, 0};
     CTextDelimiter l_delimiter_2(l_data, l_yyy);
     CONST text * chn = l_delimiter_2.get();
     CONST text * pcode = l_delimiter_2.get();
@@ -2787,12 +2787,12 @@ CProc::OUTPUT CPingProc::i_video(CMB * mb)
     return OP_FAIL;
   }
 
-  text l_xxx[2] = {CCmdHeader::ITEM_SEPARATOR, 0};
+  text l_xxx[2] = {CCmdHeader::DATA_MARK, 0};
   CTextDelimiter l_delimiter(l_ptr->data, l_xxx);
   text * l_tag;
   while ((l_tag = l_delimiter.get()) != NULL)
   {
-    text * l_p = strchr(l_tag, CCmdHeader::MIDDLE_SEPARATOR);
+    text * l_p = strchr(l_tag, CCmdHeader::CENTER_MARK);
     if (!l_p)
       continue;
     *l_p ++ = 0;
@@ -2965,7 +2965,7 @@ DVOID CParentGatherer::i_post(CONST text * ptr)
     memcpy(l_to, (*it)->data(), l_n);
     if (++it != m_chunks.end())
     {
-      l_to[l_n] = CBSData::PARAM_SEPARATOR;
+      l_to[l_n] = CBSData::PAR_MARK;
       l_to += (l_n + 1);
     } else
       break;
@@ -3128,7 +3128,7 @@ DVOID CClickGatherer::append(CONST text * term_sn, ni sn_size, CONST text * chn,
 
 CONST text * CClickGatherer::what_action() CONST
 {
-  return CCMD_ADV_CLICK;
+  return CCMD_ADV;
 }
 
 
@@ -3366,7 +3366,7 @@ DVOID CPingTask::handle_download_feedback(CMB * mb)
   }
 
   ni l_i = l_x->size - sizeof(CCmdHeader);
-  if (unlikely(l_x->data[l_i - 5] != CCmdHeader::ITEM_SEPARATOR))
+  if (unlikely(l_x->data[l_i - 5] != CCmdHeader::DATA_MARK))
   {
     C_ERROR("invalid download rep data @%s.1\n", title());
     return;
@@ -3471,7 +3471,7 @@ DVOID CPingTask::handle_cs_feedback(CMB * mb)
     C_ERROR("%s::handle_cs_feedback no task\n", title());
     return;
   }
-  text * l_cs_s = strchr(l_x->data, CCmdHeader::ITEM_SEPARATOR);
+  text * l_cs_s = strchr(l_x->data, CCmdHeader::DATA_MARK);
   if (unlikely(!l_cs_s))
   {
     C_ERROR("invalid data %s::handle_cs_feedback, no task mark\n", title());
@@ -4002,7 +4002,7 @@ ni CD2MProc::post_charge()
   if (!m_edition_back_finished)
     return 0;
 
-  CMB * mb = CCacheX::instance()->get_mb_cmd_direct(sizeof(CLoadBalanceReq), CCmdHeader::PT_LOAD_BALANCE_REQ);
+  CMB * mb = CCacheX::instance()->get_mb_cmd_direct(sizeof(CLoadBalanceReq), CCmdHeader::PT_CHARGE_REPORT);
   CLoadBalanceReq * l_x = (CLoadBalanceReq *) mb->base();
   l_x->set_ip(m_self_ip);
   l_x->load = CRunnerX::instance()->ping_component()->connected_count();
@@ -4293,7 +4293,7 @@ CPG::~CPG()
 time_t CPG::get_time_init(CONST text * v_ptr)
 {
   SF time_t l_t = time(NULL);
-  CONST time_t CONST_longevity = CONST_one_year * 8;
+  CONST time_t CONST_longevity = C_1_year * 8;
 
   if (unlikely(!v_ptr || !*v_ptr))
     return 0;

@@ -55,31 +55,31 @@ EXTERN truefalse g_cache;
                     INFO_PREFIX FMT, \
                     ## __VA_ARGS__))
 
-#define DEBUG_PREFIX       "(%D %P|%t %N/%l)\n  DEBUG  %I"
+#define DEBUG_PREFIX       "(%D %P|%t %N/%l)\n  Debug  %I"
 #define C_DEBUG(FMT, ...)     \
         ACE_DEBUG(( LM_DEBUG,  \
                     DEBUG_PREFIX FMT, \
                     ## __VA_ARGS__))
 
-#define WARNING_PREFIX       "(%D %P|%t %N/%l)\n  WARN  %I"
+#define WARNING_PREFIX       "(%D %P|%t %N/%l)\n  Warning  %I"
 #define C_WARNING(FMT, ...)     \
         ACE_DEBUG(( LM_WARNING,  \
                     WARNING_PREFIX FMT, \
                     ## __VA_ARGS__))
 
-#define ERROR_PREFIX       "(%D %P|%t %N/%l)\n  ERROR  %I"
+#define ERROR_PREFIX       "(%D %P|%t %N/%l)\n  Error  %I"
 #define C_ERROR(FMT, ...)     \
         ACE_DEBUG(( LM_ERROR,  \
                     ERROR_PREFIX  FMT, \
                     ## __VA_ARGS__))
 
-#define FATAL_PREFIX       "(%D %P|%t %N.%l)\n  FATAL  %I"
+#define FATAL_PREFIX       "(%D %P|%t %N.%l)\n  Fatal  %I"
 #define C_FATAL(FMT, ...)     \
         ACE_DEBUG(( LM_ERROR,  \
                     FATAL_PREFIX  FMT, \
                     ## __VA_ARGS__))
 
-#define ASSERT_PREFIX       "(%D %P|%t %N.%l)\n  ASSERT failed %I"
+#define ASSERT_PREFIX       "(%D %P|%t %N.%l)\n  Assert %I"
 #define __C_ASSERT(FMT, ...)     \
         ACE_DEBUG(( LM_ERROR,  \
                     ASSERT_PREFIX  FMT, \
@@ -107,9 +107,9 @@ EXTERN truefalse g_cache;
 class CSysError
 {
 public:
-  CSysError(ni x = ACE_OS::last_error())
+  CSysError(ni v = ACE_OS::last_error())
   {
-    get_text(x);
+    get_text(v);
   }
   operator CONST text *()
   {
@@ -120,10 +120,10 @@ private:
   DVOID get_text(ni error)
   {
     snprintf(m_data, DATA_LEN, "error = %d msg = ", error);
-    ni len = strlen(m_data);
+    ni l_x = strlen(m_data);
     text temp[DATA_LEN];
-    CONST text * i = strerror_r(error, temp, DATA_LEN);
-    ACE_OS::strsncpy(m_data + len, (i ? i: "NULL"), DATA_LEN - len);
+    CONST text * l_y = strerror_r(error, temp, DATA_LEN);
+    ACE_OS::strsncpy(m_data + l_x, (l_y ? l_y: "NULL"), DATA_LEN - l_x);
   }
 
   enum { DATA_LEN = 256 };
@@ -148,36 +148,36 @@ public:
   }
 };
 
-CONST time_t CONST_one_hour = 60 * 60;
-CONST time_t CONST_one_day = CONST_one_hour * 24;
-CONST time_t CONST_one_month = CONST_one_day * 30;
-CONST time_t CONST_one_year = CONST_one_month * 12;
+CONST time_t C_1_hour = 60 * 60;
+CONST time_t C_1_day = C_1_hour * 24;
+CONST time_t C_1_month = C_1_day * 30;
+CONST time_t C_1_year = C_1_month * 12;
 
 class CMBProt
 {
 public:
   CMBProt(): m_mb(NULL)
   {}
-  CMBProt(CMB * mb): m_mb(mb)
+  CMBProt(CMB * p): m_mb(p)
   {}
   ~CMBProt()
   {
     if (m_mb)
       m_mb->release();
   }
-  DVOID bind_mb(CMB * mb)
+  DVOID bind_mb(CMB * p)
   {
-    if (unlikely(m_mb == mb))
+    if (unlikely(m_mb == p))
       return;
     if (m_mb)
       m_mb->release();
-    m_mb = mb;
+    m_mb = p;
   }
   CMB * unbind()
   {
-    CMB * result = m_mb;
+    CMB * l_x = m_mb;
     m_mb = NULL;
-    return result;
+    return l_x;
   }
   CMB * get_mb() CONST
   {
@@ -194,7 +194,7 @@ public:
   enum { BAD_FD = -1 };
   CFileProt(): m_fd(BAD_FD)
   { m_print_failure = true; }
-  CFileProt(ni fd): m_fd(fd), m_print_failure(true)
+  CFileProt(ni x): m_fd(x), m_print_failure(true)
   {}
   ~CFileProt()
   {
@@ -202,9 +202,9 @@ public:
       close(m_fd);
   }
 
-  truefalse open_nowrite(CONST text * fn)
+  truefalse open_nowrite(CONST text * v_filename)
   {
-    return open_i(fn, true, false, false, false, false);
+    return open_i(v_filename, true, false, false, false, false);
   }
 
   truefalse open_write(CONST text * fn, truefalse newf, truefalse clear_content, truefalse add_only, truefalse owned_by_me)
@@ -216,19 +216,19 @@ public:
   {
     return m_fd;
   }
-  DVOID bind_fd(ni h)
+  DVOID bind_fd(ni v_x)
   {
-    if (unlikely(m_fd == h))
+    if (unlikely(m_fd == v_x))
       return;
     if (m_fd >= 0)
       close(m_fd);
-    m_fd = h;
+    m_fd = v_x;
   }
   ni unbind()
   {
-    ni h = m_fd;
+    ni l_x = m_fd;
     m_fd = BAD_FD;
-    return h;
+    return l_x;
   }
   truefalse ok() CONST
   {
@@ -305,13 +305,13 @@ public:
 
   virtual ~CMemBlock() {}
 
-  virtual DVOID *malloc (size_t size = 0)
+  virtual DVOID *malloc (size_t v_n = 0)
   {
-    DVOID * p = baseclass::malloc(size);
+    DVOID * l_x = baseclass::malloc(v_n);
 
     {
-      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, p));
-      if (p)
+      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, l_x));
+      if (l_x)
       {
         ++m_get;
         if (m_get - m_put > m_peak)
@@ -320,15 +320,15 @@ public:
         ++m_fail;
     }
 
-    return p;
+    return l_x;
   }
 
-  virtual DVOID *calloc (size_t size, text fill = '\0')
+  virtual DVOID *calloc (size_t v_n, text v_char = '\0')
   {
-    DVOID * p = baseclass::calloc(size, fill);
+    DVOID * l_x = baseclass::calloc(v_n, v_char);
     {
-      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, p));
-      if (p)
+      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, l_x));
+      if (l_x)
       {
         ++m_get;
         if (m_get - m_put > m_peak)
@@ -337,16 +337,16 @@ public:
         ++m_fail;
     }
 
-    return p;
+    return l_x;
   }
-  DVOID free(DVOID * p)
+  DVOID free(DVOID * v_x)
   {
     {
       ACE_MT (ACE_GUARD(ACE_LOCK, ace_mon, this->m_mutex));
-      if (p != NULL)
+      if (v_x != NULL)
         ++m_put;
     }
-    baseclass::free(p);
+    baseclass::free(v_x);
   }
 
   DVOID query_stats(long & nGet, long & nPut, long & nPeak, long & nFail)
@@ -488,10 +488,7 @@ public:
 class CCachedMB: public CMB
 {
 public:
-  CCachedMB(size_t size,
-                ACE_Allocator * allocator_strategy,
-                ACE_Allocator * data_block_allocator,
-                ACE_Allocator * message_block_allocator,
+  CCachedMB(size_t size, ACE_Allocator * mb1, ACE_Allocator * mb2, ACE_Allocator * mb3,
                 ACE_Message_Type type = MB_DATA);
 };
 
@@ -503,15 +500,15 @@ class CCache
 public:
   CCache();
   ~CCache();
-  DVOID prepare(CCfg * config);
+  DVOID prepare(CCfg *);
   truefalse get(ni size, CMemProt *);
-  DVOID * get_raw(ni size);
+  DVOID * get_raw(ni);
   CMB * get_mb_bs(ni data_len, CONST text * cmd);
   CMB * get_mb_ack(CMB * src);
-  CMB * get_mb_cmd(ni extra, ni command, truefalse no_gen = true);
+  CMB * get_mb_cmd(ni extra, ni cmd, truefalse no_gen = true);
   CMB * get_mb(ni size);
   CMB * get_mb_cmd_direct(ni size, ni cmd, truefalse no_gen = true);
-  DVOID put_raw(DVOID * ptr);
+  DVOID put_raw(DVOID *);
   DVOID put(CMemProt *);
   DVOID print_info();
 
@@ -522,8 +519,8 @@ private:
   typedef CMemBlock<ACE_Thread_Mutex> MemBlock;
   typedef std::vector<MemBlock *> MemBlocks;
 
-  ni find_best(ni size);
-  ni find_by_ptr(DVOID * ptr);
+  ni find_best(ni);
+  ni find_by_ptr(DVOID *);
   CMemBlock<ACE_Thread_Mutex> *m_mbs;
   CMemBlock<ACE_Thread_Mutex> *m_dbs;
   CBlockSizes m_block_sizes;
@@ -566,13 +563,13 @@ public:
 protected:
   friend class CCache;
 
-  DVOID data(DVOID * p, ni i, ni size)
+  DVOID data(DVOID * p, ni i, ni v_n)
   {
     if (unlikely(m_ptr != NULL))
       C_ERROR("bad idx(%d)\n", m_idx);
     m_ptr = (char*)p;
     m_idx = i;
-    m_size = size;
+    m_size = v_n;
   }
   ni index() CONST
   {
@@ -619,9 +616,9 @@ public:
     return static_cast<pointer> (CCacheX::instance()->get_raw(count * sizeof(T)));
   }
 
-  DVOID deallocate(pointer ptr, size_type)
+  DVOID deallocate(pointer p, size_type)
   {
-    CCacheX::instance()->put_raw(ptr);
+    CCacheX::instance()->put_raw(p);
   }
 
   DVOID construct(pointer ptr, CONST T& val)
@@ -643,10 +640,10 @@ public:
 class CPoolObjectDeletor
 {
 public:
-  template <typename T> DVOID operator()(CONST T * ptr)
+  template <typename T> DVOID operator()(CONST T * p)
   {
-    ptr->T::~T();
-    CCacheX::instance()->put_raw((void*)ptr);
+    p->T::~T();
+    CCacheX::instance()->put_raw((void*)p);
   }
 };
 
@@ -875,7 +872,7 @@ class CCmdHeader
 {
 public:
   enum { SIGNATURE = 0x80089397 };
-  enum { ITEM_SEPARATOR = '*', MIDDLE_SEPARATOR = '?', FINISH_SEPARATOR = ':' };
+  enum { DATA_MARK = '*', CENTER_MARK = '?', LAST_MARK = ':' };
   enum { ITEM_NULL_SIZE = 1 };
 
   enum PacketType
@@ -884,12 +881,12 @@ public:
     PT_HEART_BEAT,
     PT_LOGIN,
     PT_LOGIN_BACK,
-    PT_LOAD_BALANCE_REQ,
+    PT_CHARGE_REPORT,
     PT_CHECKSUMS,
     PT_HAS_JOB,
     PT_DOWNLOAD,
     PT_LOC_REPORT,
-    PT_ADV_CLICK,
+    PT_ADV,
     PT_POWER_TIME,
     PT_HW_WARN,
     PT_VIDEO,
@@ -995,7 +992,7 @@ class CBSData
 {
 public:
   enum { LEN = 8, SIGNATURE_LEN = 4, CMD_LEN = 2, DATA_OFFSET = LEN + SIGNATURE_LEN + CMD_LEN };
-  enum { PARAM_SEPARATOR = '#', END_MARK = '$' };
+  enum { PAR_MARK = '#', LAST_SEPARATOR = '$' };
 
   DVOID data_len(ni _len);
   ni  data_len() CONST;
@@ -1020,7 +1017,7 @@ public:
 #define CCMD_HANDOUT_RESULT "02"
 #define CCMD_HARD_MON      "03"
 #define CCMD_HEART_BEAT          "04"
-#define CCMD_ADV_CLICK     "05"
+#define CCMD_ADV     "05"
 
 #pragma pack(pop)
 
