@@ -806,8 +806,8 @@ public:
   CContainer(CParentRunner *);
   virtual ~CContainer();
   truefalse working() CONST;
-  truefalse working_app() CONST;
-  CParentRunner * app() CONST;
+  truefalse working_runner() CONST;
+  CParentRunner * runner() CONST;
   ni begin();
   ni end();
   DVOID print_all();
@@ -825,7 +825,7 @@ protected:
 
   CTasks m_tasks;
   CSchedulers m_schedulers;
-  CParentRunner * m_app;
+  CParentRunner * m_runner;
   truefalse m_is_working;
 };
 

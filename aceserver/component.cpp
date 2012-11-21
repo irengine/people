@@ -555,13 +555,13 @@ truefalse CCheckSums::save_text(text * v_ptr, ni v_size, truefalse full)
     }
     ni n = cs.size(false);
     memcpy(v_ptr + m, cs.fn(), n);
-    v_ptr[m + n - 1] = full? CCmdHeader::MIDDLE_SEPARATOR: CCmdHeader::ITEM_SEPARATOR;
+    v_ptr[m + n - 1] = full? CCmdHeader::CENTER_MARK: CCmdHeader::DATA_MARK;
     m += n;
     if (full)
     {
       memcpy(v_ptr + m, cs.value(), CCheckSum::CHECK_SUM_SIZE);
       m += CCheckSum::CHECK_SUM_SIZE;
-      v_ptr[m++] = CCmdHeader::ITEM_SEPARATOR;
+      v_ptr[m++] = CCmdHeader::DATA_MARK;
     }
   }
   v_ptr[m] = 0;
@@ -573,7 +573,7 @@ truefalse CCheckSums::load_text(text * v_ptr, CDirConverter * v_pObj)
   if (!v_ptr || !*v_ptr)
     return true;
 
-  text delimitors[2] = {CCmdHeader::ITEM_SEPARATOR, 0};
+  text delimitors[2] = {CCmdHeader::DATA_MARK, 0};
   text *l_ptr, *l_val, *l_tmp, *l_cs;
 
   for (l_ptr = v_ptr; ; l_ptr = NULL)
@@ -583,7 +583,7 @@ truefalse CCheckSums::load_text(text * v_ptr, CDirConverter * v_pObj)
       break;
     if (unlikely(!*l_val))
       continue;
-    l_cs = strchr(l_val, CCmdHeader::MIDDLE_SEPARATOR);
+    l_cs = strchr(l_val, CCmdHeader::CENTER_MARK);
     if (unlikely(l_cs == l_val || !l_cs))
     {
       C_ERROR("broken cs: %s\n", l_val);
@@ -2705,7 +2705,7 @@ ni CParentScheduler::svc()
   if (!i_begin())
     return -1;
 
-  while (m_container->working_app())
+  while (m_container->working_runner())
   {
     CTV l_x(2);
     ni ret = reactor()->handle_events(&l_x);
@@ -2726,7 +2726,7 @@ ni CParentScheduler::svc()
 }
 
 
-CContainer::CContainer(CParentRunner * p): m_app(p), m_is_working(false)
+CContainer::CContainer(CParentRunner * p): m_runner(p), m_is_working(false)
 {
 
 }
@@ -2741,14 +2741,14 @@ truefalse CContainer::working() CONST
   return m_is_working;
 }
 
-CParentRunner * CContainer::app() CONST
+CParentRunner * CContainer::runner() CONST
 {
-  return m_app;
+  return m_runner;
 }
 
-truefalse CContainer::working_app() CONST
+truefalse CContainer::working_runner() CONST
 {
-  return (m_is_working && m_app->running());
+  return (m_is_working && m_runner->running());
 }
 
 truefalse CContainer::before_begin()
