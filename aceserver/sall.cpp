@@ -2805,6 +2805,15 @@ CProc::OUTPUT CPingProc::i_video(CMB * mb)
 CProc::OUTPUT CPingProc::i_no_video_warn(CMB * mb)
 {
   CMBProt prot(mb);
+  CCmdExt * l_ptr = (CCmdExt *)mb->base();
+  text l_z = l_ptr->data[0];
+  if (l_z != '1' && l_z != '0')
+  {
+    CMemProt l_x;
+    get_sinfo(l_x);
+    C_ERROR("bad vlc empty packet from %s, data = %c\n", l_x.get_ptr(), l_z);
+  } else
+    m_no_vide_warn_gatherer->append(m_term_sn.to_str(), m_term_sn_len, l_z);
   return OP_OK;
 }
 

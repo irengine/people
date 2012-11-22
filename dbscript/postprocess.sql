@@ -1,218 +1,182 @@
-create or replace FUNCTION post_process() RETURNS void AS 
-$$
+CREATE OR REPLACE FUNCTION last_func()
+  RETURNS void AS
+$BODY$
 BEGIN
-  delete from tb_dist_clients where dc_client_id not in
-    (select client_id from tb_clients);
+  delete from x_handout_details where hd_term_sn not in
+    (select term_sn from x_terms);
 
-/* 1,2,4 */
-/*
-delete from tb_dist_clients where (dc_dist_id, dc_client_id) in
-(
-select dc_dist_id, dc_client_id from tb_dist_clients dc, tb_dist_info di
-  where dc.dc_dist_id = di.dist_id and di.dist_ftype in ('1', '2', '4') and di.dist_time < 
-    (select max(x_di.dist_time) from tb_dist_info x_di, tb_dist_clients x_dc 
-      where x_dc.dc_dist_id = x_di.dist_id and x_dc.dc_adir = dc.dc_adir 
-            and x_di.dist_ftype in ('1', '2', '4')
-    )
-);*/
+/*1,2,4*/
 DELETE
 FROM
-	tb_dist_clients
+	x_handout_details
 WHERE
-	(dc_dist_id, dc_client_id)IN(
+	(hd_no, hd_term_sn)IN(
 		SELECT
-			dc_dist_id,
-			dc_client_id
+			hd_no,
+			hd_term_sn
 		FROM
-			tb_dist_clients dc
-		INNER JOIN tb_dist_info di ON dc.dc_dist_id = di.dist_id
+			x_handout_details l_hd
+		INNER JOIN x_handleout_data l_hx ON l_hd.hd_no = l_hx.ho_no
 		WHERE
-			di.dist_ftype IN('1', '2', '4')
+			l_hx.ho_server_kind IN('1', '2', '4')
 		AND(
-			dc.dc_client_id,
-			dc.dc_adir,
-			di.dist_time
+			l_hd.hd_term_sn,
+			l_hd.hd_term_path,
+			l_hx.ho_when
 		)NOT IN(
 			SELECT
-				x_dc.dc_client_id,
-				x_dc.dc_adir,
-				MAX(x_di.dist_time)
+				x_l_hd.hd_term_sn,
+				x_l_hd.hd_term_path,
+				MAX(x_l_hx.ho_when)
 			FROM
-				tb_dist_info x_di
-			INNER JOIN tb_dist_clients x_dc ON x_dc.dc_dist_id = x_di.dist_id
+				x_handleout_data x_l_hx
+			INNER JOIN x_handout_details x_l_hd ON x_l_hd.hd_no = x_l_hx.ho_no
 			WHERE
-				x_di.dist_ftype IN('1', '2', '4')
+				x_l_hx.ho_server_kind IN('1', '2', '4')
 			GROUP BY
-				x_dc.dc_client_id,
-				x_dc.dc_adir
+				x_l_hd.hd_term_sn,
+				x_l_hd.hd_term_path
 		)
 	);
 
 /* 3,5,6 */
-/*
-  delete from tb_dist_clients where (dc_dist_id, dc_client_id) in
-(
-select dc_dist_id, dc_client_id from tb_dist_clients dc, tb_dist_info di
-  where dc.dc_dist_id = di.dist_id and di.dist_ftype in ('3', '5', '6') and di.dist_time < 
-    (select max(x_di.dist_time) from tb_dist_info x_di, tb_dist_clients x_dc 
-      where x_dc.dc_dist_id = x_di.dist_id and COALESCE(x_di.dist_aindex, x_di.dist_findex) = COALESCE(di.dist_aindex, di.dist_findex)
-            and x_di.dist_ftype in ('3', '5', '6')
-    )
-);*/
 DELETE
 FROM
-	tb_dist_clients
+	x_handout_details
 WHERE
-	(dc_dist_id, dc_client_id)IN(
+	(hd_no, hd_term_sn)IN(
 		SELECT
-			dc_dist_id,
-			dc_client_id
+			hd_no,
+			hd_term_sn
 		FROM
-			tb_dist_clients dc
-		INNER JOIN tb_dist_info di ON dc.dc_dist_id = di.dist_id
+			x_handout_details l_hd
+		INNER JOIN x_handleout_data l_hx ON l_hd.hd_no = l_hx.ho_no
 		WHERE
-			di.dist_ftype IN('3', '5', '6')
+			l_hx.ho_server_kind IN('3', '5', '6')
 		AND(
-			dc.dc_client_id,
-			COALESCE(di.dist_aindex, di.dist_findex),
-			di.dist_time
+			l_hd.hd_term_sn,
+			COALESCE(l_hx.ho_term_file, l_hx.ho_server_file),
+			l_hx.ho_when
 		)NOT IN(
 			SELECT
-				x_dc.dc_client_id,
-				COALESCE(x_di.dist_aindex, x_di.dist_findex),
-				MAX(x_di.dist_time)
+				x_l_hd.hd_term_sn,
+				COALESCE(x_l_hx.ho_term_file, x_l_hx.ho_server_file),
+				MAX(x_l_hx.ho_when)
 			FROM
-				tb_dist_info x_di
-			INNER JOIN tb_dist_clients x_dc ON x_dc.dc_dist_id = x_di.dist_id
+				x_handleout_data x_l_hx
+			INNER JOIN x_handout_details x_l_hd ON x_l_hd.hd_no = x_l_hx.ho_no
 			WHERE
-				x_di.dist_ftype IN('3', '5', '6')
+				x_l_hx.ho_server_kind IN('3', '5', '6')
 			GROUP BY
-				x_dc.dc_client_id,
-				COALESCE(x_di.dist_aindex, x_di.dist_findex)
+				x_l_hd.hd_term_sn,
+				COALESCE(x_l_hx.ho_term_file, x_l_hx.ho_server_file)
 		)
 	);
 
 /* 7, 9 */
-/*
-delete from tb_dist_clients where (dc_dist_id, dc_client_id) in
-(
-select dc_dist_id, dc_client_id from tb_dist_clients dc, tb_dist_info di
-  where dc.dc_dist_id = di.dist_id and di.dist_ftype in ('7', '9') and di.dist_time < 
-    (select max(x_di.dist_time) from tb_dist_info x_di, tb_dist_clients x_dc 
-      where x_dc.dc_dist_id = x_di.dist_id and COALESCE(x_di.dist_aindex, x_di.dist_findex) = COALESCE(di.dist_aindex, di.dist_findex)
-            and x_di.dist_ftype in ('7', '9')
-    )
-);*/
 DELETE
 FROM
-	tb_dist_clients
+	x_handout_details
 WHERE
-	(dc_dist_id, dc_client_id)IN(
+	(hd_no, hd_term_sn)IN(
 		SELECT
-			dc_dist_id,
-			dc_client_id
+			hd_no,
+			hd_term_sn
 		FROM
-			tb_dist_clients dc
-		INNER JOIN tb_dist_info di ON dc.dc_dist_id = di.dist_id
+			x_handout_details l_hd
+		INNER JOIN x_handleout_data l_hx ON l_hd.hd_no = l_hx.ho_no
 		WHERE
-			di.dist_ftype IN('7', '9')
+			l_hx.ho_server_kind IN('7', '9')
 		AND(
-			dc.dc_client_id,
-			COALESCE(di.dist_aindex, di.dist_findex),
-			di.dist_time
+			l_hd.hd_term_sn,
+			COALESCE(l_hx.ho_term_file, l_hx.ho_server_file),
+			l_hx.ho_when
 		)NOT IN(
 			SELECT
-				x_dc.dc_client_id,
-				COALESCE(x_di.dist_aindex, x_di.dist_findex),
-				MAX(x_di.dist_time)
+				x_l_hd.hd_term_sn,
+				COALESCE(x_l_hx.ho_term_file, x_l_hx.ho_server_file),
+				MAX(x_l_hx.ho_when)
 			FROM
-				tb_dist_info x_di
-			INNER JOIN tb_dist_clients x_dc ON x_dc.dc_dist_id = x_di.dist_id
+				x_handleout_data x_l_hx
+			INNER JOIN x_handout_details x_l_hd ON x_l_hd.hd_no = x_l_hx.ho_no
 			WHERE
-				x_di.dist_ftype IN('7', '9')
+				x_l_hx.ho_server_kind IN('7', '9')
 			GROUP BY
-				x_dc.dc_client_id,
-				COALESCE(x_di.dist_aindex, x_di.dist_findex)
+				x_l_hd.hd_term_sn,
+				COALESCE(x_l_hx.ho_term_file, x_l_hx.ho_server_file)
 		)
 	);
 
 /* 0, framework */
 DELETE
 FROM
-	tb_dist_clients
+	x_handout_details
 WHERE
-	(dc_dist_id, dc_client_id)IN(
+	(hd_no, hd_term_sn)IN(
 		SELECT
-			dc_dist_id,
-			dc_client_id
+			hd_no,
+			hd_term_sn
 		FROM
-			tb_dist_clients dc
-		INNER JOIN tb_dist_info di ON dc.dc_dist_id = di.dist_id
+			x_handout_details l_hd
+		INNER JOIN x_handleout_data l_hx ON l_hd.hd_no = l_hx.ho_no
 		WHERE
-			di.dist_ftype = '0'
+			l_hx.ho_server_kind = '0'
 		AND(
-			dc.dc_client_id,
-			di.dist_time
+			l_hd.hd_term_sn,
+			l_hx.ho_when
 		)NOT IN(
 			SELECT
-				x_dc.dc_client_id,
-				MAX(x_di.dist_time)
+				x_l_hd.hd_term_sn,
+				MAX(x_l_hx.ho_when)
 			FROM
-				tb_dist_info x_di
-			INNER JOIN tb_dist_clients x_dc ON x_dc.dc_dist_id = x_di.dist_id
+				x_handleout_data x_l_hx
+			INNER JOIN x_handout_details x_l_hd ON x_l_hd.hd_no = x_l_hx.ho_no
 			WHERE
-				x_di.dist_ftype = '0'
+				x_l_hx.ho_server_kind = '0'
 			GROUP BY
-				x_dc.dc_client_id
+				x_l_hd.hd_term_sn
 		)
 	);
 
 /* 8 */
-/*
-delete from tb_dist_clients where (dc_dist_id, dc_client_id) in
-(
-select dc_dist_id, dc_client_id from tb_dist_clients dc, tb_dist_info di
-  where dc.dc_dist_id = di.dist_id and di.dist_ftype = '8' and di.dist_time < 
-    (select max(x_di.dist_time) from tb_dist_info x_di, tb_dist_clients x_dc 
-      where x_dc.dc_dist_id = x_di.dist_id and COALESCE(x_di.dist_aindex, x_di.dist_findex) = COALESCE(di.dist_aindex, di.dist_findex)
-            and x_di.dist_ftype = '8'
-    )
-);*/
 DELETE
 FROM
-	tb_dist_clients
+	x_handout_details
 WHERE
-	(dc_dist_id, dc_client_id)IN(
+	(hd_no, hd_term_sn)IN(
 		SELECT
-			dc_dist_id,
-			dc_client_id
+			hd_no,
+			hd_term_sn
 		FROM
-			tb_dist_clients dc
-		INNER JOIN tb_dist_info di ON dc.dc_dist_id = di.dist_id
+			x_handout_details l_hd
+		INNER JOIN x_handleout_data l_hx ON l_hd.hd_no = l_hx.ho_no
 		WHERE
-			di.dist_ftype IN('8')
+			l_hx.ho_server_kind IN('8')
 		AND(
-			dc.dc_client_id,
-			COALESCE(di.dist_aindex, di.dist_findex),
-			di.dist_time
+			l_hd.hd_term_sn,
+			COALESCE(l_hx.ho_term_file, l_hx.ho_server_file),
+			l_hx.ho_when
 		)NOT IN(
 			SELECT
-				x_dc.dc_client_id,
-				COALESCE(x_di.dist_aindex, x_di.dist_findex),
-				MAX(x_di.dist_time)
+				x_l_hd.hd_term_sn,
+				COALESCE(x_l_hx.ho_term_file, x_l_hx.ho_server_file),
+				MAX(x_l_hx.ho_when)
 			FROM
-				tb_dist_info x_di
-			INNER JOIN tb_dist_clients x_dc ON x_dc.dc_dist_id = x_di.dist_id
+				x_handleout_data x_l_hx
+			INNER JOIN x_handout_details x_l_hd ON x_l_hd.hd_no = x_l_hx.ho_no
 			WHERE
-				x_di.dist_ftype IN('8')
+				x_l_hx.ho_server_kind IN('8')
 			GROUP BY
-				x_dc.dc_client_id,
-				COALESCE(x_di.dist_aindex, x_di.dist_findex)
+				x_l_hd.hd_term_sn,
+				COALESCE(x_l_hx.ho_term_file, x_l_hx.ho_server_file)
 		)
 	);
 
-  delete from tb_dist_info where (('now'::text)::timestamp(0) without time zone - dist_time > '60 day');
+  delete from x_handleout_data where (('now'::text)::timestamp(0) without time zone - ho_when > '60 Day');
 END;
-$$ 
-LANGUAGE plpgsql;
+$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100;
+ALTER FUNCTION last_func()
+  OWNER TO postgres;
 
