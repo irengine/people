@@ -871,7 +871,7 @@ public:
 class CCmdHeader
 {
 public:
-  enum { SIGNATURE = 0x80089397 };
+  enum { SIGNATURE = 0x19586489 };
   enum { DATA_MARK = '*', CENTER_MARK = '?', LAST_MARK = ':' };
   enum { ITEM_NULL_SIZE = 1 };
 
