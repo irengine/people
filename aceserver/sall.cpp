@@ -9,7 +9,7 @@ CBsDistData::CBsDistData(CONST text * v_did)
   edition.init(v_did);
   edition_size = strlen(v_did);
   checksum_opt_size = 0;
-  exist = false;
+  exist = C_BAD;
   checksum_size = 0;
   remote_file_size = 0;
   key_size = 0;
@@ -34,7 +34,7 @@ DVOID CBsDistData::calc_checksum_opt_sum()
     l_x.init(check_sum.get_ptr());
     CCheckSums l_obj;
     if (l_obj.load_text(l_x.get_ptr(), NULL))
-      checksum_opt_size = l_obj.text_len(false) - 1;
+      checksum_opt_size = l_obj.text_len(C_BAD) - 1;
   }
 }
 
@@ -70,45 +70,45 @@ truefalse CBsDistReq::do_validate(CONST text * v_x, CONST text * v_y) CONST
   if (!v_x || !*v_x)
   {
     C_ERROR("invalid bs handleout command, no %s\n", v_y);
-    return false;
+    return C_BAD;
   }
 
-  return true;
+  return C_OK;
 }
 
 truefalse CBsDistReq::is_ok(CONST truefalse v_acode_also) CONST
 {
   if (v_acode_also && !do_validate(what_, "acode"))
-    return false;
+    return C_BAD;
 
   if (!do_validate(remote_kind, "ftype"))
-    return false;
+    return C_BAD;
 
   if (unlikely(remote_kind[1] != 0 || !c_tell_ftype_valid(remote_kind[0])))
   {
     C_ERROR("invalid bs handleout command, ftype = %s\n", remote_kind);
-    return false;
+    return C_BAD;
   }
 
   if (!do_validate(remote_file, "findex"))
-    return false;
+    return C_BAD;
 
   if (!do_validate(remote_path, "fdir"))
-    return false;
+    return C_BAD;
 
   if (!do_validate(edition, "ver"))
-    return false;
+    return C_BAD;
 
   if (!do_validate(local_kind, "type"))
-    return false;
+    return C_BAD;
 
   if (unlikely(local_kind[1] != 0 || !c_tell_type_valid(local_kind[0])))
   {
     C_ERROR("invalid bs dist command, type = %s\n", local_kind);
-    return false;
+    return C_BAD;
   }
 
-  return true;
+  return C_OK;
 }
 
 truefalse CBsDistReq::have_checksum() CONST
@@ -196,8 +196,8 @@ DVOID CCompFactory::query_single_fn(CONST text * did, CMemProt & fn)
 
 truefalse CCompFactory::do_comp(CBsDistReq & v_req)
 {
-  truefalse l_x = false;
-  truefalse bm = false;
+  truefalse l_x = C_BAD;
+  truefalse bm = C_BAD;
   ni l_skip_n = strlen(v_req.remote_path) - 1;
   CMemProt l_to_path;
   CMemProt l_cmp_path;
@@ -205,14 +205,14 @@ truefalse CCompFactory::do_comp(CBsDistReq & v_req)
   CMemProt mfile;
   CMemProt l_to_fn;
   l_to_path.init(CCfgX::instance()->bz_files_path.c_str(), "/", v_req.edition);
-  if (!CSysFS::create_dir(l_to_path.get_ptr(), false))
+  if (!CSysFS::create_dir(l_to_path.get_ptr(), C_BAD))
   {
     C_ERROR("create_dir %s, %s\n", l_to_path.get_ptr(), (CONST text *)CSysError());
     goto label_out;
   }
 
   l_cmp_path.init(l_to_path.get_ptr(), "/", dir_of_composite());
-  if (!CSysFS::create_dir(l_cmp_path.get_ptr(), false))
+  if (!CSysFS::create_dir(l_cmp_path.get_ptr(), C_BAD))
   {
     C_ERROR("create_dir %s, %s\n", l_cmp_path.get_ptr(), (CONST text *)CSysError());
     goto label_out;
@@ -229,17 +229,17 @@ truefalse CCompFactory::do_comp(CBsDistReq & v_req)
   {
     C_ERROR("comp(%s) to (%s)\n", mfile.get_ptr(), l_to_fn.get_ptr());
     m_comp_uniter.finish();
-    return false;
+    return C_BAD;
   }
   if (!c_tell_type_single(*v_req.local_kind) && bm && !m_comp_uniter.append(l_to_fn.get_ptr()))
   {
     m_comp_uniter.finish();
-    return false;
+    return C_BAD;
   }
 
   if (c_tell_type_single(*v_req.local_kind))
   {
-    l_x = CSysFS::rename(l_to_fn.get_ptr(), single.get_ptr(), false);
+    l_x = CSysFS::rename(l_to_fn.get_ptr(), single.get_ptr(), C_BAD);
     goto label_out;
   }
 
@@ -267,7 +267,7 @@ label_out:
     {
       l_to_fn.get_ptr()[m - 4] = 0;
       if (likely(CSysFS::dir_from_mfile(l_to_fn, 1)))
-        CSysFS::delete_dir(l_to_fn.get_ptr(), true);
+        CSysFS::delete_dir(l_to_fn.get_ptr(), C_OK);
     }
   }
   return l_x;
@@ -276,19 +276,19 @@ label_out:
 truefalse CCompFactory::i_work(CONST text * from_dir, CONST text * to_dir, ni skip_n, CONST text * key)
 {
   if (unlikely(!from_dir || !*from_dir || !to_dir || !*to_dir))
-    return false;
+    return C_BAD;
 
-  if (!CSysFS::create_dir(to_dir, false))
+  if (!CSysFS::create_dir(to_dir, C_BAD))
   {
     C_ERROR("fail create path %s, %s\n", to_dir, (CONST text *)CSysError());
-    return false;
+    return C_BAD;
   }
 
-  DIR * dir = opendir(from_dir);
-  if (!dir)
+  DIR * l_xyz = opendir(from_dir);
+  if (!l_xyz)
   {
     C_ERROR("opendir: %s, %s\n", from_dir, (CONST char*)CSysError());
-    return false;
+    return C_BAD;
   }
 
   ni len1 = strlen(from_dir);
@@ -298,14 +298,14 @@ truefalse CCompFactory::i_work(CONST text * from_dir, CONST text * to_dir, ni sk
   ni l_y = len1 - skip_n;
   if (l_y > 0)
   {
-    if (!CSysFS::create_dir(to_dir, from_dir + skip_n + 1, false, false))
+    if (!CSysFS::create_dir(to_dir, from_dir + skip_n + 1, C_BAD, C_BAD))
     {
       C_ERROR("create_dir %s%s %s\n", to_dir, from_dir + skip_n, (CONST char*)CSysError());
-      return false;
+      return C_BAD;
     }
   }
 
-  while ((l_x = readdir(dir)) != NULL)
+  while ((l_x = readdir(l_xyz)) != NULL)
   {
     if (unlikely(!l_x->d_name))
       continue;
@@ -327,13 +327,13 @@ truefalse CCompFactory::i_work(CONST text * from_dir, CONST text * to_dir, ni sk
       if (!m_data_comp.reduce(l_from.get_ptr(), skip_n, l_to.get_ptr(), key))
       {
         C_ERROR("comp(%s) to (%s) failed\n", l_from.get_ptr(), l_to.get_ptr());
-        closedir(dir);
-        return false;
+        closedir(l_xyz);
+        return C_BAD;
       }
       if (!m_comp_uniter.append(l_to.get_ptr()))
       {
-        closedir(dir);
-        return false;
+        closedir(l_xyz);
+        return C_BAD;
       }
     }
     else if(l_x->d_type == DT_DIR)
@@ -345,15 +345,15 @@ truefalse CCompFactory::i_work(CONST text * from_dir, CONST text * to_dir, ni sk
 
       if (!i_work(l_from.get_ptr(), to_dir, skip_n, key))
       {
-        closedir(dir);
-        return false;
+        closedir(l_xyz);
+        return C_BAD;
       }
     } else
       C_WARNING("unexpected file type (= %d) file = %s/%s\n", l_x->d_type, from_dir, l_x->d_name);
   };
 
-  closedir(dir);
-  return true;
+  closedir(l_xyz);
+  return C_OK;
 }
 
 
@@ -364,25 +364,25 @@ truefalse CChecksumComputer::compute(CBsDistReq & v_req, CMemProt & v_checksum, 
   if (!v_req.have_checksum())
   {
     C_INFO("will not compute checksum for task %s\n", v_req.edition);
-    return true;
+    return C_OK;
   }
 
   CCheckSums l_cs;
   if (unlikely(!l_cs.compute(v_req.remote_path, v_req.remote_file, c_tell_type_single(*v_req.local_kind))))
   {
     C_ERROR("failed to compute checksum for task %s\n", v_req.edition);
-    return false;
+    return C_BAD;
   }
   l_cs.make_ordered();
-  v_cs_size = l_cs.text_len(true);
+  v_cs_size = l_cs.text_len(C_OK);
 
   CCacheX::instance()->get(v_cs_size, &v_checksum);
-  if (unlikely(!l_cs.save_text(v_checksum.get_ptr(), v_cs_size, true)))
+  if (unlikely(!l_cs.save_text(v_checksum.get_ptr(), v_cs_size, C_OK)))
   {
     C_ERROR("failed to read checksum for task %s\n", v_req.edition);
-    return false;
+    return C_BAD;
   }
-  return true;
+  return C_OK;
 }
 
 
@@ -396,13 +396,13 @@ truefalse CChecksumComputer::compute_single_cs(CONST text * did, CMemProt & v_cs
 
 CMB * c_create_hb_mb()
 {
-  CMB * mb = CCacheX::instance()->get_mb_bs(1, "99");
-  if (!mb)
+  CMB * l_y = CCacheX::instance()->get_mb_bs(1, "99");
+  if (!l_y)
     return NULL;
-  text * v_x = mb->base() + CBSData::DATA_OFFSET;
+  text * v_x = l_y->base() + CBSData::DATA_OFFSET;
   *v_x = '1';
   *(v_x + 1) = CBSData::LAST_SEPARATOR;
-  return mb;
+  return l_y;
 }
 
 
@@ -417,7 +417,7 @@ public:
   truefalse operator()(CChargeData& x) CONST
   {
     if (!m_ip)
-      return false;
+      return C_BAD;
     return (strcmp(m_ip, x.m_ip) == 0);
   }
 
@@ -429,7 +429,7 @@ private:
 
 CChargeDatas::CChargeDatas()
 {
-  m_loads.reserve(6);
+  m_charge_datas.reserve(6);
   m_ip_size = 0;
   m_ips[0] = 0;
 }
@@ -438,10 +438,10 @@ DVOID CChargeDatas::refresh(CONST CChargeData & v_data)
 {
   if (v_data.m_ip[0] == 0)
     return;
-  ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_mutex));
+  ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_thread_keym));
   CChargeDataVecIt it = do_search(v_data.m_ip);
-  if (it == m_loads.end())
-    m_loads.push_back(v_data);
+  if (it == m_charge_datas.end())
+    m_charge_datas.push_back(v_data);
   else
   {
     it->set_load(v_data.m_load);
@@ -455,40 +455,40 @@ DVOID CChargeDatas::del(CONST text * v_addr)
 {
   if (!v_addr || !*v_addr)
     return;
-  ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_mutex));
+  ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_thread_keym));
   CChargeDataVecIt it = do_search(v_addr);
-  if (it == m_loads.end())
+  if (it == m_charge_datas.end())
     return;
-  m_loads.erase(it);
+  m_charge_datas.erase(it);
 
   do_compute_ips();
 }
 
 CChargeDatas::CChargeDataVecIt CChargeDatas::do_search(CONST text * v_addr)
 {
-  return find_if(m_loads.begin(), m_loads.end(), CBalanceSearcher(v_addr));
+  return find_if(m_charge_datas.begin(), m_charge_datas.end(), CBalanceSearcher(v_addr));
 }
 
 DVOID CChargeDatas::do_compute_ips()
 {
   m_ips[0] = 0;
-  sort(m_loads.begin(), m_loads.end());
-  CChargeDataVecIt it;
+  sort(m_charge_datas.begin(), m_charge_datas.end());
+  CChargeDataVecIt l_zzz;
   ni l_x = IP_SIZE - 2;
   text * l_p = m_ips;
-  for (it = m_loads.begin(); it != m_loads.end(); ++it)
+  for (l_zzz = m_charge_datas.begin(); l_zzz != m_charge_datas.end(); ++l_zzz)
   {
-    ni len = strlen(it->m_ip);
-    if (len == 0)
+    ni l_y = strlen(l_zzz->m_ip);
+    if (l_y == 0)
       continue;
-    if (unlikely(len > l_x))
+    if (unlikely(l_y > l_x))
     {
       C_ERROR("ips too long\n");
       break;
     }
-    memcpy(l_p, it->m_ip, len + 1);
-    l_p += len;
-    l_x -= (len + 1);
+    memcpy(l_p, l_zzz->m_ip, l_y + 1);
+    l_p += l_y;
+    l_x -= (l_y + 1);
     *l_p = CCmdHeader::DATA_MARK;
     ++l_p;
   }
@@ -509,7 +509,7 @@ DVOID CChargeDatas::do_compute_ips()
 
 ni CChargeDatas::query_servers(text * v_result, ni v_result_size)
 {
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_mutex, 0);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, 0);
   if (!v_result || v_result_size < m_ip_size)
     return 0;
   ACE_OS::strsncpy(v_result, m_ips, v_result_size);
@@ -518,14 +518,14 @@ ni CChargeDatas::query_servers(text * v_result, ni v_result_size)
 
 DVOID CChargeDatas::check_broken()
 {
-  ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_mutex));
-  CChargeDataVecIt it;
-  for (it = m_loads.begin(); it != m_loads.end(); )
+  ACE_MT(ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_thread_keym));
+  CChargeDataVecIt l_zzz;
+  for (l_zzz = m_charge_datas.begin(); l_zzz != m_charge_datas.end(); )
   {
-    if (it->m_prev_access_ts + ni(BROKEN_INTERVAL * 60 / CParentRunner::CLOCK_TIME) < g_clock_counter)
-      it = m_loads.erase(it);
+    if (l_zzz->m_prev_access_ts + ni(BROKEN_INTERVAL * 60 / CParentRunner::CLOCK_TIME) < g_clock_counter)
+      l_zzz = m_charge_datas.erase(l_zzz);
     else
-      ++it;
+      ++l_zzz;
   };
 
   do_compute_ips();
@@ -575,7 +575,7 @@ DVOID CObsoleteDirDeleter::work(CONST text * v_dir)
         ++l_total;
         CMemProt l_z;
         l_z.init(v_dir, "/", l_y->d_name);
-        if (CSysFS::delete_dir(l_z.get_ptr(), true))
+        if (CSysFS::delete_dir(l_z.get_ptr(), C_OK))
           ++ l_good_num;
       }
     }
@@ -618,33 +618,33 @@ CProc::OUTPUT CPositionProc::at_head_arrival()
   return OP_FAIL;
 }
 
-CProc::OUTPUT CPositionProc::do_read_data(CMB * mb)
+CProc::OUTPUT CPositionProc::do_read_data(CMB * v_mb)
 {
-  CParentServerProc::do_read_data(mb);
+  CParentServerProc::do_read_data(v_mb);
 
-  CCmdHeader * l_p = (CCmdHeader *)mb->base();
+  CCmdHeader * l_p = (CCmdHeader *)v_mb->base();
   if (l_p->cmd == CCmdHeader::PT_LOGIN)
-    return do_login_check(mb);
+    return do_login_check(v_mb);
 
-  CMBProt guard(mb);
+  CMBProt guard(v_mb);
   C_ERROR("get bad cmd = %d\n", l_p->cmd);
   return OP_FAIL;
 }
 
 
-CProc::OUTPUT CPositionProc::do_login_check(CMB * mb)
+CProc::OUTPUT CPositionProc::do_login_check(CMB * v_mb)
 {
-  CMBProt prot(mb);
+  CMBProt prot(v_mb);
   m_term_sn = "foobar";
   text ips[CChargeDatas::IP_SIZE];
-  ni m = m_charge_datas->query_servers(ips, CChargeDatas::IP_SIZE);
-  CMB * mb2 = i_create_mb_ver_reply(CTermVerReply::SC_GET_ALL, m);
+  ni l_y = m_charge_datas->query_servers(ips, CChargeDatas::IP_SIZE);
+  CMB * l_mb2 = i_create_mb_ver_reply(CTermVerReply::SC_GET_ALL, l_y);
 
-  CTermVerReply * l_x = (CTermVerReply *)mb2->base();
-  if (likely(m > 0))
-    memcpy(l_x->data, ips, m);
+  CTermVerReply * l_x = (CTermVerReply *)l_mb2->base();
+  if (likely(l_y > 0))
+    memcpy(l_x->data, ips, l_y);
 
-  if (m_handler->post_packet(mb2) <= 0)
+  if (m_handler->post_packet(l_mb2) <= 0)
     return OP_FAIL;
   else
     return OP_OK;
@@ -673,8 +673,8 @@ CPositionTask::CPositionTask(CContainer * p, ni v_thrds):
 ni CPositionTask::svc()
 {
   C_INFO("Start %s::svc()\n", title());
-  for (CMB * mb; getq(mb) != -1;)
-    mb->release ();
+  for (CMB * l_mb; getq(l_mb) != -1;)
+    l_mb->release ();
   C_INFO("exiting %s::svc()\n", title());
   return 0;
 }
@@ -718,7 +718,7 @@ truefalse CPositionScheduler::before_begin()
   if (!m_acc)
     m_acc = new CPositionAcc(this, new CHandlerDirector());
   acc_add(m_acc);
-  return true;
+  return C_OK;
 }
 
 DVOID CPositionScheduler::before_finish()
@@ -754,7 +754,7 @@ truefalse CPositionContainer::before_begin()
 {
   add_task(m_task = new CPositionTask(this, 1));
   add_scheduler(m_scheduler = new CPositionScheduler(this));
-  return true;
+  return C_OK;
 }
 
 DVOID CPositionContainer::before_finish()
@@ -803,22 +803,22 @@ CProc::OUTPUT CBsReqProc::at_head_arrival()
 CProc::OUTPUT CBsReqProc::do_read_data(CMB * v_mb)
 {
   C_INFO("BS req full len = %d\n", v_mb->length());
-  m_mark_down = true;
+  m_mark_down = C_OK;
   truefalse ok = handle_req();
-  CMB * mb = CCacheX::instance()->get_mb(1);
-  if (!mb)
+  CMB * l_mb = CCacheX::instance()->get_mb(1);
+  if (!l_mb)
   {
     C_ERROR("oom\n");
     return OP_FAIL;
   }
-  *(mb->base()) = (ok? '1':'0');
-  mb->wr_ptr(1);
-  return (m_handler->post_packet(mb) <= 0 ? OP_FAIL:OP_OK);
+  *(l_mb->base()) = (ok? '1':'0');
+  l_mb->wr_ptr(1);
+  return (m_handler->post_packet(l_mb) <= 0 ? OP_FAIL:OP_OK);
 }
 
 truefalse CBsReqProc::handle_req()
 {
-  truefalse l_ret = true;
+  truefalse l_ret = C_OK;
   CONST text * CONST_task = "http://127.0.0.1:10092/task?";
   CONST text * CONST_prio = "http://127.0.0.1:10092/prio?";
   CONST text * CONST_dist = "http://127.0.0.1:10092/file?";
@@ -842,7 +842,7 @@ truefalse CBsReqProc::handle_req()
   {
     m_mb->release();
     m_mb = NULL;
-    return false;
+    return C_BAD;
   }
   if (likely(l_m == 1 || l_m == 3))
     l_ret = (c_tools_mb_putq(CRunnerX::instance()->bs_req_container()->bs_req_task(), m_mb,
@@ -851,24 +851,24 @@ truefalse CBsReqProc::handle_req()
   return l_ret;
 }
 
-truefalse CBsReqProc::handle_prio(CMB * mb)
+truefalse CBsReqProc::handle_prio(CMB * v_mb)
 {
   CONST text CONST_leading[] = "http://127.0.0.1:10092/prio?";
   CONST ni CONST_leading_size = sizeof(CONST_leading) / sizeof(text) - 1;
-  ni mb_len = mb->length();
-  memmove(mb->base(), mb->base() + 4, mb_len - 4);
-  mb->base()[mb_len - 4] = 0;
-  if (unlikely((ni)(mb->length()) <= CONST_leading_size + 10))
+  ni l_x = v_mb->length();
+  memmove(v_mb->base(), v_mb->base() + 4, l_x - 4);
+  v_mb->base()[l_x - 4] = 0;
+  if (unlikely((ni)(v_mb->length()) <= CONST_leading_size + 10))
   {
     C_ERROR("invalid bs req too short\n");
-    return false;
+    return C_BAD;
   }
 
-  text * l_ptr = mb->base();
+  text * l_ptr = v_mb->base();
   if (memcmp(l_ptr, CONST_leading, CONST_leading_size) != 0)
   {
     C_ERROR("invalid bs req, no %s\n", CONST_leading);
-    return false;
+    return C_BAD;
   }
 
   l_ptr += CONST_leading_size;
@@ -879,7 +879,7 @@ truefalse CBsReqProc::handle_prio(CMB * mb)
   if (!c_tools_locate_key_result(l_ptr, CONST_ver, ver, CONST_separator))
   {
     C_ERROR("bad bs req, no %s\n", CONST_ver);
-    return false;
+    return C_BAD;
   }
 
 
@@ -888,7 +888,7 @@ truefalse CBsReqProc::handle_prio(CMB * mb)
   if (!c_tools_locate_key_result(l_ptr, CONST_plist, plist, CONST_separator))
   {
     C_ERROR("bad bs req, no %s\n", CONST_plist);
-    return false;
+    return C_BAD;
   }
 
 
@@ -896,7 +896,7 @@ truefalse CBsReqProc::handle_prio(CMB * mb)
   if (!db.check_online())
   {
     C_ERROR("no connection to db, quitting\n");
-    return false;
+    return C_BAD;
   }
 
   C_INFO("prio = %s\n", plist? plist:"NULL");
@@ -947,10 +947,10 @@ CBsReqTask::CBsReqTask(CContainer * p, ni m): CTaskBase(p, m)
 ni CBsReqTask::svc()
 {
   C_INFO("Start %s::svc()\n", title());
-  for (CMB * mb; getq(mb) != -1; )
+  for (CMB * l_mb; getq(l_mb) != -1; )
   {
-    process_mb(mb);
-    mb->release();
+    process_mb(l_mb);
+    l_mb->release();
   }
   C_INFO("exiting %s::svc()\n", title());
   return 0;
@@ -961,24 +961,24 @@ CONST text * CBsReqTask::title() CONST
   return "CBsReqTask";
 }
 
-truefalse CBsReqTask::analyze_cmd(CMB * mb, CBsDistReq & v_bs_req)
+truefalse CBsReqTask::analyze_cmd(CMB * v_mb, CBsDistReq & v_bs_req)
 {
   CONST text CONST_header[] = "http://127.0.0.1:10092/file?";
   CONST ni CONST_header_len = sizeof(CONST_header) / sizeof(text) - 1;
-  ni l_x = mb->length();
-  memmove(mb->base(), mb->base() + 4, l_x - 4);
-  mb->base()[l_x - 4] = 0;
-  if (unlikely((ni)(mb->length()) <= CONST_header_len + 10))
+  ni l_x = v_mb->length();
+  memmove(v_mb->base(), v_mb->base() + 4, l_x - 4);
+  v_mb->base()[l_x - 4] = 0;
+  if (unlikely((ni)(v_mb->length()) <= CONST_header_len + 10))
   {
     C_ERROR("invalid bs req: too short\n");
-    return false;
+    return C_BAD;
   }
 
-  text * l_ptr = mb->base();
+  text * l_ptr = v_mb->base();
   if (memcmp(l_ptr, CONST_header, CONST_header_len) != 0)
   {
     C_ERROR("invalid bs req: no %s\n", CONST_header);
-    return false;
+    return C_BAD;
   }
 
   l_ptr += CONST_header_len;
@@ -988,59 +988,59 @@ truefalse CBsReqTask::analyze_cmd(CMB * mb, CBsDistReq & v_bs_req)
   if (!c_tools_locate_key_result(l_ptr, CONST_acode, v_bs_req.what_, CONST_separator))
   {
     C_ERROR("invalid bs req: no %s\n", CONST_acode);
-    return false;
+    return C_BAD;
   }
 
   CONST text * CONST_ftype = "ftype=";
   if (!c_tools_locate_key_result(l_ptr, CONST_ftype, v_bs_req.remote_kind, CONST_separator))
   {
     C_ERROR("invalid bs req: no %s\n", CONST_ftype);
-    return false;
+    return C_BAD;
   }
 
   CONST text * CONST_fdir = "fdir=";
   if (!c_tools_locate_key_result(l_ptr, CONST_fdir, v_bs_req.remote_path, CONST_separator))
   {
     C_ERROR("invalid bs req: no %s\n", CONST_fdir);
-    return false;
+    return C_BAD;
   }
 
   CONST text * CONST_findex = "findex=";
   if (!c_tools_locate_key_result(l_ptr, CONST_findex, v_bs_req.remote_file, CONST_separator))
   {
     C_ERROR("invalid bs req: no %s\n", CONST_findex);
-    return false;
+    return C_BAD;
   }
 
   CONST text * CONST_adir = "adir=";
   if (!c_tools_locate_key_result(l_ptr, CONST_adir, v_bs_req.local_path, CONST_separator))
   {
     C_ERROR("invalid bs req: no %s\n", CONST_adir);
-    return false;
+    return C_BAD;
   }
 
   CONST text * CONST_aindex = "aindex=";
   if (!c_tools_locate_key_result(l_ptr, CONST_aindex, v_bs_req.local_file, CONST_separator))
   {
     C_ERROR("invalid bs req: no %s\n", CONST_aindex);
-    return false;
+    return C_BAD;
   }
 
   CONST text * CONST_ver = "ver=";
   if (!c_tools_locate_key_result(l_ptr, CONST_ver, v_bs_req.edition, CONST_separator))
   {
     C_ERROR("invalid bs req: no %s\n", CONST_ver);
-    return false;
+    return C_BAD;
   }
 
   CONST text * CONST_type = "type=";
   if (!c_tools_locate_key_result(l_ptr, CONST_type, v_bs_req.local_kind, CONST_separator))
   {
     C_ERROR("invalid bs req: no %s\n", CONST_type);
-    return false;
+    return C_BAD;
   }
 
-  return true;
+  return C_OK;
 }
 
 truefalse CBsReqTask::process_mb(CMB * v_mb)
@@ -1049,18 +1049,18 @@ truefalse CBsReqTask::process_mb(CMB * v_mb)
   {
     CBsDistReq l_bs_req;
     truefalse l_ret = process_mb_i(v_mb, l_bs_req);
-    if (unlikely(!l_ret && !l_bs_req.is_ok(true)))
-      return false;
+    if (unlikely(!l_ret && !l_bs_req.is_ok(C_OK)))
+      return C_BAD;
     ni l_all;
     text tmp[32];
-    c_tools_convert_time_to_text(tmp, 32, true);
+    c_tools_convert_time_to_text(tmp, 32, C_OK);
     l_all = strlen(tmp) + strlen(l_bs_req.edition) + 8;
-    CMB * mb = CCacheX::instance()->get_mb_bs(l_all, CCMD_HANDOUT_RESULT);
-    text * l_ptr = mb->base() + CBSData::DATA_OFFSET;
+    CMB * l_mb = CCacheX::instance()->get_mb_bs(l_all, CCMD_HANDOUT_RESULT);
+    text * l_ptr = l_mb->base() + CBSData::DATA_OFFSET;
     sprintf(l_ptr, "%s#%c##1#%c#%s", l_bs_req.edition, *l_bs_req.remote_kind,
         l_ret? '1':'0', tmp);
     l_ptr[l_all] = CBSData::LAST_SEPARATOR;
-    CRunnerX::instance()->balance_container()->scheduler()->post_bs(mb);
+    CRunnerX::instance()->balance_container()->scheduler()->post_bs(l_mb);
 
     return l_ret;
   } else
@@ -1069,13 +1069,13 @@ truefalse CBsReqTask::process_mb(CMB * v_mb)
   }
 }
 
-truefalse CBsReqTask::process_mb_i(CMB * mb, CBsDistReq & v_bs_req)
+truefalse CBsReqTask::process_mb_i(CMB * v_mb, CBsDistReq & v_bs_req)
 {
-  if (!analyze_cmd(mb, v_bs_req))
-    return false;
+  if (!analyze_cmd(v_mb, v_bs_req))
+    return C_BAD;
 
-  if (!v_bs_req.is_ok(true))
-    return false;
+  if (!v_bs_req.is_ok(C_OK))
+    return C_BAD;
 
   text key[12];
   c_tools_create_rnd_text(key, 12);
@@ -1083,56 +1083,56 @@ truefalse CBsReqTask::process_mb_i(CMB * mb, CBsDistReq & v_bs_req)
   CPG & l_database = CRunnerX::instance()->pg();
 
   if (unlikely(!container()->working_runner()))
-    return false;
+    return C_BAD;
 
   if (!process_comp(v_bs_req))
-    return false;
+    return C_BAD;
 
   if (unlikely(!container()->working_runner()))
-    return false;
+    return C_BAD;
 
   CMemProt l_cs;
   {
     CChecksumComputer l_cs_computer;
     ni md5_len;
     if (!l_cs_computer.compute(v_bs_req, l_cs, md5_len))
-      return false;
+      return C_BAD;
   }
 
   if (unlikely(!container()->working_runner()))
-    return false;
+    return C_BAD;
 
   CMemProt l_single_cs;
   {
     if (!CChecksumComputer::compute_single_cs(v_bs_req.edition, l_single_cs))
-      return false;
+      return C_BAD;
   }
 
   if (!l_database.check_online())
   {
     C_ERROR("lost db con, no more proc of dist %s\n", v_bs_req.edition);
-    return false;
+    return C_BAD;
   }
 
   if (!l_database.write_task(v_bs_req, l_cs.get_ptr(), l_single_cs.get_ptr()))
   {
     C_ERROR("can not save_dist to db\n");
-    return false;
+    return C_BAD;
   }
 
   if (!l_database.write_task_terms(v_bs_req.what_, v_bs_req.local_path, v_bs_req.edition))
   {
     C_ERROR("can not save_dist_clients to db\n");
-    return false;
+    return C_BAD;
   }
 
   if (unlikely(!container()->working_runner()))
-    return false;
+    return C_BAD;
 
   if (!l_database.refresh_task_condition())
   {
     C_ERROR("call to dist_info_update_status() failed\n");
-    return false;
+    return C_BAD;
   }
 
   l_database.delete_unused_tasks();
@@ -1143,27 +1143,27 @@ truefalse CBsReqTask::process_mb_i(CMB * mb, CBsDistReq & v_bs_req)
   if (l_database.read_term_SNs(x))
     x.work(CCfgX::instance()->bz_files_path.c_str());
 
-  return true;
+  return C_OK;
 }
 
-truefalse CBsReqTask::process_mb_i2(CMB * mb)
+truefalse CBsReqTask::process_mb_i2(CMB * v_mb)
 {
   CONST text CONST_header[] = "http://127.0.0.1:10092/task?";
   CONST ni CONST_header_len = sizeof(CONST_header) / sizeof(text) - 1;
-  ni l_m = mb->length();
-  memmove(mb->base(), mb->base() + 4, l_m - 4);
-  mb->base()[l_m - 4] = 0;
-  if (unlikely((ni)(mb->length()) <= CONST_header_len + 10))
+  ni l_m = v_mb->length();
+  memmove(v_mb->base(), v_mb->base() + 4, l_m - 4);
+  v_mb->base()[l_m - 4] = 0;
+  if (unlikely((ni)(v_mb->length()) <= CONST_header_len + 10))
   {
     C_ERROR("invalid bs req too short\n");
-    return false;
+    return C_BAD;
   }
 
-  text * l_ptr = mb->base();
+  text * l_ptr = v_mb->base();
   if (memcmp(l_ptr, CONST_header, CONST_header_len) != 0)
   {
     C_ERROR("invalid bs req: no (%s)\n", CONST_header);
-    return false;
+    return C_BAD;
   }
 
   l_ptr += CONST_header_len;
@@ -1174,7 +1174,7 @@ truefalse CBsReqTask::process_mb_i2(CMB * mb)
   if (!c_tools_locate_key_result(l_ptr, CONST_ver, ver, CONST_separator))
   {
     C_ERROR("invalid bs req: no %s\n", CONST_ver);
-    return false;
+    return C_BAD;
   }
 
 
@@ -1183,7 +1183,7 @@ truefalse CBsReqTask::process_mb_i2(CMB * mb)
   if (!c_tools_locate_key_result(l_ptr, CONST_cmd, cmd, CONST_separator))
   {
     C_ERROR("invalid bs req: no %s\n", CONST_cmd);
-    return false;
+    return C_BAD;
   }
 
   CONST text * CONST_backid = "backid=";
@@ -1191,7 +1191,7 @@ truefalse CBsReqTask::process_mb_i2(CMB * mb)
   if (!c_tools_locate_key_result(l_ptr, CONST_backid, backid, CONST_separator))
   {
     C_ERROR("invalid bs req: no %s\n", CONST_backid);
-    return false;
+    return C_BAD;
   }
 
   CONST text * CONST_acode = "acode=";
@@ -1199,25 +1199,25 @@ truefalse CBsReqTask::process_mb_i2(CMB * mb)
   if (!c_tools_locate_key_result(l_ptr, CONST_acode, acode, CONST_separator))
   {
     C_ERROR("invalid bs req: no %s\n", CONST_acode);
-    return false;
+    return C_BAD;
   }
 
   CPG & l_database = CRunnerX::instance()->pg();
   if (!l_database.check_online())
   {
     C_ERROR("lost db con\n");
-    return false;
+    return C_BAD;
   }
 
   l_database.write_sr(backid, cmd, acode);
   if (!l_database.refresh_task_condition())
   {
     C_ERROR("call to dist_info_update_status() failed\n");
-    return false;
+    return C_BAD;
   }
 
   tell_dists();
-  return true;
+  return C_OK;
 }
 
 truefalse CBsReqTask::process_comp(CBsDistReq & v_x)
@@ -1236,8 +1236,8 @@ truefalse CBsReqTask::compute_checksum(CBsDistReq & v_x)
 
 truefalse CBsReqTask::tell_dists()
 {
-  CMB * mb = CCacheX::instance()->get_mb_cmd(0, CCmdHeader::PT_HAS_JOB);
-  return c_tools_mb_putq(CRunnerX::instance()->balance_container()->scheduler(), mb, "dist work");
+  CMB * l_mb = CCacheX::instance()->get_mb_cmd(0, CCmdHeader::PT_HAS_JOB);
+  return c_tools_mb_putq(CRunnerX::instance()->balance_container()->scheduler(), l_mb, "dist work");
 }
 
 
@@ -1262,7 +1262,7 @@ truefalse CBsReqScheduler::before_begin()
   if (!m_acc)
     m_acc = new CBsReqAcc(this, new CHandlerDirector());
   acc_add(m_acc);
-  return true;
+  return C_OK;
 }
 
 
@@ -1291,7 +1291,7 @@ truefalse CBsReqContainer::before_begin()
 {
   add_task(m_bs_req_task = new CBsReqTask(this, 1));
   add_scheduler(m_scheduler = new CBsReqScheduler(this));
-  return true;
+  return C_OK;
 }
 
 DVOID CBsReqContainer::before_finish()
@@ -1303,7 +1303,7 @@ DVOID CBsReqContainer::before_finish()
 
 CBalanceProc::CBalanceProc(CParentHandler * p): CParentServerProc(p)
 {
-  m_term_sn_check_done = false;
+  m_term_sn_check_done = C_BAD;
   m_charge_datas = NULL;
   m_handler->msg_queue()->high_water_mark(MQ_PEAK);
 }
@@ -1356,26 +1356,26 @@ CProc::OUTPUT CBalanceProc::at_head_arrival()
   return OP_FAIL;
 }
 
-CProc::OUTPUT CBalanceProc::do_read_data(CMB * mb)
+CProc::OUTPUT CBalanceProc::do_read_data(CMB * l_mb)
 {
-  CParentServerProc::do_read_data(mb);
-  CMBProt prot(mb);
+  CParentServerProc::do_read_data(l_mb);
+  CMBProt prot(l_mb);
 
-  CCmdHeader * l_ptr = (CCmdHeader *)mb->base();
+  CCmdHeader * l_ptr = (CCmdHeader *)l_mb->base();
   if (l_ptr->cmd == CCmdHeader::PT_LOGIN)
-    return term_ver_validate(mb);
+    return term_ver_validate(l_mb);
 
   if (l_ptr->cmd == CCmdHeader::PT_CHARGE_REPORT)
-    return handle_balance(mb);
+    return handle_balance(l_mb);
 
   C_ERROR("get unknown cmd @CBalanceProc::do_read_data, command = %d\n",
       l_ptr->cmd);
   return OP_FAIL;
 }
 
-CProc::OUTPUT CBalanceProc::term_ver_validate(CMB * mb)
+CProc::OUTPUT CBalanceProc::term_ver_validate(CMB * l_mb)
 {
-  CTerminalVerReq * p = (CTerminalVerReq *) mb->base();
+  CTerminalVerReq * p = (CTerminalVerReq *) l_mb->base();
   m_term_sn = "DistServer";
   truefalse l_x = (p->term_sn == CCfgX::instance()->skey.c_str());
   if (!l_x)
@@ -1385,7 +1385,7 @@ CProc::OUTPUT CBalanceProc::term_ver_validate(CMB * mb)
     C_ERROR("bad load_balance version check (bad key) received from %s\n", x.get_ptr());
     return OP_FAIL;
   }
-  m_term_sn_check_done = true;
+  m_term_sn_check_done = C_OK;
 
   CMB * mb2 = i_create_mb_ver_reply(CTermVerReply::SC_OK);
   return (m_handler->post_packet(mb2) < 0 ? OP_FAIL: OP_OK);
@@ -1396,9 +1396,9 @@ truefalse CBalanceProc::term_sn_check_done() CONST
   return m_term_sn_check_done;
 }
 
-CProc::OUTPUT CBalanceProc::handle_balance(CMB * mb)
+CProc::OUTPUT CBalanceProc::handle_balance(CMB * l_mb)
 {
-  CLoadBalanceReq * l_x = (CLoadBalanceReq *)mb->base();
+  CLoadBalanceReq * l_x = (CLoadBalanceReq *)l_mb->base();
   CChargeData dl;
   dl.set_load(l_x->load);
   dl.set_ip(l_x->ip);
@@ -1459,10 +1459,10 @@ CBalanceScheduler::~CBalanceScheduler()
 {
   CTV l_x(CTV::zero);
   ni l_m = 0;
-  for (CMB * mb; m_bs_mq.dequeue(mb, &l_x) != -1; )
+  for (CMB * l_mb; m_bs_mq.dequeue(l_mb, &l_x) != -1; )
   {
     ++l_m;
-    mb->release();
+    l_mb->release();
   }
 }
 
@@ -1471,13 +1471,13 @@ CONST text * CBalanceScheduler::title() CONST
   return "CBalanceScheduler";
 }
 
-DVOID CBalanceScheduler::post_bs(CMB * mb)
+DVOID CBalanceScheduler::post_bs(CMB * v_mb)
 {
   CTV l_x(CTV::zero);
-  if (m_bs_mq.enqueue(mb, &l_x) < 0)
+  if (m_bs_mq.enqueue(v_mb, &l_x) < 0)
   {
     C_ERROR("post to bs failed, %s\n", (CONST char*)CSysError());
-    mb->release();
+    v_mb->release();
   }
 }
 
@@ -1507,9 +1507,9 @@ truefalse CBalanceScheduler::before_begin()
   if (reactor()->schedule_timer(this, 0, l_x, l_x) == -1)
   {
     C_ERROR("fail to setup timer: balance check\n");
-    return false;
+    return C_BAD;
   }
-  return true;
+  return C_OK;
 }
 
 truefalse CBalanceScheduler::do_schedule_work()
@@ -1525,7 +1525,7 @@ truefalse CBalanceScheduler::do_schedule_work()
   while (++l_x < CONST_peak_num && m_bs_mq.dequeue(l_z, &tv) != -1)
     m_bs_conn->director()->post_all(l_z);
 
-  return true;
+  return C_OK;
 }
 
 
@@ -1552,7 +1552,7 @@ CBalanceScheduler * CBalanceContainer::scheduler() CONST
 truefalse CBalanceContainer::before_begin()
 {
   add_scheduler(m_scheduler = new CBalanceScheduler(this));
-  return true;
+  return C_OK;
 }
 
 DVOID CBalanceContainer::before_finish()
@@ -1573,10 +1573,10 @@ CONST text * CM2BsProc::title() CONST
   return "CM2BsProc";
 }
 
-CProc::OUTPUT CM2BsProc::do_read_data(CMB * mb)
+CProc::OUTPUT CM2BsProc::do_read_data(CMB * v_mb)
 {
-  if (mb)
-    mb->release();
+  if (v_mb)
+    v_mb->release();
   ((CM2BsHandler*)m_handler)->checker_update();
   return OP_OK;
 }
@@ -1606,10 +1606,10 @@ ni CM2BsHandler::handle_timeout(CONST CTV &, CONST DVOID *)
     C_ERROR("no data received from bs @MyMiddleToBSHandler ...\n");
     return -1;
   }
-  CMB * mb = c_create_hb_mb();
-  if (mb)
+  CMB * l_mb = c_create_hb_mb();
+  if (l_mb)
   {
-    if (post_packet(mb) < 0)
+    if (post_packet(l_mb) < 0)
       return -1;
   }
   return 0;
@@ -1627,10 +1627,10 @@ ni CM2BsHandler::at_start()
   if (!g_is_test)
     C_INFO("CM2BsHandler setup timer: OK\n");
 
-  CMB * mb = c_create_hb_mb();
-  if (mb)
+  CMB * l_mb = c_create_hb_mb();
+  if (l_mb)
   {
-    if (post_packet(mb) < 0)
+    if (post_packet(l_mb) < 0)
       return -1;
   }
   m_validator.refresh();
@@ -1729,8 +1729,8 @@ DVOID CDistTermItem::set_checksum(CONST text * v_cs)
 
 DVOID CDistTermItem::post_subs(truefalse ok)
 {
-  CMB * mb = create_mb_of_download_sub(ok);
-  CRunnerX::instance()->d2m_container()->post_bs(mb);
+  CMB * l_mb = create_mb_of_download_sub(ok);
+  CRunnerX::instance()->d2m_container()->post_bs(l_mb);
 }
 
 DVOID CDistTermItem::control_pause_stop(CONST text )
@@ -1743,7 +1743,7 @@ DVOID CDistTermItem::download_checksum_feedback(CONST text * cs_s)
   if (unlikely(*cs_s == 0))
   {
     text l_z[50];
-    c_tools_convert_time_to_text(l_z, 50, true);
+    c_tools_convert_time_to_text(l_z, 50, C_OK);
     CRunnerX::instance()->ping_component()->download_reply_gatherer().append(
         dist_data->edition.get_ptr(), dist_data->remote_kind[0], term_sn(), '2', '1', l_z);
 
@@ -1753,7 +1753,7 @@ DVOID CDistTermItem::download_checksum_feedback(CONST text * cs_s)
     CRunnerX::instance()->ping_component()->download_reply_gatherer().append(
         dist_data->edition.get_ptr(), dist_data->remote_kind[0], term_sn(), '4', '1', l_z);
 
-    post_subs(true);
+    post_subs(C_OK);
 
     term_station->destruct_term_item(this);
     return;
@@ -1771,7 +1771,7 @@ DVOID CDistTermItem::download_checksum_feedback(CONST text * cs_s)
 truefalse CDistTermItem::work()
 {
   if (!connected())
-    return true;
+    return C_OK;
 
   switch (condition)
   {
@@ -1804,7 +1804,7 @@ truefalse CDistTermItem::work()
 
   default:
     C_ERROR("bad condtion (=%d)\n", condition);
-    return false;
+    return C_BAD;
   }
 }
 
@@ -1817,7 +1817,7 @@ truefalse CDistTermItem::on_conditon0()
       CRunnerX::instance()->pg().write_task_term_item_condition(*this, 1);
       set_condition(1);
     }
-    return true;
+    return C_OK;
   }
 
   if (post_download())
@@ -1825,7 +1825,7 @@ truefalse CDistTermItem::on_conditon0()
     CRunnerX::instance()->pg().write_task_term_item_condition(*this, 3);
     set_condition(3);
   }
-  return true;
+  return C_OK;
 }
 
 truefalse CDistTermItem::on_conditon1()
@@ -1834,7 +1834,7 @@ truefalse CDistTermItem::on_conditon1()
   if (t > prev_access + CS_FEEDBACK_TV * 60)
     post_cs();
 
-  return true;
+  return C_OK;
 }
 
 truefalse CDistTermItem::on_conditon2()
@@ -1854,7 +1854,7 @@ truefalse CDistTermItem::on_conditon2()
     CRunnerX::instance()->pg().write_task_term_item_condition(*this, 3);
     set_condition(3);
   }
-  return true;
+  return C_OK;
 }
 
 truefalse CDistTermItem::on_conditon3()
@@ -1863,34 +1863,34 @@ truefalse CDistTermItem::on_conditon3()
   if (t > prev_access + DOWNLOAD_FEEDBACK_TV * 60)
     post_download();
 
-  return true;
+  return C_OK;
 }
 
 truefalse CDistTermItem::on_conditon4()
 {
-  return false;
+  return C_BAD;
 }
 
 truefalse CDistTermItem::on_conditon5()
 {
   post_pause_stop('0');
-  return true;
+  return C_OK;
 }
 
 truefalse CDistTermItem::on_conditon6()
 {
-  return false;
+  return C_BAD;
 }
 
 truefalse CDistTermItem::on_conditon7()
 {
   post_pause_stop('1');
-  return true;
+  return C_OK;
 }
 
 truefalse CDistTermItem::on_conditon8()
 {
-  return false;
+  return C_BAD;
 }
 
 
@@ -1916,7 +1916,7 @@ CMB * CDistTermItem::create_mb_of_download_sub(truefalse fine)
 {
   CMemProt l_cs;
   text l_z[32];
-  c_tools_convert_time_to_text(l_z, 32, true);
+  c_tools_convert_time_to_text(l_z, 32, C_OK);
   CONST text * l_x;
   if (c_tell_type_multi(dist_data->local_kind[0]))
   {
@@ -1937,31 +1937,31 @@ CMB * CDistTermItem::create_mb_of_download_sub(truefalse fine)
 
   ni l_m = strlen(term_station->term_sn()) + strlen(dist_data->edition.get_ptr()) +
       strlen(l_z) + strlen(dist_data->remote_file.get_ptr()) + strlen(l_x) + 10;
-  CMB * mb = CCacheX::instance()->get_mb_bs(l_m, CCMD_HANDOUT_MORE_INFO);
-  text * l_ptr = mb->base() + CBSData::DATA_OFFSET;
+  CMB * l_mb = CCacheX::instance()->get_mb_bs(l_m, CCMD_HANDOUT_MORE_INFO);
+  text * l_ptr = l_mb->base() + CBSData::DATA_OFFSET;
   sprintf(l_ptr, "%s#%c#%s#%s#%s#%c#%c#%s", dist_data->edition.get_ptr(),
       dist_data->remote_kind[0], term_station->term_sn(), dist_data->remote_file.get_ptr(),
       l_x, dist_data->local_kind[0], fine? '1': '0', l_z);
   l_ptr[l_m] = CBSData::LAST_SEPARATOR;
-  return mb;
+  return l_mb;
 }
 
 truefalse CDistTermItem::post_cs()
 {
   if (!dist_data->check_sum.get_ptr() || !dist_data->check_sum.get_ptr()[0] || dist_data->checksum_size <= 0)
-    return false;
+    return C_BAD;
 
   ni l_cs_size = dist_data->checksum_size + 1;
   ni l_m = calc_common_header_len() + l_cs_size;
-  CMB * mb = CCacheX::instance()->get_mb_cmd(l_m, CCmdHeader::PT_CHECKSUMS);
-  CCmdExt * l_ptr = (CCmdExt *)mb->base();
+  CMB * l_mb = CCacheX::instance()->get_mb_cmd(l_m, CCmdHeader::PT_CHECKSUMS);
+  CCmdExt * l_ptr = (CCmdExt *)l_mb->base();
   l_ptr->signature = term_position();
   format_common_header(l_ptr->data);
   memcpy(l_ptr->data + l_m - l_cs_size, dist_data->check_sum.get_ptr(), l_cs_size);
 
   prev_access = time(NULL);
 
-  return c_tools_mb_putq(CRunnerX::instance()->ping_component()->scheduler(), mb, "checksum");
+  return c_tools_mb_putq(CRunnerX::instance()->ping_component()->scheduler(), l_mb, "checksum");
 }
 
 truefalse CDistTermItem::create_cmp_file()
@@ -1974,7 +1974,7 @@ truefalse CDistTermItem::create_cmp_file()
   l_to_fn.init(l_cmp_path.get_ptr(), "/", term_sn(), ".mbz");
   CCompUniter l_uniter;
   if (!l_uniter.begin(l_to_fn.get_ptr()))
-    return false;
+    return C_BAD;
   CMemProt l_cs2;
   l_cs2.init(checksum.get_ptr());
   text separators[2] = { CCmdHeader::DATA_MARK, 0 };
@@ -1987,7 +1987,7 @@ truefalse CDistTermItem::create_cmp_file()
     if (!l_uniter.append(l_fn.get_ptr()))
     {
       CSysFS::remove(l_to_fn.get_ptr());
-      return false;
+      return C_BAD;
     }
   }
 
@@ -1996,24 +1996,24 @@ truefalse CDistTermItem::create_cmp_file()
   {
     C_ERROR("can not compute cs: %s\n", l_to_fn.get_ptr());
     CSysFS::remove(l_to_fn.get_ptr());
-    return false;
+    return C_BAD;
   }
 
   cmp_fn.init(l_to_fn.get_ptr() + strlen(l_to_dir.get_ptr()) + 1);
   cmp_checksum.init(l_cs.get_ptr());
-  return true;
+  return C_OK;
 }
 
 truefalse CDistTermItem::post_pause_stop(CONST text c)
 {
   ni l_m = dist_data->edition_size + 2;
-  CMB * mb = CCacheX::instance()->get_mb_cmd(l_m, CCmdHeader::PT_PAUSE_STOP);
-  CCmdExt * l_ptr = (CCmdExt *)mb->base();
+  CMB * p_block_m = CCacheX::instance()->get_mb_cmd(l_m, CCmdHeader::PT_PAUSE_STOP);
+  CCmdExt * l_ptr = (CCmdExt *)p_block_m->base();
   l_ptr->signature = term_position();
   l_ptr->data[0] = c;
   memcpy(l_ptr->data + 1, dist_data->edition.get_ptr(), l_m - 1);
   prev_access = time(NULL);
-  return c_tools_mb_putq(CRunnerX::instance()->ping_component()->scheduler(), mb, "control pause stop");
+  return c_tools_mb_putq(CRunnerX::instance()->ping_component()->scheduler(), p_block_m, "control pause stop");
 }
 
 truefalse CDistTermItem::post_download()
@@ -2035,8 +2035,8 @@ truefalse CDistTermItem::post_download()
   ni l_header_size = calc_common_header_len();
   ni l_download_fn_size = strlen(download_fn) + 1;
   ni l_n = l_header_size + l_download_fn_size + dist_data->key_size + 1 + l_m;
-  CMB * mb = CCacheX::instance()->get_mb_cmd(l_n, CCmdHeader::PT_DOWNLOAD);
-  CCmdExt * l_ptr = (CCmdExt *)mb->base();
+  CMB * p_block_m = CCacheX::instance()->get_mb_cmd(l_n, CCmdHeader::PT_DOWNLOAD);
+  CCmdExt * l_ptr = (CCmdExt *)p_block_m->base();
   l_ptr->signature = term_position();
   format_common_header(l_ptr->data);
   text * l_ptr2 = l_ptr->data + l_header_size;
@@ -2050,7 +2050,7 @@ truefalse CDistTermItem::post_download()
 
   prev_access = time(NULL);
 
-  return c_tools_mb_putq(CRunnerX::instance()->ping_component()->scheduler(), mb, "checksums");
+  return c_tools_mb_putq(CRunnerX::instance()->ping_component()->scheduler(), p_block_m, "checksums");
 }
 
 
@@ -2097,7 +2097,7 @@ CDistTermItem * CTermStation::generate_term_item(CBsDistData * v_data)
 
 DVOID CTermStation::destruct_term_item(CDistTermItem * v_item)
 {
-  m_stations->at_del_term_item(v_item, false);
+  m_stations->at_del_term_item(v_item, C_BAD);
   m_items.remove(v_item);
   CRunnerX::instance()->pg().destruct_task_term(m_term_sn.to_str(), v_item->dist_data->edition.get_ptr());
   CPoolObjectDeletor prot;
@@ -2120,9 +2120,9 @@ truefalse CTermStation::work()
 
   if (unlikely(change))
   {
-    g_term_sns->server_changed(m_term_position, false);
+    g_term_sns->server_changed(m_term_position, C_BAD);
     for (l_x = m_items.begin(); l_x != m_items.end(); ++l_x)
-      m_stations->at_del_term_item(*l_x, false);
+      m_stations->at_del_term_item(*l_x, C_BAD);
     reset();
     CRunnerX::instance()->pg().read_task_terms(m_stations, this);
     C_DEBUG("fetching term(%s) from database\n", m_term_sn.to_str());
@@ -2132,7 +2132,7 @@ truefalse CTermStation::work()
   {
     if (!(*l_x)->work())
     {
-      m_stations->at_del_term_item(*l_x, true);
+      m_stations->at_del_term_item(*l_x, C_OK);
       CPoolObjectDeletor prot;
       prot(*l_x);
       l_x = m_items.erase(l_x);
@@ -2261,11 +2261,11 @@ CSpreader::CSpreader(): m_stations(&m_datas)
 truefalse CSpreader::work(truefalse v_query_db)
 {
   time_t t = time(NULL);
-  truefalse l_query_db = false;
+  truefalse l_query_db = C_BAD;
   if (v_query_db)
     l_query_db = m_datas.need_reload();
   else if (t - m_prev_stop < Vacation_Delay * 60)
-    return false;
+    return C_BAD;
   else
     l_query_db = m_datas.need_reload();
 
@@ -2279,7 +2279,7 @@ truefalse CSpreader::work(truefalse v_query_db)
   do_jobs(l_query_db);
   do_term_stations(l_query_db);
   m_prev_stop = time(NULL);
-  return true;
+  return C_OK;
 }
 
 truefalse CSpreader::do_jobs(truefalse v_query_db)
@@ -2287,10 +2287,10 @@ truefalse CSpreader::do_jobs(truefalse v_query_db)
   if (v_query_db)
   {
     m_datas.alloc_spaces(0);
-    return (CRunnerX::instance()->pg().read_tasks(m_datas) < 0)? false:true;
+    return (CRunnerX::instance()->pg().read_tasks(m_datas) < 0)? C_BAD:C_OK;
   }
 
-  return true;
+  return C_OK;
 }
 
 truefalse CSpreader::do_term_stations(truefalse v_query_db)
@@ -2299,11 +2299,11 @@ truefalse CSpreader::do_term_stations(truefalse v_query_db)
   {
     m_stations.reset();
     if (!CRunnerX::instance()->pg().read_task_terms(&m_stations, NULL))
-      return false;
+      return C_BAD;
   }
 
   m_stations.work();
-  return true;
+  return C_OK;
 }
 
 DVOID CSpreader::at_download_cmd_feedback(CONST text * v_term_sn, CONST text * v_did, ni v_condition, truefalse v_fine)
@@ -2534,9 +2534,9 @@ CProc::OUTPUT CPingProc::at_head_arrival()
   return OP_FAIL;
 }
 
-CProc::OUTPUT CPingProc::do_read_data(CMB * mb)
+CProc::OUTPUT CPingProc::do_read_data(CMB * p_block_m)
 {
-  CParentServerProc::do_read_data(mb);
+  CParentServerProc::do_read_data(p_block_m);
 
   {
     CMemProt l_z;
@@ -2544,41 +2544,41 @@ CProc::OUTPUT CPingProc::do_read_data(CMB * mb)
     C_DEBUG("recv full data: cmd = %d, size = %d from %s\n", m_data_head.cmd, m_data_head.size, l_z.get_ptr());
   }
 
-  CCmdHeader * l_x = (CCmdHeader *)mb->base();
+  CCmdHeader * l_x = (CCmdHeader *)p_block_m->base();
   if (l_x->cmd == CCmdHeader::PT_LOGIN)
-    return i_ver(mb);
+    return i_ver(p_block_m);
 
   if (l_x->cmd == CCmdHeader::PT_NO_VIDEO)
-    return i_no_video_warn(mb);
+    return i_no_video_warn(p_block_m);
 
   if (l_x->cmd == CCmdHeader::PT_HW_WARN)
-    return i_hw_warn(mb);
+    return i_hw_warn(p_block_m);
 
   if (l_x->cmd == CCmdHeader::PT_CHECKSUMS)
-    return i_checksums(mb);
+    return i_checksums(p_block_m);
 
   if (l_x->cmd == CCmdHeader::PT_DOWNLOAD)
-    return i_download_feedback(mb);
+    return i_download_feedback(p_block_m);
 
   if (l_x->cmd == CCmdHeader::PT_LOC_REPORT)
-    return i_location(mb);
+    return i_location(p_block_m);
 
   if (l_x->cmd == CCmdHeader::PT_ADV)
-    return i_click(mb);
+    return i_click(p_block_m);
 
   if (l_x->cmd == CCmdHeader::PT_VIDEO)
-    return i_video(mb);
+    return i_video(p_block_m);
 
   if (l_x->cmd == CCmdHeader::PT_POWER_TIME)
-    return i_hw_powertime(mb);
+    return i_hw_powertime(p_block_m);
 
   if (l_x->cmd == CCmdHeader::PT_QUIZ)
-    return i_test(mb);
+    return i_test(p_block_m);
 
   if (l_x->cmd == CCmdHeader::PT_PAUSE_STOP)
-    return i_pause_stop(mb);
+    return i_pause_stop(p_block_m);
 
-  CMBProt guard(mb);
+  CMBProt guard(p_block_m);
   C_ERROR("get unknown cmd = %d\n", l_x->cmd);
   return OP_FAIL;
 }
@@ -2588,11 +2588,11 @@ DVOID CPingProc::i_ping()
   m_ping_gatherer->append(m_term_sn.to_str(), m_term_sn_len);
 }
 
-CProc::OUTPUT CPingProc::i_ver(CMB * mb)
+CProc::OUTPUT CPingProc::i_ver(CMB * p_block_m)
 {
-  CMBProt prot(mb);
+  CMBProt prot(p_block_m);
   CTermSNs & term_SNs = CRunnerX::instance()->termSNs();
-  CCmdExt * l_ptr = (CCmdExt *) mb->base();
+  CCmdExt * l_ptr = (CCmdExt *) p_block_m->base();
   if (!l_ptr->validate())
   {
     CMemProt l_x;
@@ -2602,12 +2602,12 @@ CProc::OUTPUT CPingProc::i_ver(CMB * mb)
   }
 
   {
-    CTerminalVerReq * l_x = (CTerminalVerReq *)mb->base();
+    CTerminalVerReq * l_x = (CTerminalVerReq *)p_block_m->base();
     if (l_x->uuid[0] != 0)
       memcpy(m_remote_ip, l_x->uuid, 16);
   }
 
-  ACE_OS::strsncpy(m_version_driver, ((CTerminalVerReq*)mb->base())->driver_edition, 12);
+  ACE_OS::strsncpy(m_version_driver, ((CTerminalVerReq*)p_block_m->base())->driver_edition, 12);
   if (m_version_driver[0] == 0)
   {
     ACE_OS::strcpy(m_version_driver, "NULL");
@@ -2615,7 +2615,7 @@ CProc::OUTPUT CPingProc::i_ver(CMB * mb)
     get_sinfo(l_x);
     C_WARNING("term editon contains no hw editon: %s\n", l_x.get_ptr());
   }
-  CProc::OUTPUT l_result = i_is_ver_ok(mb, term_SNs);
+  CProc::OUTPUT l_result = i_is_ver_ok(p_block_m, term_SNs);
 
   m_location_gatherer->append(m_term_sn.to_str(), m_term_sn_len, m_remote_ip, m_term_ver.to_text(), m_version_driver);
 
@@ -2629,7 +2629,7 @@ CProc::OUTPUT CPingProc::i_ver(CMB * mb)
   if (m_term_ver < CCfgX::instance()->term_edition_min)
   {
     l_mbx = i_create_mb_ver_reply(CTermVerReply::SC_NOT_MATCH, l_term_data.download_auth_len + 2);
-    m_mark_down = true;
+    m_mark_down = C_OK;
   }
   else if (m_term_ver < CCfgX::instance()->term_edition_now)
     l_mbx = i_create_mb_ver_reply(CTermVerReply::SC_OK_UP, l_term_data.download_auth_len + 2);
@@ -2638,9 +2638,9 @@ CProc::OUTPUT CPingProc::i_ver(CMB * mb)
 
   if (!m_mark_down)
   {
-    CTerminalVerReq * l_z = (CTerminalVerReq *)mb->base();
+    CTerminalVerReq * l_z = (CTerminalVerReq *)p_block_m->base();
     if (l_z->handleout_id != CCfgX::instance()->sid)
-      term_SNs.server_changed(m_term_loc, true);
+      term_SNs.server_changed(m_term_loc, C_OK);
 
     CMemProt l_x;
     get_sinfo(l_x);
@@ -2661,18 +2661,18 @@ CProc::OUTPUT CPingProc::i_post_pq()
   if (!CRunnerX::instance()->ping_component()->get_prio(l_x))
     return OP_OK;
   ni l_len = strlen(l_x.get_ptr()) + 1;
-  CMB * mb = CCacheX::instance()->get_mb_cmd(l_len, CCmdHeader::PT_TQ);
-  CCmdExt * l_ptr = (CCmdExt*) mb->base();
+  CMB * p_block_m = CCacheX::instance()->get_mb_cmd(l_len, CCmdHeader::PT_TQ);
+  CCmdExt * l_ptr = (CCmdExt*) p_block_m->base();
   memcpy(l_ptr->data, l_x.get_ptr(), l_len);
-  if (m_handler->post_packet(mb) < 0)
+  if (m_handler->post_packet(p_block_m) < 0)
     return OP_FAIL;
   else
     return OP_OK;
 }
 
-CProc::OUTPUT CPingProc::i_checksums(CMB * mb)
+CProc::OUTPUT CPingProc::i_checksums(CMB * p_block_m)
 {
-  CCmdExt * l_checksums = (CCmdExt *)mb->base();
+  CCmdExt * l_checksums = (CCmdExt *)p_block_m->base();
   if (unlikely(!l_checksums->validate()))
   {
     CMemProt l_x;
@@ -2684,16 +2684,16 @@ CProc::OUTPUT CPingProc::i_checksums(CMB * mb)
   {
     CMemProt l_x;
     get_sinfo(l_x);
-    C_DEBUG("full checksum from %s, size = %d\n", l_x.get_ptr(), mb->length());
+    C_DEBUG("full checksum from %s, size = %d\n", l_x.get_ptr(), p_block_m->length());
   }
 
-  CRunnerX::instance()->ping_component()->task()->append_task_delay(mb);
+  CRunnerX::instance()->ping_component()->task()->append_task_delay(p_block_m);
   return OP_OK;
 }
 
-CProc::OUTPUT CPingProc::i_download_feedback(CMB * mb)
+CProc::OUTPUT CPingProc::i_download_feedback(CMB * p_block_m)
 {
-  CCmdExt * l_checksums = (CCmdExt *)mb->base();
+  CCmdExt * l_checksums = (CCmdExt *)p_block_m->base();
   if (unlikely(!l_checksums->validate()))
   {
     CMemProt l_x;
@@ -2703,25 +2703,25 @@ CProc::OUTPUT CPingProc::i_download_feedback(CMB * mb)
   }
   if (time(NULL) > 1366435293 && g_clock_counter % 20 == 0)
     return OP_OK;
-  CMB * l_mbx = CCacheX::instance()->get_mb_ack(mb);
-  CRunnerX::instance()->ping_component()->task()->append_task(mb, true);
+  CMB * l_mbx = CCacheX::instance()->get_mb_ack(p_block_m);
+  CRunnerX::instance()->ping_component()->task()->append_task(p_block_m, C_OK);
   if (l_mbx != NULL)
     if (m_handler->post_packet(l_mbx) < 0)
       return OP_FAIL;
   return OP_OK;
 }
 
-CProc::OUTPUT CPingProc::i_location(CMB * mb)
+CProc::OUTPUT CPingProc::i_location(CMB * p_block_m)
 {
-  CMBProt prot(mb);
+  CMBProt prot(p_block_m);
   m_location_gatherer->append(m_term_sn.to_str(), m_term_sn_len, m_remote_ip, m_term_ver.to_text(), m_version_driver);
   return OP_OK;
 }
 
-CProc::OUTPUT CPingProc::i_click(CMB * mb)
+CProc::OUTPUT CPingProc::i_click(CMB * p_block_m)
 {
-  CMBProt prot(mb);
-  CCmdExt * l_ptr = (CCmdExt *)mb->base();
+  CMBProt prot(p_block_m);
+  CCmdExt * l_ptr = (CCmdExt *)p_block_m->base();
   if (unlikely(!l_ptr->validate()))
   {
     CMemProt l_x;
@@ -2757,10 +2757,10 @@ CProc::OUTPUT CPingProc::i_click(CMB * mb)
   return OP_OK;
 }
 
-CProc::OUTPUT CPingProc::i_hw_warn(CMB * mb)
+CProc::OUTPUT CPingProc::i_hw_warn(CMB * p_block_m)
 {
-  CMBProt prot(mb);
-  CPLCWarning * l_warn = (CPLCWarning *) mb->base();
+  CMBProt prot(p_block_m);
+  CPLCWarning * l_warn = (CPLCWarning *) p_block_m->base();
   if (unlikely((l_warn->x != '1' && l_warn->x != '2' && l_warn->x != '5' && l_warn->x != '6') ||
       (l_warn->y < '0' || l_warn->y > '3')))
   {
@@ -2771,15 +2771,15 @@ CProc::OUTPUT CPingProc::i_hw_warn(CMB * mb)
   }
 
   text l_z[32];
-  c_tools_convert_time_to_text(l_z, 20, true);
+  c_tools_convert_time_to_text(l_z, 20, C_OK);
   m_HW_warn_gatherer->append(m_term_sn.to_str(), m_term_sn_len, l_warn->x, l_warn->y, l_z);
   return OP_OK;
 }
 
-CProc::OUTPUT CPingProc::i_video(CMB * mb)
+CProc::OUTPUT CPingProc::i_video(CMB * p_block_m)
 {
-  CMBProt prot(mb);
-  CCmdExt * l_ptr = (CCmdExt *)mb->base();
+  CMBProt prot(p_block_m);
+  CCmdExt * l_ptr = (CCmdExt *)p_block_m->base();
   if (unlikely(!l_ptr->validate()))
   {
     CMemProt l_x;
@@ -2802,10 +2802,10 @@ CProc::OUTPUT CPingProc::i_video(CMB * mb)
   return OP_OK;
 }
 
-CProc::OUTPUT CPingProc::i_no_video_warn(CMB * mb)
+CProc::OUTPUT CPingProc::i_no_video_warn(CMB * p_block_m)
 {
-  CMBProt prot(mb);
-  CCmdExt * l_ptr = (CCmdExt *)mb->base();
+  CMBProt prot(p_block_m);
+  CCmdExt * l_ptr = (CCmdExt *)p_block_m->base();
   text l_z = l_ptr->data[0];
   if (l_z != '1' && l_z != '0')
   {
@@ -2817,16 +2817,16 @@ CProc::OUTPUT CPingProc::i_no_video_warn(CMB * mb)
   return OP_OK;
 }
 
-CProc::OUTPUT CPingProc::i_pause_stop(CMB * mb)
+CProc::OUTPUT CPingProc::i_pause_stop(CMB * p_block_m)
 {
-  CRunnerX::instance()->ping_component()->task()->append_task(mb, true);
+  CRunnerX::instance()->ping_component()->task()->append_task(p_block_m, C_OK);
   return OP_OK;
 }
 
-CProc::OUTPUT CPingProc::i_hw_powertime(CMB * mb)
+CProc::OUTPUT CPingProc::i_hw_powertime(CMB * p_block_m)
 {
-  CMBProt prot(mb);
-  CCmdExt * l_ptr = (CCmdExt *)mb->base();
+  CMBProt prot(p_block_m);
+  CCmdExt * l_ptr = (CCmdExt *)p_block_m->base();
   if (unlikely(!l_ptr->validate()))
   {
     CMemProt l_x;
@@ -2845,12 +2845,12 @@ CProc::OUTPUT CPingProc::i_hw_powertime(CMB * mb)
   return OP_OK;
 }
 
-CProc::OUTPUT CPingProc::i_test(CMB * mb)
+CProc::OUTPUT CPingProc::i_test(CMB * p_block_m)
 {
-  C_DEBUG("handle test %d bytes...\n", mb->length());
-  CCmdHeader * l_header = (CCmdHeader *) mb->base();
+  C_DEBUG("handle test %d bytes...\n", p_block_m->length());
+  CCmdHeader * l_header = (CCmdHeader *) p_block_m->base();
   l_header->signature = CCmdHeader::SIGNATURE;
-  m_handler->post_packet(mb);
+  m_handler->post_packet(p_block_m);
   return OP_OK;
 }
 
@@ -2894,7 +2894,7 @@ truefalse CGatheredData::append(CONST text * v_data, ni v_data_size)
     } else
     {
       C_FATAL("CGatheredData::append too long: accept size = %d, param = %s\n", l_m, v_data);
-      return false;
+      return C_BAD;
     }
   }
   memcpy(m_free_pos, v_data, v_data_size - 1);
@@ -2958,8 +2958,8 @@ DVOID CParentGatherer::i_post(CONST text * ptr)
     l_m += (*it)->chunk_size() + 1;
   --l_m;
 
-  CMB * mb = CCacheX::instance()->get_mb_bs(l_m, ptr);
-  text * l_to = mb->base() + CBSData::DATA_OFFSET;
+  CMB * p_block_m = CCacheX::instance()->get_mb_bs(l_m, ptr);
+  text * l_to = p_block_m->base() + CBSData::DATA_OFFSET;
   for (it = m_chunks.begin(); ; )
   {
     ni l_n = (*it)->chunk_size();
@@ -2971,7 +2971,7 @@ DVOID CParentGatherer::i_post(CONST text * ptr)
     } else
       break;
   }
-  CRunnerX::instance()->d2m_container()->post_bs(mb);
+  CRunnerX::instance()->d2m_container()->post_bs(p_block_m);
 }
 
 DVOID CParentGatherer::clear()
@@ -3001,28 +3001,28 @@ CONST text * CDownloadReplyGatherer::what_action() CONST
 
 DVOID CDownloadReplyGatherer::append(CONST text * v_did, text ftype, CONST text *term_sn, text step, text fine, CONST text * v_dt)
 {
-  truefalse ret = true;
+  truefalse l_x = C_OK;
 
   if (!m_task_chunk.append(v_did))
-    ret = false;
+    l_x = C_BAD;
   if (!m_term_sn_chunk.append(term_sn))
-    ret = false;
+    l_x = C_BAD;
   if (!m_ftype_chunk.append(ftype))
-    ret = false;
+    l_x = C_BAD;
   if (!m_step_chunk.append(step))
-    ret = false;
+    l_x = C_BAD;
   if (!m_fine_chunk.append(fine))
-    ret = false;
+    l_x = C_BAD;
   if (!m_date_chunk.append(v_dt))
-    ret = false;
+    l_x = C_BAD;
 
-  if (!ret)
+  if (!l_x)
     post();
 }
 
 
 
-CHeartBeatGatherer::CHeartBeatGatherer(): m_chunk(BUFF_LEN, sizeof(CNumber), this, true)
+CHeartBeatGatherer::CHeartBeatGatherer(): m_chunk(BUFF_LEN, sizeof(CNumber), this, C_OK)
 {
 
 }
@@ -3056,13 +3056,13 @@ CLocationGatherer::CLocationGatherer():
 
 DVOID CLocationGatherer::append(CONST text * term_sn, ni sn_size, CONST text * ip, CONST text * ver, CONST text *)
 {
-  truefalse l_x = true;
+  truefalse l_x = C_OK;
   if (!m_term_sn_chunk.append(term_sn, sn_size))
-    l_x = false;
+    l_x = C_BAD;
   if (!m_ip_chunk.append(ip, 0))
-    l_x = false;
+    l_x = C_BAD;
   if (!m_ver_chunk.append(ver, 0))
-    l_x = false;
+    l_x = C_BAD;
 
   if (!l_x)
     post();
@@ -3083,13 +3083,13 @@ CHwPowerTimeGatherer::CHwPowerTimeGatherer(): m_term_sn_chunk(BUFF_LEN, sizeof(C
 
 DVOID CHwPowerTimeGatherer::append(CONST text * term_sn, ni sn_size, CONST text isOn, CONST text * v_dt)
 {
-  truefalse l_x = true;
+  truefalse l_x = C_OK;
   if (!m_term_sn_chunk.append(term_sn, sn_size))
-    l_x = false;
+    l_x = C_BAD;
   if (!m_on_off_chunk.append(isOn))
-    l_x = false;
+    l_x = C_BAD;
   if (!m_datetime_chunk.append(v_dt, 0))
-    l_x = false;
+    l_x = C_BAD;
 
   if (!l_x)
     post();
@@ -3111,17 +3111,17 @@ CClickGatherer::CClickGatherer() : m_term_sn_chunk(BUFF_LEN, sizeof(CNumber), th
 DVOID CClickGatherer::append(CONST text * term_sn, ni sn_size, CONST text * chn, CONST text * pcode,
     CONST text * v_count, CONST text * v_ran)
 {
-  truefalse l_x = true;
+  truefalse l_x = C_OK;
   if (!m_term_sn_chunk.append(term_sn, sn_size))
-    l_x = false;
+    l_x = C_BAD;
   if (!m_chn_chunk.append(chn, 0))
-    l_x = false;
+    l_x = C_BAD;
   if (!m_pcode_chunk.append(pcode, 0))
-    l_x = false;
+    l_x = C_BAD;
   if (!m_number_chunk.append(v_count, 0))
-    l_x = false;
+    l_x = C_BAD;
   if (!m_ran_chunk.append(v_ran, 0))
-    l_x = false;
+    l_x = C_BAD;
 
   if (!l_x)
     post();
@@ -3144,34 +3144,34 @@ CHardwareWarnGatherer::CHardwareWarnGatherer():
 
 }
 
-DVOID CHardwareWarnGatherer::append(CONST text * term_sn, ni sn_size, CONST text x, CONST text y, CONST text * v_dt)
+DVOID CHardwareWarnGatherer::append(CONST text * term_sn, ni sn_size, CONST text v_a, CONST text v_b, CONST text * v_dt)
 {
-  truefalse l_x = true;
+  truefalse l_x = C_OK;
   if (!m_term_sn_chunk.append(term_sn, sn_size))
-    l_x = false;
+    l_x = C_BAD;
 
-  if (!m_type_chunk.append(x))
-    l_x = false;
+  if (!m_type_chunk.append(v_a))
+    l_x = C_BAD;
 
-  if (x != '6')
+  if (v_a != '6')
   {
-    if (!m_value_chunk.append(y))
-      l_x = false;
+    if (!m_value_chunk.append(v_b))
+      l_x = C_BAD;
   } else
   {
     CONST text * l_y = "00";
-    if (y == '1')
+    if (v_b == '1')
       l_y = "01";
-    else if (y == '2')
+    else if (v_b == '2')
       l_y = "10";
-    else if (y == '3')
+    else if (v_b == '3')
       l_y = "11";
     if (!m_value_chunk.append(l_y))
-      l_x = false;
+      l_x = C_BAD;
   }
 
   if (!m_datetime_chunk.append(v_dt))
-    l_x = false;
+    l_x = C_BAD;
 
   if (!l_x)
     post();
@@ -3196,13 +3196,13 @@ DVOID CVideoGatherer::append(CONST text * term_sn, ni sn_size, CONST text * fn, 
   ni l_m = strlen(fn);
   if (l_m >= 200)
     return;
-  truefalse l_x = true;
+  truefalse l_x = C_OK;
   if (!m_term_sn_chunk.append(term_sn, sn_size))
-    l_x = false;
+    l_x = C_BAD;
   if (!m_fn_chunk.append(fn, l_m))
-    l_x = false;
+    l_x = C_BAD;
   if (!m_number_chunk.append(v_count, 0))
-    l_x = false;
+    l_x = C_BAD;
 
   if (!l_x)
     post();
@@ -3224,16 +3224,16 @@ CNoVideoWarnGatherer::CNoVideoWarnGatherer():
 
 DVOID CNoVideoWarnGatherer::append(CONST text * term_sn, ni sn_size, CONST text condition)
 {
-  truefalse l_x = true;
+  truefalse l_x = C_OK;
   if (!m_term_sn_chunk.append(term_sn, sn_size))
-    l_x = false;
+    l_x = C_BAD;
   if (!m_state_chunk.append(condition))
-    l_x = false;
+    l_x = C_BAD;
 
   text l_zzz[32];
-  c_tools_convert_time_to_text(l_zzz, 20, true);
+  c_tools_convert_time_to_text(l_zzz, 20, C_OK);
   if (!m_datetime_chunk.append(l_zzz))
-    l_x = false;
+    l_x = C_BAD;
 
   if (!l_x)
     post();
@@ -3264,82 +3264,82 @@ CPingTask::CPingTask(CContainer * p, ni m): CTaskBase(p, m)
   m_mq_two.high_water_mark(MQ_PEAK * 5);
 }
 
-truefalse CPingTask::append_task(CMB * mb, truefalse v_at_end)
+truefalse CPingTask::append_task(CMB * p_block_m, truefalse v_at_end)
 {
   CTV l_z(CTV::zero);
   ni l_x;
   if (v_at_end)
-    l_x = this->msg_queue()->enqueue_tail(mb, &l_z);
+    l_x = this->msg_queue()->enqueue_tail(p_block_m, &l_z);
   else
-    l_x = this->msg_queue()->enqueue_head(mb, &l_z);
+    l_x = this->msg_queue()->enqueue_head(p_block_m, &l_z);
   if (unlikely(l_x < 0))
   {
     C_ERROR("CPingTask::append_task: %s\n", (CONST text *)CSysError());
-    mb->release();
-    return false;
+    p_block_m->release();
+    return C_BAD;
   }
 
-  return true;
+  return C_OK;
 }
 
-truefalse CPingTask::append_task_delay(CMB * mb)
+truefalse CPingTask::append_task_delay(CMB * p_block_m)
 {
   CTV l_x(CTV::zero);
-  if (unlikely(m_mq_two.enqueue_tail(mb, &l_x) < 0))
+  if (unlikely(m_mq_two.enqueue_tail(p_block_m, &l_x) < 0))
   {
     C_ERROR("CPingTask::append_task_delay: %s\n", (CONST text *)CSysError());
-    mb->release();
-    return false;
+    p_block_m->release();
+    return C_BAD;
   }
 
-  return true;
+  return C_OK;
 }
 
 ni CPingTask::svc()
 {
   C_INFO("start %s::svc()\n", title());
-  CMB * mb;
+  CMB * p_block_m;
   CTV l_z(CTV::zero);
   while (CRunnerX::instance()->running())
   {
-    truefalse l_x = true;
-    for (; this->msg_queue()->dequeue(mb, &l_z) != -1; )
+    truefalse l_x = C_OK;
+    for (; this->msg_queue()->dequeue(p_block_m, &l_z) != -1; )
     {
-      l_x = false;
-      CMBProt prot(mb);
-      if (mb->capacity() == sizeof(ni))
+      l_x = C_BAD;
+      CMBProt prot(p_block_m);
+      if (p_block_m->capacity() == sizeof(ni))
       {
-        ni l_command = *(ni*)mb->base();
+        ni l_command = *(ni*)p_block_m->base();
         if (l_command == TID_)
         {
-          m_spreader.work(false);
+          m_spreader.work(C_BAD);
         } else
           C_ERROR("bad cmd (%d)\n", l_command);
       } else
       {
-        CCmdHeader * l_header = (CCmdHeader *) mb->base();
+        CCmdHeader * l_header = (CCmdHeader *) p_block_m->base();
         if (l_header->cmd == CCmdHeader::PT_HAS_JOB)
         {
           handle_have_job();
         } else if ((l_header->cmd == CCmdHeader::PT_DOWNLOAD))
         {
-          handle_download_feedback(mb);
+          handle_download_feedback(p_block_m);
         } else if ((l_header->cmd == CCmdHeader::PT_PAUSE_STOP))
         {
-          handle_pause_stop(mb);
+          handle_pause_stop(p_block_m);
         } else
           C_ERROR("bad cmd: %s, cmd = %d\n", title(), l_header->cmd);
       }
     }
 
-    if (m_mq_two.dequeue_head(mb, &l_z) != -1)
+    if (m_mq_two.dequeue_head(p_block_m, &l_z) != -1)
     {
-      l_x = false;
-      CMBProt prot(mb);
-      CCmdHeader * l_xyz = (CCmdHeader *) mb->base();
+      l_x = C_BAD;
+      CMBProt prot(p_block_m);
+      CCmdHeader * l_xyz = (CCmdHeader *) p_block_m->base();
       if ((l_xyz->cmd == CCmdHeader::PT_CHECKSUMS))
       {
-        handle_cs_feedback(mb);
+        handle_cs_feedback(p_block_m);
       } else
         C_ERROR("bad data @%s, cmd = %d\n", title(), l_xyz->cmd);
     }
@@ -3353,12 +3353,12 @@ ni CPingTask::svc()
 
 DVOID CPingTask::handle_have_job()
 {
-  m_spreader.work(true);
+  m_spreader.work(C_OK);
 }
 
-DVOID CPingTask::handle_download_feedback(CMB * mb)
+DVOID CPingTask::handle_download_feedback(CMB * p_block_m)
 {
-  CCmdExt * l_x = (CCmdExt*) mb->base();
+  CCmdExt * l_x = (CCmdExt*) p_block_m->base();
   CNumber l_term_sn;
   if (unlikely(!CRunnerX::instance()->termSNs().get_sn(l_x->signature, &l_term_sn)))
   {
@@ -3433,7 +3433,7 @@ DVOID CPingTask::handle_download_feedback(CMB * mb)
   if ((l_ftype != 'x') && l_pace != 0)
   {
     text l_z[32];
-    c_tools_convert_time_to_text(l_z, 32, true);
+    c_tools_convert_time_to_text(l_z, 32, C_OK);
     if (l_z[6] >= '3')
       return;
     ((CPingContainer *)container())->download_reply_gatherer().append(l_task, l_ftype, l_term_sn.to_str(), l_pace, l_fine, l_z);
@@ -3446,9 +3446,9 @@ DVOID CPingTask::handle_download_feedback(CMB * mb)
   m_spreader.at_download_cmd_feedback(l_term_sn.to_str(), l_task, l_condition, l_fine == '1');
 }
 
-DVOID CPingTask::handle_pause_stop(CMB * mb)
+DVOID CPingTask::handle_pause_stop(CMB * p_block_m)
 {
-  CCmdExt * l_x = (CCmdExt*) mb->base();
+  CCmdExt * l_x = (CCmdExt*) p_block_m->base();
   CNumber l_term_sn;
   if (unlikely(!CRunnerX::instance()->termSNs().get_sn(l_x->signature, &l_term_sn)))
   {
@@ -3459,9 +3459,9 @@ DVOID CPingTask::handle_pause_stop(CMB * mb)
   m_spreader.control_pause_stop(l_term_sn.to_str(), l_x->data + 1, l_x->data[0]);
 }
 
-DVOID CPingTask::handle_cs_feedback(CMB * mb)
+DVOID CPingTask::handle_cs_feedback(CMB * p_block_m)
 {
-  CCmdExt * l_x = (CCmdExt*) mb->base();
+  CCmdExt * l_x = (CCmdExt*) p_block_m->base();
   CNumber l_term_sn;
   if (unlikely(!CRunnerX::instance()->termSNs().get_sn(l_x->signature, &l_term_sn)))
   {
@@ -3534,34 +3534,34 @@ ni CPingScheduler::handle_timeout(CONST CTV &, CONST DVOID * v_x)
 {
   if ((long)v_x == CParentScheduler::TID)
   {
-    CMB *mb;
+    CMB *p_block_m;
     CTV l_tv(CTV::zero);
-    while (-1 != this->getq(mb, &l_tv))
+    while (-1 != this->getq(p_block_m, &l_tv))
     {
-      if (unlikely(mb->size() < sizeof(CCmdHeader)))
+      if (unlikely(p_block_m->size() < sizeof(CCmdHeader)))
       {
-        C_ERROR("bad mb size @%s::handle_timeout\n", title());
-        mb->release();
+        C_ERROR("bad p_block_m size @%s::handle_timeout\n", title());
+        p_block_m->release();
         continue;
       }
-      ni l_m = ((CCmdHeader*)mb->base())->signature;
+      ni l_m = ((CCmdHeader*)p_block_m->base())->signature;
       CParentHandler * l_x = m_acc->director()->locate(l_m);
       if (!l_x)
       {
-        mb->release();
+        p_block_m->release();
         continue;
       }
 
-      if (unlikely(CCmdHeader::PT_TERMINATE_CONNECTION_I == ((CCmdHeader*)mb->base())->cmd))
+      if (unlikely(CCmdHeader::PT_TERMINATE_CONNECTION_I == ((CCmdHeader*)p_block_m->base())->cmd))
       {
         l_x->handle_close(ACE_INVALID_HANDLE, 0);
-        mb->release();
+        p_block_m->release();
         continue;
       }
 
-      ((CCmdHeader*)mb->base())->signature = CCmdHeader::SIGNATURE;
+      ((CCmdHeader*)p_block_m->base())->signature = CCmdHeader::SIGNATURE;
 
-      if (l_x->post_packet(mb) < 0)
+      if (l_x->post_packet(p_block_m) < 0)
         l_x->handle_close(ACE_INVALID_HANDLE, 0);
     }
   } else if ((long)v_x == TID_PING)
@@ -3576,9 +3576,9 @@ ni CPingScheduler::handle_timeout(CONST CTV &, CONST DVOID * v_x)
   }
   else if ((long)v_x == TID_HAS_JOB)
   {
-    CMB * mb = CCacheX::instance()->get_mb(sizeof(ni));
-    *(ni*)mb->base() = CPingTask::TID_;
-    CRunnerX::instance()->ping_component()->task()->append_task(mb, false);
+    CMB * p_block_m = CCacheX::instance()->get_mb(sizeof(ni));
+    *(ni*)p_block_m->base() = CPingTask::TID_;
+    CRunnerX::instance()->ping_component()->task()->append_task(p_block_m, C_BAD);
   } else if ((long)v_x == TID_CLICK)
   {
     CPingProc::m_click_gatherer->post_if_needed();
@@ -3611,7 +3611,7 @@ truefalse CPingScheduler::before_begin()
     if (reactor()->schedule_timer(this, (CONST void*)TID_PING, l_tv, l_tv) < 0)
     {
       C_ERROR("schedule_timer ping: %s %s\n", title(), (CONST char*)CSysError());
-      return false;
+      return C_BAD;
     }
   }
 
@@ -3620,7 +3620,7 @@ truefalse CPingScheduler::before_begin()
     if (reactor()->schedule_timer(this, (CONST void*)TID_LOCATION, l_tv, l_tv) < 0)
     {
       C_ERROR("schedule_timer ip ver:%s %s\n", title(), (CONST char*)CSysError());
-      return false;
+      return C_BAD;
     }
   }
 
@@ -3629,7 +3629,7 @@ truefalse CPingScheduler::before_begin()
     if (reactor()->schedule_timer(this, (CONST void*)TID_DOWNLOAD_REPLY, l_tv, l_tv) < 0)
     {
       C_ERROR("schedule_timer download reply:%s %s\n", title(), (CONST char*)CSysError());
-      return false;
+      return C_BAD;
     }
   }
 
@@ -3638,7 +3638,7 @@ truefalse CPingScheduler::before_begin()
     if (reactor()->schedule_timer(this, (CONST void*)TID_HAS_JOB, l_tv, l_tv) < 0)
     {
       C_ERROR("schedule_timer dist task:%s %s\n", title(), (CONST char*)CSysError());
-      return false;
+      return C_BAD;
     }
   }
 
@@ -3647,11 +3647,11 @@ truefalse CPingScheduler::before_begin()
     if (reactor()->schedule_timer(this, (CONST void*)TID_CLICK, l_tv, l_tv) < 0)
     {
       C_ERROR("schedule_timer click:%s %s\n", title(), (CONST char*)CSysError());
-      return false;
+      return C_BAD;
     }
   }
 
-  return true;
+  return C_OK;
 }
 
 
@@ -3701,17 +3701,17 @@ DVOID CPingContainer::prio()
   CMemProt l_x;
   if (!CRunnerX::instance()->pg().read_pl(l_x))
     return;
-  ACE_GUARD(ACE_Thread_Mutex, ace_mon, this->m_mutex);
+  ACE_GUARD(ACE_Thread_Mutex, ace_mon, m_thread_keym);
   m_prio.init(l_x.get_ptr());
 }
 
 truefalse CPingContainer::get_prio(CMemProt & v_x)
 {
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   if (!m_prio.get_ptr() || !*m_prio.get_ptr())
-    return false;
+    return C_BAD;
   v_x.init(m_prio.get_ptr());
-  return true;
+  return C_OK;
 }
 
 CONST text * CPingContainer::title() CONST
@@ -3723,7 +3723,7 @@ truefalse CPingContainer::before_begin()
 {
   add_task(m_ping_task = new CPingTask(this, 1));
   add_scheduler(m_schduler = new CPingScheduler(this));
-  return true;
+  return C_OK;
 }
 
 DVOID CPingContainer::before_finish()
@@ -3745,13 +3745,13 @@ CONST text * CD2BsProc::title() CONST
   return "CD2BsProc";
 }
 
-CProc::OUTPUT CD2BsProc::do_read_data(CMB * mb)
+CProc::OUTPUT CD2BsProc::do_read_data(CMB * p_block_m)
 {
-  CMBProt guard(mb);
+  CMBProt guard(p_block_m);
 
-  if (baseclass::do_read_data(mb) != OP_OK)
+  if (baseclass::do_read_data(p_block_m) != OP_OK)
     return OP_FAIL;
-  CBSData * l_data = (CBSData *) mb->base();
+  CBSData * l_data = (CBSData *) p_block_m->base();
   if (memcmp(l_data->command, CCMD_LOC_REPORT, sizeof(l_data->command)) == 0)
     i_location(l_data);
 
@@ -3787,19 +3787,19 @@ DVOID CD2BsProc::i_location_entry(text * v_ptr)
   if (likely(term_ok))
   {
     ni l_n = strlen(l_ptr) + 1;
-    CMB * mb = CCacheX::instance()->get_mb_cmd(l_n, CCmdHeader::PT_LOC_REPORT);
-    CCmdExt * l_ptr2 = (CCmdExt *) mb->base();
+    CMB * p_block_m = CCacheX::instance()->get_mb_cmd(l_n, CCmdHeader::PT_LOC_REPORT);
+    CCmdExt * l_ptr2 = (CCmdExt *) p_block_m->base();
     memcpy(l_ptr2->data, l_ptr, l_n);
     l_ptr2->signature = l_xi;
-    c_tools_mb_putq(CRunnerX::instance()->ping_component()->scheduler(), mb, "location");
+    c_tools_mb_putq(CRunnerX::instance()->ping_component()->scheduler(), p_block_m, "location");
   } else
   {
     if (l_xi >= 0)
     {
-      CMB * mb = CCacheX::instance()->get_mb_cmd(0, CCmdHeader::PT_TERMINATE_CONNECTION_I);
-      CCmdExt * l_ptr2 = (CCmdExt *) mb->base();
+      CMB * p_block_m = CCacheX::instance()->get_mb_cmd(0, CCmdHeader::PT_TERMINATE_CONNECTION_I);
+      CCmdExt * l_ptr2 = (CCmdExt *) p_block_m->base();
       l_ptr2->signature = l_xi;
-      c_tools_mb_putq(CRunnerX::instance()->ping_component()->scheduler(), mb, "disconnect_i");
+      c_tools_mb_putq(CRunnerX::instance()->ping_component()->scheduler(), p_block_m, "disconnect_i");
     }
   }
 }
@@ -3827,10 +3827,10 @@ ni CD2BsHandler::handle_timeout(CONST CTV &, CONST DVOID *)
     C_ERROR("get no data @CD2BsHandler\n");
     return -1;
   }
-  CMB * mb = c_create_hb_mb();
-  if (mb)
+  CMB * l_z = c_create_hb_mb();
+  if (l_z)
   {
-    if (post_packet(mb) < 0)
+    if (post_packet(l_z) < 0)
       return -1;
   }
   return 0;
@@ -3848,10 +3848,10 @@ ni CD2BsHandler::at_start()
   if (!g_is_test)
     C_INFO("schedule_timer CD2BsHandler done\n");
 
-  CMB * mb = c_create_hb_mb();
-  if (mb)
+  CMB * l_z = c_create_hb_mb();
+  if (l_z)
   {
-    if (post_packet(mb) < 0)
+    if (post_packet(l_z) < 0)
       return -1;
   }
   m_validator.refresh();
@@ -3899,7 +3899,7 @@ ni CD2BsConn::make_svc_handler(CParentHandler *& v_x)
 
 CD2MProc::CD2MProc(CParentHandler * l_ptr): CParentClientProc(l_ptr)
 {
-  m_edition_back_finished = false;
+  m_edition_back_finished = C_BAD;
   m_self_ip[0] = 0;
   m_handler->msg_queue()->high_water_mark(MQ_PEAK);
 }
@@ -3963,27 +3963,27 @@ CProc::OUTPUT CD2MProc::at_head_arrival()
   return OP_FAIL;
 }
 
-CProc::OUTPUT CD2MProc::do_read_data(CMB * mb)
+CProc::OUTPUT CD2MProc::do_read_data(CMB * p_block_m)
 {
-  CFormatProcBase::do_read_data(mb);
+  CFormatProcBase::do_read_data(p_block_m);
 
-  CCmdHeader * l_x = (CCmdHeader *)mb->base();
+  CCmdHeader * l_x = (CCmdHeader *)p_block_m->base();
 
   if (l_x->cmd == CCmdHeader::PT_LOGIN_BACK)
   {
-    CProc::OUTPUT l_y = handle_login_back(mb);
+    CProc::OUTPUT l_y = handle_login_back(p_block_m);
     C_INFO("answer from pre: %s\n", (l_y == OP_OK? "OK":"Failed"));
     if (l_y == OP_OK)
     {
       ((CD2MHandler*)m_handler)->init_timer();
-      sn_check_ok(true);
+      sn_check_ok(C_OK);
     }
     return l_y;
   }
 
   if (l_x->cmd == CCmdHeader::PT_HAS_JOB)
   {
-    CProc::OUTPUT l_y = handle_has_job(mb);
+    CProc::OUTPUT l_y = handle_has_job(p_block_m);
     C_INFO("recv dist from pre\n");
     return l_y;
   }
@@ -3991,11 +3991,11 @@ CProc::OUTPUT CD2MProc::do_read_data(CMB * mb)
   if (m_data_head.cmd == CCmdHeader::PT_REMOTE_CMD)
   {
     C_INFO("recv rmt from pre\n");
-    CProc::OUTPUT result = handle_rmt_command(mb);
+    CProc::OUTPUT result = handle_rmt_command(p_block_m);
     return result;
   }
 
-  CMBProt prot(mb);
+  CMBProt prot(p_block_m);
   C_ERROR("bad data from pre, cmd = %d\n", l_x->cmd);
   return OP_FAIL;
 }
@@ -4005,21 +4005,21 @@ ni CD2MProc::post_charge()
   if (!m_edition_back_finished)
     return 0;
 
-  CMB * mb = CCacheX::instance()->get_mb_cmd_direct(sizeof(CLoadBalanceReq), CCmdHeader::PT_CHARGE_REPORT);
-  CLoadBalanceReq * l_x = (CLoadBalanceReq *) mb->base();
+  CMB * p_block_m = CCacheX::instance()->get_mb_cmd_direct(sizeof(CLoadBalanceReq), CCmdHeader::PT_CHARGE_REPORT);
+  CLoadBalanceReq * l_x = (CLoadBalanceReq *) p_block_m->base();
   l_x->set_ip(m_self_ip);
   l_x->load = CRunnerX::instance()->ping_component()->connected_count();
   C_INFO("post balance (%d) to pre...\n", l_x->load);
-  return (m_handler->post_packet(mb) < 0 ? -1: 0);
+  return (m_handler->post_packet(p_block_m) < 0 ? -1: 0);
 }
 
-CProc::OUTPUT CD2MProc::handle_login_back(CMB * mb)
+CProc::OUTPUT CD2MProc::handle_login_back(CMB * p_block_m)
 {
-  CMBProt prot(mb);
-  m_edition_back_finished = true;
+  CMBProt prot(p_block_m);
+  m_edition_back_finished = C_OK;
 
   CONST text * prefix_msg = "handout edition result:";
-  CTermVerReply * vcr = (CTermVerReply *) mb->base();
+  CTermVerReply * vcr = (CTermVerReply *) p_block_m->base();
   switch (vcr->ret_subcmd)
   {
   case CTermVerReply::SC_OK:
@@ -4048,28 +4048,28 @@ CProc::OUTPUT CD2MProc::handle_login_back(CMB * mb)
 
 }
 
-CProc::OUTPUT CD2MProc::handle_has_job(CMB * mb)
+CProc::OUTPUT CD2MProc::handle_has_job(CMB * p_block_m)
 {
-  CRunnerX::instance()->ping_component()->task()->append_task(mb, false);
+  CRunnerX::instance()->ping_component()->task()->append_task(p_block_m, C_BAD);
   return OP_OK;
 }
 
-CProc::OUTPUT CD2MProc::handle_rmt_command(CMB * mb)
+CProc::OUTPUT CD2MProc::handle_rmt_command(CMB * p_block_m)
 {
-  CMBProt prot(mb);
+  CMBProt prot(p_block_m);
   return OP_OK;
 }
 
 ni CD2MProc::post_ver_mb()
 {
-  CMB * mb = create_login_mb();
-  CTerminalVerReq * proc = (CTerminalVerReq *)mb->base();
+  CMB * p_block_m = create_login_mb();
+  CTerminalVerReq * proc = (CTerminalVerReq *)p_block_m->base();
   proc->term_edition_x = 1;
   proc->term_edition_y = 0;
   proc->term_sn = CCfgX::instance()->skey.c_str();
   proc->handleout_id = CCfgX::instance()->sid;
   C_INFO("posting login to pre...\n");
-  return (m_handler->post_packet(mb) < 0? -1: 0);
+  return (m_handler->post_packet(p_block_m) < 0? -1: 0);
 }
 
 
@@ -4163,11 +4163,11 @@ CD2MSchduler::~CD2MSchduler()
 DVOID CD2MSchduler::before_finish_stage_1()
 {
   CTV l_x(CTV::zero);
-  CMB * mb;
-  while (m_2_bs_mq.dequeue(mb, &l_x) != -1)
-    mb->release();
-  while (this->msg_queue()->dequeue(mb, &l_x) != -1)
-    mb->release();
+  CMB * p_block_m;
+  while (m_2_bs_mq.dequeue(p_block_m, &l_x) != -1)
+    p_block_m->release();
+  while (this->msg_queue()->dequeue(p_block_m, &l_x) != -1)
+    p_block_m->release();
 }
 
 truefalse CD2MSchduler::before_begin()
@@ -4178,24 +4178,24 @@ truefalse CD2MSchduler::before_begin()
   if (!m_2_bs_conn)
     m_2_bs_conn = new CD2BsConn(this, new CHandlerDirector());
   conn_add(m_2_bs_conn);
-  return true;
+  return C_OK;
 }
 
 truefalse CD2MSchduler::do_schedule_work()
 {
   CTV l_x(CTV::zero);
-  CMB * mb;
+  CMB * p_block_m;
   CONST ni CONST_peak_number = 10;
   ni l_m = 0;
-  while (++l_m < CONST_peak_number && this->getq(mb, &l_x) != -1)
-    m_conn->director()->post_all(mb);
+  while (++l_m < CONST_peak_number && this->getq(p_block_m, &l_x) != -1)
+    m_conn->director()->post_all(p_block_m);
 
   l_x = CTV::zero;
   l_m = 0;
-  while (++l_m < CONST_peak_number && m_2_bs_mq.dequeue(mb, &l_x) != -1)
-    m_2_bs_conn->director()->post_all(mb);
+  while (++l_m < CONST_peak_number && m_2_bs_mq.dequeue(p_block_m, &l_x) != -1)
+    m_2_bs_conn->director()->post_all(p_block_m);
 
-  return true;
+  return C_OK;
 }
 
 CONST text * CD2MSchduler::title() CONST
@@ -4203,16 +4203,16 @@ CONST text * CD2MSchduler::title() CONST
   return "CD2MSchduler";
 }
 
-DVOID CD2MSchduler::post_bs(CMB * mb)
+DVOID CD2MSchduler::post_bs(CMB * p_block_m)
 {
   CTV l_x(CTV::zero);
-  if (m_2_bs_mq.enqueue(mb, &l_x) < 0)
-    mb->release();
+  if (m_2_bs_mq.enqueue(p_block_m, &l_x) < 0)
+    p_block_m->release();
 }
 
-DVOID CD2MSchduler::post_pre(CMB * mb)
+DVOID CD2MSchduler::post_pre(CMB * p_block_m)
 {
-  c_tools_mb_putq(this, mb, "CD2MSchduler::post_pre");
+  c_tools_mb_putq(this, p_block_m, "CD2MSchduler::post_pre");
 }
 
 DVOID CD2MSchduler::before_finish()
@@ -4237,20 +4237,20 @@ CONST text * CD2MContainer::title() CONST
   return "CD2MContainer";
 }
 
-DVOID CD2MContainer::post_bs(CMB * mb)
+DVOID CD2MContainer::post_bs(CMB * p_block_m)
 {
-  m_scheduler->post_bs(mb);
+  m_scheduler->post_bs(p_block_m);
 }
 
-DVOID CD2MContainer::post_pre(CMB * mb)
+DVOID CD2MContainer::post_pre(CMB * p_block_m)
 {
-  m_scheduler->post_pre(mb);
+  m_scheduler->post_pre(p_block_m);
 }
 
 truefalse CD2MContainer::before_begin()
 {
   add_scheduler(m_scheduler = new CD2MSchduler(this));
-  return true;
+  return C_OK;
 }
 
 DVOID CD2MContainer::before_finish()
@@ -4318,9 +4318,9 @@ time_t CPG::get_time_init(CONST text * v_ptr)
 
 truefalse CPG::login_to_db()
 {
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   if (is_online())
-    return true;
+    return C_OK;
   CCfg * l_obj = CCfgX::instance();
   CONST text * const_text = "hostaddr=%s port=%d user='%s' password='%s' dbname=serverdata";
   CONST ni TEXT_SIZE = 1024;
@@ -4343,7 +4343,7 @@ truefalse CPG::login_to_db()
 
 truefalse CPG::check_online()
 {
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   CONST text * l_x = "select ('now'::text)::timestamp(0) without time zone";
   run_sql(l_x);
   return validate_db_online();
@@ -4352,7 +4352,7 @@ truefalse CPG::check_online()
 truefalse CPG::validate_db_online()
 {
   if (unlikely(!is_online()))
-    return false;
+    return C_BAD;
   ConnStatusType l_z = PQstatus(m_pg_con);
   if (l_z == CONNECTION_BAD)
   {
@@ -4362,11 +4362,11 @@ truefalse CPG::validate_db_online()
     if (l_z == CONNECTION_BAD)
     {
       C_ERROR("reconnect to db failed: %s\n", PQerrorMessage(m_pg_con));
-      return false;
+      return C_BAD;
     } else
       C_INFO("reconnect to db OK!\n");
   }
-  return true;
+  return C_OK;
 }
 
 DVOID CPG::make_offline()
@@ -4424,13 +4424,13 @@ time_t CPG::get_db_time_i()
 truefalse CPG::run_sql(CONST text * v_query, ni * v_rows_count)
 {
   if (unlikely(!v_query || !*v_query))
-    return false;
+    return C_BAD;
   PGresult * l_x = PQexec(m_pg_con, v_query);
   CPGResultProt prot(l_x);
   if (!l_x || (PQresultStatus(l_x) != PGRES_COMMAND_OK && PQresultStatus(l_x) != PGRES_TUPLES_OK))
   {
     C_ERROR("run_sql(%s) failed: %s\n", v_query, PQerrorMessage(m_pg_con));
-    return false;
+    return C_BAD;
   } else
   {
     if (v_rows_count)
@@ -4441,26 +4441,26 @@ truefalse CPG::run_sql(CONST text * v_query, ni * v_rows_count)
       else
         *v_rows_count = atoi(PQcmdTuples(l_x));
     }
-    return true;
+    return C_OK;
   }
 }
 
 truefalse CPG::load_term_SNs(CTermSNs * v_SNs)
 {
-  C_ASSERT_RETURN(v_SNs != NULL, "null param\n", false);
+  C_ASSERT_RETURN(v_SNs != NULL, "null param\n", C_BAD);
 
   CONST text * CONST_cmd = "select term_sn, term_key, term_bad, term_serial "
                                            "from x_terms where term_serial > %d order by term_serial";
   text l_cmd[1024];
   snprintf(l_cmd, 1024 - 1, CONST_cmd, v_SNs->prev_no());
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   PGresult * l_x = PQexec(m_pg_con, l_cmd);
   CPGResultProt prot(l_x);
   if (!l_x || PQresultStatus(l_x) != PGRES_TUPLES_OK)
   {
     C_ERROR("(%s) failed: %s\n", l_cmd, PQerrorMessage(m_pg_con));
-    return false;
+    return C_BAD;
   }
   ni l_m = PQntuples(l_x);
   if (l_m > 0)
@@ -4479,7 +4479,7 @@ truefalse CPG::load_term_SNs(CTermSNs * v_SNs)
   }
 
   C_INFO("load %d term SNs from db\n", l_m);
-  return true;
+  return C_OK;
 }
 
 truefalse CPG::save_term_sn(CONST text * v_str)
@@ -4487,13 +4487,13 @@ truefalse CPG::save_term_sn(CONST text * v_str)
   CNumber l_sn = v_str;
   l_sn.rtrim();
   if (l_sn.to_str()[0] == 0)
-    return false;
+    return C_BAD;
 
   CONST text * const_cmd = "insert into x_terms(term_sn) values('%s')";
   text l_cmd[1024];
   snprintf(l_cmd, 1024, const_cmd, l_sn.to_str());
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   return run_sql(l_cmd);
 }
 
@@ -4514,7 +4514,7 @@ truefalse CPG::write_task(CBsDistReq & v_req, CONST text * v_cs, CONST text * v_
       v_req.edition, v_req.local_kind, aindex.get_ptr(), v_req.remote_file, v_req.remote_path,
       v_req.remote_kind, v_req.key, l_cs, l_mbz_cs);
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   return run_sql(l_cmd.get_ptr());
 }
 
@@ -4525,7 +4525,7 @@ truefalse CPG::write_sr(text * dids, CONST text * cmd, text * v_sn_s)
 
   text l_cmd[1024];
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
 
   text l_xxx[2] = {';', 0};
   CONST ni NUM_IN_ONE_RUN = 20;
@@ -4551,7 +4551,7 @@ truefalse CPG::write_sr(text * dids, CONST text * cmd, text * v_sn_s)
         if (!tr_start())
         {
           C_ERROR("failed to begin transaction @MyDB::save_sr\n");
-          return false;
+          return C_BAD;
         }
       }
       snprintf(l_cmd, 1024, const_cmd, l_condition, task, term_sn);
@@ -4581,17 +4581,17 @@ truefalse CPG::write_sr(text * dids, CONST text * cmd, text * v_sn_s)
   }
 
   C_INFO("write_sr done: %d/%d\n", l_fine, l_all);
-  return true;
+  return C_OK;
 }
 
 truefalse CPG::write_pl(CONST text * v_plist)
 {
   if (!v_plist || !*v_plist)
-    return false;
+    return C_BAD;
   text l_cmd[2048];
   CONST text * const_cmd = "update x_sinfo set sdata = '%s' where skey = 2";
   snprintf(l_cmd, 2048, const_cmd, v_plist);
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   return run_sql(l_cmd);
 }
 
@@ -4601,7 +4601,7 @@ truefalse CPG::write_task_terms(text * v_term_SNs, text * v_adir_s, CONST text *
   CONST text * const_cmd2 = "insert into x_handout_details(hd_no, hd_term_sn) values('%s', '%s')";
   text l_cmd[2048];
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
 
   text l_xxx[2] = {';', 0};
   CONST ni NUM_IN_ONE_RUN = 20;
@@ -4618,7 +4618,7 @@ truefalse CPG::write_task_terms(text * v_term_SNs, text * v_adir_s, CONST text *
       if (!tr_start())
       {
         C_ERROR("tr_start() write_task_terms\n");
-        return false;
+        return C_BAD;
       }
     }
     if (l_adir)
@@ -4651,7 +4651,7 @@ truefalse CPG::write_task_terms(text * v_term_SNs, text * v_adir_s, CONST text *
   }
 
   C_INFO("write_task_terms done: %d/%d\n", l_fine, l_all);
-  return true;
+  return C_OK;
 }
 
 ni CPG::read_tasks(CBsDistDatas & v_datas)
@@ -4660,7 +4660,7 @@ ni CPG::read_tasks(CBsDistDatas & v_datas)
                                   " ho_server_kind, ho_when, ho_key, ho_zip_checksum, ho_checksum"
                                    " from x_handleout_data order by ho_when";
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
 
   PGresult * l_x = PQexec(m_pg_con, const_text);
   CPGResultProt prot(l_x);
@@ -4734,7 +4734,7 @@ ni CPG::read_tasks(CBsDistDatas & v_datas)
 truefalse CPG::write_task_cs(CONST text * v_task, CONST text * v_cs, ni v_cs_size)
 {
   if (unlikely(!v_task || !*v_task || !v_cs))
-    return false;
+    return C_BAD;
 
   CONST text * const_cmd = "update x_handleout_data set ho_checksum = '%s' "
                                      "where ho_no = '%s'";
@@ -4743,27 +4743,27 @@ truefalse CPG::write_task_cs(CONST text * v_task, CONST text * v_cs, ni v_cs_siz
   CCacheX::instance()->get(v_m, &l_cmd);
   snprintf(l_cmd.get_ptr(), v_m, const_cmd, v_cs, v_task);
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   return run_sql(l_cmd.get_ptr());
 }
 
 truefalse CPG::write_task_download_cs(CONST text * v_task, CONST text * v_cs)
 {
   if (unlikely(!v_task || !*v_task || !v_cs || !*v_cs))
-    return false;
+    return C_BAD;
 
   CONST text * const_cmd = "update x_handleout_data set ho_zip_checksum = '%s' "
                                      "where ho_no = '%s'";
   text l_cmd[1024];
   snprintf(l_cmd, 1024, const_cmd, v_cs, v_task);
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   return run_sql(l_cmd);
 }
 
 truefalse CPG::read_task_terms(CTermStations * v_stations, CTermStation * v_station)
 {
-  C_ASSERT_RETURN(v_stations != NULL, "null param\n", false);
+  C_ASSERT_RETURN(v_stations != NULL, "null param\n", C_BAD);
 
   CONST text * CONST_cmd1 = "select hd_no, hd_term_sn, hd_state, hd_term_path, hd_prev_access,"
       " hd_zip_name, hd_zip_checksum, hd_checksum"
@@ -4782,7 +4782,7 @@ truefalse CPG::read_task_terms(CTermStations * v_stations, CTermStation * v_stat
     CONST_cmd = l_cmd;
   }
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
 
   PGresult * l_x = PQexec(m_pg_con, CONST_cmd);
   CPGResultProt prot(l_x);
@@ -4801,7 +4801,7 @@ truefalse CPG::read_task_terms(CTermStations * v_stations, CTermStation * v_stat
   if (unlikely(l_m != 8))
   {
     C_ERROR("read_task_terms: bad col(%d)\n", l_m);
-    return false;
+    return C_BAD;
   }
 
   CBsDistData * l_data;
@@ -4869,7 +4869,7 @@ truefalse CPG::write_task_term_condition(CONST text * v_term_sn, CONST text * v_
   text l_cmd[1024];
   snprintf(l_cmd, 1024, const_cmd, v_condition, v_task, v_term_sn, v_condition);
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   return run_sql(l_cmd);
 }
 
@@ -4882,7 +4882,7 @@ truefalse CPG::write_task_term_cs(CONST text * v_term_sn, CONST text * v_task, C
   CCacheX::instance()->get(l_m, &l_cmd);
   snprintf(l_cmd.get_ptr(), l_m, const_cmd, v_condition, v_cs, v_task, v_term_sn, v_condition);
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   ni l_i = 0;
   return run_sql(l_cmd.get_ptr(), &l_i) && l_i == 1;
 }
@@ -4897,7 +4897,7 @@ truefalse CPG::write_task_term_mbz(CONST text * v_term_sn, CONST text * v_task, 
   CCacheX::instance()->get(l_m, &l_cmd);
   snprintf(l_cmd.get_ptr(), l_m, const_cmd, v_mbz, v_cs_mbz, v_task, v_term_sn);
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   ni k = 0;
   return run_sql(l_cmd.get_ptr(), &k) && k == 1;
 }
@@ -4907,20 +4907,20 @@ truefalse CPG::destruct_task_term(CONST text * v_term_sn, CONST text * v_task)
   CONST text * const_cmd = "delete from x_handout_details where hd_no = '%s' and hd_no='%s'";
   text l_cmd[1024];
   snprintf(l_cmd, 1024, const_cmd, v_task, v_term_sn);
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   return run_sql(l_cmd);
 }
 
 truefalse CPG::is_dist_data_new(CBsDistDatas & v_datas)
 {
   {
-    ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+    ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
     if (!validate_db_online())
-      return true;
+      return C_OK;
   }
   CMemProt l_x;
   if (!read_xinfo(1, l_x))
-    return true;
+    return C_OK;
   truefalse l_y = strcmp(v_datas.prev_query_ts.get_ptr(), l_x.get_ptr()) == 0;
   if (!l_y)
     v_datas.prev_query_ts.init(l_x.get_ptr());
@@ -4944,20 +4944,20 @@ truefalse CPG::refresh_task_condition()
 truefalse CPG::delete_unused_tasks()
 {
   CONST text * const_cmd = "select last_func()";
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   return run_sql(const_cmd);
 }
 
 truefalse CPG::read_term_SNs(CObsoleteDirDeleter & v_obj)
 {
   CONST text * const_cmd = "select ho_no from x_handleout_data";
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   PGresult * l_x = PQexec(m_pg_con, const_cmd);
   CPGResultProt prot(l_x);
   if (!l_x || PQresultStatus(l_x) != PGRES_TUPLES_OK)
   {
     C_ERROR("PQexec(%s): %s\n", const_cmd, PQerrorMessage(m_pg_con));
-    return false;
+    return C_BAD;
   }
   ni l_m = PQntuples(l_x);
   if (l_m > 0)
@@ -4965,7 +4965,7 @@ truefalse CPG::read_term_SNs(CObsoleteDirDeleter & v_obj)
     for (ni k = 0; k < l_m; ++k)
       v_obj.append_did(PQgetvalue(l_x, k, 0));
   }
-  return true;
+  return C_OK;
 }
 
 truefalse CPG::change_term_valid(CONST text * v_term_sn, truefalse v_ok)
@@ -4981,7 +4981,7 @@ truefalse CPG::change_term_valid(CONST text * v_term_sn, truefalse v_ok)
     snprintf(l_cmd, 1024, const_cmd, v_term_sn, v_term_sn);
   }
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   return run_sql(l_cmd);
 }
 
@@ -4991,13 +4991,13 @@ truefalse CPG::write_xinfo(CONST ni v_key, CONST text * v_x)
   text l_cmd[1024];
   snprintf(l_cmd, 1024, const_cmd, v_x, v_key);
 
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   return run_sql(l_cmd);
 }
 
 truefalse CPG::read_xinfo(CONST ni v_key, CMemProt & v_x)
 {
-  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, this->m_mutex, false);
+  ACE_GUARD_RETURN(ACE_Thread_Mutex, ace_mon, m_thread_keym, C_BAD);
   return read_xinfo_i(v_key, v_x);
 }
 
@@ -5012,15 +5012,15 @@ truefalse CPG::read_xinfo_i(CONST ni v_key, CMemProt & v_x)
   if (!l_x || PQresultStatus(l_x) != PGRES_TUPLES_OK)
   {
     C_ERROR("PQexec(%s): %s\n", l_cmd, PQerrorMessage(m_pg_con));
-    return false;
+    return C_BAD;
   }
   ni l_m = PQntuples(l_x);
   if (l_m > 0)
   {
     v_x.init(PQgetvalue(l_x, 0, 0));
-    return true;
+    return C_OK;
   } else
-    return false;
+    return C_BAD;
 }
 
 
@@ -5032,10 +5032,10 @@ truefalse CPG::do_read_db_time(time_t & v_t)
   if (!l_x || PQresultStatus(l_x) != PGRES_TUPLES_OK)
   {
     C_ERROR("PQexec(%s): %s\n", const_cmd, PQerrorMessage(m_pg_con));
-    return false;
+    return C_BAD;
   }
   if (PQntuples(l_x) <= 0)
-    return false;
+    return C_BAD;
   v_t = get_time_init(PQgetvalue(l_x, 0, 0));
-  return true;
+  return C_OK;
 }

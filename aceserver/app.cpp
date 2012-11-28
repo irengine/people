@@ -6,17 +6,17 @@
 
 CONST text * g_CONST_ver = "1.0";
 long g_clock_counter = 0;
-truefalse g_is_test = false;
+truefalse g_is_test = C_BAD;
 
-CONST truefalse CONST_run_at_back = false;
+CONST truefalse CONST_run_at_back = C_BAD;
 CONST ni  CONST_term_peak = 9900;
-CONST truefalse CONST_enable_cache = true;
+CONST truefalse CONST_enable_cache = C_OK;
 CONST ni  CONST_print_delay = 30; //m
 CONST ni  CONST_fcheck_delay = 3; //m
 CONST ni  CONST_max_len_log = 20;
 CONST ni  CONST_num_log = 3;
-CONST truefalse CONST_window_also_log = true;
-CONST truefalse CONST_verbose_log = true;
+CONST truefalse CONST_window_also_log = C_OK;
+CONST truefalse CONST_verbose_log = C_OK;
 
 CONST ni  CONST_pre_term_hole = 2223;
 CONST ni  CONST_server_hole = 2224;
@@ -194,14 +194,14 @@ truefalse CCfg::readall(CONST text * h_path, CXYZStyle m)
   if (v_hp.open () == -1)
   {
     C_FATAL("heap.open().\n");
-    return false;
+    return C_BAD;
   }
 
   ACE_Registry_ImpExp bridge(v_hp);
   if (bridge.import_config (cfg_fn.c_str()) == -1)
   {
     C_FATAL("import_config() failed on %s\n", cfg_fn.c_str());
-    return false;
+    return C_BAD;
   }
 
   CCfgKey akey;
@@ -209,37 +209,37 @@ truefalse CCfg::readall(CONST text * h_path, CXYZStyle m)
                            0, akey) == -1)
   {
     C_FATAL("config.open_key failed, key = %s\n", TEXT_SDefault);
-    return false;
+    return C_BAD;
   }
 
   if (!read_base(v_hp, akey))
-    return false;
+    return C_BAD;
 
   if (mode <= AM_BAD || mode > AM_TERMINAL)
   {
     C_FATAL("bad mode (= %d)", mode);
-    return false;
+    return C_BAD;
   }
 
   if (!read_handleout_pre(v_hp, akey))
-    return false;
+    return C_BAD;
 
   if (!read_term_pre(v_hp, akey))
-    return false;
+    return C_BAD;
 
   if (!read_term_handleout(v_hp, akey))
-    return false;
+    return C_BAD;
 
   if (!read_handleout(v_hp, akey))
-    return false;
+    return C_BAD;
 
   if (!read_pre(v_hp, akey))
-    return false;
+    return C_BAD;
 
   if (!read_terminal(v_hp, akey))
-    return false;
+    return C_BAD;
 
-  return true;
+  return C_OK;
 }
 
 truefalse CCfg::read_base(CCfgHeap & v_h, CCfgKey & v_k)
@@ -252,13 +252,13 @@ truefalse CCfg::read_base(CCfgHeap & v_h, CCfgKey & v_k)
       if (n != AM_HANDLEOUT && n != AM_PRE)
       {
         C_FATAL("bad style = %d\n", n);
-        return false;
+        return C_BAD;
       }
       mode = CXYZStyle(n);
     } else
     {
       C_FATAL("can not read style\n");
-      return false;
+      return C_BAD;
     }
   }
 
@@ -298,13 +298,13 @@ truefalse CCfg::read_base(CCfgHeap & v_h, CCfgKey & v_k)
   if (v_h.get_integer_value (v_k,  TEXT_print_delay, n) == 0)
     print_delay = n;
 
-  return true;
+  return C_OK;
 }
 
 truefalse CCfg::read_handleout_pre(CCfgHeap & v_h, CCfgKey & v_k)
 {
   if (!server())
-    return true;
+    return C_OK;
 
   ui n;
   if (v_h.get_integer_value (v_k,  TEXT_term_peak, n) == 0)
@@ -321,7 +321,7 @@ truefalse CCfg::read_handleout_pre(CCfgHeap & v_h, CCfgKey & v_k)
   else
   {
     C_ERROR("fail to read cfg value %s\n", TEXT_skey);
-    return false;
+    return C_BAD;
   }
 
   if (v_h.get_integer_value (v_k,  TEXT_server_hole, n) == 0)
@@ -329,7 +329,7 @@ truefalse CCfg::read_handleout_pre(CCfgHeap & v_h, CCfgKey & v_k)
     if (n == 0 || n >= 65535)
     {
       C_ERROR("bad cfg value %s (= %d)\n", TEXT_server_hole, n);
-      return false;
+      return C_BAD;
     }
     server_hole = n;
   }
@@ -339,7 +339,7 @@ truefalse CCfg::read_handleout_pre(CCfgHeap & v_h, CCfgKey & v_k)
   else
   {
     C_ERROR("can not read cfg value %s\n", TEXT_db_ip);
-    return false;
+    return C_BAD;
   }
 
   if (v_h.get_integer_value (v_k,  TEXT_db_hole, n) == 0)
@@ -347,7 +347,7 @@ truefalse CCfg::read_handleout_pre(CCfgHeap & v_h, CCfgKey & v_k)
     if (n == 0 || n >= 65535)
     {
       C_ERROR("bad cfg value %s (= %d)\n", TEXT_db_hole, n);
-      return false;
+      return C_BAD;
     }
     db_hole = n;
   }
@@ -357,7 +357,7 @@ truefalse CCfg::read_handleout_pre(CCfgHeap & v_h, CCfgKey & v_k)
   else
   {
     C_ERROR("fail to read cfg value %s\n", TEXT_db_login);
-    return false;
+    return C_BAD;
   }
 
   if (v_h.get_string_value(v_k, TEXT_db_key, s) == 0)
@@ -365,7 +365,7 @@ truefalse CCfg::read_handleout_pre(CCfgHeap & v_h, CCfgKey & v_k)
   else
   {
     C_ERROR("fail to read cfg value %s\n", TEXT_db_key);
-    return false;
+    return C_BAD;
   }
 
   if (v_h.get_string_value(v_k, TEXT_bz_files_path, s) == 0)
@@ -373,7 +373,7 @@ truefalse CCfg::read_handleout_pre(CCfgHeap & v_h, CCfgKey & v_k)
   else
   {
     C_ERROR("fail to read cfg value %s\n", TEXT_bz_files_path);
-    return false;
+    return C_BAD;
   }
 
   if (v_h.get_string_value(v_k, TEXT_bs_ip, s) == 0)
@@ -381,7 +381,7 @@ truefalse CCfg::read_handleout_pre(CCfgHeap & v_h, CCfgKey & v_k)
   else
   {
     C_ERROR("fail to read cfg value %s\n", TEXT_bs_ip);
-    return false;
+    return C_BAD;
   }
 
   if (v_h.get_integer_value(v_k, TEXT_bs_hole, n) == 0)
@@ -389,18 +389,18 @@ truefalse CCfg::read_handleout_pre(CCfgHeap & v_h, CCfgKey & v_k)
     if (n == 0 || n >= 65535)
     {
       C_ERROR("bad config value %s (= %d)\n", TEXT_bs_hole, n);
-      return false;
+      return C_BAD;
     }
     bs_hole = n;
   }
 
-  return true;
+  return C_OK;
 }
 
 truefalse CCfg::read_terminal(CCfgHeap & v_h, CCfgKey & v_k)
 {
   if (server())
-    return true;
+    return C_OK;
 
   ui n;
   if (g_is_test)
@@ -478,13 +478,13 @@ truefalse CCfg::read_terminal(CCfgHeap & v_h, CCfgKey & v_k)
   if (v_h.get_integer_value(v_k, TEXT_can_su, n) == 0)
     can_su = n;
 
-  return true;
+  return C_OK;
 }
 
 truefalse CCfg::read_handleout(CCfgHeap & v_h, CCfgKey & v_k)
 {
   if (!handleout())
-    return true;
+    return C_OK;
 
   ui n;
   if (v_h.get_integer_value(v_k, TEXT_sid, n) == 0)
@@ -492,14 +492,14 @@ truefalse CCfg::read_handleout(CCfgHeap & v_h, CCfgKey & v_k)
     if (n <= 1 || n >= 256)
     {
       C_ERROR("bad config value %s: %d\n", TEXT_sid, n);
-      return false;
+      return C_BAD;
     }
     sid = (u_int8_t)n;
   }
   else
   {
     C_ERROR("fail to read cfg value %s\n", TEXT_sid);
-    return false;
+    return C_BAD;
   }
 
   ACE_TString s;
@@ -508,13 +508,13 @@ truefalse CCfg::read_handleout(CCfgHeap & v_h, CCfgKey & v_k)
     if (!term_edition_min.init(s.c_str()))
     {
       C_ERROR("bad config value %s: %s\n", TEXT_term_edition_min, s.c_str());
-      return false;
+      return C_BAD;
     }
   }
   else
   {
     C_ERROR("fail to read cfg value %s\n", TEXT_term_edition_min);
-    return false;
+    return C_BAD;
   }
 
   if (v_h.get_string_value(v_k, TEXT_term_edition_now, s) == 0)
@@ -522,13 +522,13 @@ truefalse CCfg::read_handleout(CCfgHeap & v_h, CCfgKey & v_k)
     if (!term_edition_now.init(s.c_str()))
     {
       C_ERROR("bad config value %s: %s\n", TEXT_term_edition_now, s.c_str());
-      return false;
+      return C_BAD;
     }
   }
   else
   {
     C_ERROR("fail to read cfg value %s\n", TEXT_term_edition_now);
-    return false;
+    return C_BAD;
   }
 
   if (term_edition_now < term_edition_min)
@@ -536,16 +536,16 @@ truefalse CCfg::read_handleout(CCfgHeap & v_h, CCfgKey & v_k)
     C_ERROR("bad config value %s(%s) < %s(%s)\n",
         TEXT_term_edition_now, term_edition_now.to_text(),
         TEXT_term_edition_min, term_edition_min.to_text());
-    return false;
+    return C_BAD;
   }
 
-  return true;
+  return C_OK;
 }
 
 truefalse CCfg::read_pre(CCfgHeap & v_h, CCfgKey & v_k)
 {
   if (!pre())
-    return true;
+    return C_OK;
 
   ui n;
   if (v_h.get_integer_value (v_k,  TEXT_web_hole, n) == 0)
@@ -553,7 +553,7 @@ truefalse CCfg::read_pre(CCfgHeap & v_h, CCfgKey & v_k)
     if (n == 0 || n >= 65535)
     {
       C_ERROR("bad config value %s (= %d)\n", TEXT_web_hole, n);
-      return false;
+      return C_BAD;
     }
     web_hole = n;
   }
@@ -564,16 +564,16 @@ truefalse CCfg::read_pre(CCfgHeap & v_h, CCfgKey & v_k)
   else
   {
     C_ERROR("fail to read cfg value %s\n", TEXT_download_servers);
-    return false;
+    return C_BAD;
   }
 
-  return true;
+  return C_OK;
 }
 
 truefalse CCfg::read_term_pre(CCfgHeap & v_h, CCfgKey & v_k)
 {
   if (handleout())
-    return true;
+    return C_OK;
 
   ui n;
   if (v_h.get_integer_value (v_k,  TEXT_pre_term_hole, n) == 0)
@@ -581,18 +581,18 @@ truefalse CCfg::read_term_pre(CCfgHeap & v_h, CCfgKey & v_k)
     if (n == 0 || n >= 65535)
     {
       C_ERROR("bad config value %s (= %d)\n", TEXT_pre_term_hole, n);
-      return false;
+      return C_BAD;
     }
     pre_term_hole = n;
   }
 
-  return true;
+  return C_OK;
 }
 
 truefalse CCfg::read_term_handleout(CCfgHeap & v_h, CCfgKey & v_k)
 {
   if (pre())
-    return true;
+    return C_OK;
 
   ui n;
   if (v_h.get_integer_value (v_k, TEXT_ping_hole, n) == 0)
@@ -600,7 +600,7 @@ truefalse CCfg::read_term_handleout(CCfgHeap & v_h, CCfgKey & v_k)
     if (n == 0 || n >= 65535)
     {
       C_ERROR("bad config value %s (= %d)\n", TEXT_ping_hole, n);
-      return false;
+      return C_BAD;
     }
     ping_hole = n;
   }
@@ -611,10 +611,10 @@ truefalse CCfg::read_term_handleout(CCfgHeap & v_h, CCfgKey & v_k)
   else
   {
     C_ERROR("fail to read cfg value %s\n", TEXT_pre_ip);
-    return false;
+    return C_BAD;
   }
 
-  return true;
+  return C_OK;
 }
 
 DVOID CCfg::print_all()
@@ -757,18 +757,18 @@ ni CClocker::handle_timeout (CONST CTV &, CONST DVOID *)
 
 CParentRunner::CParentRunner(): m_sig(this), m_sfile(this), m_printer(this)
 {
-  m_working = false;
-  m_hup = false;
-  m_term = false;
-  m_chld = false;
-  m_sfile_ok = true;
-  m_sfile_check = false;
+  m_working = C_BAD;
+  m_hup = C_BAD;
+  m_term = C_BAD;
+  m_chld = C_BAD;
+  m_sfile_ok = C_OK;
+  m_sfile_check = C_BAD;
   srandom(time(NULL));
 }
 
 truefalse CParentRunner::do_init()
 {
-  return true;
+  return C_OK;
 }
 
 DVOID CParentRunner::add_component(CContainer * p)
@@ -791,7 +791,7 @@ truefalse CParentRunner::delayed_init()
   m_sgh.register_handler(SIGHUP, &m_sig);
 
   if (!do_init())
-    return false;
+    return C_BAD;
 
   C_INFO("loading containers done!\n");
 
@@ -801,10 +801,10 @@ truefalse CParentRunner::delayed_init()
     if (l_i == -1)
     {
       C_WARNING("sfile needed, but fail create/open file %s\n", CCfgX::instance()->sfile_fn.c_str());
-      return false;
+      return C_BAD;
     }
     close(l_i);
-    m_sfile_check = true;
+    m_sfile_check = C_OK;
 
     CTV interval (CCfgX::instance()->fcheck_delay * 60);
     if (ACE_Reactor::instance()->schedule_timer (&m_sfile, 0, interval, interval) == -1)
@@ -823,10 +823,10 @@ truefalse CParentRunner::delayed_init()
   if (ACE_Reactor::instance()->schedule_timer(&m_clock, 0, interval, interval) == -1)
   {
     C_FATAL("fail init clock timer\n");
-    return false;
+    return C_BAD;
   }
 
-  return true;
+  return C_OK;
 }
 
 CParentRunner::~CParentRunner()
@@ -917,7 +917,7 @@ DVOID CParentRunner::print_info()
 
 truefalse CParentRunner::before_begin()
 {
-  return true;
+  return C_OK;
 }
 
 DVOID CParentRunner::begin()
@@ -925,7 +925,7 @@ DVOID CParentRunner::begin()
   if (m_working)
     return;
   C_INFO("loading components...\n");
-  m_working = true;
+  m_working = C_OK;
   before_begin();
   std::for_each(m_components.begin(), m_components.end(), std::mem_fun(&CContainer::begin));
 
@@ -944,7 +944,7 @@ DVOID CParentRunner::end()
   if (!m_working)
     return;
   C_INFO("ending components...\n");
-  m_working = false;
+  m_working = C_BAD;
   std::for_each(m_components.begin(), m_components.end(), std::mem_fun(&CContainer::end));
   before_finish();
   C_INFO("ending components finish!\n");
@@ -955,13 +955,13 @@ DVOID CParentRunner::handle_signal(ni signum)
   switch (signum)
   {
   case SIGTERM:
-    m_term = true;
+    m_term = C_OK;
     break;
   case SIGHUP:
-    m_hup = true;
+    m_hup = C_OK;
     break;
   case SIGCHLD:
-    m_chld = true;
+    m_chld = C_OK;
     break;
   default:
     C_ERROR("bad signal (%d)\n", signum);
@@ -971,7 +971,7 @@ DVOID CParentRunner::handle_signal(ni signum)
 
 DVOID CParentRunner::schedule_works()
 {
-  while(true)
+  while(C_OK)
   {
     CTV l_x(2);
     ACE_Reactor::instance()->run_reactor_event_loop(l_x);
@@ -1002,36 +1002,36 @@ DVOID CParentRunner::schedule_works()
 
 truefalse CParentRunner::handle_signal_up()
 {
-  m_hup = false;
+  m_hup = C_BAD;
   print_info();
-  return true;
+  return C_OK;
 }
 
 truefalse CParentRunner::handle_signal_child()
 {
   ni st;
   pid_t x;
-  m_chld = false;
+  m_chld = C_BAD;
   while ((x = ::waitpid(-1, &st, WNOHANG)) > 0)
   {
     C_INFO("child process (%d) ends...\n", (ni)x);
     if (!do_singal_child(x))
-      return false;
+      return C_BAD;
   }
-  return true;
+  return C_OK;
 }
 
 truefalse CParentRunner::do_singal_child(pid_t)
 {
-  return true;
+  return C_OK;
 }
 
 truefalse CParentRunner::do_schedule_work()
 {
-  return true;
+  return C_OK;
 }
 
 DVOID CParentRunner::handle_no_sfile()
 {
-  m_sfile_ok = false;
+  m_sfile_ok = C_BAD;
 }

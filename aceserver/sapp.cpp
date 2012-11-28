@@ -60,12 +60,12 @@ CPG & CRunner::pg()
 
 truefalse CRunner::post_dist_task(CMB * mb)
 {
-  C_ASSERT_RETURN(mb, "\n", false);
+  C_ASSERT_RETURN(mb, "\n", C_BAD);
 
   if (unlikely(!running()))
   {
     mb->release();
-    return false;
+    return C_BAD;
   }
 
   return c_tools_mb_putq(m_ping_container->task(), mb, "post dist task");
@@ -73,7 +73,7 @@ truefalse CRunner::post_dist_task(CMB * mb)
 
 truefalse CRunner::before_begin()
 {
-  return true;
+  return C_OK;
 }
 
 DVOID CRunner::before_finish()
@@ -182,12 +182,12 @@ truefalse CRunner::do_init()
   if (!m_pg.login_to_db())
   {
     C_FATAL("fail to connect to database. quitting...\n");
-    return false;
+    return C_BAD;
   }
   if (!m_pg.load_term_SNs(&m_term_SNs))
   {
     C_FATAL("fail to get term sn from db. quitting...\n");
-    return false;
+    return C_BAD;
   }
 
   if (l_obj->handleout())
@@ -201,7 +201,7 @@ truefalse CRunner::do_init()
     add_component(m_balance_container = new CBalanceContainer(this));
     add_component(m_bs_req_container = new CBsReqContainer(this));
   }
-  return true;
+  return C_OK;
 }
 
 truefalse CRunner::initialize(CONST text * v_dir, CCfg::CXYZStyle v_m)

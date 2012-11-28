@@ -1,12 +1,12 @@
 #include "tools.h"
 #include "app.h"
 
-truefalse g_cache = true;
+truefalse g_cache = C_OK;
 
 CCachedMB::CCachedMB(size_t size, ACE_Allocator * x,
                 ACE_Allocator * y, ACE_Allocator * z, ACE_Message_Type type)
      :CMB(size, type, 0, 0, x, 0, ACE_DEFAULT_MESSAGE_BLOCK_PRIORITY,
-        ACE_Time_Value::zero, ACE_Time_Value::max_time, y, z)
+        CTV::zero, CTV::max_time, y, z)
 {
 
 }
@@ -107,22 +107,22 @@ DVOID CMemProt::inits(CONST text * p[], ni size)
 {
   if (unlikely(!p || size <= 0))
     return;
-  ni m = 0;
-  ni i;
-  for (i = 0; i < size; ++i)
+  ni l_n = 0;
+  ni l_m;
+  for (l_m = 0; l_m < size; ++l_m)
   {
-    if (likely(p[i] != NULL))
-      m += strlen(p[i]);
+    if (likely(p[l_m] != NULL))
+      l_n += strlen(p[l_m]);
   }
-  m += 1;
+  l_n += 1;
 
-  CCacheX::instance()->get(m, this);
+  CCacheX::instance()->get(l_n, this);
 
   m_ptr[0] = 0;
-  for (i = 0; i < size; ++i)
+  for (l_m = 0; l_m < size; ++l_m)
   {
-    if (likely(p[i] != NULL))
-      strcat(m_ptr, p[i]);
+    if (likely(p[l_m] != NULL))
+      strcat(m_ptr, p[l_m]);
   }
 }
 
@@ -130,20 +130,20 @@ DVOID c_tools_dump_hex(DVOID * p, ni len, text * out, ni o_size)
 {
   if (unlikely(!p || len <= 0 || o_size < 2 * len))
     return;
-  utext v;
-  for (ni i = 0; i < len; ++i)
+  utext l_z;
+  for (ni l_x = 0; l_x < len; ++l_x)
   {
-    v = ((unsigned char*)p)[i] >> 4;
-    if (v < 10)
-      out[i * 2] = '0' + v;
+    l_z = ((unsigned char*)p)[l_x] >> 4;
+    if (l_z < 10)
+      out[l_x * 2] = '0' + l_z;
     else
-      out[i * 2] = 'A' + (v - 10);
+      out[l_x * 2] = 'A' + (l_z - 10);
 
-    v = ((unsigned char*)p)[i] & 0x0F;
-    if (v < 10)
-      out[i * 2 + 1] = '0' + v;
+    l_z = ((unsigned char*)p)[l_x] & 0x0F;
+    if (l_z < 10)
+      out[l_x * 2 + 1] = '0' + l_z;
     else
-      out[i * 2 + 1] = 'A' + (v - 10);
+      out[l_x * 2 + 1] = 'A' + (l_z - 10);
   }
 }
 
@@ -152,22 +152,22 @@ DVOID c_tools_create_rnd_text(text * p, CONST ni size)
   if (unlikely(!p || size <= 1))
     return;
 
-  ni i = size - 1;
-  p[i] = 0;
-  CONST text schar[] = "~!@#$^&_-+=/\\";
-  //0-9 a-Z A-Z schar
-  CONST long total = 10 + 26 + 26 + sizeof(schar) / sizeof(text) - 1;
-  while ((--i) >= 0)
+  ni l_x = size - 1;
+  p[l_x] = 0;
+  CONST text c_array[] = "~!@#$^&_-+=/\\";
+  //0-9 a-Z A-Z c_array
+  CONST long l_all = 10 + 26 + 26 + sizeof(c_array) / sizeof(text) - 1;
+  while ((--l_x) >= 0)
   {
-    long r = random() % total;
-    if (r <= 9)
-      p[i] = '0' + r;
-    else if (r <= 9 + 26)
-      p[i] = 'a' + (r - 10);
-    else if (r <= 9 + 26 + 26)
-      p[i] = 'A' + (r - 10 - 26);
+    long l_v = random() % l_all;
+    if (l_v <= 9)
+      p[l_x] = '0' + l_v;
+    else if (l_v <= 9 + 26)
+      p[l_x] = 'a' + (l_v - 10);
+    else if (l_v <= 9 + 26 + 26)
+      p[l_x] = 'A' + (l_v - 10 - 26);
     else
-      p[i] = schar[r - 10 - 26 - 26];
+      p[l_x] = c_array[l_v - 10 - 26 - 26];
   }
 }
 
@@ -175,11 +175,11 @@ DVOID c_tools_create_rnd_text(text * p, CONST ni size)
 truefalse c_tools_locate_key_result(text * & p, CONST text * tag, text * & ret, text end_char)
 {
   if (unlikely(!p || !*p || !tag))
-    return false;
-  ni key_len = strlen(tag);
-  if (memcmp(p, tag, key_len) != 0)
-    return false;
-  p += key_len;
+    return C_BAD;
+  ni l_m = strlen(tag);
+  if (memcmp(p, tag, l_m) != 0)
+    return C_BAD;
+  p += l_m;
   ret = p;
   if (end_char)
   {
@@ -190,7 +190,7 @@ truefalse c_tools_locate_key_result(text * & p, CONST text * tag, text * & ret, 
     }
   } else
     p += strlen(p);
-  return true;
+  return C_OK;
 }
 
 typedef struct
@@ -410,14 +410,14 @@ truefalse md5file (CONST text *fn , u32 seed, MD5_CTX * x, text * ret, ni ret_si
   if (!fn || !*fn || !ret || ret_size < 32)
   {
     C_ERROR("bad param @md5file()\n");
-    return false;
+    return C_BAD;
   }
   ni fd = open (fn, O_RDONLY);
   if (fd < 0)
   {
     if (ACE_OS::last_error() != ENOENT)
       C_ERROR("can not open file %s for read %s\n", fn, (CONST char*)CSysError());
-    return false;
+    return C_BAD;
   }
   MD5Init (x, seed);
 
@@ -440,7 +440,7 @@ truefalse md5file (CONST text *fn , u32 seed, MD5_CTX * x, text * ret, ni ret_si
   close (fd);
   MD5Final(x);
   c_tools_dump_hex(x->digest, 16, ret, 16 * 2);
-  return true;
+  return C_OK;
 }
 
 
@@ -449,22 +449,22 @@ truefalse c_tools_tally_md5(CONST text * fn, CMemProt & g)
   text txt[32 + 1];
   MD5_CTX x;
   if (!md5file(fn, 0, &x, txt, 32))
-    return false;
+    return C_BAD;
   txt[32] = 0;
   g.init(txt);
-  return true;
+  return C_OK;
 }
 
 truefalse c_tools_convert_time_to_text(text * ret, ni ret_size, truefalse full, time_t t)
 {
-  C_ASSERT_RETURN(full? ret_size > 19: ret_size > 15, "buffer len too small @c_tools_generate_time_string\n", false);
+  C_ASSERT_RETURN(full? ret_size > 19: ret_size > 15, "buffer len too small @c_tools_generate_time_string\n", C_BAD);
   struct tm k;
   if (unlikely(localtime_r(&t, &k) == NULL))
-    return false;
+    return C_BAD;
   CONST text * tpl = full? "%04d-%02d-%02d %02d:%02d:%02d" : "%04d%02d%02d %02d%02d%02d";
   snprintf(ret, ret_size, tpl, k.tm_year + 1900, k.tm_mon + 1,
       k.tm_mday, k.tm_hour, k.tm_min, k.tm_sec);
-  return true;
+  return C_OK;
 }
 
 size_t c_tools_text_hash(CONST text * p)
@@ -480,7 +480,7 @@ truefalse c_tools_text_tail_is(CONST text * txt, CONST text * tail)
   ni m1 = strlen(txt);
   ni m2 = strlen(tail);
   if (m1 < m2)
-    return false;
+    return C_BAD;
   return memcmp(txt + m1 - m2, tail, m2) == 0;
 }
 
@@ -493,17 +493,17 @@ DVOID c_tools_text_replace(text * s, CONST text c_old, CONST text c_new)
     *p ++ = c_new;
 }
 
-truefalse c_tools_mb_putq(ACE_Task<ACE_MT_SYNCH> * q, CMB * mb, CONST text * fail_info)
+truefalse c_tools_mb_putq(ACE_Task<ACE_MT_SYNCH> * q, CMB * p_block_m, CONST text * fail_info)
 {
-  ACE_Time_Value tv(ACE_Time_Value::zero);
-  if (unlikely(q->putq(mb, &tv) < 0))
+  CTV tv(CTV::zero);
+  if (unlikely(q->putq(p_block_m, &tv) < 0))
   {
     if (fail_info)
       C_ERROR("fail to place message %s: %s\n", fail_info, (CONST text *)CSysError());
-    mb->release();
-    return false;
+    p_block_m->release();
+    return C_BAD;
   }
-  return true;
+  return C_OK;
 }
 
 
@@ -523,25 +523,24 @@ ni c_tools_socket_outcome(ssize_t m)
   return 1;
 }
 
-ni c_tools_post_mb(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * h, CMB *mb)
+ni c_tools_post_mb(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * h, CMB *p_block_m)
 {
-  if (!h || !mb)
+  if (!h || !p_block_m)
     return -1;
-  if (mb->length() == 0)
+  if (p_block_m->length() == 0)
     return 0;
-  ssize_t x = h->peer().send(mb->rd_ptr(), mb->length());
+  ssize_t x = h->peer().send(p_block_m->rd_ptr(), p_block_m->length());
   ni ret = c_tools_socket_outcome(x);
   if (ret < 0)
     return ret;
   if (x > 0)
-    mb->rd_ptr(x);
-  return (mb->length() == 0 ? 0:1);
+    p_block_m->rd_ptr(x);
+  return (p_block_m->length() == 0 ? 0:1);
 }
 
-ni c_tools_post_mbq(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * h,
-    CMB *mb, truefalse autofree)
+ni c_tools_post_mbq(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * h, CMB *p_mb, truefalse autofree)
 {
-  if (!mb)
+  if (!p_mb)
     return -1;
   if (!h)
   {
@@ -549,12 +548,12 @@ ni c_tools_post_mbq(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * h,
     return -1;
   }
 
-  CMBProt g(autofree ? mb: NULL);
+  CMBProt g(autofree ? p_mb: NULL);
 
   if (!h->msg_queue()->is_empty()) //sticky avoiding
   {
-    ACE_Time_Value nowait(ACE_Time_Value::zero);
-    if (h->putq(mb, &nowait) < 0)
+    CTV nowait(CTV::zero);
+    if (h->putq(p_mb, &nowait) < 0)
       return -1;
     else
     {
@@ -563,15 +562,15 @@ ni c_tools_post_mbq(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * h,
     }
   }
 
-  if (c_tools_post_mb(h, mb) < 0)
+  if (c_tools_post_mb(h, p_mb) < 0)
     return -1;
 
-  if (mb->length() == 0)
+  if (p_mb->length() == 0)
     return 0;
   else
   {
-    ACE_Time_Value x(ACE_Time_Value::zero);
-    if (h->putq(mb, &x) < 0)
+    CTV x(CTV::zero);
+    if (h->putq(p_mb, &x) < 0)
       return -1;
     else
       g.unbind();
@@ -580,19 +579,19 @@ ni c_tools_post_mbq(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * h,
   }
 }
 
-ni c_tools_read_mb(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * h, CMB *mb)
+ni c_tools_read_mb(ACE_Svc_Handler<ACE_SOCK_STREAM, ACE_NULL_SYNCH> * h, CMB *p_mb)
 {
-  if (!mb || !h)
+  if (!p_mb || !h)
     return -1;
-  if (mb->space() == 0)
+  if (p_mb->space() == 0)
     return 0;
-  ssize_t x = h->peer().recv(mb->wr_ptr(), mb->space());
-  ni ret = c_tools_socket_outcome(x);
-  if (ret < 0)
+  ssize_t l_x = h->peer().recv(p_mb->wr_ptr(), p_mb->space());
+  ni l_result = c_tools_socket_outcome(l_x);
+  if (l_result < 0)
     return -1;
-  if (x > 0)
-    mb->wr_ptr(x);
-  return (mb->space() == 0 ? 0:1);
+  if (l_x > 0)
+    p_mb->wr_ptr(l_x);
+  return (p_mb->space() == 0 ? 0:1);
 }
 
 
@@ -612,27 +611,27 @@ truefalse CSysFS::create_dir(CONST char* p, truefalse owned_by_me)
 truefalse CSysFS::create_dir(text * p, ni ignore_n, truefalse is_file, truefalse owned_by_me)
 {
   if (!p || !*p)
-    return false;
+    return C_BAD;
   if (ignore_n > (ni)strlen(p))
-    return false;
-  text * ptr = p + ignore_n;
-  while (*ptr == '/')
-    ++ptr;
-  text * ptr2;
-  while ((ptr2 = strchr(ptr, '/')) != NULL)
+    return C_BAD;
+  text * l_p = p + ignore_n;
+  while (*l_p == '/')
+    ++l_p;
+  text * l_p2;
+  while ((l_p2 = strchr(l_p, '/')) != NULL)
   {
-    *ptr2 = 0;
+    *l_p2 = 0;
     if (!create_dir(p, owned_by_me))
-      return false;
+      return C_BAD;
     //C_INFO("mkdir: %s\n", path);
-    *ptr2 = '/';
-    ptr = ptr2 + 1;
+    *l_p2 = '/';
+    l_p = l_p2 + 1;
   }
 
   if (!is_file)
     return create_dir(p, owned_by_me);
     //C_INFO("mkdir: %s\n", path);
-  return true;
+  return C_OK;
 }
 
 truefalse CSysFS::create_dir_const(CONST char* p, ni ignore_n, truefalse bfile, truefalse owned_by_me)
@@ -645,7 +644,7 @@ truefalse CSysFS::create_dir_const(CONST char* p, ni ignore_n, truefalse bfile, 
 truefalse CSysFS::create_dir(CONST text * v_parent, CONST text * v_child, truefalse bfile, truefalse owned_by_me)
 {
   if (unlikely(!v_parent || !v_child))
-    return false;
+    return C_BAD;
   CMemProt l_x;
   l_x.init(v_parent, "/", v_child);
   return create_dir(l_x.get_ptr(), strlen(v_parent) + 1, bfile, owned_by_me);
@@ -654,88 +653,88 @@ truefalse CSysFS::create_dir(CONST text * v_parent, CONST text * v_child, truefa
 truefalse CSysFS::copy_dir(CONST text * v_from, CONST text * v_to, truefalse owned_by_me, truefalse syn)
 {
   if (unlikely(!v_from || !*v_from || !v_to || !*v_to))
-    return false;
+    return C_BAD;
   if (!create_dir(v_to, owned_by_me))
   {
     C_ERROR("can not create directory %s, %s\n", v_to, (CONST text *)CSysError());
-    return false;
+    return C_BAD;
   }
 
-  DIR * dir = opendir(v_from);
-  if (!dir)
+  DIR * l_xyz = opendir(v_from);
+  if (!l_xyz)
   {
     C_ERROR("can not open directory: %s %s\n", v_from, (CONST char*)CSysError());
-    return false;
+    return C_BAD;
   }
 
   ni l_from = strlen(v_from);
   ni l_to = strlen(v_to);
 
-  struct dirent * de;
-  while ((de = readdir(dir)) != NULL)
+  struct dirent * l_de;
+  while ((l_de = readdir(l_xyz)) != NULL)
   {
-    if (!de->d_name)
+    if (!l_de->d_name)
       continue;
-    if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
+    if (!strcmp(l_de->d_name, ".") || !strcmp(l_de->d_name, ".."))
       continue;
 
     CMemProt _from, _to;
-    ni l_x = strlen(de->d_name);
+    ni l_x = strlen(l_de->d_name);
     CCacheX::instance()->get(l_from + l_x + 2, &_from);
-    sprintf(_from.get_ptr(), "%s/%s", v_from, de->d_name);
+    sprintf(_from.get_ptr(), "%s/%s", v_from, l_de->d_name);
     CCacheX::instance()->get(l_to + l_x + 2, &_to);
-    sprintf(_to.get_ptr(), "%s/%s", v_to, de->d_name);
+    sprintf(_to.get_ptr(), "%s/%s", v_to, l_de->d_name);
 
-    if (de->d_type == DT_REG)
+    if (l_de->d_type == DT_REG)
     {
       if (!copy_file(_from.get_ptr(), _to.get_ptr(), owned_by_me, syn))
       {
         C_ERROR("copy_file(%s) to (%s) failed %s\n", _from.get_ptr(), _to.get_ptr(), (CONST text *)CSysError());
-        closedir(dir);
-        return false;
+        closedir(l_xyz);
+        return C_BAD;
       }
     }
-    else if(de->d_type == DT_DIR)
+    else if(l_de->d_type == DT_DIR)
     {
       if (!copy_dir(_from.get_ptr(), _to.get_ptr(), owned_by_me, syn))
       {
-        closedir(dir);
-        return false;
+        closedir(l_xyz);
+        return C_BAD;
       }
     } else
-      C_WARNING("unknown file type (=%d) for file = %s/%s\n", de->d_type, v_from, de->d_name);
+      C_WARNING("unknown file type (=%d) for file = %s/%s\n", l_de->d_type, v_from, l_de->d_name);
   };
 
-  closedir(dir);
-  return true;
+  closedir(l_xyz);
+  return C_OK;
 }
 
 truefalse CSysFS::copy_dir_clear(CONST text * v_from, CONST text * v_to, truefalse owned_by_me, truefalse v_clear, truefalse syn)
 {
   if (unlikely(!v_from || !*v_from || !v_to || !*v_to))
-    return false;
+    return C_BAD;
 
   if (v_clear)
-    delete_dir(v_to, true);
+    delete_dir(v_to, C_OK);
 
-  if (!create_dir_const(v_to, 1, false, owned_by_me))
+  if (!create_dir_const(v_to, 1, C_BAD, owned_by_me))
   {
     C_ERROR("can not create directory %s, %s\n", v_to, (CONST text *)CSysError());
-    return false;
+    return C_BAD;
   }
 
-  DIR * dir = opendir(v_from);
-  if (!dir)
+  DIR * l_xop = opendir(v_from);
+  if (!l_xop)
   {
     C_ERROR("can not open directory: %s %s\n", v_from, (CONST char*)CSysError());
-    return false;
+    return C_BAD;
   }
 
   ni l_from = strlen(v_from);
   ni l_to = strlen(v_to);
 
   struct dirent * de;
-  while ((de = readdir(dir)) != NULL)
+  while ((de = readdir(l_xop)) != NULL)
   {
     if (!de->d_name)
       continue;
@@ -754,43 +753,43 @@ truefalse CSysFS::copy_dir_clear(CONST text * v_from, CONST text * v_to, truefal
       if (!copy_file(_from.get_ptr(), _to.get_ptr(), owned_by_me, syn))
       {
         C_ERROR("copy_file(%s) to (%s) failed %s\n", _from.get_ptr(), _to.get_ptr(), (CONST text *)CSysError());
-        closedir(dir);
-        return false;
+        closedir(l_xop);
+        return C_BAD;
       }
     }
     else if(de->d_type == DT_DIR)
     {
-      if (!copy_dir_clear(_from.get_ptr(), _to.get_ptr(), owned_by_me, true, syn))
+      if (!copy_dir_clear(_from.get_ptr(), _to.get_ptr(), owned_by_me, C_OK, syn))
       {
-        closedir(dir);
-        return false;
+        closedir(l_xop);
+        return C_BAD;
       }
     } else
       C_WARNING("unknown file type (=%d) for file = %s/%s\n", de->d_type, v_from, de->d_name);
   };
 
-  closedir(dir);
-  return true;
+  closedir(l_xop);
+  return C_OK;
 }
 
 truefalse CSysFS::delete_dir(CONST text * v_dir, truefalse no_print_failure)
 {
   if (unlikely(!v_dir || !*v_dir))
-    return false;
+    return C_BAD;
 
-  DIR * dir = opendir(v_dir);
-  if (!dir)
+  DIR * l_xop = opendir(v_dir);
+  if (!l_xop)
   {
     if (!no_print_failure)
       C_ERROR("opendir: %s %s\n", v_dir, (CONST char*)CSysError());
-    return false;
+    return C_BAD;
   }
 
-  truefalse b = true;
+  truefalse b = C_OK;
   ni l_src = strlen(v_dir);
 
   struct dirent * de;
-  while ((de = readdir(dir)) != NULL)
+  while ((de = readdir(l_xop)) != NULL)
   {
     if (!de->d_name)
       continue;
@@ -806,8 +805,8 @@ truefalse CSysFS::delete_dir(CONST text * v_dir, truefalse no_print_failure)
     {
       if (!delete_dir(l_x.get_ptr(), no_print_failure))
       {
-        closedir(dir);
-        return false;
+        closedir(l_xop);
+        return C_BAD;
       }
     } else
     {
@@ -815,12 +814,12 @@ truefalse CSysFS::delete_dir(CONST text * v_dir, truefalse no_print_failure)
       {
         if (!no_print_failure)
           C_ERROR("can not remove file %s %s\n", l_x.get_ptr(), (CONST char*)CSysError());
-        b = false;
+        b = C_BAD;
       }
     }
   };
 
-  closedir(dir);
+  closedir(l_xop);
   b = ::remove(v_dir) == 0;
   return b;
 }
@@ -828,11 +827,11 @@ truefalse CSysFS::delete_dir(CONST text * v_dir, truefalse no_print_failure)
 truefalse CSysFS::delete_obsolete_files(CONST text * v_parent_dir, time_t checkpoint)
 {
   if (unlikely(!v_parent_dir || !*v_parent_dir))
-    return false;
+    return C_BAD;
 
   struct stat l_x;
   if (!stat(v_parent_dir, &l_x))
-    return false;
+    return C_BAD;
 
   if (S_ISREG(l_x.st_mode))
   {
@@ -845,10 +844,10 @@ truefalse CSysFS::delete_obsolete_files(CONST text * v_parent_dir, time_t checkp
     if (!l_dir)
     {
       C_ERROR("opendir: %s %s\n", v_parent_dir, (CONST char*)CSysError());
-      return false;
+      return C_BAD;
     }
 
-    truefalse b = true;
+    truefalse b = C_OK;
     ni l_m = strlen(v_parent_dir);
 
     struct dirent * de;
@@ -865,17 +864,17 @@ truefalse CSysFS::delete_obsolete_files(CONST text * v_parent_dir, time_t checkp
       sprintf(l_tmp.get_ptr(), "%s/%s", v_parent_dir, de->d_name);
 
       if (!delete_obsolete_files(l_tmp.get_ptr(), checkpoint))
-        b = false;
+        b = C_BAD;
     };
     closedir(l_dir);
     return b;
   } else
   {
     C_ERROR("unknown file type (%s) mode(%d)\n", v_parent_dir, l_x.st_mode);
-    return false;
+    return C_BAD;
   }
 
-  return true;
+  return C_OK;
 }
 
 truefalse CSysFS::copy_file_by_fd(ni v_from, ni v_to)
@@ -883,38 +882,38 @@ truefalse CSysFS::copy_file_by_fd(ni v_from, ni v_to)
   CONST ni TXT_LEN = 4096;
   text txt[TXT_LEN];
   ni l_r, l_w;
-  while (true)
+  while (C_OK)
   {
     l_r = ::read(v_from, txt, TXT_LEN);
     if (l_r == 0)
-      return true;
+      return C_OK;
     else if (l_r < 0)
     {
       C_ERROR("read file: %s\n", (CONST char*)CSysError());
-      return false;
+      return C_BAD;
     }
 
     l_w = ::write(v_to, txt, l_r);
     if (l_w != l_r)
     {
       C_ERROR("write file: %s\n", (CONST char*)CSysError());
-      return false;
+      return C_BAD;
     }
 
     if (l_r < TXT_LEN)
-      return true;
+      return C_OK;
   }
 
-  ACE_NOTREACHED(return true);
+  ACE_NOTREACHED(return C_OK);
 }
 
 truefalse CSysFS::copy_file(CONST text * v_from, CONST text * v_to, truefalse owned_by_me, truefalse syn)
 {
   CFileProt l_from, l_to;
   if (!l_from.open_nowrite(v_from))
-    return false;
-  if (!l_to.open_write(v_to, true, true, false, owned_by_me))
-    return false;
+    return C_BAD;
+  if (!l_to.open_write(v_to, C_OK, C_OK, C_BAD, owned_by_me))
+    return C_BAD;
   truefalse b = copy_file_by_fd(l_from.get_fd(), l_to.get_fd());
   if (b && syn)
     fsync(l_to.get_fd());
@@ -936,11 +935,11 @@ truefalse CSysFS::dir_from_mfile(CMemProt & v_mfn, ni ignore_lead_n)
   text * l_p1 = v_mfn.get_ptr() + ignore_lead_n + 1;
   text * l_p2 = strrchr(l_p1, '.');
   if (unlikely(!l_p2 || l_p2 <= l_p1))
-    return false;
+    return C_BAD;
   *l_p2 = 0;
   if (unlikely(*(l_p2 - 1) == '/'))
-    return false;
-  return true;
+    return C_BAD;
+  return C_OK;
 }
 
 truefalse CSysFS::rename(CONST text * v_from_fn, CONST text * v_to_fn, truefalse no_report_failure)
@@ -965,12 +964,12 @@ truefalse CSysFS::ensure_delete(CONST text * p, truefalse no_report_failure)
   if (!stat(p, &l_x))
   {
     if (ACE_OS::last_error() == ENOENT)
-      return true;
+      return C_OK;
     else
     {
       if (!no_report_failure)
         C_ERROR("stat(%s) failed %s\n", (CONST text *)CSysError());
-      return false;
+      return C_BAD;
     }
   }
 
@@ -997,21 +996,21 @@ truefalse CSysFS::clean_dir_keep_mfile(CONST CMemProt & v_dir, CONST CMemProt & 
 {
   CMemProt l_mfn;
   l_mfn.init(v_mfn.get_ptr());
-  text * ptr = strrchr(l_mfn.get_ptr(), '.');
-  if (ptr)
-    *ptr = 0;
+  text * l_p = strrchr(l_mfn.get_ptr(), '.');
+  if (l_p)
+    *l_p = 0;
 
-  DIR * dir = opendir(v_dir.get_ptr());
-  if (!dir)
+  DIR * l_xop = opendir(v_dir.get_ptr());
+  if (!l_xop)
   {
     if (!no_report_failure)
       C_ERROR("can not open directory: %s %s\n", v_dir.get_ptr(), (CONST char*)CSysError());
-    return false;
+    return C_BAD;
   }
 
   struct dirent *de;
-  truefalse b = true;
-  while ((de = readdir(dir)) != NULL)
+  truefalse b = C_OK;
+  while ((de = readdir(l_xop)) != NULL)
   {
     if (!de->d_name)
       continue;
@@ -1025,23 +1024,23 @@ truefalse CSysFS::clean_dir_keep_mfile(CONST CMemProt & v_dir, CONST CMemProt & 
     if(de->d_type == DT_DIR)
     {
       if (!delete_dir(l_dir2.get_ptr(), no_report_failure))
-        b = false;
+        b = C_BAD;
     } else if (!remove(l_dir2.get_ptr(), no_report_failure))
-      b = false;
+      b = C_BAD;
   };
 
-  closedir(dir);
+  closedir(l_xop);
   return b;
 }
 
 DVOID CSysFS::clean_empty_dir(CONST CMemProt & p)
 {
-  DIR * dir = opendir(p.get_ptr());
-  if (!dir)
+  DIR * l_xop = opendir(p.get_ptr());
+  if (!l_xop)
     return;
 
   struct dirent * de;
-  while ((de = readdir(dir)) != NULL)
+  while ((de = readdir(l_xop)) != NULL)
   {
     if (!de->d_name)
       continue;
@@ -1055,8 +1054,8 @@ DVOID CSysFS::clean_empty_dir(CONST CMemProt & p)
       clean_empty_dir(msrc);
     }
   };
-  closedir(dir);
-  remove(p.get_ptr(), true);
+  closedir(l_xop);
+  remove(p.get_ptr(), C_OK);
 }
 
 
@@ -1064,14 +1063,14 @@ DVOID CTerminalDirCreator::create_dirs(CONST text * data_dir, i64 v_start, ni v_
 {
   if (!data_dir || !*data_dir)
     return;
-  text txt[PATH_MAX], sn[64];
-  snprintf(txt, PATH_MAX - 1, "%s/", data_dir);
-  ni l_lead_size = strlen(txt);
+  text l_text[PATH_MAX], l_sn[64];
+  snprintf(l_text, PATH_MAX - 1, "%s/", data_dir);
+  ni l_lead_size = strlen(l_text);
   for (long long l_val = v_start; l_val < v_start + v_count; ++ l_val)
   {
-    snprintf(sn, 64 - 1, "%lld", (long long)l_val);
-    term_sn_to_dir(sn, txt + l_lead_size, PATH_MAX - l_lead_size - 1);
-    CSysFS::create_dir(txt, l_lead_size + 1, false, true);
+    snprintf(l_sn, 64 - 1, "%lld", (long long)l_val);
+    term_sn_to_dir(l_sn, l_text + l_lead_size, PATH_MAX - l_lead_size - 1);
+    CSysFS::create_dir(l_text, l_lead_size + 1, C_BAD, C_OK);
   }
 }
 
@@ -1085,33 +1084,33 @@ DVOID CTerminalDirCreator::create_dirs_from_TermSNs(CONST text * data_dir, CTerm
   ni l_m = termsns->number();
   CNumber l_sn;
   CMemProt l_dir;
-  for (ni i = 0; i < l_m; ++ i)
+  for (ni l_j = 0; l_j < l_m; ++ l_j)
   {
-    termsns->get_sn(i, &l_sn);
+    termsns->get_sn(l_j, &l_sn);
     snprintf(sn, 64, "%s", l_sn.to_str());
     term_sn_to_dir(sn, txt + l_lead_size, PATH_MAX - l_lead_size - 1);
-    CSysFS::create_dir(txt, l_lead_size + 1, false, true);
+    CSysFS::create_dir(txt, l_lead_size + 1, C_BAD, C_OK);
     l_dir.init(txt, "/download");
-    CSysFS::create_dir(l_dir.get_ptr(), true);
+    CSysFS::create_dir(l_dir.get_ptr(), C_OK);
     l_dir.init(txt, "/daily");
-    CSysFS::create_dir(l_dir.get_ptr(), true);
+    CSysFS::create_dir(l_dir.get_ptr(), C_OK);
     l_dir.init(txt, "/tmp");
-    CSysFS::delete_dir(l_dir.get_ptr(), true);
-    CSysFS::create_dir(l_dir.get_ptr(), true);
+    CSysFS::delete_dir(l_dir.get_ptr(), C_OK);
+    CSysFS::create_dir(l_dir.get_ptr(), C_OK);
     l_dir.init(txt, "/backup");
-    CSysFS::create_dir(l_dir.get_ptr(), true);
+    CSysFS::create_dir(l_dir.get_ptr(), C_OK);
   }
 }
 
 truefalse CTerminalDirCreator::term_sn_to_dir(CONST text * sn, text * ret, ni ret_size)
 {
   if (!sn || !*sn || !ret)
-    return false;
+    return C_BAD;
   ni l_m = strlen(sn);
   if (ret_size < l_m + 4)
   {
     C_ERROR("not enough result_len\n");
-    return false;
+    return C_BAD;
   }
 
   text txt[3];
@@ -1120,17 +1119,17 @@ truefalse CTerminalDirCreator::term_sn_to_dir(CONST text * sn, text * ret, ni re
   txt[1] = sn[l_m + 1];
   txt[2] = 0;
   sprintf(ret, "%s/%s", txt, sn);
-  return true;
+  return C_OK;
 }
 
 
 truefalse CFileProt::open_i(CONST text * f, truefalse no_write, truefalse newf, truefalse clear_content, truefalse add_only, truefalse owned_by_me)
 {
-  ni fd;
+  ni l_fd;
   if (unlikely(!f || !*f))
-    return false;
+    return C_BAD;
   if (no_write)
-    fd = ::open(f, O_RDONLY);
+    l_fd = ::open(f, O_RDONLY);
   else
   {
     ni l_m = O_RDWR;
@@ -1140,16 +1139,16 @@ truefalse CFileProt::open_i(CONST text * f, truefalse no_write, truefalse newf, 
       l_m |= O_TRUNC;
     if (add_only)
       l_m |= O_APPEND;
-    fd = ::open(f, l_m, (owned_by_me ? CSysFS::FPROT_ME : CSysFS::FPROT_NONE));
+    l_fd = ::open(f, l_m, (owned_by_me ? CSysFS::FPROT_ME : CSysFS::FPROT_NONE));
   }
-  if (fd < 0)
+  if (l_fd < 0)
   {
     if (m_print_failure)
       C_ERROR("can not open file %s, %s\n", f, (CONST text *)CSysError());
-    return false;
+    return C_BAD;
   }
-  bind_fd(fd);
-  return true;
+  bind_fd(l_fd);
+  return C_OK;
 }
 
 
@@ -1179,40 +1178,40 @@ DVOID CCache::prepare(CCfg * v_ptr)
   CONST ni MB = 1024 * 1024;
   CONST ni l_sizes[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8 * KB, 16 * KB, 32 * KB,
                            64 * KB, 128 * KB, 256 * KB, 512 * KB, 2 * MB};
-  ni cnt = sizeof (l_sizes) / sizeof (ni);
-  m_blocks.reserve(cnt);
-  m_block_sizes.reserve(cnt);
-  ni m;
+  ni l_m = sizeof (l_sizes) / sizeof (ni);
+  m_blocks.reserve(l_m);
+  m_block_sizes.reserve(l_m);
+  ni l_n;
   if (v_ptr->term_station())
   {
     for(size_t i = 0;i < sizeof (l_sizes) / sizeof (ni);++i)
     {
       if (l_sizes[i] <= 512)
-        m = 1000;
+        l_n = 1000;
       else if (l_sizes[i] < 8 * KB)
-        m = 300;
+        l_n = 300;
       else if (l_sizes[i] < 512 * KB)
-        m = 20;
+        l_n = 20;
       else
-        m = 4;
+        l_n = 4;
       m_block_sizes.push_back(l_sizes[i]);
-      m_blocks.push_back(new CMemBlock<ACE_Thread_Mutex>(m, l_sizes[i]));
+      m_blocks.push_back(new CMemBlock<ACE_Thread_Mutex>(l_n, l_sizes[i]));
       m_blocks[i]->prepare();
     }
   }
   else if (v_ptr->pre())
   {
-    for(size_t i = 0;i < sizeof (l_sizes) / sizeof (ni);++i)
+    for(size_t l_xi = 0;l_xi < sizeof (l_sizes) / sizeof (ni);++l_xi)
     {
-      if (l_sizes[i] <= 8 * KB)
-        m = 2000;
-      else if (l_sizes[i] < 512 * KB)
-        m = MB / l_sizes[i];
+      if (l_sizes[l_xi] <= 8 * KB)
+        l_n = 2000;
+      else if (l_sizes[l_xi] < 512 * KB)
+        l_n = MB / l_sizes[l_xi];
       else
-        m = 4;
-      m_block_sizes.push_back(l_sizes[i]);
-      m_blocks.push_back(new CMemBlock<ACE_Thread_Mutex>(m, l_sizes[i]));
-      m_blocks[i]->prepare();
+        l_n = 4;
+      m_block_sizes.push_back(l_sizes[l_xi]);
+      m_blocks.push_back(new CMemBlock<ACE_Thread_Mutex>(l_n, l_sizes[l_xi]));
+      m_blocks[l_xi]->prepare();
     }
   }
   else if (CCfgX::instance()->handleout())
@@ -1220,15 +1219,15 @@ DVOID CCache::prepare(CCfg * v_ptr)
     for(size_t i = 0;i < sizeof (l_sizes) / sizeof (ni);++i)
     {
       if (l_sizes[i] == 32 || l_sizes[i] == 128)
-        m = std::max((ni)((v_ptr->term_peak * 20)), 10000);
+        l_n = std::max((ni)((v_ptr->term_peak * 20)), 10000);
       else if (l_sizes[i] <= 1 * KB)
-        m = std::max((ni)((v_ptr->term_peak * 2)), 3000);
+        l_n = std::max((ni)((v_ptr->term_peak * 2)), 3000);
       else if (l_sizes[i] < 512 * KB)
-        m = 2 * MB / l_sizes[i];
+        l_n = 2 * MB / l_sizes[i];
       else
-        m = 4;
+        l_n = 4;
       m_block_sizes.push_back(l_sizes[i]);
-      m_blocks.push_back(new CMemBlock<ACE_Thread_Mutex>(m, l_sizes[i]));
+      m_blocks.push_back(new CMemBlock<ACE_Thread_Mutex>(l_n, l_sizes[i]));
       m_blocks[i]->prepare();
     }
   }
@@ -1280,7 +1279,7 @@ CMB * CCache::get_mb(ni size)
   }
   ni l_n = m_blocks.size();
   CMB * pMB;
-  truefalse fail_once = false;
+  truefalse fail_once = C_BAD;
   DVOID * p;
   ni idx = find_best(size);
   for (ni i = idx; i < l_n; ++i)
@@ -1297,7 +1296,7 @@ CMB * CCache::get_mb(ni size)
       pMB->release();
       if (!fail_once)
       {
-        fail_once = true;
+        fail_once = C_OK;
         continue;
       } else
       {
@@ -1324,17 +1323,17 @@ CMB * CCache::get_mb_cmd(ni size, ni cmd, truefalse no_gen)
     C_FATAL("bad size(=%d)\n", size);
     return NULL;
   }
-  CMB * mb = get_mb(size + (ni)sizeof(CCmdHeader));
-  mb->wr_ptr(mb->capacity());
-  CCmdHeader * p = (CCmdHeader *) mb->base();
-  p->cmd = cmd;
-  p->size = size + (ni)sizeof(CCmdHeader);
-  p->signature = CCmdHeader::SIGNATURE;
+  CMB * l_mb = get_mb(size + (ni)sizeof(CCmdHeader));
+  l_mb->wr_ptr(l_mb->capacity());
+  CCmdHeader * l_ptr = (CCmdHeader *) l_mb->base();
+  l_ptr->cmd = cmd;
+  l_ptr->size = size + (ni)sizeof(CCmdHeader);
+  l_ptr->signature = CCmdHeader::SIGNATURE;
   if (likely(no_gen))
-    ::uuid_clear(p->uuid);
+    ::uuid_clear(l_ptr->uuid);
   else
-    ::uuid_generate(p->uuid);
-  return mb;
+    ::uuid_generate(l_ptr->uuid);
+  return l_mb;
 }
 
 CMB * CCache::get_mb_ack(CMB * p)
@@ -1345,15 +1344,15 @@ CMB * CCache::get_mb_ack(CMB * p)
     return NULL;
   }
 
-  CMB * mb = get_mb((ni)sizeof(CCmdHeader));
-  mb->wr_ptr(mb->capacity());
-  CCmdHeader * h = (CCmdHeader *) mb->base();
+  CMB * l_mb = get_mb((ni)sizeof(CCmdHeader));
+  l_mb->wr_ptr(l_mb->capacity());
+  CCmdHeader * h = (CCmdHeader *) l_mb->base();
   CCmdHeader * h_src = (CCmdHeader *) p->base();
   h->cmd = CCmdHeader::PT_ANSWER;
   h->size = (ni)sizeof(CCmdHeader);
   h->signature = CCmdHeader::SIGNATURE;
   uuid_copy(h->uuid, h_src->uuid);
-  return mb;
+  return l_mb;
 
 }
 
@@ -1365,24 +1364,24 @@ CMB * CCache::get_mb_bs(ni data_size, CONST text * cmd)
     return NULL;
   }
   ni l_x = data_size + 8 + 4 + 2 + 1;
-  CMB * mb = get_mb(l_x);
-  mb->wr_ptr(mb->capacity());
-  text * ptr = mb->base();
+  CMB * l_mb = get_mb(l_x);
+  l_mb->wr_ptr(l_mb->capacity());
+  text * ptr = l_mb->base();
   ptr[l_x - 1] = CBSData::LAST_SEPARATOR;
   snprintf(ptr, 9, "%08d", l_x);
   memcpy(ptr + 8, "vc5X", 4);
   memcpy(ptr + 12, cmd, 2);
-  return mb;
+  return l_mb;
 }
 
 truefalse CCache::get(ni size, CMemProt * g)
 {
   if (unlikely(!g))
-    return false;
+    return C_BAD;
   if (unlikely(g->get_ptr() != NULL))
   {
     if (g->m_size >= size)
-      return true;
+      return C_OK;
     else
       put(g);
   }
@@ -1396,55 +1395,55 @@ truefalse CCache::get(ni size, CMemProt * g)
     ++ m_all_outside;
     p = new text[size];
     g->data(p, BAD_IDX, size);
-    return true;
+    return C_OK;
   }
   g->data(p, idx, m_blocks[idx]->block_len());
-  return true;
+  return C_OK;
 }
 
 DVOID * CCache::get_raw(ni size)
 {
-  DVOID * p;
-  ni i = g_cache? find_best(size): BAD_IDX;
-  if (i == BAD_IDX || (p = m_blocks[i]->malloc()) == NULL)
+  DVOID * l_ptr;
+  ni l_x = g_cache? find_best(size): BAD_IDX;
+  if (l_x == BAD_IDX || (l_ptr = m_blocks[l_x]->malloc()) == NULL)
   {
 //    if (g_cache)
 //      C_DEBUG("outside size(%d)\n", size);
     ++ m_all_outside;
-    p = (void*)new text[size];
+    l_ptr = (void*)new text[size];
   }
-  return p;
+  return l_ptr;
 }
 
-DVOID CCache::put_raw(DVOID * ptr)
+DVOID CCache::put_raw(DVOID * v_p)
 {
-  if (ptr == NULL)
+  if (v_p == NULL)
   {
-    ::delete [](char*)ptr;
+    ::delete [](char*)v_p;
     return;
   }
 
-  ni i = g_cache? find_by_ptr(ptr): BAD_IDX;
-  if (i != BAD_IDX)
-    m_blocks[i]->free(ptr);
+  ni l_i = g_cache? find_by_ptr(v_p): BAD_IDX;
+  if (l_i != BAD_IDX)
+    m_blocks[l_i]->free(v_p);
   else
-    ::delete [](char*)ptr;
+    ::delete [](char*)v_p;
 }
 
-DVOID CCache::put(CMemProt * p)
+DVOID CCache::put(CMemProt * v_ptr)
 {
-  if (!p || !p->get_ptr())
+  if (!v_ptr || !v_ptr->get_ptr())
     return;
-  ni i = p->index();
-  if (i == BAD_IDX)
-    delete [] (char*)p->get_ptr();
-  else if (unlikely(i < 0 || i >= (ni)m_blocks.size()))
+  ni l_x = v_ptr->index();
+  if (l_x == BAD_IDX)
+    delete [] (char*)v_ptr->get_ptr();
+  else if (unlikely(l_x < 0 || l_x >= (ni)m_blocks.size()))
     C_FATAL("try to free bad mem_pool data: index = %d, pool.size() = %d\n",
-        i, (ni)m_blocks.size());
+        l_x, (ni)m_blocks.size());
   else
-    m_blocks[i]->free(p->get_ptr());
-  p->m_ptr = NULL;
-  p->m_size = 0;
+    m_blocks[l_x]->free(v_ptr->get_ptr());
+  v_ptr->m_ptr = NULL;
+  v_ptr->m_size = 0;
 }
 
 DVOID CCache::print_info()
@@ -1487,7 +1486,7 @@ CTextDelimiter::CTextDelimiter(text * p, CONST text * mark)
 text * CTextDelimiter::get()
 {
   text * l_x;
-  while (true)
+  while (C_OK)
   {
     l_x = strtok_r(m_txt, m_marks, &m_tmp);
     if (!l_x)
@@ -2390,7 +2389,7 @@ truefalse c_packet_check_no_video(CONST CCmdHeader * h)
 truefalse CCmdExt::validate()
 {
   if (unlikely(size <= (ni)sizeof(CCmdHeader)))
-    return false;
+    return C_BAD;
   return data[size - sizeof(CCmdHeader) - 1] == 0;
 }
 
@@ -2408,7 +2407,7 @@ truefalse CBSData::validate_header() CONST
   if (memcmp(signature, CONST_bs_leading, SIGNATURE_LEN) != 0)
   {
     C_ERROR("bad bs signature\n");
-    return false;
+    return C_BAD;
   }
 
   for (ni i = 0; i < LEN; ++i)
@@ -2416,7 +2415,7 @@ truefalse CBSData::validate_header() CONST
     if (unlikely(length[i] < '0' || length[i] > '9'))
     {
       C_ERROR("bad bs len char\n");
-      return false;
+      return C_BAD;
     }
   }
 
@@ -2424,10 +2423,10 @@ truefalse CBSData::validate_header() CONST
   if (unlikely(l <= 15 || l > 10000000))
   {
     C_ERROR("invalid bs len (= %d)\n", l);
-    return false;
+    return C_BAD;
   }
 
-  return true;
+  return C_OK;
 }
 
 DVOID CBSData::data_len(ni m)
@@ -2456,7 +2455,7 @@ DVOID CBSData::set_cmd(CONST text * s)
 truefalse CBSData::is_cmd(CONST text * s)
 {
   if (unlikely(!s || !*command))
-    return false;
+    return C_BAD;
   return memcmp(length, s, 2) == 0;
 }
 
@@ -2464,7 +2463,7 @@ truefalse CBSData::fix_data()
 {
   ni m = data_len();
   if (data[m - 14 - 1] != '$')
-    return false;
+    return C_BAD;
   data[m - 14 - 1] = 0;
-  return true;
+  return C_OK;
 }

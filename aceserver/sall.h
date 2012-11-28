@@ -192,8 +192,8 @@ private:
   DVOID do_compute_ips();
   CChargeDatas::CChargeDataVecIt do_search(CONST text *);
 
-  ACE_Thread_Mutex m_mutex;
-  CChargeDataVec m_loads;
+  ACE_Thread_Mutex m_thread_keym;
+  CChargeDataVec m_charge_datas;
   text m_ips[IP_SIZE];
   ni   m_ip_size;
 };
@@ -1001,7 +1001,7 @@ private:
   CNoVideoWarnGatherer m_no_video_warn_gatherer;
   CPingTask * m_ping_task;
   CPingScheduler * m_schduler;
-  ACE_Thread_Mutex m_mutex;
+  ACE_Thread_Mutex m_thread_keym;
   CMemProt m_prio;
 };
 
@@ -1209,7 +1209,7 @@ private:
   ni m_db_port;
   CMemProt m_db_login;
   CMemProt m_db_key;
-  ACE_Thread_Mutex m_mutex;
+  ACE_Thread_Mutex m_thread_keym;
 };
 
 #endif

@@ -46,6 +46,8 @@ typedef ACE_Time_Value CTV;
 #define SF     static
 #define CONST  const
 #define DVOID  void
+#define C_OK   true
+#define C_BAD  false
 
 EXTERN truefalse g_cache;
 
@@ -310,7 +312,7 @@ public:
     DVOID * l_x = baseclass::malloc(v_n);
 
     {
-      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, l_x));
+      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_thread_keym, l_x));
       if (l_x)
       {
         ++m_get;
@@ -327,7 +329,7 @@ public:
   {
     DVOID * l_x = baseclass::calloc(v_n, v_char);
     {
-      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_mutex, l_x));
+      ACE_MT (ACE_GUARD_RETURN(ACE_LOCK, ace_mon, this->m_thread_keym, l_x));
       if (l_x)
       {
         ++m_get;
@@ -342,7 +344,7 @@ public:
   DVOID free(DVOID * v_x)
   {
     {
-      ACE_MT (ACE_GUARD(ACE_LOCK, ace_mon, this->m_mutex));
+      ACE_MT (ACE_GUARD(ACE_LOCK, ace_mon, this->m_thread_keym));
       if (v_x != NULL)
         ++m_put;
     }
@@ -351,7 +353,7 @@ public:
 
   DVOID query_stats(long & nGet, long & nPut, long & nPeak, long & nFail)
   {
-    ACE_MT (ACE_GUARD(ACE_LOCK, ace_mon, this->m_mutex));
+    ACE_MT (ACE_GUARD(ACE_LOCK, ace_mon, this->m_thread_keym));
     nGet = m_get;
     nPut = m_put;
     nPeak = m_peak;
@@ -369,7 +371,7 @@ public:
   }
 
 private:
-  ACE_LOCK m_mutex;
+  ACE_LOCK m_thread_keym;
   size_t m_block_len;
   ni  m_blocks;
   long m_get;
